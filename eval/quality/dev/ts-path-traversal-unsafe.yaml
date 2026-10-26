@@ -1,0 +1,61 @@
+schema_version: 1
+id: ts-path-traversal-unsafe
+split: development
+language: typescript
+pair: ts-path-traversal
+variant: unsafe
+profiles: [correctness]
+rationale: "The new download route joins the `name` query parameter into the upload path unchecked: `../../etc/passwd` escapes UPLOAD_DIR and any readable server file is downloaded."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {
+        "express": "^5.1.0"
+      }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/routes/files.ts: |
+    import { readdir } from 'node:fs/promises';
+    import path from 'node:path';
+    import { Router } from 'express';
+
+    const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR ?? 'uploads');
+
+    export const files = Router();
+
+    files.get('/files', async (_req, res) => {
+      res.json(await readdir(UPLOAD_DIR));
+    });
+head:
+  src/routes/files.ts: |
+    import { readdir } from 'node:fs/promises';
+    import path from 'node:path';
+    import { Router } from 'express';
+
+    const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR ?? 'uploads');
+
+    export const files = Router();
+
+    files.get('/files', async (_req, res) => {
+      res.json(await readdir(UPLOAD_DIR));
+    });
+
+    files.get('/files/download', (req, res) => {
+      const target = path.join(UPLOAD_DIR, String(req.query.name));
+      res.download(target);
+    });
+expected:
+  findings:
+    - category: defect
+      semantic_target: "files served by /files/download stay inside UPLOAD_DIR"
+      required_condition: "the name query parameter contains `..` segments or an absolute path"
+      evidence_locations:
+        - { side: HEAD, path: src/routes/files.ts, start_line: 14, end_line: 15 }
+  forbidden_claims:
+    - "The download route is safe because path.join normalises the name."

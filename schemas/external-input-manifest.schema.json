@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExternalInputManifest",
+  "description": "Pinned CI/contract/environment inputs of one run, frozen before analysis.",
+  "type": "object",
+  "properties": {
+    "frozen_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "id": {
+      "description": "Hash of snapshot, policy and inputs; `frozen_at` is excluded.",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "inputs": {
+      "description": "Sorted by evidence id.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ExternalInput"
+      }
+    },
+    "policy_snapshot_id": {
+      "$ref": "#/$defs/PolicySnapshotId"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    },
+    "source_snapshot_id": {
+      "$ref": "#/$defs/SourceSnapshotId"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "source_snapshot_id",
+    "policy_snapshot_id",
+    "inputs",
+    "frozen_at"
+  ],
+  "$defs": {
+    "EvidenceKind": {
+      "type": "string",
+      "enum": [
+        "source",
+        "semantic",
+        "static",
+        "test",
+        "coverage",
+        "contract",
+        "infrastructure",
+        "human"
+      ]
+    },
+    "ExternalInput": {
+      "type": "object",
+      "properties": {
+        "artifact_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "evidence_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "$ref": "#/$defs/EvidenceKind"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "kind",
+        "artifact_sha256"
+      ]
+    },
+    "PolicySnapshotId": {
+      "description": "Content-derived identity of a [`crate::PolicySnapshot`].",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "Sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "SourceSnapshotId": {
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "$ref": "#/$defs/Sha256Digest"
+    }
+  }
+}

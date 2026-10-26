@@ -1,0 +1,46 @@
+schema_version: 1
+id: react-subscription-safe
+split: development
+language: typescript
+pair: react-subscription
+variant: safe
+profiles: [correctness]
+rationale: "The unsubscribe function is named and returned explicitly."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/CartBadge.tsx: |
+    import { useEffect, useState } from 'react';
+    import { cartStore } from './cart-store';
+
+    export function CartBadge() {
+      const [count, setCount] = useState(cartStore.count());
+      useEffect(() => cartStore.subscribe(() => setCount(cartStore.count())), []);
+      return <span className="badge">{count}</span>;
+    }
+head:
+  src/CartBadge.tsx: |
+    import { useEffect, useState } from 'react';
+    import { cartStore } from './cart-store';
+
+    export function CartBadge() {
+      const [count, setCount] = useState(cartStore.count());
+      useEffect(() => {
+        const unsubscribe = cartStore.subscribe(() => setCount(cartStore.count()));
+        return unsubscribe;
+      }, []);
+      return <span className="badge">{count}</span>;
+    }
+expected:
+  facts:
+    - { kind: effect_with_cleanup, side: HEAD, path: src/CartBadge.tsx, line: 6 }
+  forbidden_facts:
+    - { kind: unpaired_subscription, side: HEAD, path: src/CartBadge.tsx, line: 6 }

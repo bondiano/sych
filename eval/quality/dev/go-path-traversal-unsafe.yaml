@@ -1,0 +1,57 @@
+schema_version: 1
+id: go-path-traversal-unsafe
+split: development
+language: go
+pair: go-path-traversal
+variant: unsafe
+profiles: [correctness]
+rationale: "Reports are now addressed by a free-form `name` query parameter joined onto reportsDir: filepath.Join cleans `../../etc/passwd` to a path outside reportsDir and ServeFile returns it."
+base:
+  go.mod: |
+    module example.com/reports
+
+    go 1.24
+  reports.go: |
+    package reports
+
+    import (
+    	"fmt"
+    	"net/http"
+    	"path/filepath"
+    	"strconv"
+    )
+
+    const reportsDir = "/srv/reports"
+
+    func Download(w http.ResponseWriter, r *http.Request) {
+    	id, err := strconv.Atoi(r.URL.Query().Get("id"))
+    	if err != nil {
+    		http.Error(w, "bad id", http.StatusBadRequest)
+    		return
+    	}
+    	http.ServeFile(w, r, filepath.Join(reportsDir, fmt.Sprintf("%d.pdf", id)))
+    }
+head:
+  reports.go: |
+    package reports
+
+    import (
+    	"net/http"
+    	"path/filepath"
+    )
+
+    const reportsDir = "/srv/reports"
+
+    func Download(w http.ResponseWriter, r *http.Request) {
+    	name := r.URL.Query().Get("name")
+    	http.ServeFile(w, r, filepath.Join(reportsDir, name))
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "files served by Download stay inside reportsDir"
+      required_condition: "the name query parameter contains `..` segments"
+      evidence_locations:
+        - { side: HEAD, path: reports.go, start_line: 12, end_line: 12 }
+  forbidden_claims:
+    - "filepath.Join prevents traversal outside reportsDir."

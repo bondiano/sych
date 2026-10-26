@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EvidenceManifest",
+  "description": "Every input and derived evidence the result used; frozen at finalization.",
+  "type": "object",
+  "properties": {
+    "evidence": {
+      "description": "Sorted by evidence id.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/EvidenceRecord"
+      }
+    },
+    "external_input_manifest_id": {
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "frozen_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "policy_snapshot_id": {
+      "$ref": "#/$defs/PolicySnapshotId"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    },
+    "source_snapshot_id": {
+      "$ref": "#/$defs/SourceSnapshotId"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "source_snapshot_id",
+    "policy_snapshot_id",
+    "external_input_manifest_id",
+    "evidence",
+    "frozen_at"
+  ],
+  "$defs": {
+    "EvidenceKind": {
+      "type": "string",
+      "enum": [
+        "source",
+        "semantic",
+        "static",
+        "test",
+        "coverage",
+        "contract",
+        "infrastructure",
+        "human"
+      ]
+    },
+    "EvidenceOrigin": {
+      "oneOf": [
+        {
+          "description": "Listed in the frozen external input manifest.",
+          "type": "string",
+          "const": "EXTERNAL_INPUT"
+        },
+        {
+          "description": "Produced in this run from the pinned snapshot.",
+          "type": "string",
+          "const": "DERIVED"
+        }
+      ]
+    },
+    "EvidenceRecord": {
+      "type": "object",
+      "properties": {
+        "artifact_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "evidence_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "$ref": "#/$defs/EvidenceKind"
+        },
+        "origin": {
+          "$ref": "#/$defs/EvidenceOrigin"
+        },
+        "validity": {
+          "$ref": "#/$defs/Validity"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "kind",
+        "origin",
+        "validity",
+        "artifact_sha256"
+      ]
+    },
+    "PolicySnapshotId": {
+      "description": "Content-derived identity of a [`crate::PolicySnapshot`].",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "Sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "SourceSnapshotId": {
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "Validity": {
+      "type": "string",
+      "enum": [
+        "VALID",
+        "STALE",
+        "UNAVAILABLE",
+        "MALFORMED",
+        "FAILED"
+      ]
+    }
+  }
+}

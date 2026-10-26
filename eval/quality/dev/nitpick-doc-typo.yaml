@@ -1,0 +1,40 @@
+schema_version: 1
+id: nitpick-doc-typo
+split: development
+language: rust
+variant: safe
+profiles: [nitpicks]
+rationale: "The behaviour change is intended and documented; the only useful remark is the typo in the doc comment."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod total;
+  src/total.rs: |
+    /// Returns the order total in cents, including delivery.
+    pub fn total(order: &Order) -> u64 {
+        order.items.iter().map(|i| i.cents).sum::<u64>() + order.delivery_cents
+    }
+head:
+  src/total.rs: |
+    /// Returns the order total in cents, including delivery and the servcie fee.
+    pub fn total(order: &Order) -> u64 {
+        order.items.iter().map(|i| i.cents).sum::<u64>() + order.delivery_cents + order.service_cents
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "doc comment spelling"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: src/total.rs, start_line: 1, end_line: 1 }
+  forbidden_claims:
+    - "Adding the service fee is a defect."

@@ -1,0 +1,2087 @@
+{
+  "components": {
+    "schemas": {
+      "Accepted": {
+        "description": "202 of `POST /v1/reviews` and reruns: durable admission, not a finished review.",
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "reused": {
+            "description": "The answer replays an earlier request with the same key.",
+            "type": "boolean"
+          },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "status_url",
+          "reused"
+        ],
+        "title": "Accepted",
+        "type": "object"
+      },
+      "Applicability": {
+        "description": "Three-valued rule applicability (spec §11.4).",
+        "enum": [
+          "APPLIES",
+          "DOES_NOT_APPLY",
+          "UNKNOWN"
+        ],
+        "type": "string"
+      },
+      "BillingKind": {
+        "enum": [
+          "api_usage",
+          "subscription_quota"
+        ],
+        "type": "string"
+      },
+      "CancelOutcome": {
+        "description": "`POST /v1/runs/:id/cancel`: the state after the call; a committed run keeps its own.",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "CancelOutcome",
+        "type": "object"
+      },
+      "Candidate": {
+        "properties": {
+          "anchors": {
+            "items": {
+              "$ref": "#/$defs/CodeRef"
+            },
+            "type": "array"
+          },
+          "category": {
+            "$ref": "#/$defs/FindingCategory"
+          },
+          "causal_chain": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "claim": {
+            "type": "string"
+          },
+          "conditions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "consequences": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "evidence_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "limitations": {
+            "default": [],
+            "description": "Why the candidate is rejected or unresolved, when it is.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "obligation_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "origin": {
+            "$ref": "#/$defs/CandidateOrigin"
+          },
+          "proposed_severity": {
+            "$ref": "#/$defs/Severity",
+            "description": "The proposer's guess; the verifier sets the finding's severity."
+          },
+          "refutation": {
+            "type": "string"
+          },
+          "verification_status": {
+            "$ref": "#/$defs/VerificationStatus"
+          }
+        },
+        "required": [
+          "id",
+          "origin",
+          "category",
+          "proposed_severity",
+          "claim",
+          "causal_chain",
+          "anchors",
+          "consequences",
+          "conditions",
+          "refutation",
+          "verification_status"
+        ],
+        "type": "object"
+      },
+      "CandidateOrigin": {
+        "enum": [
+          "MODEL",
+          "STATIC"
+        ],
+        "type": "string"
+      },
+      "ChangeRef": {
+        "additionalProperties": false,
+        "properties": {
+          "connection_id": {
+            "type": "string"
+          },
+          "external_number": {
+            "type": "string"
+          },
+          "repository": {
+            "description": "`owner/name`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connection_id",
+          "repository",
+          "external_number"
+        ],
+        "type": "object"
+      },
+      "CodeRef": {
+        "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
+        "properties": {
+          "blob_oid": {
+            "$ref": "#/$defs/GitObjectId"
+          },
+          "content_sha256": {
+            "$ref": "#/$defs/Sha256Digest"
+          },
+          "end_line": {
+            "description": "1-based, inclusive.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "path": {
+            "$ref": "#/$defs/RepoPath"
+          },
+          "side": {
+            "$ref": "#/$defs/SourceSide"
+          },
+          "snapshot_id": {
+            "$ref": "#/$defs/SourceSnapshotId"
+          },
+          "start_line": {
+            "description": "1-based, inclusive.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "snapshot_id",
+          "side",
+          "path",
+          "blob_oid",
+          "start_line",
+          "end_line",
+          "content_sha256"
+        ],
+        "type": "object"
+      },
+      "CostSummary": {
+        "description": "Cost with explicit unknown part; an unknown charge is never recorded as zero (INV-13).",
+        "properties": {
+          "known": {
+            "$ref": "#/$defs/MicroUsd",
+            "description": "Money the providers reported, or the price card computed, for settled API attempts."
+          },
+          "reference_estimate": {
+            "$ref": "#/$defs/MicroUsd",
+            "description": "List-price estimate of the attempts with complete usage; not a charge."
+          },
+          "unknown_cost_attempts": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "known",
+          "reference_estimate",
+          "unknown_cost_attempts"
+        ],
+        "type": "object"
+      },
+      "Coverage": {
+        "enum": [
+          "COMPLETE_FOR_SCOPE",
+          "PARTIAL",
+          "UNAVAILABLE"
+        ],
+        "type": "string"
+      },
+      "Enforcement": {
+        "enum": [
+          "api_hard",
+          "subscription_observable"
+        ],
+        "type": "string"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          },
+          "details": true,
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "correlation_id",
+          "details"
+        ],
+        "type": "object"
+      },
+      "ErrorEnvelope": {
+        "description": "Every refused request (spec §25.3): no tokens, prompts, source or stack traces.",
+        "properties": {
+          "error": {
+            "$ref": "#/$defs/ErrorBody"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorEnvelope",
+        "type": "object"
+      },
+      "EvidenceKind": {
+        "enum": [
+          "source",
+          "semantic",
+          "static",
+          "test",
+          "coverage",
+          "contract",
+          "infrastructure",
+          "human"
+        ],
+        "type": "string"
+      },
+      "ExecutionOutcome": {
+        "description": "How the run reached FINALIZING; recorded inside the immutable result.",
+        "oneOf": [
+          {
+            "const": "PLAN_EXECUTED",
+            "description": "Every planned task ran.",
+            "type": "string"
+          },
+          {
+            "const": "LIMIT_REACHED",
+            "description": "A budget or size limit stopped the plan; skipped work is listed as gaps.",
+            "type": "string"
+          },
+          {
+            "const": "RETRIES_EXHAUSTED",
+            "description": "Retryable failures exhausted their retries; an honest partial result is kept.",
+            "type": "string"
+          },
+          {
+            "const": "INPUT_UNAVAILABLE",
+            "description": "Substantive analysis was impossible, for example the diff could not be read.",
+            "type": "string"
+          }
+        ]
+      },
+      "FeeShare": {
+        "description": "A subscription fee for one calendar month (UTC); charged to the monthly pool once, not per\nrequest or run.",
+        "properties": {
+          "allocated": {
+            "$ref": "#/$defs/MicroUsd"
+          },
+          "amount": {
+            "$ref": "#/$defs/MicroUsd"
+          },
+          "period": {
+            "description": "`YYYY-MM`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period",
+          "amount",
+          "allocated"
+        ],
+        "type": "object"
+      },
+      "FeedbackRequest": {
+        "additionalProperties": false,
+        "description": "`POST /v1/findings/:id/feedback`.",
+        "properties": {
+          "judgement": {
+            "description": "`USEFUL`, `NOT_USEFUL`, `FALSE_POSITIVE` or `WONT_FIX`.",
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "judgement",
+          "scope",
+          "rationale"
+        ],
+        "title": "FeedbackRequest",
+        "type": "object"
+      },
+      "Finding": {
+        "properties": {
+          "anchors": {
+            "items": {
+              "$ref": "#/$defs/CodeRef"
+            },
+            "type": "array"
+          },
+          "category": {
+            "$ref": "#/$defs/FindingCategory"
+          },
+          "consequence": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "$ref": "#/$defs/Sha256Digest"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/$defs/Lifecycle"
+          },
+          "limitations": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "obligation_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "predecessor_finding_id": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rule_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/$defs/Severity"
+          },
+          "suggested_action": {
+            "type": "string"
+          },
+          "support": {
+            "$ref": "#/$defs/Support"
+          },
+          "title": {
+            "type": "string"
+          },
+          "triggering_conditions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "validation_expectation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "severity",
+          "support",
+          "title",
+          "explanation",
+          "triggering_conditions",
+          "consequence",
+          "anchors",
+          "evidence_ids",
+          "suggested_action",
+          "validation_expectation",
+          "fingerprint",
+          "lifecycle",
+          "scope"
+        ],
+        "type": "object"
+      },
+      "FindingCategory": {
+        "enum": [
+          "DEFECT",
+          "RULE_VIOLATION",
+          "IMPROVEMENT",
+          "NIT"
+        ],
+        "type": "string"
+      },
+      "GitObjectId": {
+        "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$",
+        "type": "string"
+      },
+      "Lifecycle": {
+        "enum": [
+          "OPEN",
+          "RESOLVED",
+          "DISMISSED",
+          "OBSOLETE"
+        ],
+        "type": "string"
+      },
+      "MicroUsd": {
+        "description": "Money as whole micro-USD; never a float (spec §5.1).",
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "Obligation": {
+        "description": "One concrete question with its rule, scope, acceptance criterion and assessment.",
+        "oneOf": [
+          {
+            "properties": {
+              "status": {
+                "const": "SUPPORTED",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "status": {
+                "const": "VIOLATED",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "next_evidence_needed": {
+                "type": "string"
+              },
+              "reason_code": {
+                "type": "string"
+              },
+              "status": {
+                "const": "UNKNOWN",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "reason_code",
+              "next_evidence_needed"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "basis": {
+                "description": "Checkable basis of non-applicability.",
+                "type": "string"
+              },
+              "status": {
+                "const": "NOT_APPLICABLE",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "basis"
+            ],
+            "type": "object"
+          }
+        ],
+        "properties": {
+          "acceptable_evidence_kinds": {
+            "items": {
+              "$ref": "#/$defs/EvidenceKind"
+            },
+            "type": "array"
+          },
+          "acceptance_criterion": {
+            "type": "string"
+          },
+          "applicability": {
+            "$ref": "#/$defs/Applicability"
+          },
+          "code_refs": {
+            "items": {
+              "$ref": "#/$defs/CodeRef"
+            },
+            "type": "array"
+          },
+          "evidence_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "limitations": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "question": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "review_unit_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "risk_level": {
+            "$ref": "#/$defs/RiskLevel"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "rule_version": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "waivers": {
+            "description": "Scoped exceptions in force; they lower the risk decision and never rewrite `status`.",
+            "items": {
+              "$ref": "#/$defs/Waiver"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "rule_id",
+          "rule_version",
+          "question",
+          "required",
+          "risk_level",
+          "review_unit_ids",
+          "code_refs",
+          "applicability",
+          "acceptance_criterion",
+          "acceptable_evidence_kinds"
+        ],
+        "type": "object"
+      },
+      "PathGap": {
+        "description": "A path left out of reading or review, with the reason.",
+        "properties": {
+          "path": {
+            "$ref": "#/$defs/RepoPath"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "PolicySnapshotId": {
+        "$ref": "#/$defs/Sha256Digest",
+        "description": "Content-derived identity of a [`crate::PolicySnapshot`]."
+      },
+      "Provenance": {
+        "properties": {
+          "engine_version": {
+            "type": "string"
+          },
+          "model_adapters": {
+            "description": "Model adapters used, e.g. `fake`; a fake adapter proves the harness, not model quality.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "engine_version",
+          "model_adapters"
+        ],
+        "type": "object"
+      },
+      "PublicationStatus": {
+        "description": "`GET /v1/publications/:id`: delivery and relevance kept apart.",
+        "properties": {
+          "delivery": {
+            "type": "string"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publication_id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "relevance": {
+            "type": "string"
+          },
+          "remote_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "publication_id",
+          "delivery",
+          "relevance"
+        ],
+        "title": "PublicationStatus",
+        "type": "object"
+      },
+      "Recommendation": {
+        "description": "Computed by the reducer; never a model verdict or SCM approval (spec §5.7).",
+        "enum": [
+          "ATTENTION_REQUIRED",
+          "NEEDS_EVIDENCE",
+          "NO_BLOCKING_FINDINGS_IN_SCOPE"
+        ],
+        "type": "string"
+      },
+      "RepoPath": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "RerunRequest": {
+        "additionalProperties": false,
+        "description": "`POST /v1/changes/:id/reruns`.",
+        "properties": {
+          "profile": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publish": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "title": "RerunRequest",
+        "type": "object"
+      },
+      "ReviewRequest": {
+        "additionalProperties": false,
+        "description": "`POST /v1/reviews`.",
+        "properties": {
+          "change": {
+            "$ref": "#/$defs/ChangeRef"
+          },
+          "profile": {
+            "default": "economical",
+            "description": "`economical` or `deep`.",
+            "type": "string"
+          },
+          "publish": {
+            "default": false,
+            "description": "Off by default; on only where the connection publishes.",
+            "type": "boolean"
+          },
+          "schema_version": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "change"
+        ],
+        "title": "ReviewRequest",
+        "type": "object"
+      },
+      "ReviewResult": {
+        "properties": {
+          "coverage": {
+            "$ref": "#/$defs/Coverage"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "evidence_manifest_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "excluded_or_unreviewed": {
+            "items": {
+              "$ref": "#/$defs/PathGap"
+            },
+            "type": "array"
+          },
+          "execution_outcome": {
+            "$ref": "#/$defs/ExecutionOutcome"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/Finding"
+            },
+            "type": "array"
+          },
+          "obligations": {
+            "items": {
+              "$ref": "#/$defs/Obligation"
+            },
+            "type": "array"
+          },
+          "parent_result_id": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "policy_snapshot_id": {
+            "$ref": "#/$defs/PolicySnapshotId"
+          },
+          "provenance": {
+            "$ref": "#/$defs/Provenance"
+          },
+          "recommendation": {
+            "$ref": "#/$defs/Recommendation"
+          },
+          "rejected_candidates": {
+            "default": [],
+            "description": "Internal by default.",
+            "items": {
+              "$ref": "#/$defs/Candidate"
+            },
+            "type": "array"
+          },
+          "result_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "review_revision": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "schema_version": {
+            "$ref": "#/$defs/SchemaVersion"
+          },
+          "scope_manifest": {
+            "$ref": "#/$defs/ScopeManifest"
+          },
+          "source_snapshot_id": {
+            "$ref": "#/$defs/SourceSnapshotId"
+          },
+          "unresolved_questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "usage_summary": {
+            "$ref": "#/$defs/UsageSummary"
+          }
+        },
+        "required": [
+          "schema_version",
+          "result_id",
+          "run_id",
+          "review_revision",
+          "source_snapshot_id",
+          "policy_snapshot_id",
+          "evidence_manifest_id",
+          "scope_manifest",
+          "execution_outcome",
+          "coverage",
+          "recommendation",
+          "findings",
+          "obligations",
+          "unresolved_questions",
+          "excluded_or_unreviewed",
+          "usage_summary",
+          "created_at",
+          "provenance"
+        ],
+        "title": "ReviewResult",
+        "type": "object"
+      },
+      "ReviewUnit": {
+        "description": "Related changes reviewed together around one contract or behavior.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "paths": {
+            "description": "Where each file is reported: its new path, or old path when deleted. A renamed file's\nold path is still part of its identity in the diff manifest.",
+            "items": {
+              "$ref": "#/$defs/RepoPath"
+            },
+            "type": "array"
+          },
+          "risk_hints": {
+            "description": "Routing hints from the planner; not evidence of a defect (spec §7.3).",
+            "items": {
+              "$ref": "#/$defs/RiskHint"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "paths"
+        ],
+        "type": "object"
+      },
+      "RiskHint": {
+        "properties": {
+          "code": {
+            "description": "Stable code such as `MIGRATION` or `CI_CONFIG`.",
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/$defs/RiskLevel"
+          },
+          "path": {
+            "$ref": "#/$defs/RepoPath"
+          }
+        },
+        "required": [
+          "level",
+          "code",
+          "path"
+        ],
+        "type": "object"
+      },
+      "RiskLevel": {
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "CRITICAL"
+        ],
+        "type": "string"
+      },
+      "RouteUsage": {
+        "description": "One model route of the run: how it bills and which caps are hard (spec §17.2).",
+        "properties": {
+          "attempts": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "billing": {
+            "$ref": "#/$defs/BillingKind"
+          },
+          "enforcement": {
+            "$ref": "#/$defs/Enforcement"
+          },
+          "fixed_fee": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FeeShare"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "quota_attempts": {
+            "description": "Subscription attempts settled with no reported money: they spent included quota, which\nis not free. Remaining quota and its reset are not reported by any connected transport.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "profile",
+          "model",
+          "billing",
+          "enforcement",
+          "attempts",
+          "quota_attempts"
+        ],
+        "type": "object"
+      },
+      "RunStatus": {
+        "description": "`GET /v1/runs/:id`.",
+        "properties": {
+          "change_id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "coverage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "failure": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "result_url": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/$defs/RunUsage"
+          }
+        },
+        "required": [
+          "run_id",
+          "change_id",
+          "generation",
+          "state",
+          "stage",
+          "usage",
+          "created_at",
+          "result_url"
+        ],
+        "title": "RunStatus",
+        "type": "object"
+      },
+      "RunUsage": {
+        "properties": {
+          "cost_known_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "model_attempts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unknown_cost_attempts": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model_attempts",
+          "cost_known_micro_usd",
+          "unknown_cost_attempts"
+        ],
+        "type": "object"
+      },
+      "SchemaVersion": {
+        "const": 1,
+        "type": "integer"
+      },
+      "ScopeManifest": {
+        "description": "Fixed before discovery; may only grow through a new revision (spec §7.4).",
+        "properties": {
+          "excluded": {
+            "items": {
+              "$ref": "#/$defs/PathGap"
+            },
+            "type": "array"
+          },
+          "requested_profiles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "required_obligation_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "units": {
+            "items": {
+              "$ref": "#/$defs/ReviewUnit"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "revision",
+          "units",
+          "required_obligation_ids",
+          "requested_profiles",
+          "excluded"
+        ],
+        "type": "object"
+      },
+      "Severity": {
+        "enum": [
+          "INFO",
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "CRITICAL"
+        ],
+        "type": "string"
+      },
+      "Sha256Digest": {
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "SourceSide": {
+        "enum": [
+          "DIFF_BASE",
+          "HEAD",
+          "TARGET_TIP"
+        ],
+        "type": "string"
+      },
+      "SourceSnapshotId": {
+        "$ref": "#/$defs/Sha256Digest",
+        "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1)."
+      },
+      "Support": {
+        "description": "Kind of support; independent of severity.",
+        "enum": [
+          "EXECUTED_COUNTEREXAMPLE",
+          "STATIC_TRACE",
+          "SEMANTIC_ARGUMENT",
+          "EXPLICIT_RULE",
+          "PREFERENCE"
+        ],
+        "type": "string"
+      },
+      "UsageSummary": {
+        "properties": {
+          "cost": {
+            "$ref": "#/$defs/CostSummary"
+          },
+          "input_tokens": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "model_attempts": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "output_tokens": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasoning_tokens": {
+            "description": "Already part of `output_tokens`; never added to it.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/$defs/RouteUsage"
+            },
+            "type": "array"
+          },
+          "unknown_usage_attempts": {
+            "description": "Dispatched attempts whose tokens were not reported; the token sums leave them out.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model_attempts",
+          "input_tokens",
+          "output_tokens",
+          "reasoning_tokens",
+          "unknown_usage_attempts",
+          "cost",
+          "routes"
+        ],
+        "type": "object"
+      },
+      "VerificationStatus": {
+        "enum": [
+          "PENDING",
+          "CONFIRMED",
+          "REJECTED",
+          "UNRESOLVED"
+        ],
+        "type": "string"
+      },
+      "Waiver": {
+        "description": "A rule exception in force for one obligation (spec §11.6).",
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owner": {
+            "type": "string"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "until": {
+            "description": "Completion condition when there is no fixed expiry.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "paths",
+          "reason",
+          "owner",
+          "author"
+        ],
+        "type": "object"
+      },
+      "WaiverRequest": {
+        "additionalProperties": false,
+        "description": "`POST /v1/waivers`: a scoped risk decision; it never rewrites a status.",
+        "properties": {
+          "change_id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owner": {
+            "type": "string"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "until": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "change_id",
+          "rule_id",
+          "paths",
+          "reason",
+          "owner"
+        ],
+        "title": "WaiverRequest",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "Sych",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/changes/{id}/reruns": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RerunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            },
+            "description": "An explicit new generation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "An explicit new generation"
+      }
+    },
+    "/v1/findings/{id}/feedback": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Structured feedback"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Structured feedback"
+      }
+    },
+    "/v1/publications/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationStatus"
+                }
+              }
+            },
+            "description": "Delivery, relevance and reconciliation state"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delivery, relevance and reconciliation state"
+      }
+    },
+    "/v1/reviews": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            },
+            "description": "Request a review; 202 is durable admission"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Request a review; 202 is durable admission"
+      }
+    },
+    "/v1/runs/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunStatus"
+                }
+              }
+            },
+            "description": "Run state, stage, usage and links"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Run state, stage, usage and links"
+      }
+    },
+    "/v1/runs/{id}/cancel": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelOutcome"
+                }
+              }
+            },
+            "description": "Cancel an active run; committed results keep their state"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cancel an active run; committed results keep their state"
+      }
+    },
+    "/v1/runs/{id}/result": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewResult"
+                }
+              }
+            },
+            "description": "The immutable result"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The immutable result"
+      }
+    },
+    "/v1/waivers": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WaiverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "A scoped waiver"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A scoped waiver"
+      }
+    }
+  }
+}

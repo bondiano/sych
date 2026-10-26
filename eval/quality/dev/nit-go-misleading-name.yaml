@@ -1,0 +1,55 @@
+schema_version: 1
+id: nit-go-misleading-name
+split: development
+language: go
+variant: safe
+profiles: [nitpicks]
+rationale: "Unquoted label names are emitted correctly, but isPrintable checks whether quoting is needed, not printability (`a-b` is printable yet returns false); inverting it as nameRequiresQuoting says what it does."
+base:
+  go.mod: |
+    module example.com/labels
+
+    go 1.24
+  labels.go: |
+    package labels
+
+    import "strconv"
+
+    func formatLabel(name, value string) string {
+    	return strconv.Quote(name) + "=" + strconv.Quote(value)
+    }
+head:
+  labels.go: |
+    package labels
+
+    import (
+    	"strconv"
+    	"unicode"
+    )
+
+    // isPrintable reports whether name can be written without quotes.
+    func isPrintable(name string) bool {
+    	for _, r := range name {
+    		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' {
+    			return false
+    		}
+    	}
+    	return name != ""
+    }
+
+    func formatLabel(name, value string) string {
+    	if isPrintable(name) {
+    		return name + "=" + strconv.Quote(value)
+    	}
+    	return strconv.Quote(name) + "=" + strconv.Quote(value)
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "isPrintable name does not match what it checks"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: labels.go, start_line: 9, end_line: 9 }
+  forbidden_claims:
+    - "Rename isPrintable to checkPrintable."
+    - "Emitting unquoted label names is a defect."

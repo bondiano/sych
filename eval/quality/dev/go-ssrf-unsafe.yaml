@@ -1,0 +1,53 @@
+schema_version: 1
+id: go-ssrf-unsafe
+split: development
+language: go
+pair: go-ssrf
+variant: unsafe
+profiles: [correctness]
+rationale: "Link previews now fetch any client-supplied URL server-side and return the response: internal services and `http://169.254.169.254/` metadata are readable by any client."
+base:
+  go.mod: |
+    module example.com/unfurl
+
+    go 1.24
+  unfurl.go: |
+    package unfurl
+
+    import (
+    	"io"
+    	"net/http"
+    )
+
+    func Preview(w http.ResponseWriter, r *http.Request) {
+    	w.Header().Set("Content-Type", "text/plain")
+    	io.WriteString(w, "link previews are disabled")
+    }
+head:
+  unfurl.go: |
+    package unfurl
+
+    import (
+    	"io"
+    	"net/http"
+    )
+
+    func Preview(w http.ResponseWriter, r *http.Request) {
+    	resp, err := http.Get(r.URL.Query().Get("url"))
+    	if err != nil {
+    		http.Error(w, "fetch failed", http.StatusBadGateway)
+    		return
+    	}
+    	defer resp.Body.Close()
+    	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
+    	io.Copy(w, io.LimitReader(resp.Body, 1<<20))
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "hosts fetched by the link preview"
+      required_condition: "the url query parameter points at an internal address or metadata endpoint"
+      evidence_locations:
+        - { side: HEAD, path: unfurl.go, start_line: 9, end_line: 16 }
+  forbidden_claims:
+    - "Preview only fetches allowed hosts."

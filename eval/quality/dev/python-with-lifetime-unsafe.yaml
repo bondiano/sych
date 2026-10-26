@@ -1,0 +1,41 @@
+schema_version: 1
+id: python-with-lifetime-unsafe
+split: development
+language: python
+pair: python-with-lifetime
+variant: unsafe
+profiles: [correctness, side_effects]
+rationale: "The export writes outside the `with` block: the file is never closed, so buffered rows can be lost and a failing json.dumps leaves a truncated file open (spec §12.4, Python resource lifetime)."
+base:
+  app/__init__.py: ""
+  app/export.py: |
+    import json
+
+
+    def export(path, rows):
+        with open(path, "w") as f:
+            for row in rows:
+                f.write(json.dumps(row) + "\n")
+head:
+  app/export.py: |
+    import json
+
+
+    def export(path, rows):
+        f = open(path, "w")
+        for row in rows:
+            f.write(json.dumps(row) + "\n")
+expected:
+  findings:
+    - category: defect
+      semantic_target: "closing and flushing the export file"
+      required_condition: "export returns or json.dumps raises before the file object is collected"
+      evidence_locations:
+        - { side: HEAD, path: app/export.py, start_line: 5, end_line: 7 }
+  facts:
+    - { kind: write_call, side: HEAD, path: app/export.py, line: 7 }
+    - { kind: resource_scope, side: DIFF_BASE, path: app/export.py, line: 5 }
+  forbidden_facts:
+    - { kind: resource_scope, side: HEAD, path: app/export.py, line: 5 }
+  forbidden_claims:
+    - "The file is still closed by the with block."

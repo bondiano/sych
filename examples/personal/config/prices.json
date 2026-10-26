@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "revision": "openrouter-2026-10-25",
+  "prices": {
+    "deepseek/deepseek-v4.1-flash": { "input_per_mtok": 300000, "output_per_mtok": 1200000 },
+    "openai/gpt-6-astra": { "input_per_mtok": 10000000, "output_per_mtok": 50000000 },
+    "anthropic/claude-fable-5.1": { "input_per_mtok": 10000000, "output_per_mtok": 50000000 }
+  }
+}

@@ -1,0 +1,234 @@
+{
+  "schema_version": 1,
+  "method": "git diff-tree -r -M; blob diff -U0 --diff-algorithm=myers",
+  "diff_base": "sha1:63cd75c37daf3888349084a8e531ae7dedec7bc4",
+  "head": "sha1:a0fc5c4c099f106628c8d58195b12e6331de7233",
+  "files": [
+    {
+      "status": "ADDED",
+      "old": null,
+      "new": {
+        "path": "assets/logo.bin",
+        "mode": "100644",
+        "oid": "sha1:541b5f170cd42af7a7c16ef6aa9b0f895bdfb29a",
+        "content": "BINARY",
+        "line_count": null
+      },
+      "similarity": null,
+      "generated": false,
+      "hunks": [],
+      "limitations": []
+    },
+    {
+      "status": "ADDED",
+      "old": null,
+      "new": {
+        "path": "bad-�.txt",
+        "mode": "100644",
+        "oid": "sha1:587be6b4c3f93f93c489c0111bba5596147a26cb",
+        "content": "TEXT",
+        "line_count": 1
+      },
+      "similarity": null,
+      "generated": false,
+      "hunks": [
+        {
+          "old_start": 0,
+          "old_lines": 0,
+          "new_start": 1,
+          "new_lines": 1
+        }
+      ],
+      "limitations": [
+        "PATH_NOT_UTF8"
+      ]
+    },
+    {
+      "status": "ADDED",
+      "old": null,
+      "new": {
+        "path": "big.lfs",
+        "mode": "100644",
+        "oid": "sha1:fe942bb7a0cab279f816e8e2a79302e9381fb4e4",
+        "content": "LFS_POINTER",
+        "line_count": null
+      },
+      "similarity": null,
+      "generated": false,
+      "hunks": [],
+      "limitations": []
+    },
+    {
+      "status": "ADDED",
+      "old": null,
+      "new": {
+        "path": "gen/api.rs",
+        "mode": "100644",
+        "oid": "sha1:1a34f3c0d589c1bc9a4e9da1ace046e2dcb1d351",
+        "content": "TEXT",
+        "line_count": 2
+      },
+      "similarity": null,
+      "generated": true,
+      "hunks": [
+        {
+          "old_start": 0,
+          "old_lines": 0,
+          "new_start": 1,
+          "new_lines": 2
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "status": "DELETED",
+      "old": {
+        "path": "gone.txt",
+        "mode": "100644",
+        "oid": "sha1:b023018cabc396e7692c70bbf5784a93d3f738ab",
+        "content": "TEXT",
+        "line_count": 1
+      },
+      "new": null,
+      "similarity": null,
+      "generated": false,
+      "hunks": [
+        {
+          "old_start": 1,
+          "old_lines": 1,
+          "new_start": 0,
+          "new_lines": 0
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "status": "ADDED",
+      "old": null,
+      "new": {
+        "path": "huge.txt",
+        "mode": "100644",
+        "oid": "sha1:ac5462351387e270a2042086c34a1ddbe11c0d19",
+        "content": "NOT_READ",
+        "line_count": null
+      },
+      "similarity": null,
+      "generated": false,
+      "hunks": [],
+      "limitations": [
+        "BLOB_TOO_LARGE: 1048577 bytes > 1048576"
+      ]
+    },
+    {
+      "status": "ADDED",
+      "old": null,
+      "new": {
+        "path": "latin1.txt",
+        "mode": "100644",
+        "oid": "sha1:6f83395d973c448cdb70a7b21f7fc8018797acf6",
+        "content": "NON_UTF8_TEXT",
+        "line_count": 1
+      },
+      "similarity": null,
+      "generated": false,
+      "hunks": [
+        {
+          "old_start": 0,
+          "old_lines": 0,
+          "new_start": 1,
+          "new_lines": 1
+        }
+      ],
+      "limitations": [
+        "CONTENT_NOT_UTF8"
+      ]
+    },
+    {
+      "status": "ADDED",
+      "old": null,
+      "new": {
+        "path": "passwd-link",
+        "mode": "120000",
+        "oid": "sha1:3594e94c04db171e2767224db355f514b13715c5",
+        "content": "SYMLINK",
+        "line_count": null
+      },
+      "similarity": null,
+      "generated": false,
+      "hunks": [],
+      "limitations": []
+    },
+    {
+      "status": "MODIFIED",
+      "old": {
+        "path": "src/keep.rs",
+        "mode": "100644",
+        "oid": "sha1:a92d664bc20a04b1621b1fc893d1196b41182fdf",
+        "content": "TEXT",
+        "line_count": 3
+      },
+      "new": {
+        "path": "src/keep.rs",
+        "mode": "100644",
+        "oid": "sha1:884971c742724377080ba3d75d4b4d6bceee4e4b",
+        "content": "TEXT",
+        "line_count": 2
+      },
+      "similarity": null,
+      "generated": false,
+      "hunks": [
+        {
+          "old_start": 2,
+          "old_lines": 1,
+          "new_start": 1,
+          "new_lines": 0
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "status": "RENAMED",
+      "old": {
+        "path": "src/старый.rs",
+        "mode": "100644",
+        "oid": "sha1:2929a4f73df70f2ce1f88885e413b0e6046de38e",
+        "content": "TEXT",
+        "line_count": 6
+      },
+      "new": {
+        "path": "src/новый.rs",
+        "mode": "100644",
+        "oid": "sha1:f3f7485dd9c42d81e0cf26c917b6e6c9bf39b54d",
+        "content": "TEXT",
+        "line_count": 5
+      },
+      "similarity": 82,
+      "generated": false,
+      "hunks": [
+        {
+          "old_start": 5,
+          "old_lines": 1,
+          "new_start": 4,
+          "new_lines": 0
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "status": "ADDED",
+      "old": null,
+      "new": {
+        "path": "vendor/sub",
+        "mode": "160000",
+        "oid": "sha1:1111111111111111111111111111111111111111",
+        "content": "SUBMODULE",
+        "line_count": null
+      },
+      "similarity": null,
+      "generated": false,
+      "hunks": [],
+      "limitations": []
+    }
+  ],
+  "omissions": []
+}

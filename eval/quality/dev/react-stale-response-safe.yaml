@@ -1,0 +1,56 @@
+schema_version: 1
+id: react-stale-response-safe
+split: development
+language: typescript
+pair: react-stale-response
+variant: safe
+profiles: [correctness]
+rationale: "The stale-response protection is kept: the flag is replaced by an AbortController that cancels the old request."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/OrderDetails.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function OrderDetails({ id }: { id: string }) {
+      const [order, setOrder] = useState<Order | null>(null);
+      useEffect(() => {
+        let ignore = false;
+        fetchOrder(id).then((next) => {
+          if (!ignore) setOrder(next);
+        });
+        return () => {
+          ignore = true;
+        };
+      }, [id]);
+      return order ? <OrderCard order={order} /> : <Spinner />;
+    }
+head:
+  src/OrderDetails.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function OrderDetails({ id }: { id: string }) {
+      const [order, setOrder] = useState<Order | null>(null);
+      useEffect(() => {
+        const controller = new AbortController();
+        fetchOrder(id, { signal: controller.signal }).then(setOrder, ignoreAbort);
+        return () => controller.abort();
+      }, [id]);
+      return order ? <OrderCard order={order} /> : <Spinner />;
+    }
+expected:
+  facts:
+    - { kind: async_effect_guarded, side: HEAD, path: src/OrderDetails.tsx, line: 5 }
+    - { kind: effect_with_cleanup, side: HEAD, path: src/OrderDetails.tsx, line: 5 }
+  forbidden_facts:
+    - { kind: async_effect_unguarded, side: HEAD, path: src/OrderDetails.tsx, line: 5 }
+  forbidden_claims:
+    - "The previous request can still update state after id changes."

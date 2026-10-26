@@ -1,0 +1,66 @@
+schema_version: 1
+id: nit-go-sort-in-place
+split: development
+language: go
+variant: safe
+profiles: [nitpicks]
+rationale: "Median returns the right value, but it sorts the caller's slice in place (the failing-test message would even print the sorted input); clone first or document the mutation."
+base:
+  go.mod: |
+    module example.com/mathx
+
+    go 1.24
+  mean.go: |
+    package mathx
+
+    func Mean(xs []float64) float64 {
+    	sum := 0.0
+    	for _, x := range xs {
+    		sum += x
+    	}
+    	return sum / float64(len(xs))
+    }
+head:
+  median.go: |
+    package mathx
+
+    import "slices"
+
+    // Median returns the middle value of a non-empty sample.
+    func Median(xs []float64) float64 {
+    	slices.Sort(xs)
+    	mid := len(xs) / 2
+    	if len(xs)%2 == 0 {
+    		return (xs[mid-1] + xs[mid]) / 2
+    	}
+    	return xs[mid]
+    }
+  median_test.go: |
+    package mathx
+
+    import "testing"
+
+    func TestMedian(t *testing.T) {
+    	cases := []struct {
+    		in   []float64
+    		want float64
+    	}{
+    		{[]float64{3, 1, 2}, 2},
+    		{[]float64{4, 1, 3, 2}, 2.5},
+    	}
+    	for _, tc := range cases {
+    		if got := Median(tc.in); got != tc.want {
+    			t.Errorf("Median(%v) = %v, want %v", tc.in, got, tc.want)
+    		}
+    	}
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "Median mutates its argument by sorting in place"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: median.go, start_line: 7, end_line: 7 }
+  forbidden_claims:
+    - "Use sort.Slice instead of slices.Sort."
+    - "Median is a defect."

@@ -1,0 +1,54 @@
+schema_version: 1
+id: go-command-injection-safe
+split: development
+language: go
+pair: go-command-injection
+variant: safe
+profiles: [correctness]
+rationale: "ping is spawned directly with the host as a separate argument after `--` and the last line is taken in Go, so no shell parses the input."
+base:
+  go.mod: |
+    module example.com/diag
+
+    go 1.24
+  diag.go: |
+    package diag
+
+    import (
+    	"net/http"
+    	"os/exec"
+    )
+
+    const gateway = "10.0.0.1"
+
+    func Ping(w http.ResponseWriter, r *http.Request) {
+    	out, err := exec.CommandContext(r.Context(), "ping", "-c", "1", gateway).CombinedOutput()
+    	if err != nil {
+    		http.Error(w, string(out), http.StatusBadGateway)
+    		return
+    	}
+    	w.Write(out)
+    }
+head:
+  diag.go: |
+    package diag
+
+    import (
+    	"bytes"
+    	"net/http"
+    	"os/exec"
+    )
+
+    func Ping(w http.ResponseWriter, r *http.Request) {
+    	host := r.URL.Query().Get("host")
+    	out, err := exec.CommandContext(r.Context(), "ping", "-c", "1", "--", host).CombinedOutput()
+    	if err != nil {
+    		http.Error(w, string(out), http.StatusBadGateway)
+    		return
+    	}
+    	lines := bytes.Split(bytes.TrimSpace(out), []byte("\n"))
+    	w.Write(lines[len(lines)-1])
+    }
+expected:
+  forbidden_claims:
+    - "Ping is vulnerable to command injection."

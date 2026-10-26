@@ -1,0 +1,58 @@
+schema_version: 1
+id: go-command-injection-unsafe
+split: development
+language: go
+pair: go-command-injection
+variant: unsafe
+profiles: [correctness]
+rationale: "The diagnostics ping now targets a client-supplied host and runs through `sh -c` to pipe into tail: `host=1.1.1.1;cat /etc/shadow` executes arbitrary commands."
+base:
+  go.mod: |
+    module example.com/diag
+
+    go 1.24
+  diag.go: |
+    package diag
+
+    import (
+    	"net/http"
+    	"os/exec"
+    )
+
+    const gateway = "10.0.0.1"
+
+    func Ping(w http.ResponseWriter, r *http.Request) {
+    	out, err := exec.CommandContext(r.Context(), "ping", "-c", "1", gateway).CombinedOutput()
+    	if err != nil {
+    		http.Error(w, string(out), http.StatusBadGateway)
+    		return
+    	}
+    	w.Write(out)
+    }
+head:
+  diag.go: |
+    package diag
+
+    import (
+    	"net/http"
+    	"os/exec"
+    )
+
+    func Ping(w http.ResponseWriter, r *http.Request) {
+    	host := r.URL.Query().Get("host")
+    	out, err := exec.CommandContext(r.Context(), "sh", "-c", "ping -c 1 "+host+" | tail -n 1").CombinedOutput()
+    	if err != nil {
+    		http.Error(w, string(out), http.StatusBadGateway)
+    		return
+    	}
+    	w.Write(out)
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "command run by the ping diagnostic"
+      required_condition: "the host query parameter contains shell metacharacters"
+      evidence_locations:
+        - { side: HEAD, path: diag.go, start_line: 10, end_line: 10 }
+  forbidden_claims:
+    - "The host value never reaches a shell."

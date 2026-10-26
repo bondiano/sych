@@ -1,0 +1,50 @@
+schema_version: 1
+id: nit-ts-strict-equality
+split: development
+language: typescript
+variant: safe
+profiles: [nitpicks]
+rationale: "canDeleteTeam is correct; the file uses strict equality everywhere and `user.role == 'member'` has no reason for loose equality (the `== null` check is the accepted idiom and stays)."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {}
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/access.ts: |
+    export type User = { id: string; role: 'admin' | 'member'; teamId: string };
+
+    export function canEditTeam(user: User | null, teamId: string): boolean {
+      if (user === null) return false;
+      return user.role === 'admin' || user.teamId === teamId;
+    }
+head:
+  src/access.ts: |
+    export type User = { id: string; role: 'admin' | 'member'; teamId: string };
+
+    export function canEditTeam(user: User | null, teamId: string): boolean {
+      if (user === null) return false;
+      return user.role === 'admin' || user.teamId === teamId;
+    }
+
+    export function canDeleteTeam(user: User | null | undefined): boolean {
+      if (user == null || user.role == 'member') return false;
+      return true;
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "strict equality for the role comparison"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: src/access.ts, start_line: 9, end_line: 9 }
+  forbidden_claims:
+    - "Enable strict mode in tsconfig."
+    - "`user == null` must be rewritten as `user === null || user === undefined`."
+    - "canDeleteTeam is a defect."

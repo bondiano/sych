@@ -1,0 +1,57 @@
+schema_version: 1
+id: ts-command-injection-safe
+split: development
+language: typescript
+pair: ts-command-injection
+variant: safe
+profiles: [correctness]
+rationale: "The client-controlled size is checked against `NNNxNNN` and passed as a separate argv entry to execFile, with no shell involved."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {
+        "express": "^5.1.0"
+      }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/thumbnail.ts: |
+    import { execFile } from 'node:child_process';
+    import { promisify } from 'node:util';
+
+    const run = promisify(execFile);
+
+    export async function thumbnail(src: string, dst: string): Promise<void> {
+      await run('magick', [src, '-resize', '200x200', dst]);
+    }
+head:
+  src/thumbnail.ts: |
+    import { execFile } from 'node:child_process';
+    import { promisify } from 'node:util';
+
+    const run = promisify(execFile);
+
+    export async function thumbnail(src: string, dst: string, size: string): Promise<void> {
+      if (!/^\d{1,4}x\d{1,4}$/.test(size)) throw new Error(`invalid size ${size}`);
+      await run('magick', [src, '-resize', size, dst]);
+    }
+  src/routes/thumbs.ts: |
+    import { Router } from 'express';
+    import { thumbnail } from '../thumbnail';
+
+    export const thumbs = Router();
+
+    thumbs.post('/images/:id/thumbnail', async (req, res) => {
+      const src = `uploads/${Number(req.params.id)}.png`;
+      const dst = `thumbs/${Number(req.params.id)}.png`;
+      await thumbnail(src, dst, String(req.query.size ?? '200x200'));
+      res.sendStatus(204);
+    });
+expected:
+  forbidden_claims:
+    - "The thumbnail size allows command injection."

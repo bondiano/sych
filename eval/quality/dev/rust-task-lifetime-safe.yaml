@@ -1,0 +1,38 @@
+schema_version: 1
+id: rust-task-lifetime-safe
+split: development
+language: rust
+pair: rust-task-lifetime
+variant: safe
+profiles: [correctness]
+rationale: "The spawned flush is joined and both the join and the flush errors are propagated."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub async fn shutdown(buffer: Buffer) -> Result<(), Error> {
+        flush(buffer).await?;
+        Ok(())
+    }
+head:
+  src/lib.rs: |
+    pub async fn shutdown(buffer: Buffer) -> Result<(), Error> {
+        let flushing = tokio::spawn(flush(buffer));
+        flushing.await.map_err(Error::Join)??;
+        Ok(())
+    }
+expected:
+  tolerated:
+    - semantic_target: "dropping the shutdown future detaches the spawned flush instead of cancelling it"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 2, end_line: 2 }
+  forbidden_facts:
+    - { kind: detached_spawn, side: HEAD, path: src/lib.rs, line: 2 }

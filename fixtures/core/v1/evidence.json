@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "01900000-0000-7000-8000-000000000040",
+  "kind": "source",
+  "source_snapshot_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "producer": { "name": "git", "version": "2.47.0", "config_hash": null },
+  "binding": {
+    "kind": "source",
+    "head_oid": "sha1:cccccccccccccccccccccccccccccccccccccccc",
+    "target_tip_oid": "sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "tested_oid": null,
+    "environment_id": null
+  },
+  "validity": "VALID",
+  "completeness": "COMPLETE_FOR_QUERY",
+  "trust_class": "SOURCE_OBSERVATION",
+  "artifact_sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "observed_at": "2026-10-23T00:00:00Z"
+}

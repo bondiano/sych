@@ -1,0 +1,167 @@
+# Personal server config (spec §23.2). Secrets come from the named environment variables;
+# this file holds only their names. `sych doctor` reports which ones are unset.
+schema_version: 1
+mode: personal
+
+storage:
+  database_url_env: SYCH_DATABASE_URL
+  artifact_store:
+    kind: local
+    path: "./.sych-data/artifacts"
+
+http:
+  bind: "127.0.0.1:8080"
+  public_base_url: null
+
+workers:
+  concurrency: 1
+  lease_seconds: 60
+  heartbeat_seconds: 15
+
+models:
+  providers:
+    openrouter:
+      adapter: openrouter
+      endpoint: "https://openrouter.ai/api/v1"
+      api_key_env: SYCH_OPENROUTER_API_KEY
+      allowed_modes: [personal_local, personal_service]
+    gpt_subscription:
+      adapter: chatgpt_subscription
+      transport: siwc_text
+      endpoint: "https://api.openai.com/v1"
+      # Path of the token file `sych auth chatgpt` writes (0600, outside the repository).
+      connection_ref_env: SYCH_CHATGPT_CONNECTION
+      allowed_modes: [personal_local]
+      # Subscription profiles stay unusable until the real monthly fee and its share of the
+      # $60 model pool are set, e.g. `fixed_fee: { amount_micro_usd: N, allocated_micro_usd: M }`.
+    glm_subscription:
+      adapter: glm_coding_plan
+      transport: supported_pi_cli
+      # Coding Plan endpoint, used by Pi; the Standard API `/api/paas/v4` is a different bill.
+      endpoint: "https://api.z.ai/api/coding/paas/v4"
+      executable_env: SYCH_PI_BINARY
+      api_key_env: SYCH_GLM_CODING_PLAN_KEY
+      allowed_modes: [personal_local]
+      # True only after checking that Extra Usage is off for the plan in the Z.ai console.
+      overage_disabled: false
+    opencode_go:
+      adapter: opencode_go
+      endpoint: "https://opencode.ai/inference/go/openai/v1"
+      api_key_env: SYCH_OPENCODE_GO_KEY
+      allowed_modes: [personal_local]
+      # Set true only after checking that Extra Usage is off on the Go page of the Console;
+      # DeepSeek also needs the Global region in Settings › Privacy. Plus `fixed_fee` as above.
+      overage_disabled: false
+  profiles:
+    cheap_go:
+      provider: opencode_go
+      model: deepseek-v4.1-flash
+      billing_kind: subscription_quota
+      enforcement: subscription_observable
+    cheap_api:
+      provider: openrouter
+      model: deepseek/deepseek-v4.1-flash
+      billing_kind: api_usage
+      enforcement: api_hard
+      # Structured-output upstreams; the price card covers the most expensive of them.
+      upstreams: [deepinfra/fp8, fireworks, together]
+      # Reasoning counts against the output cap of one request.
+      reasoning_effort: low
+    gpt_subscription:
+      provider: gpt_subscription
+      model_env: SYCH_GPT_SUBSCRIPTION_MODEL
+      billing_kind: subscription_quota
+      enforcement: subscription_observable
+    glm_subscription:
+      provider: glm_subscription
+      model_env: SYCH_GLM_SUBSCRIPTION_MODEL
+      billing_kind: subscription_quota
+      enforcement: subscription_observable
+    premium_astra:
+      provider: openrouter
+      model: openai/gpt-6-astra
+      billing_kind: api_usage
+      enforcement: api_hard
+      upstreams: [openai]
+      reasoning_effort: low
+    premium_fable:
+      provider: openrouter
+      model: anthropic/claude-fable-5.1
+      billing_kind: api_usage
+      enforcement: api_hard
+      upstreams: [anthropic]
+      reasoning_effort: low
+  roles:
+    reviewer: cheap_go
+    verifier: gpt_subscription
+    risk_auditor: premium_astra
+    explainer: cheap_go
+    followup: cheap_go
+  deep_roles:
+    verifier: premium_astra
+  fallback:
+    on: [quota_exhausted, rate_limited, transient, timeout, unsupported_capability]
+    chains:
+      profiles:
+        gpt_subscription: [glm_subscription, cheap_api]
+        premium_astra: [premium_fable]
+      roles:
+        reviewer: [glm_subscription, gpt_subscription, cheap_api]
+        explainer: [gpt_subscription, cheap_api]
+        followup: [glm_subscription, gpt_subscription, cheap_api]
+      providers:
+        opencode_go: [cheap_api]
+    cooldown_seconds: 30
+    revert_policy: cooldown_expiry
+    wait_for_usage_reset: false
+  price_catalog_file: "config/prices.json"
+
+budgets:
+  analysis:
+    max_cost_micro_usd: 300000
+    max_attempts: 6
+    max_input_tokens: 64000
+    # Above the §17.1 defaults (12 000 / 2 000): reasoning models spend ~1 000 tokens of every
+    # request on reasoning, and a 2 000 cap truncated discovery and verify answers.
+    max_output_tokens: 24000
+    max_output_tokens_per_request: 4000
+    max_parallel_calls: 2
+    active_deadline_seconds: 300
+  tour:
+    max_cost_micro_usd: 100000
+    max_attempts: 2
+  followup_session:
+    max_cost_micro_usd: 150000
+  tenant_daily:
+    max_cost_micro_usd: 3000000
+  tenant_monthly:
+    max_cost_micro_usd: 60000000
+
+execution:
+  enabled: false
+  allowed_profiles: []
+
+# Dependencies of the reviewed repository for semantic analysis, installed only in a sandbox
+# with scripts off and without host credentials.
+tooling:
+  dependency_install: false
+  sandbox:
+    backends: [bwrap, docker]
+    on_unavailable: fail
+    docker_image: "debian@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8"
+
+publication:
+  mode: advisory
+  max_new_inline_comments: 8
+  publish_check: false
+
+logging:
+  raw_prompts: false
+  raw_responses: false
+
+# Extra secret formats to redact before anything reaches a model; the built-in rules (private
+# keys, ghp_/sk-/AKIA… tokens, password/token/api_key assignments) always apply as well.
+redaction:
+  token_prefixes: []
+  secret_keys: []
+  patterns: []

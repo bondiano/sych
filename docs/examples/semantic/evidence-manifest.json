@@ -1,0 +1,38 @@
+{
+    "evidence": [
+        {
+            "artifact_sha256": "sha256:d7e16dd37f7da4c7b13293391a699d3c19b72d839d4c8c823d609e42e7b88b70",
+            "evidence_id": "49e9bbd4-35b2-840f-9e0c-4cdcd3f8980a",
+            "kind": "static",
+            "origin": "DERIVED",
+            "validity": "VALID"
+        },
+        {
+            "artifact_sha256": "sha256:b6978692e70a91838b6b8c0434edd6713a8cc073fbf6c3004638b376c6565c67",
+            "evidence_id": "6ad0f792-0538-82e7-8a8b-251d2c59536b",
+            "kind": "semantic",
+            "origin": "DERIVED",
+            "validity": "VALID"
+        },
+        {
+            "artifact_sha256": "sha256:0f94d0c0615246d8beef52456015a8e83532c8a1291edc584dba2d405285c633",
+            "evidence_id": "6cfb3b56-880c-8254-aafc-8a3d8b3ce4b9",
+            "kind": "semantic",
+            "origin": "DERIVED",
+            "validity": "VALID"
+        },
+        {
+            "artifact_sha256": "sha256:38b47a03d4072edf5af170dd3299c7b6e360581ba9b9a1488b4babb875d5b6bc",
+            "evidence_id": "8dbe2021-dfde-86d2-8907-a644ec0ceb0b",
+            "kind": "static",
+            "origin": "DERIVED",
+            "validity": "VALID"
+        }
+    ],
+    "external_input_manifest_id": "sha256:984ac1bb59d684b9f658702408bada5fa9a5e366a32500f902b33a35f7dca361",
+    "frozen_at": "2026-10-25T12:47:12.679106085Z",
+    "id": "32931323-7ed2-86af-8b93-619a07dcbd11",
+    "policy_snapshot_id": "sha256:0629627bd1397adae53166193e22291cbeed428de4624b3ff55eb68278759483",
+    "schema_version": 1,
+    "source_snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190"
+}

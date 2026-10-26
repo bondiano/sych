@@ -1,0 +1,50 @@
+schema_version: 1
+id: react-timer-unsafe
+split: development
+language: typescript
+pair: react-timer
+variant: unsafe
+profiles: [correctness]
+rationale: "The interval is never cleared: each mount starts another timer that runs after unmount."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/Clock.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function Clock() {
+      const [now, setNow] = useState(Date.now());
+      useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+      }, []);
+      return <time>{new Date(now).toLocaleTimeString()}</time>;
+    }
+head:
+  src/Clock.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function Clock() {
+      const [now, setNow] = useState(Date.now());
+      useEffect(() => {
+        setInterval(() => setNow(Date.now()), 1000);
+      }, []);
+      return <time>{new Date(now).toLocaleTimeString()}</time>;
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "clock timer lifetime"
+      required_condition: "the clock unmounts"
+      evidence_locations:
+        - { side: HEAD, path: src/Clock.tsx, start_line: 6, end_line: 6 }
+  facts:
+    - { kind: unpaired_timer, side: HEAD, path: src/Clock.tsx, line: 5 }

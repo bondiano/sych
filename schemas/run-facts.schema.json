@@ -1,0 +1,1599 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RunFacts",
+  "description": "Semantic and syntax facts of a run as one stored, versioned document.",
+  "type": "object",
+  "properties": {
+    "ci": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CiFacts"
+      }
+    },
+    "ledger": {
+      "description": "Effects of the changed code on both sides and the registry bound to its implementation.",
+      "$ref": "#/$defs/EffectLedger",
+      "default": {
+        "dependencies": [],
+        "entries": [],
+        "limitations": [],
+        "registry": [],
+        "schema_version": 1,
+        "source_snapshot_id": null
+      }
+    },
+    "lint": {
+      "description": "Pinned linters run on the head's changed files.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/LintFacts"
+      }
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    },
+    "semantic": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SemanticFacts"
+      }
+    },
+    "syntax": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SyntaxFacts"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "semantic",
+    "syntax",
+    "ci"
+  ],
+  "$defs": {
+    "BackendStatus": {
+      "type": "string",
+      "enum": [
+        "READY",
+        "UNSUPPORTED",
+        "FAILED"
+      ]
+    },
+    "BindingStatus": {
+      "oneOf": [
+        {
+          "description": "No implementation ref changed: the accepted guarantee still describes the code.",
+          "type": "string",
+          "const": "CURRENT"
+        },
+        {
+          "description": "An implementation ref changed in this diff: the guarantee is checked again, not carried.",
+          "type": "string",
+          "const": "IMPLEMENTATION_CHANGED"
+        },
+        {
+          "description": "The registry names no implementation; its guarantee is a bare claim.",
+          "type": "string",
+          "const": "UNBOUND"
+        }
+      ]
+    },
+    "CiBindingKind": {
+      "description": "How the tested tree relates to the reviewed head (spec §15.2).",
+      "oneOf": [
+        {
+          "description": "The job's checkout manifest names the requested head.",
+          "type": "string",
+          "const": "SOURCE_HEAD"
+        },
+        {
+          "description": "A merge commit whose parents are a target commit and the requested head.",
+          "type": "string",
+          "const": "MERGE_RESULT"
+        },
+        {
+          "description": "The actual checkout is not proven; not evidence for a strict obligation.",
+          "type": "string",
+          "const": "UNVERIFIED"
+        }
+      ]
+    },
+    "CiCoverage": {
+      "description": "Lines a coverage report saw executed in one file; execution, not correctness.",
+      "type": "object",
+      "properties": {
+        "hit": {
+          "description": "Executed line numbers, ascending; bounded per file.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        },
+        "lines_found": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "lines_hit": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "lines_found",
+        "lines_hit",
+        "hit"
+      ]
+    },
+    "CiDiagnostic": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "description": "rustc or clippy code, e.g. `E0308` or `clippy::unwrap_used`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "code_ref": {
+          "description": "Resolved only when the report is bound to the reviewed head.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "level": {
+          "description": "`error`, `warning`, `note`, …",
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "message": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "line",
+        "level",
+        "message"
+      ]
+    },
+    "CiFacts": {
+      "type": "object",
+      "properties": {
+        "build_success": {
+          "description": "`build-finished.success` of a cargo report.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "coverage": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CiCoverage"
+          }
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CiDiagnostic"
+          }
+        },
+        "format": {
+          "$ref": "#/$defs/CiFormat"
+        },
+        "limitations": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "manifest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CiManifest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "origin": {
+          "description": "Set when the report was fetched from authenticated CI; local imports have none.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CiOrigin"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "report": {
+          "description": "File name of the report as given, without directories.",
+          "type": "string"
+        },
+        "schema_version": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "source_snapshot_id": {
+          "$ref": "#/$defs/SourceSnapshotId"
+        },
+        "tests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CiTest"
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "source_snapshot_id",
+        "format",
+        "report",
+        "diagnostics",
+        "tests"
+      ]
+    },
+    "CiFormat": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "junit",
+            "sarif",
+            "gitlab_code_quality",
+            "lcov",
+            "cobertura"
+          ]
+        },
+        {
+          "description": "`cargo check/clippy/build --message-format=json`.",
+          "type": "string",
+          "const": "cargo_json"
+        },
+        {
+          "description": "A small project JSON manifest of command and test outcomes.",
+          "type": "string",
+          "const": "sych_manifest"
+        },
+        {
+          "description": "`go test -json` (test2json events), with `-race` reports in its output.",
+          "type": "string",
+          "const": "go_test_json"
+        },
+        {
+          "description": "`go test -coverprofile`.",
+          "type": "string",
+          "const": "go_cover"
+        },
+        {
+          "description": "`go vet -json`.",
+          "type": "string",
+          "const": "go_vet_json"
+        }
+      ]
+    },
+    "CiManifest": {
+      "description": "Sidecar describing the job that produced the reports.",
+      "type": "object",
+      "properties": {
+        "features": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "job": {
+          "description": "Job identity, e.g. `github:owner/repo/actions/runs/1/jobs/2`.",
+          "type": "string"
+        },
+        "schema_version": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "target": {
+          "type": "string"
+        },
+        "tested_oid": {
+          "description": "Commit the job tested: plain hex as `git rev-parse HEAD` prints it, or `sha1:<hex>`.",
+          "type": "string"
+        },
+        "toolchain": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "job",
+        "tested_oid",
+        "toolchain",
+        "target"
+      ]
+    },
+    "CiOrigin": {
+      "description": "Where an authenticated report came from: exact provider ids, never \"the latest green run\".",
+      "type": "object",
+      "properties": {
+        "allow_failure": {
+          "description": "Not reported by the provider: unknown, never assumed false.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "artifact_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "artifact_name": {
+          "type": "string"
+        },
+        "artifact_sha256": {
+          "type": "string"
+        },
+        "binding": {
+          "$ref": "#/$defs/CiBindingKind"
+        },
+        "checkout_manifest_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "completed_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "event": {
+          "type": "string"
+        },
+        "execution_sha": {
+          "type": "string"
+        },
+        "job_conclusion": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "job_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "job_name": {
+          "type": "string"
+        },
+        "job_status": {
+          "type": "string"
+        },
+        "provider_instance": {
+          "type": "string"
+        },
+        "report_path": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "run_attempt": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "run_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "source_head_sha": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target_tip_sha": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tested_sha": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "workflow": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider_instance",
+        "repository",
+        "workflow",
+        "run_id",
+        "run_attempt",
+        "job_id",
+        "job_name",
+        "event",
+        "job_status",
+        "execution_sha",
+        "source_head_sha",
+        "binding",
+        "artifact_id",
+        "artifact_name",
+        "artifact_sha256",
+        "report_path"
+      ]
+    },
+    "CiTest": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "description": "Source file when the report names one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/TestStatus"
+        },
+        "suite": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "suite",
+        "status"
+      ]
+    },
+    "CodeRef": {
+      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
+      "type": "object",
+      "properties": {
+        "blob_oid": {
+          "$ref": "#/$defs/GitObjectId"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "end_line": {
+          "description": "1-based, inclusive.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "path": {
+          "$ref": "#/$defs/RepoPath"
+        },
+        "side": {
+          "$ref": "#/$defs/SourceSide"
+        },
+        "snapshot_id": {
+          "$ref": "#/$defs/SourceSnapshotId"
+        },
+        "start_line": {
+          "description": "1-based, inclusive.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "side",
+        "path",
+        "blob_oid",
+        "start_line",
+        "end_line",
+        "content_sha256"
+      ]
+    },
+    "Completeness": {
+      "type": "string",
+      "enum": [
+        "COMPLETE_FOR_QUERY",
+        "PARTIAL",
+        "UNKNOWN"
+      ]
+    },
+    "DiagnosticFact": {
+      "description": "A server diagnostic on a changed file. `message` is repository-derived data, not an\ninstruction, and compiling without errors is not proof of runtime correctness.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "code_ref": {
+          "$ref": "#/$defs/CodeRef"
+        },
+        "message": {
+          "type": "string"
+        },
+        "severity": {
+          "description": "`error`, `warning`, `information` or `hint`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "code_ref",
+        "message"
+      ]
+    },
+    "EdgeSet": {
+      "description": "One query's result: resolved spans inside the snapshot, locations outside it, and what\ncould not be mapped.",
+      "type": "object",
+      "properties": {
+        "completeness": {
+          "$ref": "#/$defs/Completeness"
+        },
+        "external": {
+          "description": "Dependency or toolchain locations, home directory shortened to `~`.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "refs": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CodeRef"
+          }
+        },
+        "status": {
+          "$ref": "#/$defs/QueryStatus"
+        },
+        "unresolved": {
+          "description": "Locations that could not become a `CodeRef`, with the reason.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "status",
+        "completeness"
+      ]
+    },
+    "EffectKind": {
+      "type": "string",
+      "enum": [
+        "db_write",
+        "event",
+        "network",
+        "cache",
+        "filesystem",
+        "subscription",
+        "ui",
+        "other"
+      ]
+    },
+    "EffectLedger": {
+      "type": "object",
+      "properties": {
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LedgerDependency"
+          }
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LedgerEntry"
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "registry": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RegistryBinding"
+          }
+        },
+        "schema_version": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "source_snapshot_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceSnapshotId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "entries",
+        "registry",
+        "dependencies",
+        "limitations"
+      ]
+    },
+    "EffectMatch": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "preserved",
+            "removed",
+            "added",
+            "unresolved"
+          ]
+        },
+        {
+          "description": "Gone from its construct on head and found in another one.",
+          "type": "string",
+          "const": "moved"
+        },
+        {
+          "description": "Kept, but its scope, guard, multiplicity or order differs.",
+          "type": "string",
+          "const": "changed"
+        }
+      ]
+    },
+    "GitObjectId": {
+      "type": "string",
+      "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
+    },
+    "ImplementationRef": {
+      "type": "object",
+      "properties": {
+        "base_oid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GitObjectId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "head_oid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GitObjectId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path": {
+          "$ref": "#/$defs/RepoPath"
+        }
+      },
+      "required": [
+        "path",
+        "changed"
+      ]
+    },
+    "Language": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "rust",
+            "typescript",
+            "go"
+          ]
+        },
+        {
+          "description": "Syntax facts only until a measured need for a language server (roadmap M6).",
+          "type": "string",
+          "const": "python"
+        }
+      ]
+    },
+    "LedgerDependency": {
+      "description": "A blob the ledger was read from: a later run reuses the ledger only while all match.",
+      "type": "object",
+      "properties": {
+        "blob_oid": {
+          "$ref": "#/$defs/GitObjectId"
+        },
+        "path": {
+          "$ref": "#/$defs/RepoPath"
+        },
+        "side": {
+          "$ref": "#/$defs/SourceSide"
+        }
+      },
+      "required": [
+        "side",
+        "path",
+        "blob_oid"
+      ]
+    },
+    "LedgerEntry": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "description": "Cardinality is the length of each side.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Occurrence"
+          }
+        },
+        "contract_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RepoPath"
+          }
+        },
+        "durable_with_transaction": {
+          "description": "`durable_with_transaction` of the registry, only while its implementation is current.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "effect_id": {
+          "description": "Stable within a snapshot: construct, kind and target.",
+          "type": "string"
+        },
+        "head": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Occurrence"
+          }
+        },
+        "kind": {
+          "$ref": "#/$defs/EffectKind"
+        },
+        "language": {
+          "$ref": "#/$defs/Language"
+        },
+        "match": {
+          "$ref": "#/$defs/EffectMatch"
+        },
+        "notes": {
+          "description": "Why it matched so: scope, guard, multiplicity, order, move or what was not ruled out.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "path": {
+          "description": "File and construct the entry belongs to, as the head names them when it can.",
+          "$ref": "#/$defs/RepoPath"
+        },
+        "registry_id": {
+          "description": "Registry entry this call is bound to.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resolution": {
+          "$ref": "#/$defs/Resolution"
+        },
+        "shape": {
+          "description": "The syntax shape the effect was read from.",
+          "$ref": "#/$defs/SyntaxKind"
+        },
+        "symbol": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target": {
+          "description": "What is affected: the operation, wrapper symbol or registry symbol.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "effect_id",
+        "kind",
+        "target",
+        "shape",
+        "language",
+        "path",
+        "contract_refs",
+        "base",
+        "head",
+        "match",
+        "resolution",
+        "notes"
+      ]
+    },
+    "LintFacts": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "description": "Project configuration files the linter may read; empty means its defaults.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "diagnostics": {
+          "description": "Findings with a `CodeRef` when their line resolves on this side.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CiDiagnostic"
+          }
+        },
+        "files": {
+          "description": "Linted files of this side.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "producer": {
+          "description": "Pinned linter name and version; `config_hash` covers the arguments Sych passed.",
+          "$ref": "#/$defs/Producer"
+        },
+        "schema_version": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "side": {
+          "$ref": "#/$defs/SourceSide"
+        },
+        "source_snapshot_id": {
+          "$ref": "#/$defs/SourceSnapshotId"
+        },
+        "status": {
+          "$ref": "#/$defs/BackendStatus"
+        }
+      },
+      "required": [
+        "schema_version",
+        "source_snapshot_id",
+        "side",
+        "producer",
+        "status",
+        "files",
+        "diagnostics"
+      ]
+    },
+    "Occurrence": {
+      "description": "One place an effect happens on one side.",
+      "type": "object",
+      "properties": {
+        "code_ref": {
+          "$ref": "#/$defs/CodeRef"
+        },
+        "failure_behavior": {
+          "type": "string"
+        },
+        "guard": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "in_change": {
+          "description": "Whether the span intersects a changed line.",
+          "type": "boolean"
+        },
+        "lifetime_scope": {
+          "description": "`caller`, `detached: go func..`, `with open(..)`, `effect cleanup`, ...",
+          "type": "string"
+        },
+        "payload": {
+          "description": "The call or shape as the facts show it: receiver, arguments or hook; repository data.",
+          "type": "string"
+        },
+        "symbol": {
+          "description": "Enclosing function, method or component.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "transaction_scope": {
+          "description": "`transaction (*sql.Tx)`, `none: *sql.DB outside any transaction`, `unknown (..)` or\n`n/a`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code_ref",
+        "payload",
+        "transaction_scope",
+        "lifetime_scope",
+        "failure_behavior",
+        "in_change"
+      ]
+    },
+    "PathClass": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "PRODUCTION",
+            "GENERATED"
+          ]
+        },
+        {
+          "description": "Tests, benches, end-to-end suites and stories: code that does not ship.",
+          "type": "string",
+          "const": "TEST"
+        },
+        {
+          "description": "Package manifests, lockfiles and compiler configuration.",
+          "type": "string",
+          "const": "CONFIG"
+        },
+        {
+          "description": "Build scripts and bundler configuration.",
+          "type": "string",
+          "const": "BUILD"
+        }
+      ]
+    },
+    "Producer": {
+      "type": "object",
+      "properties": {
+        "config_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sha256Digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ]
+    },
+    "QueryStatus": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "ANSWERED",
+            "FAILED"
+          ]
+        },
+        {
+          "description": "The server does not advertise the capability, or no backend fits the project.",
+          "type": "string",
+          "const": "UNSUPPORTED"
+        },
+        {
+          "description": "The query does not apply to this kind of symbol, e.g. callers of a struct.",
+          "type": "string",
+          "const": "NOT_APPLICABLE"
+        }
+      ]
+    },
+    "RegistryBinding": {
+      "description": "A registry entry bound to the implementation it describes in this snapshot.",
+      "type": "object",
+      "properties": {
+        "contract_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RepoPath"
+          }
+        },
+        "durable_with_transaction": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "implementation": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ImplementationRef"
+          }
+        },
+        "kind": {
+          "$ref": "#/$defs/EffectKind"
+        },
+        "registry_id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/BindingStatus"
+        },
+        "symbol": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "registry_id",
+        "symbol",
+        "kind",
+        "implementation",
+        "contract_refs",
+        "status"
+      ]
+    },
+    "RepoPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Resolution": {
+      "description": "How far an entry's match is backed by resolved receivers and links.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "resolved"
+          ]
+        },
+        {
+          "description": "Matched by name or position, or a move without a proven call edge.",
+          "type": "string",
+          "const": "partial"
+        },
+        {
+          "description": "A receiver, callee or registration the snapshot does not show.",
+          "type": "string",
+          "const": "dynamic_unknown"
+        }
+      ]
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "SemanticFacts": {
+      "type": "object",
+      "properties": {
+        "build_configuration": {
+          "description": "Toolchain, lockfile and server settings the answers depend on.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "diagnostics": {
+          "description": "Pull diagnostics (`textDocument/diagnostic`) of the queried files.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DiagnosticFact"
+          }
+        },
+        "language": {
+          "$ref": "#/$defs/Language"
+        },
+        "limitations": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "position_encoding": {
+          "description": "Negotiated LSP position encoding.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "producer": {
+          "description": "Server name and version as reported by the server; config hash of what Sych sent.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Producer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "query_scope": {
+          "description": "Changed files of this language on this side that were queried.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "schema_version": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "side": {
+          "$ref": "#/$defs/SourceSide"
+        },
+        "source_snapshot_id": {
+          "$ref": "#/$defs/SourceSnapshotId"
+        },
+        "status": {
+          "$ref": "#/$defs/BackendStatus"
+        },
+        "symbols": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SymbolFacts"
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "source_snapshot_id",
+        "side",
+        "language",
+        "status"
+      ]
+    },
+    "Sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "SourceSide": {
+      "type": "string",
+      "enum": [
+        "DIFF_BASE",
+        "HEAD",
+        "TARGET_TIP"
+      ]
+    },
+    "SourceSnapshotId": {
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "SymbolFacts": {
+      "description": "A changed construct (function, method, type, …) and its static neighbourhood.",
+      "type": "object",
+      "properties": {
+        "callees": {
+          "description": "Whole constructs this one calls (wrappers, helpers); calls into dependencies are `external`.",
+          "$ref": "#/$defs/EdgeSet"
+        },
+        "callers": {
+          "$ref": "#/$defs/EdgeSet"
+        },
+        "calling_constructs": {
+          "description": "Whole functions or components that contain the call sites in `callers`.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CodeRef"
+          }
+        },
+        "container": {
+          "description": "Enclosing symbols, outermost first.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "definition": {
+          "$ref": "#/$defs/CodeRef"
+        },
+        "implementations": {
+          "$ref": "#/$defs/EdgeSet"
+        },
+        "kind": {
+          "description": "LSP `SymbolKind` name, e.g. `function`, `method`, `struct`.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path_class": {
+          "$ref": "#/$defs/PathClass"
+        },
+        "readers": {
+          "description": "References that read or write the symbol, from the server's highlight kinds; not\napplicable to callables.",
+          "$ref": "#/$defs/EdgeSet"
+        },
+        "references": {
+          "$ref": "#/$defs/EdgeSet"
+        },
+        "type_definitions": {
+          "description": "Whole definitions of the types the construct names, found through the server.",
+          "$ref": "#/$defs/EdgeSet"
+        },
+        "writers": {
+          "$ref": "#/$defs/EdgeSet"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "definition",
+        "path_class",
+        "references",
+        "readers",
+        "writers",
+        "callers",
+        "callees",
+        "type_definitions",
+        "implementations"
+      ]
+    },
+    "SyntaxFact": {
+      "type": "object",
+      "properties": {
+        "code_ref": {
+          "$ref": "#/$defs/CodeRef"
+        },
+        "detail": {
+          "description": "Short repository-derived description; data, not an instruction.",
+          "type": "string"
+        },
+        "guard": {
+          "description": "Condition of the nearest enclosing `if` inside the function, when there is one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "in_change": {
+          "description": "Whether the span intersects a changed line of this side.",
+          "type": "boolean"
+        },
+        "kind": {
+          "$ref": "#/$defs/SyntaxKind"
+        },
+        "related": {
+          "description": "Where a project wrapper (custom hook) is defined in the snapshot.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CodeRef"
+          }
+        },
+        "subject": {
+          "description": "The type or name the fact is about beyond its span, e.g. a SQL call's receiver type.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "symbol": {
+          "description": "Enclosing function or component, when known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "code_ref",
+        "detail",
+        "in_change"
+      ]
+    },
+    "SyntaxFacts": {
+      "type": "object",
+      "properties": {
+        "facts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SyntaxFact"
+          }
+        },
+        "files": {
+          "description": "Parsed files with their parse status (`ok` or the error).",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "language": {
+          "$ref": "#/$defs/Language"
+        },
+        "limitations": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "producer": {
+          "$ref": "#/$defs/Producer"
+        },
+        "schema_version": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "side": {
+          "$ref": "#/$defs/SourceSide"
+        },
+        "source_snapshot_id": {
+          "$ref": "#/$defs/SourceSnapshotId"
+        }
+      },
+      "required": [
+        "schema_version",
+        "source_snapshot_id",
+        "side",
+        "language",
+        "producer",
+        "files",
+        "facts"
+      ]
+    },
+    "SyntaxKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "async_fn",
+            "select_macro",
+            "unwrap",
+            "drop_impl",
+            "public_item",
+            "cfg_gate",
+            "serde_attribute",
+            "unexpanded_macro",
+            "test_module",
+            "effect_with_cleanup",
+            "effect_without_cleanup",
+            "async_effect_guarded",
+            "mutation_call",
+            "invalidation_call",
+            "controlled_input",
+            "uncontrolled_input",
+            "form_submit",
+            "custom_hook_call"
+          ]
+        },
+        {
+          "description": "A `lock()`/`read()`/`write()`/`borrow_mut()` guard still bound at an `.await`.",
+          "type": "string",
+          "const": "guard_across_await"
+        },
+        {
+          "description": "`spawn(..)` whose handle is dropped.",
+          "type": "string",
+          "const": "detached_spawn"
+        },
+        {
+          "description": "`std::thread::sleep`, `std::fs::*` or `block_on` inside an `async fn`.",
+          "type": "string",
+          "const": "blocking_in_async"
+        },
+        {
+          "description": "`let _ = call(..)` or a statement ending in `.ok()`.",
+          "type": "string",
+          "const": "discarded_result"
+        },
+        {
+          "description": "An item or statement under a `#[cfg(..)]` that the analysed build (host target, `test`,\n`debug_assertions`, default features) does not compile: its code is not checked.",
+          "type": "string",
+          "const": "inactive_cfg"
+        },
+        {
+          "description": "A value logged with `?value`, `{:?}` or `{value:?}`; `related` holds its type's\ndefinitions in the snapshot, empty when the type is defined elsewhere or not known.",
+          "type": "string",
+          "const": "debug_formatted"
+        },
+        {
+          "description": "`#[allow(..)]`/`#[expect(..)]`: a disabled lint is not a fix.",
+          "type": "string",
+          "const": "lint_suppressed"
+        },
+        {
+          "description": "`#[ignore]`, `it.skip`, `test.only`, `describe.todo`: a test that does not run.",
+          "type": "string",
+          "const": "test_skipped"
+        },
+        {
+          "description": "A Rust `use` or TS `import`: names the types and wrappers the file depends on.",
+          "type": "string",
+          "const": "import"
+        },
+        {
+          "description": "`addEventListener` without `removeEventListener` in the same effect.",
+          "type": "string",
+          "const": "unpaired_listener"
+        },
+        {
+          "description": "`setInterval`/`setTimeout` without the matching clear in the same effect.",
+          "type": "string",
+          "const": "unpaired_timer"
+        },
+        {
+          "description": "`subscribe(..)` without `unsubscribe` or a returned cleanup in the same effect.",
+          "type": "string",
+          "const": "unpaired_subscription"
+        },
+        {
+          "description": "Async work in an effect without an abort signal or a stale-response flag.",
+          "type": "string",
+          "const": "async_effect_unguarded"
+        },
+        {
+          "description": "`value` without `onChange` or `readOnly`.",
+          "type": "string",
+          "const": "controlled_without_handler"
+        },
+        {
+          "description": "`useState` flags named loading/pending/error/optimistic/submitting, or `useOptimistic`.",
+          "type": "string",
+          "const": "async_state_flag"
+        },
+        {
+          "description": "A function taking a `context.Context`.",
+          "type": "string",
+          "const": "context_param"
+        },
+        {
+          "description": "A function returning an `error`.",
+          "type": "string",
+          "const": "returns_error"
+        },
+        {
+          "description": "`defer` of a call; `detail` is the call.",
+          "type": "string",
+          "const": "defer"
+        },
+        {
+          "description": "A channel send, receive, `close` or `select`.",
+          "type": "string",
+          "const": "channel_op"
+        },
+        {
+          "description": "`Begin`/`BeginTx`/`Commit`/`Rollback`, Python `commit`/`rollback`/`begin`.",
+          "type": "string",
+          "const": "tx_boundary"
+        },
+        {
+          "description": "A SQL call; `subject` is the receiver's declared type (`*sql.Tx`, `*sql.DB`, a project\ntype) when the function or package shows it, else none.",
+          "type": "string",
+          "const": "db_call"
+        },
+        {
+          "description": "A file write: Python `open(.., \"w\")`, `.write(..)`, Go `os.WriteFile`.",
+          "type": "string",
+          "const": "write_call"
+        },
+        {
+          "description": "An outgoing HTTP request.",
+          "type": "string",
+          "const": "network_call"
+        },
+        {
+          "description": "A call of a wrapper listed in the effect registry; `detail` is the registry symbol and\n`subject` the type of a transaction passed to it, when known.",
+          "type": "string",
+          "const": "registered_effect_call"
+        },
+        {
+          "description": "Python `with`/`async with` or `try`/`finally`: the span owns a resource or cleanup.",
+          "type": "string",
+          "const": "resource_scope"
+        },
+        {
+          "description": "An async task kept by the caller: Python `create_task`/`ensure_future` assigned.",
+          "type": "string",
+          "const": "async_task"
+        },
+        {
+          "description": "An `except` that only passes, continues or returns.",
+          "type": "string",
+          "const": "swallowed_exception"
+        },
+        {
+          "description": "Reflection, `getattr`/`setattr`/`eval`/`import_module`: the callee is not known\nstatically.",
+          "type": "string",
+          "const": "dynamic_dispatch"
+        },
+        {
+          "description": "A Go call through an interface the package declares; `subject` is the interface, and\nthe implementation is chosen at runtime.",
+          "type": "string",
+          "const": "interface_call"
+        },
+        {
+          "description": "A module attribute replaced at runtime (`mod.attr = ..`, `setattr(mod, ..)`).",
+          "type": "string",
+          "const": "monkey_patch"
+        },
+        {
+          "description": "A decorator or `register`/`connect` call that registers code at import time.",
+          "type": "string",
+          "const": "runtime_registration"
+        }
+      ]
+    },
+    "TestStatus": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "PASSED",
+            "FAILED",
+            "ERRORED"
+          ]
+        },
+        {
+          "description": "Not run: never evidence that the behaviour works.",
+          "type": "string",
+          "const": "SKIPPED"
+        }
+      ]
+    }
+  }
+}

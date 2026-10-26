@@ -1,0 +1,45 @@
+schema_version: 1
+id: react-timer-safe
+split: development
+language: typescript
+pair: react-timer
+variant: safe
+profiles: [correctness]
+rationale: "Only the time format changes; the interval is still cleared."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/Clock.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function Clock() {
+      const [now, setNow] = useState(Date.now());
+      useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+      }, []);
+      return <time>{new Date(now).toLocaleTimeString()}</time>;
+    }
+head:
+  src/Clock.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function Clock() {
+      const [now, setNow] = useState(Date.now());
+      useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+      }, []);
+      return <time>{new Date(now).toLocaleTimeString('ru-RU')}</time>;
+    }
+expected:
+  forbidden_facts:
+    - { kind: unpaired_timer, side: HEAD, path: src/Clock.tsx, line: 5 }

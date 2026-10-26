@@ -1,0 +1,38 @@
+schema_version: 1
+id: rust-error-handling-weakened-safe
+split: development
+language: rust
+pair: rust-error-handling-weakened
+variant: safe
+profiles: [correctness]
+rationale: "A new validation rejects zero; errors still propagate."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod parse;
+  src/parse.rs: |
+    pub fn parse_amount(input: &str) -> Result<Cents, ParseError> {
+        let value: u64 = input.trim().parse().map_err(ParseError::NotANumber)?;
+        Ok(Cents(value))
+    }
+head:
+  src/parse.rs: |
+    pub fn parse_amount(input: &str) -> Result<Cents, ParseError> {
+        let value: u64 = input.trim().parse().map_err(ParseError::NotANumber)?;
+        if value == 0 {
+            return Err(ParseError::Zero);
+        }
+        Ok(Cents(value))
+    }
+expected:
+  forbidden_facts:
+    - { kind: unwrap, side: HEAD, path: src/parse.rs, line: 2 }

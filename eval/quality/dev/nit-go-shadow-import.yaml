@@ -1,0 +1,52 @@
+schema_version: 1
+id: nit-go-shadow-import
+split: development
+language: go
+variant: safe
+profiles: [nitpicks]
+rationale: "Range is correct, but `stats := stats.Describe(...)` shadows the imported stats package for the rest of the function; a name like `desc` keeps the package usable."
+base:
+  go.mod: |
+    module example.com/report
+
+    go 1.24
+  report.go: |
+    package report
+
+    import (
+    	"fmt"
+
+    	"example.com/metrics/stats"
+    )
+
+    func Summary(samples []float64) string {
+    	return fmt.Sprintf("mean=%.2f", stats.Mean(samples))
+    }
+head:
+  report.go: |
+    package report
+
+    import (
+    	"fmt"
+
+    	"example.com/metrics/stats"
+    )
+
+    func Summary(samples []float64) string {
+    	return fmt.Sprintf("mean=%.2f", stats.Mean(samples))
+    }
+
+    func Range(samples []float64) string {
+    	stats := stats.Describe(samples)
+    	return fmt.Sprintf("min=%.2f max=%.2f", stats.Min, stats.Max)
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "local variable shadows the imported stats package"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: report.go, start_line: 14, end_line: 14 }
+  forbidden_claims:
+    - "Rename the variable to something more descriptive."
+    - "Range is a defect."

@@ -1,0 +1,428 @@
+[
+  {
+    "schema_version": 1,
+    "request": {
+      "run_id": "01a17384-006b-7099-956c-125d069b53d9",
+      "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+      "policy_snapshot_id": "sha256:166fdf8d113eabf98e379d94de639c4e6dcc6355a568d30a2e3456857115d505",
+      "review_unit_ids": [
+        "bbb607e7-9c1f-8daa-86fb-9b8219ba39cb"
+      ],
+      "obligation_id": null,
+      "question": "src",
+      "purpose": "DISCOVERY",
+      "seed_refs": [],
+      "requested_operations": [
+        "read_span",
+        "find_references",
+        "find_callers",
+        "find_implementations"
+      ],
+      "remaining_budget": 450,
+      "access_scope_id": "local:sha256:88a4ab7043791ab80d01c546059ee69e4dfd51c9738b386783b1de73d025f44e"
+    },
+    "fragments": [
+      {
+        "id": "c6216f97b5d1",
+        "code_ref": {
+          "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+          "side": "DIFF_BASE",
+          "path": "src/lib.rs",
+          "blob_oid": "sha1:1bfd44d0acceaaed2f3d338ea87f3c5dfba0087b",
+          "start_line": 6,
+          "end_line": 13,
+          "content_sha256": "sha256:8c1d3aa9ef86bd35a25d77da9f70f69c2c3433e535f413425048d1b910f778b3"
+        },
+        "priority": "REQUIRED",
+        "reason_selected": [
+          "enclosing construct `save`",
+          "hunk context (base)",
+          "diff hunk (base)"
+        ],
+        "evidence_ids": [
+          "91552203-a48f-83b1-8674-5fd7f1ba260b"
+        ],
+        "completeness": "PARTIAL",
+        "tokens": 214,
+        "transformation": "none"
+      },
+      {
+        "id": "7037e6f03dfd",
+        "code_ref": {
+          "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+          "side": "HEAD",
+          "path": "src/lib.rs",
+          "blob_oid": "sha1:e20f731fe0a51515a863eff7f21e30e808e6676d",
+          "start_line": 6,
+          "end_line": 13,
+          "content_sha256": "sha256:b5b4a728a9125da1e6a1b7627437a68b0609e3726b124d2244574d2449c178f4"
+        },
+        "priority": "REQUIRED",
+        "reason_selected": [
+          "enclosing construct `save`",
+          "hunk context (head)",
+          "diff hunk (head)",
+          "syntax discarded_result: self . events . len ()"
+        ],
+        "evidence_ids": [
+          "f799849f-2300-86fd-8ac2-ef2074ab62ca",
+          "eb2e0fcd-d011-8247-8a8b-580ab7be36a6"
+        ],
+        "completeness": "PARTIAL",
+        "tokens": 192,
+        "transformation": "none"
+      },
+      {
+        "id": "5673adad73ee",
+        "code_ref": {
+          "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+          "side": "DIFF_BASE",
+          "path": "src/lib.rs",
+          "blob_oid": "sha1:1bfd44d0acceaaed2f3d338ea87f3c5dfba0087b",
+          "start_line": 22,
+          "end_line": 22,
+          "content_sha256": "sha256:4cac18b5000313ba15852f94c069b02f102aee3aa5baa2747412488b22e55209"
+        },
+        "priority": "SUPPORTING",
+        "reason_selected": [
+          "imports (1 statements)"
+        ],
+        "evidence_ids": [
+          "32f1f585-f7d5-85c1-a490-d791acc3c30e"
+        ],
+        "completeness": "PARTIAL",
+        "tokens": 18,
+        "transformation": "none"
+      },
+      {
+        "id": "3e8635f65302",
+        "code_ref": {
+          "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+          "side": "HEAD",
+          "path": "src/lib.rs",
+          "blob_oid": "sha1:e20f731fe0a51515a863eff7f21e30e808e6676d",
+          "start_line": 22,
+          "end_line": 22,
+          "content_sha256": "sha256:4cac18b5000313ba15852f94c069b02f102aee3aa5baa2747412488b22e55209"
+        },
+        "priority": "SUPPORTING",
+        "reason_selected": [
+          "imports (1 statements)"
+        ],
+        "evidence_ids": [
+          "eb2e0fcd-d011-8247-8a8b-580ab7be36a6"
+        ],
+        "completeness": "PARTIAL",
+        "tokens": 18,
+        "transformation": "none"
+      }
+    ],
+    "links": [],
+    "queries": [
+      {
+        "operation": "find_callers",
+        "symbol": "save",
+        "side": "DIFF_BASE",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_callees",
+        "symbol": "save",
+        "side": "DIFF_BASE",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_implementations",
+        "symbol": "save",
+        "side": "DIFF_BASE",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_references",
+        "symbol": "save",
+        "side": "DIFF_BASE",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_callers",
+        "symbol": "save",
+        "side": "HEAD",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_callees",
+        "symbol": "save",
+        "side": "HEAD",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_implementations",
+        "symbol": "save",
+        "side": "HEAD",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_references",
+        "symbol": "save",
+        "side": "HEAD",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      }
+    ],
+    "excluded": [
+      {
+        "code_ref": {
+          "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+          "side": "DIFF_BASE",
+          "path": "src/lib.rs",
+          "blob_oid": "sha1:1bfd44d0acceaaed2f3d338ea87f3c5dfba0087b",
+          "start_line": 15,
+          "end_line": 18,
+          "content_sha256": "sha256:b79d2252fc0b51e2f7cbd2f507a055582ceac35e88b9131f1fdbaff80c873928"
+        },
+        "priority": "SUPPORTING",
+        "reason": "BUDGET"
+      },
+      {
+        "code_ref": {
+          "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+          "side": "HEAD",
+          "path": "src/lib.rs",
+          "blob_oid": "sha1:e20f731fe0a51515a863eff7f21e30e808e6676d",
+          "start_line": 15,
+          "end_line": 18,
+          "content_sha256": "sha256:b79d2252fc0b51e2f7cbd2f507a055582ceac35e88b9131f1fdbaff80c873928"
+        },
+        "priority": "SUPPORTING",
+        "reason": "BUDGET"
+      }
+    ],
+    "gaps": [],
+    "usage": {
+      "tokens": 442,
+      "files": 2,
+      "semantic_items": 8
+    },
+    "resolution": "SATISFIED"
+  },
+  {
+    "schema_version": 1,
+    "request": {
+      "run_id": "01a17384-006b-7099-956c-125d069b53d9",
+      "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+      "policy_snapshot_id": "sha256:166fdf8d113eabf98e379d94de639c4e6dcc6355a568d30a2e3456857115d505",
+      "review_unit_ids": [
+        "bbb607e7-9c1f-8daa-86fb-9b8219ba39cb"
+      ],
+      "obligation_id": "afdd49fb-cd1c-872e-99a6-ca0548655a00",
+      "question": "Errors, cancellation and resource lifetime keep the behaviour the code relied on before the change.",
+      "purpose": "VERIFICATION",
+      "seed_refs": [],
+      "requested_operations": [
+        "read_span",
+        "find_references",
+        "find_callers",
+        "find_implementations"
+      ],
+      "remaining_budget": 450,
+      "access_scope_id": "local:sha256:88a4ab7043791ab80d01c546059ee69e4dfd51c9738b386783b1de73d025f44e"
+    },
+    "fragments": [
+      {
+        "id": "c6216f97b5d1",
+        "code_ref": {
+          "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+          "side": "DIFF_BASE",
+          "path": "src/lib.rs",
+          "blob_oid": "sha1:1bfd44d0acceaaed2f3d338ea87f3c5dfba0087b",
+          "start_line": 6,
+          "end_line": 13,
+          "content_sha256": "sha256:8c1d3aa9ef86bd35a25d77da9f70f69c2c3433e535f413425048d1b910f778b3"
+        },
+        "priority": "REQUIRED",
+        "reason_selected": [
+          "enclosing construct `save`",
+          "hunk context (base)",
+          "diff hunk (base)"
+        ],
+        "evidence_ids": [
+          "91552203-a48f-83b1-8674-5fd7f1ba260b"
+        ],
+        "completeness": "PARTIAL",
+        "tokens": 214,
+        "transformation": "none"
+      },
+      {
+        "id": "7037e6f03dfd",
+        "code_ref": {
+          "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+          "side": "HEAD",
+          "path": "src/lib.rs",
+          "blob_oid": "sha1:e20f731fe0a51515a863eff7f21e30e808e6676d",
+          "start_line": 6,
+          "end_line": 13,
+          "content_sha256": "sha256:b5b4a728a9125da1e6a1b7627437a68b0609e3726b124d2244574d2449c178f4"
+        },
+        "priority": "REQUIRED",
+        "reason_selected": [
+          "enclosing construct `save`",
+          "hunk context (head)",
+          "diff hunk (head)",
+          "syntax discarded_result: self . events . len ()"
+        ],
+        "evidence_ids": [
+          "f799849f-2300-86fd-8ac2-ef2074ab62ca",
+          "eb2e0fcd-d011-8247-8a8b-580ab7be36a6"
+        ],
+        "completeness": "PARTIAL",
+        "tokens": 192,
+        "transformation": "none"
+      },
+      {
+        "id": "5673adad73ee",
+        "code_ref": {
+          "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+          "side": "DIFF_BASE",
+          "path": "src/lib.rs",
+          "blob_oid": "sha1:1bfd44d0acceaaed2f3d338ea87f3c5dfba0087b",
+          "start_line": 22,
+          "end_line": 22,
+          "content_sha256": "sha256:4cac18b5000313ba15852f94c069b02f102aee3aa5baa2747412488b22e55209"
+        },
+        "priority": "SUPPORTING",
+        "reason_selected": [
+          "imports (1 statements)"
+        ],
+        "evidence_ids": [
+          "32f1f585-f7d5-85c1-a490-d791acc3c30e"
+        ],
+        "completeness": "PARTIAL",
+        "tokens": 18,
+        "transformation": "none"
+      },
+      {
+        "id": "3e8635f65302",
+        "code_ref": {
+          "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+          "side": "HEAD",
+          "path": "src/lib.rs",
+          "blob_oid": "sha1:e20f731fe0a51515a863eff7f21e30e808e6676d",
+          "start_line": 22,
+          "end_line": 22,
+          "content_sha256": "sha256:4cac18b5000313ba15852f94c069b02f102aee3aa5baa2747412488b22e55209"
+        },
+        "priority": "SUPPORTING",
+        "reason_selected": [
+          "imports (1 statements)"
+        ],
+        "evidence_ids": [
+          "eb2e0fcd-d011-8247-8a8b-580ab7be36a6"
+        ],
+        "completeness": "PARTIAL",
+        "tokens": 18,
+        "transformation": "none"
+      }
+    ],
+    "links": [],
+    "queries": [
+      {
+        "operation": "find_callers",
+        "symbol": "save",
+        "side": "DIFF_BASE",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_callees",
+        "symbol": "save",
+        "side": "DIFF_BASE",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_implementations",
+        "symbol": "save",
+        "side": "DIFF_BASE",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_references",
+        "symbol": "save",
+        "side": "DIFF_BASE",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_callers",
+        "symbol": "save",
+        "side": "HEAD",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_callees",
+        "symbol": "save",
+        "side": "HEAD",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_implementations",
+        "symbol": "save",
+        "side": "HEAD",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      },
+      {
+        "operation": "find_references",
+        "symbol": "save",
+        "side": "HEAD",
+        "status": "ANSWERED",
+        "completeness": "PARTIAL"
+      }
+    ],
+    "excluded": [
+      {
+        "code_ref": {
+          "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+          "side": "DIFF_BASE",
+          "path": "src/lib.rs",
+          "blob_oid": "sha1:1bfd44d0acceaaed2f3d338ea87f3c5dfba0087b",
+          "start_line": 15,
+          "end_line": 18,
+          "content_sha256": "sha256:b79d2252fc0b51e2f7cbd2f507a055582ceac35e88b9131f1fdbaff80c873928"
+        },
+        "priority": "SUPPORTING",
+        "reason": "BUDGET"
+      },
+      {
+        "code_ref": {
+          "snapshot_id": "sha256:fcd41461996680a149899b646af83b00dc629c7dbd6f4ea827a0bc9c998874f3",
+          "side": "HEAD",
+          "path": "src/lib.rs",
+          "blob_oid": "sha1:e20f731fe0a51515a863eff7f21e30e808e6676d",
+          "start_line": 15,
+          "end_line": 18,
+          "content_sha256": "sha256:b79d2252fc0b51e2f7cbd2f507a055582ceac35e88b9131f1fdbaff80c873928"
+        },
+        "priority": "SUPPORTING",
+        "reason": "BUDGET"
+      }
+    ],
+    "gaps": [],
+    "usage": {
+      "tokens": 442,
+      "files": 2,
+      "semantic_items": 8
+    },
+    "resolution": "SATISFIED"
+  }
+]

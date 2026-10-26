@@ -1,0 +1,619 @@
+{
+  "suite": "eval/quality/dev",
+  "models": "cheap_api",
+  "variant": "C",
+  "semantic": true,
+  "runs_per_case": 1,
+  "skipped": [],
+  "totals": {
+    "runs": 16,
+    "errors": 0,
+    "expected_findings": 0,
+    "matched_expected": 0,
+    "correctness_findings": 5,
+    "labelled_findings": 3,
+    "clean_runs": 16,
+    "clean_runs_with_correctness_finding": 5,
+    "unknown_runs": 0,
+    "unknown_kept": 0,
+    "obligation_checks": 0,
+    "obligation_agreements": 0,
+    "nits": 6,
+    "expected_nits": 15,
+    "matched_nits": 5,
+    "model_attempts": 31,
+    "cost_known_micro_usd": 30114,
+    "unknown_cost_attempts": 0,
+    "nit_recall": 0.3333333333333333,
+    "precision": 0.6,
+    "recall": null,
+    "clean_false_positive_rate": 0.3125,
+    "unknown_kept_rate": null
+  },
+  "by_language": {
+    "go": {
+      "runs": 5,
+      "errors": 0,
+      "expected_findings": 0,
+      "matched_expected": 0,
+      "correctness_findings": 1,
+      "labelled_findings": 1,
+      "clean_runs": 5,
+      "clean_runs_with_correctness_finding": 1,
+      "unknown_runs": 0,
+      "unknown_kept": 0,
+      "obligation_checks": 0,
+      "obligation_agreements": 0,
+      "nits": 1,
+      "expected_nits": 5,
+      "matched_nits": 1,
+      "model_attempts": 10,
+      "cost_known_micro_usd": 8455,
+      "unknown_cost_attempts": 0,
+      "nit_recall": 0.2,
+      "precision": 1.0,
+      "recall": null,
+      "clean_false_positive_rate": 0.2,
+      "unknown_kept_rate": null
+    },
+    "rust": {
+      "runs": 5,
+      "errors": 0,
+      "expected_findings": 0,
+      "matched_expected": 0,
+      "correctness_findings": 1,
+      "labelled_findings": 1,
+      "clean_runs": 5,
+      "clean_runs_with_correctness_finding": 1,
+      "unknown_runs": 0,
+      "unknown_kept": 0,
+      "obligation_checks": 0,
+      "obligation_agreements": 0,
+      "nits": 3,
+      "expected_nits": 5,
+      "matched_nits": 3,
+      "model_attempts": 10,
+      "cost_known_micro_usd": 10575,
+      "unknown_cost_attempts": 0,
+      "nit_recall": 0.6,
+      "precision": 1.0,
+      "recall": null,
+      "clean_false_positive_rate": 0.2,
+      "unknown_kept_rate": null
+    },
+    "typescript": {
+      "runs": 6,
+      "errors": 0,
+      "expected_findings": 0,
+      "matched_expected": 0,
+      "correctness_findings": 3,
+      "labelled_findings": 1,
+      "clean_runs": 6,
+      "clean_runs_with_correctness_finding": 3,
+      "unknown_runs": 0,
+      "unknown_kept": 0,
+      "obligation_checks": 0,
+      "obligation_agreements": 0,
+      "nits": 2,
+      "expected_nits": 5,
+      "matched_nits": 1,
+      "model_attempts": 11,
+      "cost_known_micro_usd": 11084,
+      "unknown_cost_attempts": 0,
+      "nit_recall": 0.2,
+      "precision": 0.3333333333333333,
+      "recall": null,
+      "clean_false_positive_rate": 0.5,
+      "unknown_kept_rate": null
+    }
+  },
+  "runs": [
+    {
+      "id": "nit-go-misleading-name",
+      "language": "go",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173b3-d4fa-75b6-962a-3387717f1f0d",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 0,
+        "expected_nits": 1,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2777,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-go-preallocate",
+      "language": "go",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173b4-cd41-7512-b653-b59516424d77",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 0,
+        "expected_nits": 1,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1131,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-go-shadow-import",
+      "language": "go",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173b5-248d-77c9-947e-e84eb99bbce0",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "NIT",
+            "title": "Local stats shadows imported stats package in Range",
+            "at": [
+              "report.go:10-10",
+              "report.go:14-14"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2092,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-go-sort-in-place",
+      "language": "go",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173b5-d46b-7780-9d8d-9519f117b4ad",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "PARTIAL",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "nits": 0,
+        "expected_nits": 1,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Median reorders the caller's slice",
+            "at": [
+              "median.go:6-7"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1598,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-go-stale-comment",
+      "language": "go",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173b6-64dd-7357-9d09-25d016c03512",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 0,
+        "expected_nits": 1,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 857,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-atomic-ptr",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173b6-b398-74c2-988e-85f35b2f4535",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "IMPROVEMENT",
+            "title": "Use AtomicPtr for the shared config slot",
+            "at": [
+              "src/current.rs:8-8",
+              "src/current.rs:11-11",
+              "src/current.rs:15-17"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2403,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-history-comment",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173b7-8ddd-7779-b19b-3b0595fa17f2",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 0,
+        "expected_nits": 1,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1833,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-inline-helper",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173b8-1a00-7616-abab-78c09017f6d6",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "NIT",
+            "title": "Test covers only the saturation path of clamp_backlog",
+            "at": [
+              "src/listen.rs:15-18"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1861,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-must-use",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173b8-a812-738d-8d08-f8d2c73c00a4",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "nits": 0,
+        "expected_nits": 1,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "New `timeout` setter lacks `#[must_use]`",
+            "at": [
+              "src/builder.rs:11-16",
+              "src/builder.rs:22-25"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2386,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-reread-in-loop",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173b9-7dc8-762a-a9be-770c977d3b12",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "IMPROVEMENT",
+            "title": "Redundant line_width lookup inside the block loop",
+            "at": [
+              "src/render.rs:2-6",
+              "src/render.rs:5-5"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2092,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-ts-console-mock",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173ba-41df-76aa-a25c-d61915ba9a3d",
+        "recommendation": "NEEDS_EVIDENCE",
+        "coverage": "PARTIAL",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "NIT",
+            "title": "console.error is permanently replaced in the test file",
+            "at": [
+              "src/ErrorBoundary.test.tsx:9-9"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2070,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-ts-derived-state-effect",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173ba-fe67-7059-9a20-2c6eb21e55ba",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "nits": 0,
+        "expected_nits": 1,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Unresolved formatPrice identifier crashes CartSummary render",
+            "at": [
+              "src/CartSummary.tsx:1-1",
+              "src/CartSummary.tsx:12-12"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2352,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-ts-linter-only",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173bb-c14c-7658-8c8b-947e5b2071ae",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "shippingCost does not guard NaN or negative weights",
+            "at": [
+              "src/shipping.ts:5-11"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1704,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-ts-magic-plus-one",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173bc-36ae-7204-9ed7-1ce5a381aa1a",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "nits": 0,
+        "expected_nits": 1,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Column reported as 0 for offset 0 when source starts with a newline",
+            "at": [
+              "src/diagnostic.ts:2-4"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2323,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-ts-strict-equality",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173bc-e8cd-73cd-80aa-386805bb30d2",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "PARTIAL",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 0,
+        "expected_nits": 1,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 1,
+        "cost_known_micro_usd": 1737,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-ts-unrelated-hunk",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a173bd-88d5-76d7-a927-5f899112a087",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "IMPROVEMENT",
+            "title": "Accepted units duplicated between UNITS map and regex class",
+            "at": [
+              "src/parser/duration.ts:1-1",
+              "src/parser/duration.ts:4-4",
+              "src/parser/duration.ts:6-6"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 898,
+        "unknown_cost_attempts": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+schema_version: 1
+id: nit-rust-inline-helper
+split: development
+language: rust
+variant: safe
+profiles: [nitpicks]
+rationale: "The configurable backlog is correct; the one-call helper and its unit test only wrap `i32::try_from(backlog).unwrap_or(i32::MAX)`, which reads better inlined at the call."
+base:
+  Cargo.toml: |
+    [package]
+    name = "net"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod listen;
+  src/listen.rs: |
+    use std::io;
+
+    pub fn listen(addr: &str) -> io::Result<Listener> {
+        let socket = Socket::bind(addr)?;
+        socket.listen(1024)?;
+        Ok(Listener(socket))
+    }
+head:
+  src/listen.rs: |
+    use std::io;
+
+    pub fn listen(addr: &str, backlog: u32) -> io::Result<Listener> {
+        let socket = Socket::bind(addr)?;
+        socket.listen(clamp_backlog(backlog))?;
+        Ok(Listener(socket))
+    }
+
+    fn clamp_backlog(backlog: u32) -> i32 {
+        i32::try_from(backlog).unwrap_or(i32::MAX)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        #[test]
+        fn clamps_large_backlog() {
+            assert_eq!(super::clamp_backlog(u32::MAX), i32::MAX);
+        }
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "inline the single-use clamp_backlog helper and drop its test"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: src/listen.rs, start_line: 9, end_line: 10 }
+        - { side: HEAD, path: src/listen.rs, start_line: 13, end_line: 17 }
+  forbidden_claims:
+    - "Add a test for negative backlog values to clamp_backlog."
+    - "The configurable backlog is a defect."

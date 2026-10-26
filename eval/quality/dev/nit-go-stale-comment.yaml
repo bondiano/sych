@@ -1,0 +1,64 @@
+schema_version: 1
+id: nit-go-stale-comment
+split: development
+language: go
+variant: safe
+profiles: [nitpicks]
+rationale: "SetMaxRetries works, but the comment on maxRetries still says it is constant and never changes at runtime, which is now false."
+base:
+  go.mod: |
+    module example.com/client
+
+    go 1.24
+  client.go: |
+    package client
+
+    import "net/http"
+
+    // maxRetries is constant: the client never changes it at runtime.
+    var maxRetries = 3
+
+    func Do(c *http.Client, req *http.Request) (*http.Response, error) {
+    	var resp *http.Response
+    	var err error
+    	for range maxRetries {
+    		if resp, err = c.Do(req); err == nil {
+    			return resp, nil
+    		}
+    	}
+    	return nil, err
+    }
+head:
+  client.go: |
+    package client
+
+    import "net/http"
+
+    // maxRetries is constant: the client never changes it at runtime.
+    var maxRetries = 3
+
+    func Do(c *http.Client, req *http.Request) (*http.Response, error) {
+    	var resp *http.Response
+    	var err error
+    	for range maxRetries {
+    		if resp, err = c.Do(req); err == nil {
+    			return resp, nil
+    		}
+    	}
+    	return nil, err
+    }
+
+    // SetMaxRetries is called when the config is reloaded.
+    func SetMaxRetries(n int) {
+    	maxRetries = n
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "stale comment claims maxRetries is constant"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: client.go, start_line: 5, end_line: 5 }
+  forbidden_claims:
+    - "Add godoc comments to all functions."
+    - "SetMaxRetries is a defect."

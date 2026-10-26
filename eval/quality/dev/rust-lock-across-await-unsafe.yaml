@@ -1,0 +1,59 @@
+schema_version: 1
+id: rust-lock-across-await-unsafe
+split: development
+language: rust
+pair: rust-lock-across-await
+variant: unsafe
+profiles: [correctness]
+rationale: "A std Mutex guard is held across `.await`: the future is not Send and other tasks block on the lock for the whole remote call."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    use std::sync::Mutex;
+
+    pub struct Cache {
+        hits: Mutex<u64>,
+    }
+
+    impl Cache {
+        pub async fn get(&self, key: &str) -> Option<Value> {
+            let value = self.remote.get(key).await;
+            *self.hits.lock().unwrap() += 1;
+            value
+        }
+    }
+head:
+  src/lib.rs: |
+    use std::sync::Mutex;
+
+    pub struct Cache {
+        hits: Mutex<u64>,
+    }
+
+    impl Cache {
+        pub async fn get(&self, key: &str) -> Option<Value> {
+            let mut hits = self.hits.lock().unwrap();
+            *hits += 1;
+            let value = self.remote.get(key).await;
+            value
+        }
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "hits counter lock"
+      required_condition: "remote.get is slow while other tasks call get"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 9, end_line: 9 }
+        - { side: HEAD, path: src/lib.rs, start_line: 11, end_line: 11 }
+  facts:
+    - { kind: guard_across_await, side: HEAD, path: src/lib.rs, line: 11 }

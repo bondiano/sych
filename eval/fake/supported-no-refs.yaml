@@ -1,0 +1,11 @@
+# An answer for a rule without an obligation is ignored and listed as unresolved.
+schema_version: 1
+evidence:
+  - key: claim
+    kind: source
+    completeness: COMPLETE_FOR_QUERY
+    trust_class: SOURCE_OBSERVATION
+assessments:
+  - rule_id: EFFECT-01
+    status: SUPPORTED
+    evidence: [claim]

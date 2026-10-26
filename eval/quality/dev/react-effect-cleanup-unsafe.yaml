@@ -1,0 +1,53 @@
+schema_version: 1
+id: react-effect-cleanup-unsafe
+split: development
+language: typescript
+pair: react-effect-cleanup
+variant: unsafe
+profiles: [correctness]
+rationale: "The cleanup is removed: every mount adds a resize listener that is never removed and keeps setting state after unmount."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/Banner.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function Banner() {
+      const [width, setWidth] = useState(window.innerWidth);
+      useEffect(() => {
+        const onResize = () => setWidth(window.innerWidth);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+      }, []);
+      return <div className={width > 800 ? 'wide' : 'narrow'} />;
+    }
+head:
+  src/Banner.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function Banner() {
+      const [width, setWidth] = useState(window.innerWidth);
+      useEffect(() => {
+        const onResize = () => setWidth(window.innerWidth);
+        window.addEventListener('resize', onResize);
+      }, []);
+      return <div className={width > 800 ? 'wide' : 'narrow'} />;
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "resize listener lifetime"
+      required_condition: "the banner unmounts and remounts"
+      evidence_locations:
+        - { side: HEAD, path: src/Banner.tsx, start_line: 5, end_line: 8 }
+  facts:
+    - { kind: effect_without_cleanup, side: HEAD, path: src/Banner.tsx, line: 5 }
+    - { kind: unpaired_listener, side: HEAD, path: src/Banner.tsx, line: 5 }

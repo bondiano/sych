@@ -1,0 +1,60 @@
+schema_version: 1
+id: rust-paid-fallback-safe
+split: development
+language: rust
+pair: rust-paid-fallback
+variant: safe
+profiles: [correctness]
+rationale: "The match is restructured; quota exhaustion still yields no route."
+base:
+  Cargo.toml: |
+    [package]
+    name = "gateway"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  .sych/rules.yaml: |
+    schema_version: 1
+    rules:
+      - id: ROUTE-01
+        version: 1
+        title: Quota exhaustion never reaches a paid route
+        kind: invariant
+        required: true
+        severity_on_violation: high
+        owner: platform
+        applies_to:
+          paths: ["src/**"]
+        statement: When a subscription route reports exhausted quota, the request does not move to a route billed as paid API usage.
+  src/lib.rs: |
+    pub fn next_route<'a>(failure: &Failure, chain: &'a [Route]) -> Option<&'a Route> {
+        match failure {
+            Failure::RateLimited | Failure::Transient => chain
+                .iter()
+                .find(|r| r.healthy && r.billing == Billing::Subscription),
+            Failure::QuotaExhausted => None,
+            Failure::Auth | Failure::Schema => None,
+        }
+    }
+head:
+  src/lib.rs: |
+    pub fn next_route<'a>(failure: &Failure, chain: &'a [Route]) -> Option<&'a Route> {
+        let retryable = matches!(failure, Failure::RateLimited | Failure::Transient);
+        if !retryable {
+            // Quota, auth and schema failures are not healed by another route.
+            return None;
+        }
+
+        chain
+            .iter()
+            .find(|r| r.healthy && r.billing == Billing::Subscription)
+    }
+expected:
+  obligations:
+    - { rule_id: ROUTE-01, expected_status: SUPPORTED }
+  forbidden_claims:
+    - "Quota exhaustion falls back to a paid route."

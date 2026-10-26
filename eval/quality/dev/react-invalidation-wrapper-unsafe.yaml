@@ -1,0 +1,58 @@
+schema_version: 1
+id: react-invalidation-wrapper-unsafe
+split: development
+language: typescript
+pair: react-invalidation-wrapper
+variant: unsafe
+profiles: [correctness]
+rationale: "The mutation moves into a project hook that dropped the invalidation; order lists keep the old name."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/RenameButton.tsx: |
+    import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+    export function RenameButton({ id }: { id: string }) {
+      const client = useQueryClient();
+      const rename = useMutation({
+        mutationFn: (name: string) => renameOrder(id, name),
+        onSuccess: () => client.invalidateQueries({ queryKey: ['orders'] }),
+      });
+      return <button onClick={() => rename.mutate('new')}>Rename</button>;
+    }
+head:
+  src/RenameButton.tsx: |
+    import { useRenameOrder } from './use-rename-order';
+
+    export function RenameButton({ id }: { id: string }) {
+      const rename = useRenameOrder(id);
+      return <button onClick={() => rename.mutate('new')}>Rename</button>;
+    }
+  src/use-rename-order.ts: |
+    import { useMutation } from '@tanstack/react-query';
+
+    export function useRenameOrder(id: string) {
+      return useMutation({
+        mutationFn: (name: string) => renameOrder(id, name),
+      });
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "orders query freshness"
+      required_condition: "an order is renamed while a list is mounted"
+      evidence_locations:
+        - { side: HEAD, path: src/use-rename-order.ts, start_line: 4, end_line: 6 }
+  facts:
+    - { kind: custom_hook_call, side: HEAD, path: src/RenameButton.tsx, line: 4 }
+    - { kind: mutation_call, side: HEAD, path: src/use-rename-order.ts, line: 4 }
+  forbidden_facts:
+    - { kind: invalidation_call, side: HEAD, path: src/use-rename-order.ts, line: 4 }

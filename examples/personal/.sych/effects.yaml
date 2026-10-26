@@ -1,0 +1,11 @@
+schema_version: 1
+effects:
+  - id: order-outbox
+    match:
+      language: go
+      symbol: "example.internal/orders.Store.AppendEvent"
+    effect_kind: event
+    guarantees:
+      durable_with_transaction: true
+    implementation_refs: ["backend/orders/store.go"]
+    contract_refs: [".sych/contracts/order-created.md"]

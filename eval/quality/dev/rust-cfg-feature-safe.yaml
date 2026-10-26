@@ -1,0 +1,47 @@
+schema_version: 1
+id: rust-cfg-feature-safe
+split: development
+language: rust
+pair: rust-cfg-feature
+variant: safe
+profiles: [correctness]
+rationale: "The call site is gated by the same feature as the definition."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+
+    [features]
+    default = []
+    metrics = []
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub fn record(name: &str) {
+        COUNTERS.increment(name);
+    }
+
+    pub fn checkout(cart: &Cart) -> Receipt {
+        record("checkout");
+        Receipt::from(cart)
+    }
+head:
+  src/lib.rs: |
+    #[cfg(feature = "metrics")]
+    pub fn record(name: &str) {
+        COUNTERS.increment(name);
+    }
+
+    pub fn checkout(cart: &Cart) -> Receipt {
+        #[cfg(feature = "metrics")]
+        record("checkout");
+        Receipt::from(cart)
+    }
+expected:
+  facts:
+    - { kind: cfg_gate, side: HEAD, path: src/lib.rs, line: 7 }

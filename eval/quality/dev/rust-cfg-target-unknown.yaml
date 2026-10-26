@@ -1,0 +1,45 @@
+schema_version: 1
+id: rust-cfg-target-unknown
+split: development
+language: rust
+variant: unknown
+profiles: [correctness]
+rationale: "Only the Windows branch changes; analysis runs for the host target, so the changed code is never type-checked."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    #[cfg(windows)]
+    pub fn config_dir() -> PathBuf {
+        known_folder(FOLDERID_RoamingAppData).join("orders")
+    }
+
+    #[cfg(not(windows))]
+    pub fn config_dir() -> PathBuf {
+        xdg_config_home().join("orders")
+    }
+head:
+  src/lib.rs: |
+    #[cfg(windows)]
+    pub fn config_dir() -> PathBuf {
+        known_folder(FOLDERID_LocalAppData).join("orders")
+    }
+
+    #[cfg(not(windows))]
+    pub fn config_dir() -> PathBuf {
+        xdg_config_home().join("orders")
+    }
+expected:
+  facts:
+    - { kind: cfg_gate, side: HEAD, path: src/lib.rs, line: 1 }
+  forbidden_claims:
+    - "The change compiles on every target."
+  unknown: "FOLDERID_LocalAppData may not exist for the Windows target; the host analysis cannot tell."

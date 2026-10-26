@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DiffManifest",
+  "description": "Every file changed between `diff_base` and `head`, including binary, generated,\nsymlink, submodule and LFS entries. Files are sorted by path.",
+  "type": "object",
+  "properties": {
+    "diff_base": {
+      "$ref": "#/$defs/GitObjectId"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FileChange"
+      }
+    },
+    "head": {
+      "$ref": "#/$defs/GitObjectId"
+    },
+    "method": {
+      "description": "How the diff was produced; part of snapshot identity (spec §6.1).",
+      "type": "string"
+    },
+    "omissions": {
+      "description": "Parts of the diff that could not be obtained; non-empty means the diff is partial.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    }
+  },
+  "required": [
+    "schema_version",
+    "method",
+    "diff_base",
+    "head",
+    "files"
+  ],
+  "$defs": {
+    "ChangeStatus": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "ADDED",
+            "DELETED",
+            "MODIFIED",
+            "RENAMED",
+            "COPIED"
+          ]
+        },
+        {
+          "description": "File type changed, e.g. regular file to symlink.",
+          "type": "string",
+          "const": "TYPE_CHANGED"
+        },
+        {
+          "description": "Git reported a status this build does not interpret; kept, never dropped.",
+          "type": "string",
+          "const": "UNKNOWN"
+        }
+      ]
+    },
+    "ContentKind": {
+      "description": "What a tree entry holds. Symlinks, submodules and LFS pointers are never followed.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "TEXT",
+            "BINARY",
+            "LFS_POINTER",
+            "SYMLINK",
+            "SUBMODULE"
+          ]
+        },
+        {
+          "description": "Text bytes that are not valid UTF-8.",
+          "type": "string",
+          "const": "NON_UTF8_TEXT"
+        },
+        {
+          "description": "Content was not read; the file stays in the manifest with a limitation.",
+          "type": "string",
+          "const": "NOT_READ"
+        }
+      ]
+    },
+    "FileChange": {
+      "type": "object",
+      "properties": {
+        "generated": {
+          "description": "Header marker such as `@generated` or `DO NOT EDIT`.",
+          "type": "boolean"
+        },
+        "hunks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Hunk"
+          }
+        },
+        "limitations": {
+          "description": "Explicit codes such as `PATH_NOT_UTF8`, `BLOB_TOO_LARGE`; the file is never dropped.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "new": {
+          "description": "`HEAD` side; absent for deletions.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FileSide"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "old": {
+          "description": "`DIFF_BASE` side; absent for additions.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FileSide"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "similarity": {
+          "description": "Rename/copy similarity in percent.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "status": {
+          "$ref": "#/$defs/ChangeStatus"
+        }
+      },
+      "required": [
+        "status",
+        "generated",
+        "hunks",
+        "limitations"
+      ]
+    },
+    "FileSide": {
+      "description": "One side (old or new) of a changed file.",
+      "type": "object",
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/ContentKind"
+        },
+        "line_count": {
+          "description": "Number of lines when the content is text.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "mode": {
+          "description": "Octal Git mode, e.g. `100644`, `120000`, `160000`.",
+          "type": "string"
+        },
+        "oid": {
+          "$ref": "#/$defs/GitObjectId"
+        },
+        "path": {
+          "$ref": "#/$defs/RepoPath"
+        }
+      },
+      "required": [
+        "path",
+        "mode",
+        "oid",
+        "content"
+      ]
+    },
+    "GitObjectId": {
+      "type": "string",
+      "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
+    },
+    "Hunk": {
+      "description": "Changed line range; `*_start` is 1-based, a zero count means an insertion point.",
+      "type": "object",
+      "properties": {
+        "new_lines": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "new_start": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "old_lines": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "old_start": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "old_start",
+        "old_lines",
+        "new_start",
+        "new_lines"
+      ]
+    },
+    "RepoPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    }
+  }
+}

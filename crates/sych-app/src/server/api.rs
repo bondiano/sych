@@ -1,0 +1,562 @@
+//! `/v1` (spec §25): a configured client identity on every request, repository authorization
+//! by the client's scope, `Idempotency-Key` on every mutating call, and the public error
+//! envelope. 202 means a durable request, not a finished review.
+
+use std::fmt::Display;
+use std::sync::Arc;
+
+use axum::Json;
+use axum::body::Bytes;
+use axum::extract::{FromRequestParts, Path, State};
+use axum::http::request::Parts;
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
+use ring::hmac;
+use serde::Deserialize;
+use serde_json::{Value, json};
+use sych_core::api::{
+    Accepted, CancelOutcome, FeedbackRequest, PublicationStatus, RerunRequest, ReviewRequest,
+    RunStatus, RunUsage, WaiverRequest,
+};
+use sych_core::config::{ApiClient, ApiRole, RuleException};
+use sych_core::scm::ScmErrorKind;
+use sych_core::{RunId, Timestamp, sha256};
+use sych_storage::{Idempotency, RunView};
+
+use super::App;
+use super::error::ApiError;
+use super::requests::RequestError;
+
+/// The authenticated caller.
+pub struct Caller(pub ApiClient);
+
+fn status(code: StatusCode, name: &'static str, message: impl Into<String>) -> ApiError {
+    ApiError::new(code, name, message)
+}
+
+impl FromRequestParts<Arc<App>> for Caller {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, app: &Arc<App>) -> Result<Self, ApiError> {
+        let presented = parts
+            .headers
+            .get("authorization")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "))
+            .ok_or_else(|| {
+                status(
+                    StatusCode::UNAUTHORIZED,
+                    "UNAUTHENTICATED",
+                    "a bearer token is required",
+                )
+            })?;
+        // HMAC tags compare in constant time; the key only makes them comparable.
+        let key = hmac::Key::new(hmac::HMAC_SHA256, b"sych api token comparison");
+        let tag = hmac::sign(&key, presented.as_bytes());
+        app.clients
+            .iter()
+            .find(|(_, token)| hmac::verify(&key, token.expose().as_bytes(), tag.as_ref()).is_ok())
+            .map(|(client, _)| Self(client.clone()))
+            .ok_or_else(|| status(StatusCode::UNAUTHORIZED, "UNAUTHENTICATED", "unknown token"))
+    }
+}
+
+impl Caller {
+    fn need(&self, role: ApiRole) -> Result<(), ApiError> {
+        if self.0.role >= role {
+            Ok(())
+        } else {
+            Err(status(
+                StatusCode::FORBIDDEN,
+                "FORBIDDEN",
+                format!("{role:?} is needed").to_lowercase(),
+            ))
+        }
+    }
+
+    /// Repository authorization; another repository is reported as not found (spec §25.3).
+    fn scope(&self, connection: Option<&str>, full_name: Option<&str>) -> Result<(), ApiError> {
+        match (connection, full_name) {
+            (Some(c), Some(r)) if self.0.allows(c, r) => Ok(()),
+            _ => Err(status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object")),
+        }
+    }
+}
+
+fn now(app: &App) -> Timestamp {
+    (app.now)()
+}
+
+fn engine(app: &App) -> Result<&super::Engine, ApiError> {
+    app.engine.get().map(AsRef::as_ref).ok_or_else(|| {
+        status(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "DEPENDENCY_UNAVAILABLE",
+            "no engine in this role",
+        )
+    })
+}
+
+fn storage_error(e: &dyn Display) -> ApiError {
+    status(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "DEPENDENCY_UNAVAILABLE",
+        e.to_string(),
+    )
+}
+
+fn request_error(e: &RequestError) -> ApiError {
+    match e {
+        RequestError::NotFound(m) => status(StatusCode::NOT_FOUND, "NOT_FOUND", m.clone()),
+        RequestError::Refused(m) => status(StatusCode::CONFLICT, "CHANGE_CLOSED", m.clone()),
+        RequestError::Scm(s) if s.kind == ScmErrorKind::RateLimited => status(
+            StatusCode::TOO_MANY_REQUESTS,
+            "RATE_LIMITED",
+            s.message.clone(),
+        ),
+        RequestError::Scm(s) if s.kind == ScmErrorKind::NotFound => {
+            status(StatusCode::NOT_FOUND, "NOT_FOUND", s.message.clone())
+        }
+        other => storage_error(other),
+    }
+}
+
+/// Runs a mutating handler once per `Idempotency-Key`; a repeat replays the stored answer and a
+/// reused key with another body is 409.
+async fn idempotent<F, Fut>(
+    app: &App,
+    caller: &Caller,
+    endpoint: &'static str,
+    headers: &HeaderMap,
+    body: &[u8],
+    handle: F,
+) -> Result<Response, ApiError>
+where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<(StatusCode, Value), ApiError>>,
+{
+    let key = headers
+        .get("idempotency-key")
+        .and_then(|v| v.to_str().ok())
+        .filter(|k| !k.is_empty() && k.len() <= 200)
+        .ok_or_else(|| {
+            status(
+                StatusCode::BAD_REQUEST,
+                "INVALID_REQUEST",
+                "Idempotency-Key is required",
+            )
+        })?;
+    let scope = (
+        caller.0.tenant_id.as_str(),
+        caller.0.name.as_str(),
+        endpoint,
+    );
+    let digest = sha256(body).to_string();
+    match app
+        .storage
+        .idempotency_begin(scope, key, &digest, now(app))
+        .await
+        .map_err(|e| storage_error(&e))?
+    {
+        Idempotency::Conflict => Err(status(
+            StatusCode::CONFLICT,
+            "IDEMPOTENCY_CONFLICT",
+            "the key was used with another body",
+        )),
+        Idempotency::InProgress => Err(status(
+            StatusCode::CONFLICT,
+            "REQUEST_IN_PROGRESS",
+            "the first request with this key is still running",
+        )),
+        Idempotency::Replay { status: code, body } => {
+            let mut value: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
+            if let Some(map) = value.as_object_mut() {
+                map.insert("reused".into(), json!(true));
+            }
+
+            Ok((
+                StatusCode::from_u16(code).unwrap_or(StatusCode::OK),
+                Json(value),
+            )
+                .into_response())
+        }
+        Idempotency::New(id) => {
+            let (code, value) = handle().await?;
+            app.storage
+                .idempotency_finish(id, code.as_u16(), &value.to_string())
+                .await
+                .map_err(|e| storage_error(&e))?;
+            Ok((code, Json(value)).into_response())
+        }
+    }
+}
+
+fn parse<T: for<'de> Deserialize<'de>>(body: &[u8]) -> Result<T, ApiError> {
+    serde_json::from_slice(body)
+        .map_err(|e| status(StatusCode::BAD_REQUEST, "INVALID_REQUEST", e.to_string()))
+}
+
+/// `POST /v1/reviews`.
+pub async fn create_review(
+    State(app): State<Arc<App>>,
+    caller: Caller,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    caller.need(ApiRole::Writer)?;
+    let request: ReviewRequest = parse(&body)?;
+    let invalid = |m: &str| status(StatusCode::BAD_REQUEST, "INVALID_REQUEST", m.to_owned());
+    if request.schema_version != 1 {
+        return Err(invalid("schema_version must be 1"));
+    }
+
+    let number: u64 = request
+        .change
+        .external_number
+        .parse()
+        .map_err(|_| invalid("external_number is not a number"))?;
+    let deep = match request.profile.as_str() {
+        "economical" => false,
+        "deep" => true,
+        _ => return Err(invalid("profile is `economical` or `deep`")),
+    };
+    let c = &request.change;
+    caller.scope(Some(&c.connection_id), Some(&c.repository))?;
+    idempotent(
+        &app,
+        &caller,
+        "POST /v1/reviews",
+        &headers,
+        &body,
+        || async {
+            let run = engine(&app)?
+                .request_review(
+                    &c.connection_id,
+                    &c.repository,
+                    number,
+                    &caller.0.name,
+                    request.publish,
+                    deep,
+                )
+                .await
+                .map_err(|e| request_error(&e))?;
+            let accepted = Accepted {
+                request_id: run.id.to_string(),
+                run_id: Some(run.id.to_string()),
+                status_url: format!("/v1/runs/{}", run.id),
+                reused: false,
+            };
+            Ok((StatusCode::ACCEPTED, to_value(&accepted)?))
+        },
+    )
+    .await
+}
+
+fn to_value<T: serde::Serialize>(v: &T) -> Result<Value, ApiError> {
+    serde_json::to_value(v).map_err(|e| storage_error(&e))
+}
+
+fn run_status(v: RunView) -> RunStatus {
+    RunStatus {
+        result_url: format!("/v1/runs/{}/result", v.run_id),
+        run_id: v.run_id,
+        change_id: v.change_id,
+        generation: v.generation,
+        state: v.state,
+        stage: v.stage,
+        coverage: v.coverage,
+        usage: RunUsage {
+            model_attempts: v.model_attempts,
+            cost_known_micro_usd: v.cost_known_micro_usd,
+            unknown_cost_attempts: v.unknown_cost_attempts,
+        },
+        failure: v.failure,
+        created_at: v.created_at,
+        finished_at: v.finished_at,
+    }
+}
+
+async fn visible_run(app: &App, caller: &Caller, id: &str) -> Result<RunView, ApiError> {
+    let view = app
+        .storage
+        .run_view(&caller.0.tenant_id, id)
+        .await
+        .map_err(|e| storage_error(&e))?
+        .ok_or_else(|| status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"))?;
+    caller.scope(view.connection_id.as_deref(), view.full_name.as_deref())?;
+    Ok(view)
+}
+
+/// `GET /v1/runs/:id`.
+pub async fn get_run(
+    State(app): State<Arc<App>>,
+    caller: Caller,
+    Path(id): Path<String>,
+) -> Result<Json<RunStatus>, ApiError> {
+    caller.need(ApiRole::Reader)?;
+    Ok(Json(run_status(visible_run(&app, &caller, &id).await?)))
+}
+
+/// `GET /v1/runs/:id/result`: the immutable result, never recomputed.
+pub async fn get_result(
+    State(app): State<Arc<App>>,
+    caller: Caller,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, ApiError> {
+    caller.need(ApiRole::Reader)?;
+    let view = visible_run(&app, &caller, &id).await?;
+    let run = RunId(
+        view.run_id
+            .parse()
+            .map_err(|_| status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"))?,
+    );
+    let result = app
+        .storage
+        .load_result(&caller.0.tenant_id, run)
+        .await
+        .map_err(|e| status(StatusCode::CONFLICT, "NO_RESULT", e.to_string()))?;
+    Ok(Json(
+        serde_json::to_value(result).map_err(|e| storage_error(&e))?,
+    ))
+}
+
+/// `POST /v1/runs/:id/cancel`: an active run is cancelled; a committed one keeps its state.
+pub async fn cancel_run(
+    State(app): State<Arc<App>>,
+    caller: Caller,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    caller.need(ApiRole::Writer)?;
+    visible_run(&app, &caller, &id).await?;
+    idempotent(
+        &app,
+        &caller,
+        "POST /v1/runs/:id/cancel",
+        &headers,
+        &body,
+        || async {
+            let reason = format!("cancelled by {}", caller.0.name);
+            let state = app
+                .storage
+                .cancel_run_by_id(&caller.0.tenant_id, &id, &reason, now(&app))
+                .await
+                .map_err(|e| storage_error(&e))?;
+            Ok((
+                StatusCode::OK,
+                to_value(&CancelOutcome {
+                    run_id: id.clone(),
+                    state,
+                })?,
+            ))
+        },
+    )
+    .await
+}
+
+/// `POST /v1/changes/:id/reruns`: a new generation, explicitly.
+pub async fn rerun(
+    State(app): State<Arc<App>>,
+    caller: Caller,
+    Path(id): Path<i64>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    caller.need(ApiRole::Writer)?;
+    let request: RerunRequest = if body.is_empty() {
+        RerunRequest::default()
+    } else {
+        parse(&body)?
+    };
+    let change = app
+        .storage
+        .change(id)
+        .await
+        .map_err(|_| status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"))?;
+    if change.partition.tenant_id != caller.0.tenant_id {
+        return Err(status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"));
+    }
+
+    caller.scope(Some(&change.connection_id), Some(&change.full_name))?;
+    let deep = request.profile.as_deref() == Some("deep");
+    idempotent(
+        &app,
+        &caller,
+        "POST /v1/changes/:id/reruns",
+        &headers,
+        &body,
+        || async {
+            let run = engine(&app)?
+                .manual(id, &caller.0.name, request.publish, deep)
+                .await
+                .map_err(|e| request_error(&e))?;
+            let accepted = Accepted {
+                request_id: run.id.to_string(),
+                run_id: Some(run.id.to_string()),
+                status_url: format!("/v1/runs/{}", run.id),
+                reused: false,
+            };
+            Ok((StatusCode::ACCEPTED, to_value(&accepted)?))
+        },
+    )
+    .await
+}
+
+/// `POST /v1/findings/:id/feedback`.
+pub async fn feedback(
+    State(app): State<Arc<App>>,
+    caller: Caller,
+    Path(id): Path<i64>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    caller.need(ApiRole::Triage)?;
+    let request: FeedbackRequest = parse(&body)?;
+    if !matches!(
+        request.judgement.as_str(),
+        "USEFUL" | "NOT_USEFUL" | "FALSE_POSITIVE" | "WONT_FIX"
+    ) {
+        return Err(status(
+            StatusCode::BAD_REQUEST,
+            "INVALID_REQUEST",
+            "unknown judgement",
+        ));
+    }
+
+    let tenant = caller.0.tenant_id.clone();
+    let change = app
+        .storage
+        .finding_change(&tenant, id)
+        .await
+        .map_err(|e| storage_error(&e))?
+        .ok_or_else(|| status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"))?;
+    let row = app
+        .storage
+        .change(change)
+        .await
+        .map_err(|e| storage_error(&e))?;
+    caller.scope(Some(&row.connection_id), Some(&row.full_name))?;
+    idempotent(
+        &app,
+        &caller,
+        "POST /v1/findings/:id/feedback",
+        &headers,
+        &body,
+        || async {
+            let at = now(&app).as_second();
+            app.storage
+                .record_feedback(
+                    &tenant,
+                    id,
+                    &caller.0.name,
+                    &request.judgement,
+                    &request.scope,
+                    &request.rationale,
+                    at,
+                )
+                .await
+                .map_err(|e| storage_error(&e))?;
+            Ok((
+                StatusCode::CREATED,
+                json!({"finding_id": id, "judgement": request.judgement}),
+            ))
+        },
+    )
+    .await
+}
+
+/// `POST /v1/waivers`: a scoped risk decision; statuses are never rewritten.
+pub async fn waiver(
+    State(app): State<Arc<App>>,
+    caller: Caller,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    caller.need(ApiRole::Maintainer)?;
+    let r: WaiverRequest = parse(&body)?;
+    if r.expires_at.is_none() && r.until.is_none() || r.paths.is_empty() {
+        return Err(status(
+            StatusCode::BAD_REQUEST,
+            "INVALID_REQUEST",
+            "paths and an expiry or completion condition are required",
+        ));
+    }
+
+    let change = app
+        .storage
+        .change(r.change_id)
+        .await
+        .map_err(|_| status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"))?;
+    if change.partition.tenant_id != caller.0.tenant_id {
+        return Err(status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"));
+    }
+
+    caller.scope(Some(&change.connection_id), Some(&change.full_name))?;
+    idempotent(
+        &app,
+        &caller,
+        "POST /v1/waivers",
+        &headers,
+        &body,
+        || async {
+            let exception = RuleException {
+                paths: r.paths.clone(),
+                reason: r.reason.clone(),
+                owner: r.owner.clone(),
+                author: caller.0.name.clone(),
+                expires_at: r.expires_at,
+                until: r.until.clone(),
+            };
+            let policy = app
+                .storage
+                .latest_policy(r.change_id)
+                .await
+                .map_err(|e| storage_error(&e))?;
+            let id = app
+                .storage
+                .add_waiver(
+                    &caller.0.tenant_id,
+                    r.change_id,
+                    &r.rule_id,
+                    &exception,
+                    policy.as_deref(),
+                    now(&app).as_second(),
+                )
+                .await
+                .map_err(|e| storage_error(&e))?;
+            Ok((StatusCode::CREATED, json!({"waiver_id": id})))
+        },
+    )
+    .await
+}
+
+/// `GET /v1/publications/:id`: delivery, relevance and reconciliation kept apart.
+pub async fn publication(
+    State(app): State<Arc<App>>,
+    caller: Caller,
+    Path(id): Path<i64>,
+) -> Result<Json<PublicationStatus>, ApiError> {
+    caller.need(ApiRole::Reader)?;
+    let (tenant, change, state, relevance, remote, error) = app
+        .storage
+        .publication_view(id)
+        .await
+        .map_err(|e| storage_error(&e))?
+        .filter(|v| v.0 == caller.0.tenant_id)
+        .ok_or_else(|| status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"))?;
+    let row = app
+        .storage
+        .change(change)
+        .await
+        .map_err(|e| storage_error(&e))?;
+    caller.scope(Some(&row.connection_id), Some(&row.full_name))?;
+    let _ = tenant;
+    Ok(Json(PublicationStatus {
+        publication_id: id,
+        delivery: state,
+        relevance,
+        remote_id: remote,
+        last_error: error,
+    }))
+}

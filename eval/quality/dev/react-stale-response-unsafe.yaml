@@ -1,0 +1,56 @@
+schema_version: 1
+id: react-stale-response-unsafe
+split: development
+language: typescript
+pair: react-stale-response
+variant: unsafe
+profiles: [correctness]
+rationale: "The ignore flag is removed: a slow response for an old id overwrites the order of the current id."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/OrderDetails.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function OrderDetails({ id }: { id: string }) {
+      const [order, setOrder] = useState<Order | null>(null);
+      useEffect(() => {
+        let ignore = false;
+        fetchOrder(id).then((next) => {
+          if (!ignore) setOrder(next);
+        });
+        return () => {
+          ignore = true;
+        };
+      }, [id]);
+      return order ? <OrderCard order={order} /> : <Spinner />;
+    }
+head:
+  src/OrderDetails.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function OrderDetails({ id }: { id: string }) {
+      const [order, setOrder] = useState<Order | null>(null);
+      useEffect(() => {
+        fetchOrder(id).then(setOrder);
+      }, [id]);
+      return order ? <OrderCard order={order} /> : <Spinner />;
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "displayed order matches id"
+      required_condition: "id changes before the previous fetch resolves"
+      evidence_locations:
+        - { side: HEAD, path: src/OrderDetails.tsx, start_line: 6, end_line: 6 }
+  facts:
+    - { kind: async_effect_unguarded, side: HEAD, path: src/OrderDetails.tsx, line: 5 }
+    - { kind: effect_without_cleanup, side: HEAD, path: src/OrderDetails.tsx, line: 5 }

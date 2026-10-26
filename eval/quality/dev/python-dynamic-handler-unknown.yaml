@@ -1,0 +1,33 @@
+schema_version: 1
+id: python-dynamic-handler-unknown
+split: development
+language: python
+variant: unknown
+profiles: [correctness]
+rationale: "The handler is now looked up with getattr from the event kind: which function runs, and whether one exists for every kind, depends on runtime data the snapshot does not show."
+base:
+  app/__init__.py: ""
+  app/handlers.py: |
+    def on_created(event):
+        return {"status": "created", "id": event.id}
+  app/dispatch.py: |
+    from app import handlers
+
+
+    def handle(event):
+        return handlers.on_created(event)
+head:
+  app/dispatch.py: |
+    from app import handlers
+
+
+    def handle(event):
+        handler = getattr(handlers, "on_" + event.kind)
+        return handler(event)
+expected:
+  facts:
+    - { kind: dynamic_dispatch, side: HEAD, path: app/dispatch.py, line: 5 }
+  forbidden_claims:
+    - "Every event kind has a handler."
+    - "handle only ever calls on_created."
+  unknown: "event.kind comes from runtime data, so the handler getattr selects cannot be determined statically."

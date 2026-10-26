@@ -1,0 +1,94 @@
+schema_version: 1
+id: rust-test-ignored
+split: development
+language: rust
+variant: unsafe
+profiles: [correctness]
+rationale: "The test that guards publication failure is ignored in the same change that discards the publish error."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  .sych/rules.yaml: |
+    schema_version: 1
+    rules:
+      - id: EFFECT-01
+        version: 1
+        title: Stored order publishes order-created
+        kind: invariant
+        required: true
+        severity_on_violation: high
+        owner: backend
+        applies_to:
+          paths: ["src/**"]
+        statement: A stored order publishes order-created, and a failed publication fails the save.
+  src/lib.rs: |
+    pub struct Store {
+        db: Db,
+        bus: Bus,
+    }
+
+    impl Store {
+        pub fn save(&self, order: &Order) -> Result<(), Error> {
+            self.db.insert(order)?;
+            self.bus.publish(OrderCreated::from(order))?;
+            Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn failed_publication_fails_the_save() {
+            let store = Store::with_failing_bus();
+            assert!(store.save(&order()).is_err());
+        }
+    }
+head:
+  src/lib.rs: |
+    pub struct Store {
+        db: Db,
+        bus: Bus,
+    }
+
+    impl Store {
+        pub fn save(&self, order: &Order) -> Result<(), Error> {
+            self.db.insert(order)?;
+            let _ = self.bus.publish(OrderCreated::from(order));
+            Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        #[ignore]
+        fn failed_publication_fails_the_save() {
+            let store = Store::with_failing_bus();
+            assert!(store.save(&order()).is_err());
+        }
+    }
+expected:
+  obligations:
+    - { rule_id: EFFECT-01, expected_status: VIOLATED }
+  findings:
+    - category: defect
+      semantic_target: "order-created publication"
+      required_condition: "bus.publish fails after the insert succeeded"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 9, end_line: 9 }
+  facts:
+    - { kind: test_skipped, side: HEAD, path: src/lib.rs, line: 19 }
+  forbidden_claims:
+    - "Tests cover the publication failure."

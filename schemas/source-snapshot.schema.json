@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SourceSnapshot",
+  "description": "Immutable source positions of one review. `target_tip` and `diff_base` are separate fields.",
+  "type": "object",
+  "properties": {
+    "comparison": {
+      "$ref": "#/$defs/ComparisonMode"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "diff_base": {
+      "$ref": "#/$defs/GitObjectId"
+    },
+    "diff_manifest_hash": {
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "head": {
+      "$ref": "#/$defs/GitObjectId"
+    },
+    "id": {
+      "$ref": "#/$defs/SourceSnapshotId"
+    },
+    "repository": {
+      "description": "Opaque repository identity, not a host path.",
+      "type": "string"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    },
+    "source_manifest_hash": {
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "target_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "target_tip": {
+      "$ref": "#/$defs/GitObjectId"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "repository",
+    "target_tip",
+    "diff_base",
+    "head",
+    "comparison",
+    "source_manifest_hash",
+    "diff_manifest_hash",
+    "created_at"
+  ],
+  "$defs": {
+    "ComparisonMode": {
+      "description": "How `diff_base` was chosen; never an arbitrary commit (spec §6.2).",
+      "oneOf": [
+        {
+          "description": "`diff_base = merge-base(target_tip, head)`.",
+          "type": "string",
+          "const": "MERGE_BASE"
+        },
+        {
+          "description": "`diff_base` was given explicitly for a two-dot comparison.",
+          "type": "string",
+          "const": "EXPLICIT_DIFF_BASE"
+        }
+      ]
+    },
+    "GitObjectId": {
+      "type": "string",
+      "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "Sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "SourceSnapshotId": {
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "$ref": "#/$defs/Sha256Digest"
+    }
+  }
+}

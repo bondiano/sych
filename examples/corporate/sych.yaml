@@ -1,0 +1,42 @@
+# Corporate server config (spec §23.2, D10): code goes only to an approved VPC endpoint. No
+# public API or personal subscription can be a route or a fallback here; validation rejects
+# each of them. `openai_compatible` transports are not implemented yet, so this config is a
+# boundary example that validates, not a runnable review setup.
+schema_version: 1
+mode: corporate
+
+storage:
+  database_url_env: SYCH_DATABASE_URL
+
+# Corporate mode always authenticates `/v1`; TLS terminates at the ingress in front of Sych.
+http:
+  bind: "0.0.0.0:8080"
+  behind_tls_proxy: true
+  api_clients:
+    - name: platform
+      token_env: SYCH_API_TOKEN_PLATFORM
+      role: maintainer
+      repositories: ["*"]
+
+models:
+  providers:
+    vpc_llm:
+      adapter: openai_compatible
+      endpoint: "https://llm.vpc.example.internal/v1"
+      api_key_env: SYCH_VPC_LLM_KEY
+      allowed_modes: [corporate]
+  profiles:
+    vpc_review:
+      provider: vpc_llm
+      model: approved/review-model
+      billing_kind: api_usage
+      enforcement: api_hard
+  roles:
+    reviewer: vpc_review
+    verifier: vpc_review
+    risk_auditor: vpc_review
+  fallback:
+    on: [transient, timeout]
+    chains: {}
+    cooldown_seconds: 30
+    revert_policy: cooldown_expiry

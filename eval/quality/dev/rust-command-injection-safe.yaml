@@ -1,0 +1,76 @@
+schema_version: 1
+id: rust-command-injection-safe
+split: development
+language: rust
+pair: rust-command-injection
+variant: safe
+profiles: [correctness]
+rationale: "The branch is added as its own argv entry after `--branch` and git is still spawned directly, without a shell; the URL stays behind `--`."
+base:
+  Cargo.toml: |
+    [package]
+    name = "previews"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+    serde = { version = "1", features = ["derive"] }
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    use std::io;
+    use std::path::Path;
+    use std::process::Command;
+
+    #[derive(serde::Deserialize)]
+    pub struct PreviewRequest {
+        pub repo_url: String,
+    }
+
+    pub fn checkout(req: &PreviewRequest, dir: &Path) -> io::Result<()> {
+        let status = Command::new("git")
+            .args(["clone", "--depth=1", "--"])
+            .arg(&req.repo_url)
+            .arg(dir)
+            .status()?;
+        if !status.success() {
+            return Err(io::Error::other(format!("git clone failed: {status}")));
+        }
+        Ok(())
+    }
+head:
+  src/lib.rs: |
+    use std::io;
+    use std::path::Path;
+    use std::process::Command;
+
+    #[derive(serde::Deserialize)]
+    pub struct PreviewRequest {
+        pub repo_url: String,
+        pub branch: String,
+    }
+
+    pub fn checkout(req: &PreviewRequest, dir: &Path) -> io::Result<()> {
+        let status = Command::new("git")
+            .args(["clone", "--depth=1", "--branch"])
+            .arg(&req.branch)
+            .arg("--")
+            .arg(&req.repo_url)
+            .arg(dir)
+            .status()?;
+        if !status.success() {
+            return Err(io::Error::other(format!("git clone failed: {status}")));
+        }
+        Ok(())
+    }
+expected:
+  tolerated:
+    - semantic_target: "the new required branch field rejects old payloads without it"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 8, end_line: 8 }
+    - semantic_target: "the clone error does not name the branch"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 19, end_line: 20 }
+  forbidden_claims:
+    - "The checkout is vulnerable to command injection."

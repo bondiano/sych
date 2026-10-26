@@ -1,0 +1,56 @@
+schema_version: 1
+id: nit-ts-derived-state-effect
+split: development
+language: typescript
+variant: safe
+profiles: [nitpicks]
+rationale: "The total is right after the effect runs, but it is derived from props: computing it during render avoids the extra state and the frame with a stale total."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {
+        "react": "^19.1.0"
+      }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/format.ts: |
+    export const formatPrice = (cents: number) => `${(cents / 100).toFixed(2)} ₽`;
+  src/CartSummary.tsx: |
+    type CartItem = { id: string; price: number; qty: number };
+
+    export function CartSummary({ items }: { items: CartItem[] }) {
+      return <p>{items.length} items</p>;
+    }
+head:
+  src/CartSummary.tsx: |
+    import { useEffect, useState } from 'react';
+    import { formatPrice } from './format';
+    type CartItem = { id: string; price: number; qty: number };
+
+    export function CartSummary({ items }: { items: CartItem[] }) {
+      const [total, setTotal] = useState(0);
+      useEffect(() => {
+        setTotal(items.reduce((sum, item) => sum + item.price * item.qty, 0));
+      }, [items]);
+      return (
+        <p>
+          {items.length} items, {formatPrice(total)}
+        </p>
+      );
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "compute the derived total during render instead of an effect"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: src/CartSummary.tsx, start_line: 6, end_line: 9 }
+  forbidden_claims:
+    - "Wrap the total in useMemo for performance."
+    - "Showing the cart total is a defect."

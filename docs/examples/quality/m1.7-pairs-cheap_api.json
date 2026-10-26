@@ -1,0 +1,534 @@
+{
+  "suite": "eval/quality/dev",
+  "models": "cheap_api",
+  "variant": "C",
+  "semantic": true,
+  "runs_per_case": 2,
+  "skipped": [],
+  "totals": {
+    "runs": 16,
+    "errors": 0,
+    "expected_findings": 8,
+    "matched_expected": 8,
+    "correctness_findings": 8,
+    "labelled_findings": 8,
+    "clean_runs": 8,
+    "clean_runs_with_correctness_finding": 0,
+    "unknown_runs": 0,
+    "unknown_kept": 0,
+    "obligation_checks": 0,
+    "obligation_agreements": 0,
+    "nits": 3,
+    "model_attempts": 32,
+    "cost_known_micro_usd": 22554,
+    "unknown_cost_attempts": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "clean_false_positive_rate": 0.0,
+    "unknown_kept_rate": null
+  },
+  "by_language": {
+    "typescript": {
+      "runs": 16,
+      "errors": 0,
+      "expected_findings": 8,
+      "matched_expected": 8,
+      "correctness_findings": 8,
+      "labelled_findings": 8,
+      "clean_runs": 8,
+      "clean_runs_with_correctness_finding": 0,
+      "unknown_runs": 0,
+      "unknown_kept": 0,
+      "obligation_checks": 0,
+      "obligation_agreements": 0,
+      "nits": 3,
+      "model_attempts": 32,
+      "cost_known_micro_usd": 22554,
+      "unknown_cost_attempts": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "clean_false_positive_rate": 0.0,
+      "unknown_kept_rate": null
+    }
+  },
+  "runs": [
+    {
+      "id": "react-invalidation-wrapper-safe",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1737d-8b83-77f2-b2d1-a27c8f7e16c8",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "IMPROVEMENT",
+            "title": "RenameButton does not surface mutation error or pending state",
+            "at": [
+              "src/RenameButton.tsx:4-5",
+              "src/use-rename-order.ts:5-7"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1878,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-invalidation-wrapper-safe",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1737e-198b-73e0-af61-6fa5021feedd",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 993,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-invalidation-wrapper-unsafe",
+      "language": "typescript",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1737e-5bc6-7175-8c0f-ba5ec610e557",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Extracted useRenameOrder drops the onSuccess ['orders'] invalidation",
+            "at": [
+              "src/RenameButton.tsx:5-8",
+              "src/RenameButton.tsx:3-4",
+              "src/use-rename-order.ts:3-6"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1372,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-invalidation-wrapper-unsafe",
+      "language": "typescript",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1737e-ba34-757f-ac6f-b27d7a8dad8a",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Extraction dropped orders query invalidation on rename success",
+            "at": [
+              "src/RenameButton.tsx:5-8",
+              "src/use-rename-order.ts:3-6",
+              "src/RenameButton.tsx:4-4"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 914,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-mutation-invalidation-safe",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1737e-fb62-7195-838c-5c1a12feef3c",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 961,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-mutation-invalidation-safe",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1737f-3efd-72ce-9ff2-e96e43df755a",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "IMPROVEMENT",
+            "title": "onSettled invalidates ['orders'] on failed renames too",
+            "at": [
+              "src/use-rename-order.ts:7-7",
+              "src/use-rename-order.ts:7-7"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1180,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-mutation-invalidation-unsafe",
+      "language": "typescript",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1737f-9cd4-7253-b5f7-1909eb07e1b0",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Dropped ['orders'] cache invalidation on rename success",
+            "at": [
+              "src/use-rename-order.ts:4-7",
+              "src/use-rename-order.ts:5-7"
+            ],
+            "labelled": true
+          },
+          {
+            "category": "IMPROVEMENT",
+            "title": "Remove now-dead useQueryClient and import",
+            "at": [
+              "src/use-rename-order.ts:4-4"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1750,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-mutation-invalidation-unsafe",
+      "language": "typescript",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17380-22d6-75c9-9799-7f8b75598ce4",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "HEAD useRenameOrder no longer invalidates the orders query on success",
+            "at": [
+              "src/use-rename-order.ts:7-7",
+              "src/use-rename-order.ts:5-8"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 679,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-stale-response-safe",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17380-5a68-73f2-b912-805c916dc60a",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2261,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-stale-response-safe",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17380-fffd-7695-944f-b939afdf0e9a",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1820,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-stale-response-unsafe",
+      "language": "typescript",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17381-6e45-715c-8d2f-3aaa81edadd3",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Effect ignore/cleanup guard removed; stale or post-unmount setOrder",
+            "at": [
+              "src/OrderDetails.tsx:5-12",
+              "src/OrderDetails.tsx:5-7"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1211,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-stale-response-unsafe",
+      "language": "typescript",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17381-b687-7277-ac0c-35b13d0cf0a5",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Removed ignore guard lets a late fetchOrder result always call setOrder",
+            "at": [
+              "src/OrderDetails.tsx:5-12",
+              "src/OrderDetails.tsx:5-7"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1440,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-wrapper-hook-safe",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17382-25f0-73f0-a48c-d27ce87497e0",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1989,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-wrapper-hook-safe",
+      "language": "typescript",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17382-bcbb-77d8-b75b-f9e5021c462a",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1847,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-wrapper-hook-unsafe",
+      "language": "typescript",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17383-457c-74b7-adc0-f9e878f26746",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "useWindowWidth registers a resize listener without removeEventListener cleanup",
+            "at": [
+              "src/use-window-width.ts:5-8",
+              "src/Banner.tsx:8-8"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 884,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "react-wrapper-hook-unsafe",
+      "language": "typescript",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17383-977f-7327-8eda-961b02a3c305",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "PARTIAL",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "useWindowWidth drops the resize-listener cleanup that BASE had",
+            "at": [
+              "src/use-window-width.ts:5-8",
+              "src/Banner.tsx:8-8"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1375,
+        "unknown_cost_attempts": 0
+      }
+    }
+  ]
+}

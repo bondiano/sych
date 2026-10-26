@@ -1,0 +1,41 @@
+schema_version: 1
+id: nit-ts-magic-plus-one
+split: development
+language: typescript
+variant: safe
+profiles: [nitpicks]
+rationale: "Line and column are computed correctly; the `+ 1` turning the 0-based offset into an editor's 1-based column deserves a short why-comment."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {}
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/diagnostic.ts: |
+    export function formatDiagnostic(file: string, source: string, offset: number, message: string): string {
+      return `${file}@${offset}: ${message}`;
+    }
+head:
+  src/diagnostic.ts: |
+    export function formatDiagnostic(file: string, source: string, offset: number, message: string): string {
+      const line = source.slice(0, offset).split('\n').length;
+      const lineStart = source.lastIndexOf('\n', offset - 1) + 1;
+      const column = offset - lineStart + 1;
+      return `${file}:${line}:${column}: ${message}`;
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "why-comment for the +1 in the column computation"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: src/diagnostic.ts, start_line: 4, end_line: 4 }
+  forbidden_claims:
+    - "Extract 1 into a named constant ONE."
+    - "The line:column format is a defect."

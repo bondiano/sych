@@ -1,0 +1,46 @@
+schema_version: 1
+review:
+  language: ru
+  profiles:
+    - correctness
+    - project_rules
+    - side_effects
+    - migration_compatibility
+    - infrastructure
+    - nitpicks
+  draft_policy: manual_only
+
+policy:
+  source: target_tip
+  rules_file: ".sych/rules.yaml"
+  effects_file: ".sych/effects.yaml"
+  deployment_file: ".sych/deploy.yaml"
+
+context:
+  initial_tokens_per_unit: 6000
+  max_tokens_per_request: 14000
+  max_source_files: 80
+  graph_depth_initial: 1
+  graph_depth_max: 3
+  expansion_rounds: 2
+
+ci:
+  wait_seconds: 180
+  expected_reports:
+    - id: frontend-tests
+      applies_to: ["frontend/**"]
+      format: junit
+      required_for: ["frontend_regression"]
+    - id: backend-tests
+      applies_to: ["backend/**"]
+      format: junit
+      required_for: ["backend_regression"]
+
+nitpicks:
+  enabled: true
+  presentation: collapsed_summary
+
+tour:
+  enabled: true
+  generate: on_request
+  target_steps: 5

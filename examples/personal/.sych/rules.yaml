@@ -1,0 +1,37 @@
+schema_version: 1
+rules:
+  - id: EFFECT-01
+    version: 1
+    title: Сохранение обязательных эффектов операции
+    kind: invariant
+    required: true
+    severity_on_violation: high
+    owner: backend
+    applies_to:
+      paths: ["backend/orders/**"]
+      change_kinds: ["call_change", "control_flow_change", "move"]
+    statement: >
+      Успешная запись заказа сохраняет обязательную публикацию события
+      согласно принятому контракту операции.
+    rationale: "Потребители должны получить событие о сохранённом заказе."
+    contract_refs: [".sych/contracts/order-created.md"]
+    acceptance:
+      evidence_kinds: ["source", "semantic", "test"]
+      criteria:
+        - "Определены граница commit и механизм доставки."
+        - "Проверены ошибка, повтор и остановка между записью и доставкой."
+    # Scoped waiver: the status stays VIOLATED/UNKNOWN, only the risk decision changes.
+    exceptions:
+      - paths: ["backend/orders/legacy_import/**"]
+        reason: "Старый импорт заказов не публикует событие; его удаляют после миграции клиентов."
+        owner: backend
+        author: orders-team
+        expires_at: null
+        until: "legacy_import удалён"
+  - id: NAMING-01
+    version: 1
+    title: Имена отражают предметную область
+    kind: preference
+    required: false
+    owner: backend
+    statement: Новые публичные имена используют термины из глоссария проекта.

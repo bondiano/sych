@@ -1,0 +1,114 @@
+{
+  "suite": "eval/smoke.yaml",
+  "passed": 6,
+  "failed": 0,
+  "model_attempts": 0,
+  "cases": [
+    {
+      "name": "safe-change-supported",
+      "passed": true,
+      "mismatches": [],
+      "actual": {
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "obligations": {
+          "EFFECT-01": "SUPPORTED"
+        },
+        "findings": 0,
+        "units": 1,
+        "model_adapters": [
+          "fake"
+        ],
+        "model_attempts": 0
+      }
+    },
+    {
+      "name": "lost-effect-violated",
+      "passed": true,
+      "mismatches": [],
+      "actual": {
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "obligations": {
+          "EFFECT-01": "VIOLATED"
+        },
+        "findings": 1,
+        "units": 1,
+        "model_adapters": [
+          "fake"
+        ],
+        "model_attempts": 0
+      }
+    },
+    {
+      "name": "no-evidence-stays-unknown",
+      "passed": true,
+      "mismatches": [],
+      "actual": {
+        "recommendation": "NEEDS_EVIDENCE",
+        "coverage": "PARTIAL",
+        "obligations": {
+          "EFFECT-01": "UNKNOWN"
+        },
+        "findings": 0,
+        "units": 1,
+        "model_adapters": [
+          "fake"
+        ],
+        "model_attempts": 0
+      }
+    },
+    {
+      "name": "author-claim-is-not-proof",
+      "passed": true,
+      "mismatches": [],
+      "actual": {
+        "recommendation": "NEEDS_EVIDENCE",
+        "coverage": "PARTIAL",
+        "obligations": {
+          "EFFECT-01": "UNKNOWN"
+        },
+        "findings": 0,
+        "units": 1,
+        "model_adapters": [
+          "fake"
+        ],
+        "model_attempts": 0
+      }
+    },
+    {
+      "name": "no-op-diff-empty-scope",
+      "passed": true,
+      "mismatches": [],
+      "actual": {
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "obligations": {},
+        "findings": 0,
+        "units": 0,
+        "model_adapters": [
+          "fake"
+        ],
+        "model_attempts": 0
+      }
+    },
+    {
+      "name": "unrelated-path-not-applicable",
+      "passed": true,
+      "mismatches": [],
+      "actual": {
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "obligations": {
+          "EFFECT-01": "NOT_APPLICABLE"
+        },
+        "findings": 0,
+        "units": 1,
+        "model_adapters": [
+          "fake"
+        ],
+        "model_attempts": 0
+      }
+    }
+  ]
+}

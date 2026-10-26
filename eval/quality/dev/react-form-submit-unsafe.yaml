@@ -1,0 +1,60 @@
+schema_version: 1
+id: react-form-submit-unsafe
+split: development
+language: typescript
+pair: react-form-submit
+variant: unsafe
+profiles: [correctness]
+rationale: "preventDefault is removed: submitting reloads the page and the applied code is lost."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/PromoForm.tsx: |
+    import { useState } from 'react';
+
+    export function PromoForm({ onApply }: { onApply: (code: string) => void }) {
+      const [code, setCode] = useState('');
+      const submit = (event: React.FormEvent) => {
+        event.preventDefault();
+        onApply(code);
+      };
+      return (
+        <form onSubmit={submit}>
+          <input value={code} onChange={(e) => setCode(e.target.value)} />
+          <button type="submit">Apply</button>
+        </form>
+      );
+    }
+head:
+  src/PromoForm.tsx: |
+    import { useState } from 'react';
+
+    export function PromoForm({ onApply }: { onApply: (code: string) => void }) {
+      const [code, setCode] = useState('');
+      const submit = (event: React.FormEvent) => {
+        onApply(code);
+      };
+      return (
+        <form onSubmit={submit}>
+          <input value={code} onChange={(e) => setCode(e.target.value)} />
+          <button type="submit">Apply</button>
+        </form>
+      );
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "promo form submit without navigation"
+      required_condition: "the user submits the form"
+      evidence_locations:
+        - { side: HEAD, path: src/PromoForm.tsx, start_line: 5, end_line: 7 }
+  facts:
+    - { kind: form_submit, side: HEAD, path: src/PromoForm.tsx, line: 9 }

@@ -1,0 +1,32 @@
+# Prometheus alert rules for a personal sandbox `sych serve` (spec §26.5). Thresholds are
+# starting points to tune, not SLAs.
+groups:
+  - name: sych
+    rules:
+      - alert: SychResultsNotSaved
+        expr: increase(sych_runs{state="FAILED"}[30m]) > 3
+        annotations: {summary: "Runs fail without a saved result (save, model or SCM failures)."}
+      - alert: SychQueueStuck
+        expr: sych_queue_oldest_age_seconds > 900
+        annotations: {summary: "The oldest ready job has waited over 15 minutes."}
+      - alert: SychUncertainPublication
+        expr: sych_uncertain_age_seconds > 3600
+        annotations: {summary: "A publication outcome is unknown past the reconciliation window; run `sych reconcile`."}
+      - alert: SychOutboxLag
+        expr: sych_outbox_lag_seconds > 600
+        annotations: {summary: "A publication has been pending for over 10 minutes."}
+      - alert: SychUnknownCharges
+        expr: sych_model_attempts{state="UNKNOWN"} > 0
+        annotations: {summary: "Model attempts with an unknown charge hold budget until reconciled."}
+      - alert: SychWebhookSignatures
+        expr: increase(sych_webhooks{outcome="rejected",reason="BAD_SIGNATURE"}[15m]) > 5
+        annotations: {summary: "Webhooks with bad signatures: wrong secret or someone probing."}
+      - alert: SychCredentials
+        expr: increase(sych_runs{state="FAILED"}[30m]) > 0 and on() sych_jobs{state="FAILED"} > 0
+        annotations: {summary: "Check the server log for UNAUTHORIZED: an App key, token or model credential may be broken."}
+      - alert: SychCompletenessDegraded
+        expr: sych_runs_by_coverage{coverage="Partial"} / ignoring(coverage) sum(sych_runs_by_coverage) > 0.8
+        annotations: {summary: "Most results are partial: CI, semantic or budget gaps across the board."}
+      - alert: SychBudgetHeld
+        expr: sych_reserved_micro_usd > 3000000
+        annotations: {summary: "Over $3 is reserved or unknown: a budget leak or a stuck provider."}

@@ -1,0 +1,64 @@
+schema_version: 1
+id: rust-serde-contract-unsafe
+split: development
+language: rust
+pair: rust-serde-contract
+variant: unsafe
+profiles: [correctness, migration_compatibility]
+rationale: "rename_all = camelCase changes the JSON field names of a public response: existing clients read order_id and total_cents."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+    axum = "0.8"
+    serde = { version = "1", features = ["derive"] }
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod api;
+    pub mod view;
+  src/api.rs: |
+    use axum::Json;
+    use axum::extract::Path;
+
+    use crate::view::OrderView;
+
+    pub fn router() -> axum::Router {
+        axum::Router::new().route("/v1/orders/{id}", axum::routing::get(order))
+    }
+
+    async fn order(Path(id): Path<String>) -> Json<OrderView> {
+        Json(OrderView::load(&id))
+    }
+  src/view.rs: |
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    pub struct OrderView {
+        pub order_id: String,
+        pub total_cents: u64,
+    }
+head:
+  src/view.rs: |
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct OrderView {
+        pub order_id: String,
+        pub total_cents: u64,
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "OrderView wire format"
+      required_condition: "a client deployed before this change parses the response"
+      evidence_locations:
+        - { side: HEAD, path: src/view.rs, start_line: 4, end_line: 4 }
+  facts:
+    - { kind: serde_attribute, side: HEAD, path: src/view.rs, line: 4 }

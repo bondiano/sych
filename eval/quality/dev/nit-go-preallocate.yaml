@@ -1,0 +1,45 @@
+schema_version: 1
+id: nit-go-preallocate
+split: development
+language: go
+variant: safe
+profiles: [nitpicks]
+rationale: "IDs is correct; the output length is known, so `make([]string, 0, len(users))` avoids repeated growth."
+base:
+  go.mod: |
+    module example.com/users
+
+    go 1.24
+  users.go: |
+    package users
+
+    type User struct {
+    	ID    string
+    	Email string
+    }
+head:
+  users.go: |
+    package users
+
+    type User struct {
+    	ID    string
+    	Email string
+    }
+
+    func IDs(users []User) []string {
+    	var out []string
+    	for _, u := range users {
+    		out = append(out, u.ID)
+    	}
+    	return out
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "preallocate the output slice with the known length"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: users.go, start_line: 9, end_line: 9 }
+  forbidden_claims:
+    - "Use sync.Pool to reuse the IDs slice."
+    - "IDs is a defect."

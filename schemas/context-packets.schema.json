@@ -1,0 +1,437 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ContextPackets",
+  "description": "Every packet of a run, as one versioned stored document.",
+  "type": "object",
+  "properties": {
+    "packets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/EvidencePacket"
+      }
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    }
+  },
+  "required": [
+    "schema_version",
+    "packets"
+  ],
+  "$defs": {
+    "CodeRef": {
+      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
+      "type": "object",
+      "properties": {
+        "blob_oid": {
+          "$ref": "#/$defs/GitObjectId"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "end_line": {
+          "description": "1-based, inclusive.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "path": {
+          "$ref": "#/$defs/RepoPath"
+        },
+        "side": {
+          "$ref": "#/$defs/SourceSide"
+        },
+        "snapshot_id": {
+          "$ref": "#/$defs/SourceSnapshotId"
+        },
+        "start_line": {
+          "description": "1-based, inclusive.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "side",
+        "path",
+        "blob_oid",
+        "start_line",
+        "end_line",
+        "content_sha256"
+      ]
+    },
+    "Completeness": {
+      "type": "string",
+      "enum": [
+        "COMPLETE_FOR_QUERY",
+        "PARTIAL",
+        "UNKNOWN"
+      ]
+    },
+    "ContextRequest": {
+      "description": "What a context request is bound to (spec §9.1).",
+      "type": "object",
+      "properties": {
+        "access_scope_id": {
+          "type": "string"
+        },
+        "obligation_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "policy_snapshot_id": {
+          "$ref": "#/$defs/PolicySnapshotId"
+        },
+        "purpose": {
+          "$ref": "#/$defs/Purpose"
+        },
+        "question": {
+          "type": "string"
+        },
+        "remaining_budget": {
+          "description": "Input tokens the packet may use.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "requested_operations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "review_unit_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "run_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "seed_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CodeRef"
+          }
+        },
+        "snapshot_id": {
+          "$ref": "#/$defs/SourceSnapshotId"
+        }
+      },
+      "required": [
+        "run_id",
+        "snapshot_id",
+        "policy_snapshot_id",
+        "review_unit_ids",
+        "question",
+        "purpose",
+        "seed_refs",
+        "requested_operations",
+        "remaining_budget",
+        "access_scope_id"
+      ]
+    },
+    "EvidencePacket": {
+      "type": "object",
+      "properties": {
+        "excluded": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Excluded"
+          }
+        },
+        "fragments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Fragment"
+          }
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Link"
+          }
+        },
+        "queries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QueryRecord"
+          }
+        },
+        "request": {
+          "$ref": "#/$defs/ContextRequest"
+        },
+        "resolution": {
+          "$ref": "#/$defs/PacketResolution"
+        },
+        "schema_version": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "usage": {
+          "$ref": "#/$defs/PacketUsage"
+        }
+      },
+      "required": [
+        "schema_version",
+        "request",
+        "fragments",
+        "links",
+        "queries",
+        "excluded",
+        "gaps",
+        "usage",
+        "resolution"
+      ]
+    },
+    "Excluded": {
+      "type": "object",
+      "properties": {
+        "code_ref": {
+          "$ref": "#/$defs/CodeRef"
+        },
+        "priority": {
+          "$ref": "#/$defs/Priority"
+        },
+        "reason": {
+          "description": "`REQUIRED_OVER_BUDGET`, `BUDGET` or `LIMIT_MAX_SOURCE_FILES`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code_ref",
+        "priority",
+        "reason"
+      ]
+    },
+    "Fragment": {
+      "type": "object",
+      "properties": {
+        "code_ref": {
+          "$ref": "#/$defs/CodeRef"
+        },
+        "completeness": {
+          "$ref": "#/$defs/Completeness"
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "id": {
+          "description": "Short content-derived id that links refer to.",
+          "type": "string"
+        },
+        "priority": {
+          "$ref": "#/$defs/Priority"
+        },
+        "reason_selected": {
+          "description": "Why it was selected; merged fragments keep every reason.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tokens": {
+          "description": "Upper bound on input tokens of the span text.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "transformation": {
+          "description": "Always `none` so far: spans are never summarised. Secret values are redacted when the\nprompt is rendered (`Prompt::messages`), which marks the block it changed.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "code_ref",
+        "priority",
+        "reason_selected",
+        "evidence_ids",
+        "completeness",
+        "tokens",
+        "transformation"
+      ]
+    },
+    "GitObjectId": {
+      "type": "string",
+      "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
+    },
+    "Link": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "relation": {
+          "$ref": "#/$defs/Relation"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "relation"
+      ]
+    },
+    "PacketResolution": {
+      "description": "Sufficiency of the requested sources, never the truth of an obligation (spec §9.1).",
+      "type": "string",
+      "enum": [
+        "SATISFIED",
+        "PARTIAL",
+        "UNAVAILABLE"
+      ]
+    },
+    "PacketUsage": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "semantic_items": {
+          "description": "Semantic context items selected into the packet; LSP requests happen earlier.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "tokens": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "tokens",
+        "files",
+        "semantic_items"
+      ]
+    },
+    "PolicySnapshotId": {
+      "description": "Content-derived identity of a [`crate::PolicySnapshot`].",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "Priority": {
+      "description": "Required evidence first, then evidence that could refute a hypothesis, then the rest.",
+      "type": "string",
+      "enum": [
+        "REQUIRED",
+        "REFUTING",
+        "SUPPORTING"
+      ]
+    },
+    "Purpose": {
+      "type": "string",
+      "enum": [
+        "DISCOVERY",
+        "VERIFICATION",
+        "TOUR_FOLLOWUP"
+      ]
+    },
+    "QueryRecord": {
+      "description": "One semantic query behind the packet and how complete its answer was.",
+      "type": "object",
+      "properties": {
+        "completeness": {
+          "$ref": "#/$defs/Completeness"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "side": {
+          "$ref": "#/$defs/SourceSide"
+        },
+        "status": {
+          "$ref": "#/$defs/QueryStatus"
+        },
+        "symbol": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "symbol",
+        "side",
+        "status",
+        "completeness"
+      ]
+    },
+    "QueryStatus": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "ANSWERED",
+            "FAILED"
+          ]
+        },
+        {
+          "description": "The server does not advertise the capability, or no backend fits the project.",
+          "type": "string",
+          "const": "UNSUPPORTED"
+        },
+        {
+          "description": "The query does not apply to this kind of symbol, e.g. callers of a struct.",
+          "type": "string",
+          "const": "NOT_APPLICABLE"
+        }
+      ]
+    },
+    "Relation": {
+      "type": "string",
+      "enum": [
+        "called_by",
+        "calls",
+        "uses_type",
+        "referenced_by",
+        "read_by",
+        "written_by",
+        "implemented_by",
+        "tested_by"
+      ]
+    },
+    "RepoPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "Sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "SourceSide": {
+      "type": "string",
+      "enum": [
+        "DIFF_BASE",
+        "HEAD",
+        "TARGET_TIP"
+      ]
+    },
+    "SourceSnapshotId": {
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "$ref": "#/$defs/Sha256Digest"
+    }
+  }
+}

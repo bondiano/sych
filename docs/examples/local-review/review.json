@@ -1,0 +1,426 @@
+{
+  "snapshot": {
+    "schema_version": 1,
+    "id": "sha256:2b886d8f337b3db5142d69332c63d1c8be528dd438a33decdb23903bd2da304e",
+    "repository": "local:sha256:901cde476956e75e1555775e4c9a433ce7eb8becb0ab0ec2c66fd7dbaf8d174b",
+    "target_ref": "target",
+    "target_tip": "sha1:f15454d20a418344546e0d07ab3768cf7a5fe865",
+    "diff_base": "sha1:f15454d20a418344546e0d07ab3768cf7a5fe865",
+    "head": "sha1:8b1d68bd94ad62e63f63cdf2fbafc78fe74ba4b0",
+    "comparison": "MERGE_BASE",
+    "source_manifest_hash": "sha256:df96a36a2e8ad4fae76f8d97adfbc5a1b8a2f38940ee71f2eabf0e7613e52d70",
+    "diff_manifest_hash": "sha256:4fc9b09eb538aa999da9346035ba47d5a86830fd44cc92d8b8dddb126a4e5719",
+    "created_at": "2026-10-25T11:26:27.428287119Z"
+  },
+  "diff_manifest": {
+    "schema_version": 1,
+    "method": "git diff-tree -r -M; blob diff -U0 --diff-algorithm=myers",
+    "diff_base": "sha1:f15454d20a418344546e0d07ab3768cf7a5fe865",
+    "head": "sha1:8b1d68bd94ad62e63f63cdf2fbafc78fe74ba4b0",
+    "files": [
+      {
+        "status": "MODIFIED",
+        "old": {
+          "path": "backend/orders/store.go",
+          "mode": "100644",
+          "oid": "sha1:2af98be013d2d43fdce352829aabc99b236aeb51",
+          "content": "TEXT",
+          "line_count": 10
+        },
+        "new": {
+          "path": "backend/orders/store.go",
+          "mode": "100644",
+          "oid": "sha1:c47cd2331554fdc05de3fdb760ffee67a9f0c90c",
+          "content": "TEXT",
+          "line_count": 9
+        },
+        "similarity": null,
+        "generated": false,
+        "hunks": [
+          {
+            "old_start": 4,
+            "old_lines": 6,
+            "new_start": 4,
+            "new_lines": 5
+          }
+        ],
+        "limitations": []
+      }
+    ],
+    "omissions": []
+  },
+  "policy": {
+    "schema_version": 1,
+    "id": "sha256:6d0d21591c665bb5768c6a0339ffcbf2f0f92d094be48801fd0c73b6b67bd864",
+    "source": {
+      "kind": "trusted_ref",
+      "ref_name": "target",
+      "commit": "sha1:f15454d20a418344546e0d07ab3768cf7a5fe865"
+    },
+    "rules_hash": "sha256:6b07badb9a29059cdbe2c41abd62b6345d090df669351c3061f4787a73c3c9ca",
+    "config_hash": "sha256:01e119420d0c6dfe9f942c9366d8b1c28007d7f726ca01c70e6c84fa17de0324",
+    "authorization_policy_version": 1,
+    "created_at": "2026-10-25T11:26:27.442282908Z"
+  },
+  "policy_review": {
+    "schema_version": 1,
+    "provenance": [
+      {
+        "layer": "engine",
+        "origin": "sych 0.1.0",
+        "sha256": null
+      },
+      {
+        "layer": "repository",
+        "origin": ".sych/rules.yaml@target@sha1:f15454d20a418344546e0d07ab3768cf7a5fe865",
+        "sha256": "sha256:bc303288aa0e8e71f6d9966a3a35a08cddecd5132574881388968395e4101ef6"
+      }
+    ],
+    "diff": {
+      "files": [],
+      "rules": [],
+      "head_errors": []
+    }
+  },
+  "external_input_manifest": {
+    "schema_version": 1,
+    "id": "sha256:1fcf0ebb3458cce0e59f7202e92ceb73232fd7a12ec896aa4921664293957cff",
+    "source_snapshot_id": "sha256:2b886d8f337b3db5142d69332c63d1c8be528dd438a33decdb23903bd2da304e",
+    "policy_snapshot_id": "sha256:6d0d21591c665bb5768c6a0339ffcbf2f0f92d094be48801fd0c73b6b67bd864",
+    "inputs": [],
+    "frozen_at": "2026-10-25T11:26:27.442282908Z"
+  },
+  "evidence_manifest": {
+    "schema_version": 1,
+    "id": "5402fb1f-d754-8d0a-bc4b-ca506dd582d1",
+    "source_snapshot_id": "sha256:2b886d8f337b3db5142d69332c63d1c8be528dd438a33decdb23903bd2da304e",
+    "policy_snapshot_id": "sha256:6d0d21591c665bb5768c6a0339ffcbf2f0f92d094be48801fd0c73b6b67bd864",
+    "external_input_manifest_id": "sha256:1fcf0ebb3458cce0e59f7202e92ceb73232fd7a12ec896aa4921664293957cff",
+    "evidence": [
+      {
+        "evidence_id": "cd0c5126-7e1b-897c-8ca5-13c24a626500",
+        "kind": "source",
+        "origin": "DERIVED",
+        "validity": "VALID",
+        "artifact_sha256": "sha256:8f3e2958f8ec673a4bd5f7e5eb5b2ba885de334db26857a1315bb0c26e2a99d4"
+      }
+    ],
+    "frozen_at": "2026-10-25T11:26:27.442282908Z"
+  },
+  "evidence": [
+    {
+      "schema_version": 1,
+      "id": "cd0c5126-7e1b-897c-8ca5-13c24a626500",
+      "kind": "source",
+      "source_snapshot_id": "sha256:2b886d8f337b3db5142d69332c63d1c8be528dd438a33decdb23903bd2da304e",
+      "producer": {
+        "name": "fake",
+        "version": "0.1.0",
+        "config_hash": null
+      },
+      "binding": {
+        "kind": "source",
+        "head_oid": "sha1:8b1d68bd94ad62e63f63cdf2fbafc78fe74ba4b0",
+        "target_tip_oid": "sha1:f15454d20a418344546e0d07ab3768cf7a5fe865",
+        "tested_oid": null,
+        "environment_id": null
+      },
+      "validity": "VALID",
+      "completeness": "COMPLETE_FOR_QUERY",
+      "trust_class": "SOURCE_OBSERVATION",
+      "artifact_sha256": "sha256:8f3e2958f8ec673a4bd5f7e5eb5b2ba885de334db26857a1315bb0c26e2a99d4",
+      "code_refs": [
+        {
+          "snapshot_id": "sha256:2b886d8f337b3db5142d69332c63d1c8be528dd438a33decdb23903bd2da304e",
+          "side": "HEAD",
+          "path": "backend/orders/store.go",
+          "blob_oid": "sha1:c47cd2331554fdc05de3fdb760ffee67a9f0c90c",
+          "start_line": 4,
+          "end_line": 8,
+          "content_sha256": "sha256:fc3aaab3597d974e8484ed310fcdc2af11429741bc47cce1d0181dbde7380da2"
+        }
+      ],
+      "limitations": [],
+      "observed_at": "2026-10-25T11:26:27.442282908Z"
+    }
+  ],
+  "semantic_facts": [],
+  "syntax_facts": [],
+  "ci_facts": [],
+  "context_packets": [
+    {
+      "schema_version": 1,
+      "request": {
+        "run_id": "01a172cf-dc7c-758c-8d28-d85bf17678d9",
+        "snapshot_id": "sha256:2b886d8f337b3db5142d69332c63d1c8be528dd438a33decdb23903bd2da304e",
+        "policy_snapshot_id": "sha256:6d0d21591c665bb5768c6a0339ffcbf2f0f92d094be48801fd0c73b6b67bd864",
+        "review_unit_ids": [
+          "561bcf4e-1afa-8d6b-b1bc-36ab49b85252"
+        ],
+        "obligation_id": null,
+        "question": "backend/orders",
+        "purpose": "DISCOVERY",
+        "seed_refs": [],
+        "requested_operations": [
+          "read_span",
+          "find_references",
+          "find_callers",
+          "find_implementations"
+        ],
+        "remaining_budget": 6000,
+        "access_scope_id": "local:sha256:901cde476956e75e1555775e4c9a433ce7eb8becb0ab0ec2c66fd7dbaf8d174b"
+      },
+      "fragments": [
+        {
+          "id": "a895a773f0da",
+          "code_ref": {
+            "snapshot_id": "sha256:2b886d8f337b3db5142d69332c63d1c8be528dd438a33decdb23903bd2da304e",
+            "side": "DIFF_BASE",
+            "path": "backend/orders/store.go",
+            "blob_oid": "sha1:2af98be013d2d43fdce352829aabc99b236aeb51",
+            "start_line": 4,
+            "end_line": 9,
+            "content_sha256": "sha256:96616376c3c12407bb70b34bcbbac6133c8bb97a03f5f77763c492e79fd1cf36"
+          },
+          "priority": "REQUIRED",
+          "reason_selected": [
+            "diff hunk (base)"
+          ],
+          "evidence_ids": [],
+          "completeness": "COMPLETE_FOR_QUERY",
+          "tokens": 135,
+          "transformation": "none"
+        },
+        {
+          "id": "0434fa139356",
+          "code_ref": {
+            "snapshot_id": "sha256:2b886d8f337b3db5142d69332c63d1c8be528dd438a33decdb23903bd2da304e",
+            "side": "HEAD",
+            "path": "backend/orders/store.go",
+            "blob_oid": "sha1:c47cd2331554fdc05de3fdb760ffee67a9f0c90c",
+            "start_line": 4,
+            "end_line": 8,
+            "content_sha256": "sha256:fc3aaab3597d974e8484ed310fcdc2af11429741bc47cce1d0181dbde7380da2"
+          },
+          "priority": "REQUIRED",
+          "reason_selected": [
+            "diff hunk (head)"
+          ],
+          "evidence_ids": [],
+          "completeness": "COMPLETE_FOR_QUERY",
+          "tokens": 103,
+          "transformation": "none"
+        }
+      ],
+      "links": [],
+      "queries": [],
+      "excluded": [],
+      "gaps": [
+        "NO_SEMANTIC_BACKEND: backend/orders/store.go (base, .go)",
+        "NO_SEMANTIC_BACKEND: backend/orders/store.go (head, .go)"
+      ],
+      "usage": {
+        "tokens": 238,
+        "files": 2,
+        "semantic_items": 0
+      },
+      "resolution": "PARTIAL"
+    },
+    {
+      "schema_version": 1,
+      "request": {
+        "run_id": "01a172cf-dc7c-758c-8d28-d85bf17678d9",
+        "snapshot_id": "sha256:2b886d8f337b3db5142d69332c63d1c8be528dd438a33decdb23903bd2da304e",
+        "policy_snapshot_id": "sha256:6d0d21591c665bb5768c6a0339ffcbf2f0f92d094be48801fd0c73b6b67bd864",
+        "review_unit_ids": [
+          "561bcf4e-1afa-8d6b-b1bc-36ab49b85252"
+        ],
+        "obligation_id": "532b88b5-3538-8f87-91df-815acea119c2",
+        "question": "A stored order publishes order-created in the same transaction.",
+        "purpose": "VERIFICATION",
+        "seed_refs": [],
+        "requested_operations": [
+          "read_span",
+          "find_references",
+          "find_callers",
+          "find_implementations"
+        ],
+        "remaining_budget": 6000,
+        "access_scope_id": "local:sha256:901cde476956e75e1555775e4c9a433ce7eb8becb0ab0ec2c66fd7dbaf8d174b"
+      },
+      "fragments": [
+        {
+          "id": "a895a773f0da",
+          "code_ref": {
+            "snapshot_id": "sha256:2b886d8f337b3db5142d69332c63d1c8be528dd438a33decdb23903bd2da304e",
+            "side": "DIFF_BASE",
+            "path": "backend/orders/store.go",
+            "blob_oid": "sha1:2af98be013d2d43fdce352829aabc99b236aeb51",
+            "start_line": 4,
+            "end_line": 9,
+            "content_sha256": "sha256:96616376c3c12407bb70b34bcbbac6133c8bb97a03f5f77763c492e79fd1cf36"
+          },
+          "priority": "REQUIRED",
+          "reason_selected": [
+            "diff hunk (base)"
+          ],
+          "evidence_ids": [],
+          "completeness": "COMPLETE_FOR_QUERY",
+          "tokens": 135,
+          "transformation": "none"
+        },
+        {
+          "id": "0434fa139356",
+          "code_ref": {
+            "snapshot_id": "sha256:2b886d8f337b3db5142d69332c63d1c8be528dd438a33decdb23903bd2da304e",
+            "side": "HEAD",
+            "path": "backend/orders/store.go",
+            "blob_oid": "sha1:c47cd2331554fdc05de3fdb760ffee67a9f0c90c",
+            "start_line": 4,
+            "end_line": 8,
+            "content_sha256": "sha256:fc3aaab3597d974e8484ed310fcdc2af11429741bc47cce1d0181dbde7380da2"
+          },
+          "priority": "REQUIRED",
+          "reason_selected": [
+            "diff hunk (head)"
+          ],
+          "evidence_ids": [],
+          "completeness": "COMPLETE_FOR_QUERY",
+          "tokens": 103,
+          "transformation": "none"
+        }
+      ],
+      "links": [],
+      "queries": [],
+      "excluded": [],
+      "gaps": [
+        "NO_SEMANTIC_BACKEND: backend/orders/store.go (base, .go)",
+        "NO_SEMANTIC_BACKEND: backend/orders/store.go (head, .go)"
+      ],
+      "usage": {
+        "tokens": 238,
+        "files": 2,
+        "semantic_items": 0
+      },
+      "resolution": "PARTIAL"
+    }
+  ],
+  "review_result": {
+    "schema_version": 1,
+    "result_id": "01a172cf-dc9f-76f3-b799-6ed82da3b39e",
+    "run_id": "01a172cf-dc7c-758c-8d28-d85bf17678d9",
+    "review_revision": 1,
+    "parent_result_id": null,
+    "source_snapshot_id": "sha256:2b886d8f337b3db5142d69332c63d1c8be528dd438a33decdb23903bd2da304e",
+    "policy_snapshot_id": "sha256:6d0d21591c665bb5768c6a0339ffcbf2f0f92d094be48801fd0c73b6b67bd864",
+    "evidence_manifest_id": "5402fb1f-d754-8d0a-bc4b-ca506dd582d1",
+    "scope_manifest": {
+      "revision": 1,
+      "units": [
+        {
+          "id": "561bcf4e-1afa-8d6b-b1bc-36ab49b85252",
+          "title": "backend/orders",
+          "paths": [
+            "backend/orders/store.go"
+          ]
+        }
+      ],
+      "required_obligation_ids": [
+        "532b88b5-3538-8f87-91df-815acea119c2"
+      ],
+      "requested_profiles": [
+        "correctness",
+        "project_rules",
+        "side_effects",
+        "migration_compatibility",
+        "infrastructure",
+        "nitpicks"
+      ],
+      "excluded": []
+    },
+    "execution_outcome": "PLAN_EXECUTED",
+    "coverage": "COMPLETE_FOR_SCOPE",
+    "recommendation": "ATTENTION_REQUIRED",
+    "findings": [
+      {
+        "id": "8520041a-d476-8e81-a455-8c3a5f2f6a14",
+        "category": "RULE_VIOLATION",
+        "severity": "HIGH",
+        "support": "EXPLICIT_RULE",
+        "title": "EFFECT-01 violated: Stored order publishes order-created",
+        "explanation": "A stored order publishes order-created in the same transaction.",
+        "triggering_conditions": [],
+        "consequence": "acceptance criterion not met: Commit boundary and delivery mechanism are identified.",
+        "anchors": [
+          {
+            "snapshot_id": "sha256:2b886d8f337b3db5142d69332c63d1c8be528dd438a33decdb23903bd2da304e",
+            "side": "HEAD",
+            "path": "backend/orders/store.go",
+            "blob_oid": "sha1:c47cd2331554fdc05de3fdb760ffee67a9f0c90c",
+            "start_line": 4,
+            "end_line": 8,
+            "content_sha256": "sha256:fc3aaab3597d974e8484ed310fcdc2af11429741bc47cce1d0181dbde7380da2"
+          }
+        ],
+        "evidence_ids": [
+          "cd0c5126-7e1b-897c-8ca5-13c24a626500"
+        ],
+        "rule_id": "EFFECT-01",
+        "obligation_ids": [
+          "532b88b5-3538-8f87-91df-815acea119c2"
+        ],
+        "suggested_action": "Restore the behavior the rule requires.",
+        "validation_expectation": "Commit boundary and delivery mechanism are identified.",
+        "fingerprint": "sha256:2346772f657cac2e5508d922be38e1cf081888301d43922a41e4bfe07bbc4793",
+        "predecessor_finding_id": null,
+        "lifecycle": "OPEN",
+        "scope": "561bcf4e-1afa-8d6b-b1bc-36ab49b85252",
+        "limitations": []
+      }
+    ],
+    "obligations": [
+      {
+        "id": "532b88b5-3538-8f87-91df-815acea119c2",
+        "rule_id": "EFFECT-01",
+        "rule_version": 1,
+        "question": "A stored order publishes order-created in the same transaction.",
+        "required": true,
+        "risk_level": "HIGH",
+        "review_unit_ids": [
+          "561bcf4e-1afa-8d6b-b1bc-36ab49b85252"
+        ],
+        "code_refs": [],
+        "applicability": "APPLIES",
+        "acceptance_criterion": "Commit boundary and delivery mechanism are identified.",
+        "acceptable_evidence_kinds": [
+          "source",
+          "test"
+        ],
+        "status": "VIOLATED",
+        "evidence_ids": [
+          "cd0c5126-7e1b-897c-8ca5-13c24a626500"
+        ],
+        "limitations": []
+      }
+    ],
+    "unresolved_questions": [],
+    "excluded_or_unreviewed": [],
+    "rejected_candidates": [],
+    "usage_summary": {
+      "model_attempts": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cost": {
+        "known": 0,
+        "unknown_cost_attempts": 0
+      }
+    },
+    "created_at": "2026-10-25T11:26:27.442282908Z",
+    "provenance": {
+      "engine_version": "0.1.0",
+      "model_adapters": [
+        "fake"
+      ]
+    }
+  }
+}

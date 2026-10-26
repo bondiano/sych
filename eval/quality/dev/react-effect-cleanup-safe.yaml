@@ -1,0 +1,49 @@
+schema_version: 1
+id: react-effect-cleanup-safe
+split: development
+language: typescript
+pair: react-effect-cleanup
+variant: safe
+profiles: [correctness]
+rationale: "Only the handler is renamed; add and remove still use the same function."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/Banner.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function Banner() {
+      const [width, setWidth] = useState(window.innerWidth);
+      useEffect(() => {
+        const onResize = () => setWidth(window.innerWidth);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+      }, []);
+      return <div className={width > 800 ? 'wide' : 'narrow'} />;
+    }
+head:
+  src/Banner.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function Banner() {
+      const [width, setWidth] = useState(window.innerWidth);
+      useEffect(() => {
+        const handleResize = () => setWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+      }, []);
+      return <div className={width > 800 ? 'wide' : 'narrow'} />;
+    }
+expected:
+  facts:
+    - { kind: effect_with_cleanup, side: HEAD, path: src/Banner.tsx, line: 5 }
+  forbidden_facts:
+    - { kind: unpaired_listener, side: HEAD, path: src/Banner.tsx, line: 5 }

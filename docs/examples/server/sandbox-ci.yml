@@ -1,0 +1,37 @@
+# CI evidence for a Sych self-review on the SANDBOX MIRROR only (roadmap M2.9). Copy it into the
+# mirror's .github/workflows/ci.yml; it is not active in bondiano/sych, and no production workflow
+# is enabled before R1.
+#
+# - `pull_request`, never `pull_request_target`: PR code runs without write tokens or secrets.
+# - The job only runs the mirror's own checks; Sych never executes PR code itself.
+# - The artifact carries the outcomes and a checkout manifest whose `tested_oid` is the merge
+#   commit GitHub checked out, so the server can bind it as MERGE_RESULT through its parents.
+name: ci
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test
+        id: test
+        continue-on-error: true
+        run: cargo test --workspace --locked
+      - name: Write the outcome and checkout manifests
+        if: always()
+        run: |
+          code=$([ "${{ steps.test.outcome }}" = success ] && echo 0 || echo 1)
+          printf '{"schema_version":1,"commands":[{"name":"cargo test --workspace","exit_code":%s}]}\n' "$code" > outcomes.json
+          printf '{"schema_version":1,"job":"github:%s/actions/runs/%s","tested_oid":"%s","toolchain":"%s","target":"x86_64-unknown-linux-gnu","features":[]}\n' \
+            "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$(git rev-parse HEAD)" "$(rustc --version)" > sych-ci.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reports
+          path: |
+            outcomes.json
+            sych-ci.json

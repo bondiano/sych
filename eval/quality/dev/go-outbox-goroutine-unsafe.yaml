@@ -1,0 +1,105 @@
+schema_version: 1
+id: go-outbox-goroutine-unsafe
+split: development
+language: go
+pair: go-outbox-goroutine
+variant: unsafe
+profiles: [correctness, side_effects]
+rationale: "The order-created event no longer goes to the outbox inside the transaction: it is published from a goroutine after commit, so a stop between commit and publish, or a failed Publish, loses it; nothing in the snapshot relays or retries it (spec §12.4, outbox to goroutine)."
+base:
+  .sych/effects.yaml: |
+    schema_version: 1
+    effects:
+      - id: order-outbox
+        match:
+          language: go
+          symbol: "example.com/shop/orders.Store.AppendEvent"
+        effect_kind: event
+        guarantees:
+          durable_with_transaction: true
+        implementation_refs: ["orders/store.go"]
+        contract_refs: [".sych/contracts/order-created.md"]
+  .sych/contracts/order-created.md: |
+    # order-created
+
+    Every committed order produces exactly one order-created event, written to the outbox in the
+    order's transaction; the relay publishes committed outbox rows and retries until acknowledged.
+  go.mod: |
+    module example.com/shop
+
+    go 1.26
+  orders/store.go: |
+    package orders
+
+    import (
+    	"context"
+    	"database/sql"
+    )
+
+    type Publisher interface {
+    	Publish(ctx context.Context, event string) error
+    }
+
+    type Store struct {
+    	db        *sql.DB
+    	publisher Publisher
+    }
+
+    // AppendEvent writes the event to the outbox table; the relay publishes committed rows.
+    func (s *Store) AppendEvent(ctx context.Context, tx *sql.Tx, event string) error {
+    	_, err := tx.ExecContext(ctx, "INSERT INTO outbox (event) VALUES ($1)", event)
+    	return err
+    }
+  orders/create.go: |
+    package orders
+
+    import "context"
+
+    func (s *Store) Create(ctx context.Context, id string) error {
+    	tx, err := s.db.BeginTx(ctx, nil)
+    	if err != nil {
+    		return err
+    	}
+    	defer tx.Rollback()
+    	if _, err := tx.ExecContext(ctx, "INSERT INTO orders (id) VALUES ($1)", id); err != nil {
+    		return err
+    	}
+    	if err := s.AppendEvent(ctx, tx, "order-created:"+id); err != nil {
+    		return err
+    	}
+    	return tx.Commit()
+    }
+head:
+  orders/create.go: |
+    package orders
+
+    import "context"
+
+    func (s *Store) Create(ctx context.Context, id string) error {
+    	tx, err := s.db.BeginTx(ctx, nil)
+    	if err != nil {
+    		return err
+    	}
+    	defer tx.Rollback()
+    	if _, err := tx.ExecContext(ctx, "INSERT INTO orders (id) VALUES ($1)", id); err != nil {
+    		return err
+    	}
+    	if err := tx.Commit(); err != nil {
+    		return err
+    	}
+    	go s.publisher.Publish(context.Background(), "order-created:"+id)
+    	return nil
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "delivery of the order-created event"
+      required_condition: "the process stops after commit before the goroutine publishes, or Publish fails"
+      evidence_locations:
+        - { side: HEAD, path: orders/create.go, start_line: 14, end_line: 17 }
+  facts:
+    - { kind: detached_spawn, side: HEAD, path: orders/create.go, line: 17 }
+    - { kind: registered_effect_call, side: DIFF_BASE, path: orders/create.go, line: 14 }
+    - { kind: interface_call, side: HEAD, path: orders/create.go, line: 17 }
+  forbidden_claims:
+    - "The event is still written in the order's transaction."

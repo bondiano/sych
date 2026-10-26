@@ -1,0 +1,48 @@
+schema_version: 1
+id: nit-ts-linter-only
+split: development
+language: typescript
+variant: safe
+profiles: [nitpicks]
+rationale: "shippingCost is correct. The else after return and the double-quoted string are exactly what the project's CI lint (eslint no-else-return, prettier singleQuote) reports; a reviewer repeating them adds noise."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "scripts": { "lint": "eslint . && prettier --check ." },
+      "devDependencies": { "eslint": "^9.30.0", "prettier": "^3.6.0" }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  .prettierrc: |
+    { "singleQuote": true }
+  eslint.config.js: |
+    export default [{ rules: { 'no-else-return': 'error', eqeqeq: 'error' } }];
+  src/shipping.ts: |
+    export function freeShipping(cents: number): boolean {
+      return cents >= 5_000;
+    }
+head:
+  src/shipping.ts: |
+    export function freeShipping(cents: number): boolean {
+      return cents >= 5_000;
+    }
+
+    export function shippingCost(weightKg: number): number {
+      if (weightKg <= 1) {
+        return 500;
+      } else {
+        return 500 + Math.ceil(weightKg - 1) * 150;
+      }
+    }
+
+    export const SHIPPING_NOTE = "Rates include VAT";
+expected:
+  forbidden_claims:
+    - "nit: drop the else after return in shippingCost."
+    - "nit: use single quotes for SHIPPING_NOTE."
+    - "shippingCost is a defect."

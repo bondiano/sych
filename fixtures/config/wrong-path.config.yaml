@@ -1,0 +1,3 @@
+schema_version: 1
+policy:
+  rules_file: "rules.yaml"

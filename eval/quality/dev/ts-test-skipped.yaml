@@ -1,0 +1,48 @@
+schema_version: 1
+id: ts-test-skipped
+split: development
+language: typescript
+variant: unsafe
+profiles: [correctness]
+rationale: "The rounding test is skipped instead of fixed; a skipped test is not evidence that rounding works."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/price.test.ts: |
+    import { describe, expect, it } from 'vitest';
+    import { formatTotal } from './price';
+
+    describe('formatTotal', () => {
+      it('rounds to cents', () => {
+        expect(formatTotal(1999, 'RUB')).toBe('19.99 RUB');
+      });
+    });
+head:
+  src/price.test.ts: |
+    import { describe, expect, it } from 'vitest';
+    import { formatTotal } from './price';
+
+    describe('formatTotal', () => {
+      it.skip('rounds to cents', () => {
+        expect(formatTotal(1999, 'RUB')).toBe('19.99 RUB');
+      });
+    });
+expected:
+  findings:
+    - category: defect
+      semantic_target: "formatTotal test coverage"
+      required_condition: "rounding regresses"
+      evidence_locations:
+        - { side: HEAD, path: src/price.test.ts, start_line: 5, end_line: 5 }
+  facts:
+    - { kind: test_skipped, side: HEAD, path: src/price.test.ts, line: 5 }
+  forbidden_claims:
+    - "Rounding is tested."

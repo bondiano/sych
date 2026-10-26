@@ -1,0 +1,68 @@
+schema_version: 1
+id: nit-rust-atomic-ptr
+split: development
+language: rust
+variant: safe
+profiles: [nitpicks]
+rationale: "Making the config reinstallable is correct, but the pointer is stored in an AtomicUsize through `as usize` casts; AtomicPtr<Config> states the intent and keeps pointer provenance."
+base:
+  Cargo.toml: |
+    [package]
+    name = "config"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod current;
+  src/current.rs: |
+    use std::sync::OnceLock;
+
+    pub struct Config {
+        pub verbose: bool,
+    }
+
+    static CURRENT: OnceLock<&'static Config> = OnceLock::new();
+
+    pub fn install(config: &'static Config) {
+        let _ = CURRENT.set(config);
+    }
+
+    pub fn current() -> Option<&'static Config> {
+        CURRENT.get().copied()
+    }
+head:
+  src/current.rs: |
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    pub struct Config {
+        pub verbose: bool,
+    }
+
+    /// Reinstallable on config reload.
+    static CURRENT: AtomicUsize = AtomicUsize::new(0);
+
+    pub fn install(config: &'static Config) {
+        CURRENT.store(config as *const Config as usize, Ordering::Release);
+    }
+
+    pub fn current() -> Option<&'static Config> {
+        let ptr = CURRENT.load(Ordering::Acquire) as *const Config;
+        // SAFETY: only `&'static Config` pointers (or null) are ever stored.
+        unsafe { ptr.as_ref() }
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "AtomicPtr instead of AtomicUsize pointer casts"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: src/current.rs, start_line: 8, end_line: 8 }
+        - { side: HEAD, path: src/current.rs, start_line: 11, end_line: 11 }
+        - { side: HEAD, path: src/current.rs, start_line: 15, end_line: 15 }
+  forbidden_claims:
+    - "unsafe is dangerous here; double-check this code."
+    - "Reinstalling the config is a defect."

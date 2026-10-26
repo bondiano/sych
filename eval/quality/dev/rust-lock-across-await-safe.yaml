@@ -1,0 +1,54 @@
+schema_version: 1
+id: rust-lock-across-await-safe
+split: development
+language: rust
+pair: rust-lock-across-await
+variant: safe
+profiles: [correctness]
+rationale: "The guard lives in an inner block that ends before the `.await`."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    use std::sync::Mutex;
+
+    pub struct Cache {
+        hits: Mutex<u64>,
+    }
+
+    impl Cache {
+        pub async fn get(&self, key: &str) -> Option<Value> {
+            let value = self.remote.get(key).await;
+            *self.hits.lock().unwrap() += 1;
+            value
+        }
+    }
+head:
+  src/lib.rs: |
+    use std::sync::Mutex;
+
+    pub struct Cache {
+        hits: Mutex<u64>,
+    }
+
+    impl Cache {
+        pub async fn get(&self, key: &str) -> Option<Value> {
+            {
+                let mut hits = self.hits.lock().unwrap();
+                *hits += 1;
+            }
+            let value = self.remote.get(key).await;
+            value
+        }
+    }
+expected:
+  forbidden_facts:
+    - { kind: guard_across_await, side: HEAD, path: src/lib.rs, line: 13 }

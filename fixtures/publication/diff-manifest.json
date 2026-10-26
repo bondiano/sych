@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "method": "git diff-tree -r -M; blob diff -U0 --diff-algorithm=myers",
+  "diff_base": "sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "head": "sha1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "files": [
+    {"status": "MODIFIED", "similarity": null, "generated": false, "limitations": [],
+     "old": {"path": "backend/orders/create.go", "mode": "100644", "oid": "sha1:dddddddddddddddddddddddddddddddddddddddd", "content": "TEXT", "line_count": 90},
+     "new": {"path": "backend/orders/create.go", "mode": "100644", "oid": "sha1:cccccccccccccccccccccccccccccccccccccccc", "content": "TEXT", "line_count": 92},
+     "hunks": [{"old_start": 41, "old_lines": 5, "new_start": 41, "new_lines": 7}]},
+    {"status": "RENAMED", "similarity": 90, "generated": false, "limitations": [],
+     "old": {"path": "src/old_name.rs", "mode": "100644", "oid": "sha1:1111111111111111111111111111111111111111", "content": "TEXT", "line_count": 20},
+     "new": {"path": "src/новое_имя.rs", "mode": "100644", "oid": "sha1:2222222222222222222222222222222222222222", "content": "TEXT", "line_count": 21},
+     "hunks": [{"old_start": 10, "old_lines": 1, "new_start": 10, "new_lines": 2}]},
+    {"status": "DELETED", "similarity": null, "generated": false, "limitations": [],
+     "old": {"path": "src/gone.rs", "mode": "100644", "oid": "sha1:3333333333333333333333333333333333333333", "content": "TEXT", "line_count": 12},
+     "new": null,
+     "hunks": [{"old_start": 1, "old_lines": 12, "new_start": 0, "new_lines": 0}]}
+  ],
+  "omissions": []
+}

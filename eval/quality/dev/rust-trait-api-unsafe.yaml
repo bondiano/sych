@@ -1,0 +1,67 @@
+schema_version: 1
+id: rust-trait-api-unsafe
+split: development
+language: rust
+pair: rust-trait-api
+variant: unsafe
+profiles: [correctness]
+rationale: "find() now turns storage errors into None: callers render \"not found\" for a failing database instead of an error."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod api;
+    pub mod store;
+  src/store.rs: |
+    pub trait OrderStore {
+        fn find(&self, id: OrderId) -> Result<Option<Order>, StoreError>;
+    }
+
+    impl OrderStore for Postgres {
+        fn find(&self, id: OrderId) -> Result<Option<Order>, StoreError> {
+            self.query_one(id)
+        }
+    }
+  src/api.rs: |
+    pub fn show(store: &impl OrderStore, id: OrderId) -> Result<Page, StoreError> {
+        match store.find(id)? {
+            Some(order) => Ok(Page::order(order)),
+            None => Ok(Page::not_found()),
+        }
+    }
+head:
+  src/store.rs: |
+    pub trait OrderStore {
+        fn find(&self, id: OrderId) -> Option<Order>;
+    }
+
+    impl OrderStore for Postgres {
+        fn find(&self, id: OrderId) -> Option<Order> {
+            self.query_one(id).ok().flatten()
+        }
+    }
+  src/api.rs: |
+    pub fn show(store: &impl OrderStore, id: OrderId) -> Result<Page, StoreError> {
+        match store.find(id) {
+            Some(order) => Ok(Page::order(order)),
+            None => Ok(Page::not_found()),
+        }
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "OrderStore::find error contract"
+      required_condition: "the database query fails"
+      evidence_locations:
+        - { side: HEAD, path: src/store.rs, start_line: 7, end_line: 7 }
+        - { side: HEAD, path: src/store.rs, start_line: 2, end_line: 2 }
+  facts:
+    - { kind: public_item, side: HEAD, path: src/store.rs, line: 1 }

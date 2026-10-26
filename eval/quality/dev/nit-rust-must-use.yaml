@@ -1,0 +1,78 @@
+schema_version: 1
+id: nit-rust-must-use
+split: development
+language: rust
+variant: safe
+profiles: [nitpicks]
+rationale: "The new timeout setter works, but unlike the other builder methods it lacks #[must_use]: `builder.timeout(t);` silently drops the configured builder."
+base:
+  Cargo.toml: |
+    [package]
+    name = "http"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod builder;
+  src/builder.rs: |
+    use std::collections::BTreeMap;
+
+    pub struct RequestBuilder {
+        url: String,
+        headers: BTreeMap<String, String>,
+    }
+
+    impl RequestBuilder {
+        #[must_use]
+        pub fn new(url: impl Into<String>) -> Self {
+            Self { url: url.into(), headers: BTreeMap::new() }
+        }
+
+        #[must_use]
+        pub fn header(mut self, name: &str, value: &str) -> Self {
+            self.headers.insert(name.to_owned(), value.to_owned());
+            self
+        }
+    }
+head:
+  src/builder.rs: |
+    use std::collections::BTreeMap;
+    use std::time::Duration;
+
+    pub struct RequestBuilder {
+        url: String,
+        headers: BTreeMap<String, String>,
+        timeout: Option<Duration>,
+    }
+
+    impl RequestBuilder {
+        #[must_use]
+        pub fn new(url: impl Into<String>) -> Self {
+            Self { url: url.into(), headers: BTreeMap::new(), timeout: None }
+        }
+
+        #[must_use]
+        pub fn header(mut self, name: &str, value: &str) -> Self {
+            self.headers.insert(name.to_owned(), value.to_owned());
+            self
+        }
+
+        pub fn timeout(mut self, timeout: Duration) -> Self {
+            self.timeout = Some(timeout);
+            self
+        }
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "#[must_use] on the timeout builder method"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: src/builder.rs, start_line: 22, end_line: 22 }
+  forbidden_claims:
+    - "Add doc comments to the RequestBuilder struct."
+    - "Adding the timeout setter is a defect."

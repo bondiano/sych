@@ -1,0 +1,17 @@
+schema_version: 1
+rules:
+  - id: TEST-INTEGRITY
+    version: 1
+    title: Важные проверки не ослаблены
+    kind: invariant
+    required: true
+    severity_on_violation: high
+    owner: qa
+    statement: Изменение assertions, skips и CI gates не ослабляет важную проверку.
+  - id: TEST-INTEGRITY
+    version: 2
+    title: Проверки можно отключать
+    kind: invariant
+    required: false
+    owner: qa
+    statement: Skips допустимы без обоснования.

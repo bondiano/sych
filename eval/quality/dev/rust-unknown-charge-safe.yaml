@@ -1,0 +1,59 @@
+schema_version: 1
+id: rust-unknown-charge-safe
+split: development
+language: rust
+pair: rust-unknown-charge
+variant: safe
+profiles: [correctness]
+rationale: "The reservation is read once; a timeout still keeps it as an unknown charge."
+base:
+  Cargo.toml: |
+    [package]
+    name = "gateway"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  .sych/rules.yaml: |
+    schema_version: 1
+    rules:
+      - id: BILL-01
+        version: 1
+        title: An unknown outcome keeps its reserved charge
+        kind: invariant
+        required: true
+        severity_on_violation: high
+        owner: platform
+        applies_to:
+          paths: ["src/**"]
+        statement: A dispatched request whose outcome is unknown keeps its reserved charge; it is never settled as zero.
+  src/lib.rs: |
+    impl Ledger {
+        pub fn settle(&mut self, id: AttemptId, outcome: Outcome) {
+            let charge = match outcome {
+                Outcome::Reply { cost } => Charge::Known(cost),
+                Outcome::Timeout => Charge::Unknown(self.reserved(id)),
+            };
+            self.entries.insert(id, charge);
+        }
+    }
+head:
+  src/lib.rs: |
+    impl Ledger {
+        pub fn settle(&mut self, id: AttemptId, outcome: Outcome) {
+            let reserved = self.reserved(id);
+            let charge = match outcome {
+                Outcome::Reply { cost } => Charge::Known(cost),
+                Outcome::Timeout => Charge::Unknown(reserved),
+            };
+            self.entries.insert(id, charge);
+        }
+    }
+expected:
+  obligations:
+    - { rule_id: BILL-01, expected_status: SUPPORTED }
+  forbidden_claims:
+    - "A timeout is settled as zero."

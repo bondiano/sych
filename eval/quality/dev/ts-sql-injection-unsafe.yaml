@@ -1,0 +1,60 @@
+schema_version: 1
+id: ts-sql-injection-unsafe
+split: development
+language: typescript
+pair: ts-sql-injection
+variant: unsafe
+profiles: [correctness]
+rationale: "The new search interpolates the `q` query parameter into the SQL text: a quote in `q` ends the literal and lets the client run arbitrary SQL."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {
+        "express": "^5.1.0",
+        "pg": "^8.13.0"
+      }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/routes/products.ts: |
+    import { Router } from 'express';
+    import { Pool } from 'pg';
+
+    const db = new Pool();
+
+    export const products = Router();
+
+    products.get('/products', async (_req, res) => {
+      const { rows } = await db.query('SELECT id, name, price FROM products ORDER BY name');
+      res.json(rows);
+    });
+head:
+  src/routes/products.ts: |
+    import { Router } from 'express';
+    import { Pool } from 'pg';
+
+    const db = new Pool();
+
+    export const products = Router();
+
+    products.get('/products', async (req, res) => {
+      const q = String(req.query.q ?? '');
+      const { rows } = await db.query(
+        `SELECT id, name, price FROM products WHERE name ILIKE '%${q}%' ORDER BY name`,
+      );
+      res.json(rows);
+    });
+expected:
+  findings:
+    - category: defect
+      semantic_target: "SQL executed by the product search"
+      required_condition: "the q query parameter contains a single quote"
+      evidence_locations:
+        - { side: HEAD, path: src/routes/products.ts, start_line: 10, end_line: 11 }
+  forbidden_claims:
+    - "The product search query is parameterised."

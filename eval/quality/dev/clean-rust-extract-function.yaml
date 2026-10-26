@@ -1,0 +1,38 @@
+schema_version: 1
+id: clean-rust-extract-function
+split: development
+language: rust
+variant: safe
+profiles: [correctness]
+rationale: "A pure helper is extracted without changing behaviour."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod total;
+  src/total.rs: |
+    /// Returns the order total in cents, including delivery.
+    pub fn total(order: &Order) -> u64 {
+        order.items.iter().map(|i| i.cents).sum::<u64>() + order.delivery_cents
+    }
+head:
+  src/total.rs: |
+    /// Returns the order total in cents, including delivery.
+    pub fn total(order: &Order) -> u64 {
+        items(order) + order.delivery_cents
+    }
+
+    fn items(order: &Order) -> u64 {
+        order.items.iter().map(|i| i.cents).sum()
+    }
+expected:
+  forbidden_claims:
+    - "The total no longer includes delivery."

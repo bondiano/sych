@@ -1,0 +1,54 @@
+schema_version: 1
+id: react-invalidation-wrapper-safe
+split: development
+language: typescript
+pair: react-invalidation-wrapper
+variant: safe
+profiles: [correctness]
+rationale: "The mutation and its invalidation move together into a project hook; the component diff alone looks like a lost invalidation."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/RenameButton.tsx: |
+    import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+    export function RenameButton({ id }: { id: string }) {
+      const client = useQueryClient();
+      const rename = useMutation({
+        mutationFn: (name: string) => renameOrder(id, name),
+        onSuccess: () => client.invalidateQueries({ queryKey: ['orders'] }),
+      });
+      return <button onClick={() => rename.mutate('new')}>Rename</button>;
+    }
+head:
+  src/RenameButton.tsx: |
+    import { useRenameOrder } from './use-rename-order';
+
+    export function RenameButton({ id }: { id: string }) {
+      const rename = useRenameOrder(id);
+      return <button onClick={() => rename.mutate('new')}>Rename</button>;
+    }
+  src/use-rename-order.ts: |
+    import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+    export function useRenameOrder(id: string) {
+      const client = useQueryClient();
+      return useMutation({
+        mutationFn: (name: string) => renameOrder(id, name),
+        onSuccess: () => client.invalidateQueries({ queryKey: ['orders'] }),
+      });
+    }
+expected:
+  facts:
+    - { kind: custom_hook_call, side: HEAD, path: src/RenameButton.tsx, line: 4 }
+    - { kind: invalidation_call, side: HEAD, path: src/use-rename-order.ts, line: 7 }
+  forbidden_claims:
+    - "The orders invalidation was removed."

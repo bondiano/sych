@@ -1,0 +1,110 @@
+# Harness-correctness suite for `sych eval run --suite eval/smoke.yaml --models fake` (spec §27.1).
+# It proves statuses, reduction and persistence with scripted answers, not model quality.
+schema_version: 1
+cases:
+  - name: safe-change-supported
+    base: &base
+      .sych/rules.yaml: &rules |
+        schema_version: 1
+        rules:
+          - id: EFFECT-01
+            version: 1
+            title: Stored order publishes order-created
+            kind: invariant
+            required: true
+            severity_on_violation: high
+            owner: backend
+            applies_to:
+              paths: ["backend/orders/**"]
+            statement: A stored order publishes order-created in the same transaction.
+            acceptance:
+              evidence_kinds: ["source", "test"]
+              criteria: ["Commit boundary and delivery mechanism are identified."]
+      backend/orders/store.go: &store |
+        package orders
+
+        func (s *Store) Save(o Order) error {
+        	return s.tx(func(tx Tx) error {
+        		if err := tx.Insert(o); err != nil {
+        			return err
+        		}
+        		return tx.AppendEvent(OrderCreated(o))
+        	})
+        }
+    head: &rename
+      backend/orders/store.go: |
+        package orders
+
+        func (s *Store) Save(order Order) error {
+        	return s.tx(func(tx Tx) error {
+        		if err := tx.Insert(order); err != nil {
+        			return err
+        		}
+        		return tx.AppendEvent(OrderCreated(order))
+        	})
+        }
+    fake_responses: fake/supported.yaml
+    expect:
+      recommendation: NO_BLOCKING_FINDINGS_IN_SCOPE
+      coverage: COMPLETE_FOR_SCOPE
+      obligations: { EFFECT-01: SUPPORTED }
+      findings: 0
+
+  - name: lost-effect-violated
+    base: *base
+    head: &lost
+      backend/orders/store.go: |
+        package orders
+
+        func (s *Store) Save(o Order) error {
+        	if err := s.db.Insert(o); err != nil {
+        		return err
+        	}
+        	go s.bus.Publish(OrderCreated(o))
+        	return nil
+        }
+    fake_responses: fake/violated.yaml
+    expect:
+      recommendation: ATTENTION_REQUIRED
+      coverage: COMPLETE_FOR_SCOPE
+      # The detached goroutine also drops Publish's error: EFFECT-02 activates on it.
+      obligations: { EFFECT-01: VIOLATED, EFFECT-02: VIOLATED }
+      findings: 2
+
+  - name: no-evidence-stays-unknown
+    base: *base
+    head: *lost
+    expect:
+      recommendation: NEEDS_EVIDENCE
+      coverage: PARTIAL
+      obligations: { EFFECT-01: UNKNOWN }
+      findings: 0
+
+  - name: author-claim-is-not-proof
+    base: *base
+    head: *rename
+    fake_responses: fake/author-claim.yaml
+    expect:
+      recommendation: NEEDS_EVIDENCE
+      coverage: PARTIAL
+      obligations: { EFFECT-01: UNKNOWN }
+
+  # An empty diff plans no units and no obligations; the scripted answer is ignored.
+  - name: no-op-diff-empty-scope
+    base: *base
+    fake_responses: fake/supported-no-refs.yaml
+    expect:
+      recommendation: NO_BLOCKING_FINDINGS_IN_SCOPE
+      coverage: COMPLETE_FOR_SCOPE
+      findings: 0
+      units: 0
+
+  - name: unrelated-path-not-applicable
+    base: *base
+    head:
+      docs/notes.md: "Release notes.\n"
+    expect:
+      recommendation: NO_BLOCKING_FINDINGS_IN_SCOPE
+      coverage: COMPLETE_FOR_SCOPE
+      obligations: { EFFECT-01: NOT_APPLICABLE }
+      units: 1

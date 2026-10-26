@@ -1,0 +1,56 @@
+schema_version: 1
+id: rust-raii-guard-unsafe
+split: development
+language: rust
+pair: rust-raii-guard
+variant: unsafe
+profiles: [correctness]
+rationale: "`let _ = lock()` drops the guard at once; the push and sort now run without the lock."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    use std::sync::Mutex;
+
+    pub struct Ledger {
+        entries: Mutex<Vec<Entry>>,
+    }
+
+    impl Ledger {
+        pub fn append(&self, entry: Entry) {
+            let mut entries = self.entries.lock().unwrap();
+            entries.push(entry);
+            entries.sort_by_key(|e| e.at);
+        }
+    }
+head:
+  src/lib.rs: |
+    use std::sync::Mutex;
+
+    pub struct Ledger {
+        entries: Mutex<Vec<Entry>>,
+    }
+
+    impl Ledger {
+        pub fn append(&self, entry: Entry) {
+            let _ = self.entries.lock().unwrap();
+            self.unsynchronized().push(entry);
+        }
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "ledger mutual exclusion"
+      required_condition: "two appends run concurrently"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 9, end_line: 10 }
+  facts:
+    - { kind: discarded_result, side: HEAD, path: src/lib.rs, line: 9 }

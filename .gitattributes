@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.docx binary
+schemas/*.schema.json linguist-generated=true
+schemas/openapi.json linguist-generated=true

@@ -1,0 +1,60 @@
+schema_version: 1
+id: nit-ts-unrelated-hunk
+split: development
+language: typescript
+variant: safe
+profiles: [nitpicks]
+rationale: "Adding seconds to the duration parser is correct; the reformatting of the unrelated Footer does not belong in a parser PR and should go separately."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {
+        "react": "^19.1.0"
+      }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/parser/duration.ts: |
+    const UNITS: Record<string, number> = { h: 3_600_000, m: 60_000 };
+
+    export function parseDuration(text: string): number {
+      const match = /^(\d+)([hm])$/.exec(text);
+      if (!match) throw new Error(`invalid duration ${text}`);
+      return Number(match[1]) * UNITS[match[2]];
+    }
+  src/ui/Footer.tsx: |
+    export function Footer({ year }: { year: number }) {
+      return <footer className="footer"><small>© {year} Shop</small> <a href="/terms">Terms</a></footer>;
+    }
+head:
+  src/parser/duration.ts: |
+    const UNITS: Record<string, number> = { h: 3_600_000, m: 60_000, s: 1_000 };
+
+    export function parseDuration(text: string): number {
+      const match = /^(\d+)([hms])$/.exec(text);
+      if (!match) throw new Error(`invalid duration ${text}`);
+      return Number(match[1]) * UNITS[match[2]];
+    }
+  src/ui/Footer.tsx: |
+    export function Footer({ year }: { year: number }) {
+      return (
+        <footer className="footer">
+          <small>© {year} Shop</small> <a href="/terms">Terms</a>
+        </footer>
+      );
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "unrelated Footer reformatting in a parser change"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: src/ui/Footer.tsx, start_line: 2, end_line: 5 }
+  forbidden_claims:
+    - "The footer links should be wrapped in a <nav> element."
+    - "Supporting seconds in parseDuration is a defect."

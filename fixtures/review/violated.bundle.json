@@ -1,0 +1,239 @@
+{
+  "evidence_manifest": {
+    "evidence": [
+      {
+        "artifact_sha256": "sha256:7c3ccd10bb7ec37b46d37926ae6274267f007a34aeaf15c882a715a7f3300529",
+        "evidence_id": "00000000-0000-0000-0000-000000000001",
+        "kind": "source",
+        "origin": "DERIVED",
+        "validity": "VALID"
+      },
+      {
+        "artifact_sha256": "sha256:cb9a02f579da3ffa03dc3ed340e0162018c4c446875d8b15d9f4e23152b25822",
+        "evidence_id": "00000000-0000-0000-0000-000000000005",
+        "kind": "test",
+        "origin": "EXTERNAL_INPUT",
+        "validity": "VALID"
+      }
+    ],
+    "external_input_manifest_id": "sha256:026f6c3412bb987b28f8e6a95260f7d16176fec81aa6945c60b9d964dbf427fe",
+    "frozen_at": "2026-10-25T00:00:00Z",
+    "id": "ae99b83f-116f-827a-82c9-d0c70b20e7ac",
+    "policy_snapshot_id": "sha256:d4d1deae79215e00109b71571b2a05a0e06aa2997f91033ce22f99d7ed76f80e",
+    "schema_version": 1,
+    "source_snapshot_id": "sha256:40be609af9d1e7f8c02e4149ec30246718a311e4dddfe8ec488d400c0bd44572"
+  },
+  "external_input_manifest": {
+    "frozen_at": "2026-10-25T00:00:00Z",
+    "id": "sha256:026f6c3412bb987b28f8e6a95260f7d16176fec81aa6945c60b9d964dbf427fe",
+    "inputs": [
+      {
+        "artifact_sha256": "sha256:cb9a02f579da3ffa03dc3ed340e0162018c4c446875d8b15d9f4e23152b25822",
+        "evidence_id": "00000000-0000-0000-0000-000000000005",
+        "kind": "test"
+      }
+    ],
+    "policy_snapshot_id": "sha256:d4d1deae79215e00109b71571b2a05a0e06aa2997f91033ce22f99d7ed76f80e",
+    "schema_version": 1,
+    "source_snapshot_id": "sha256:40be609af9d1e7f8c02e4149ec30246718a311e4dddfe8ec488d400c0bd44572"
+  },
+  "policy_snapshot": {
+    "authorization_policy_version": 1,
+    "config_hash": "sha256:e65bf13b25464763ffa50be6bd1b1c1f5aafa16c0a11c2e90cec24b0ec5e4132",
+    "created_at": "2026-10-25T00:00:00Z",
+    "id": "sha256:d4d1deae79215e00109b71571b2a05a0e06aa2997f91033ce22f99d7ed76f80e",
+    "rules_hash": "sha256:b6be6ee9263ee65ce080a322663f91ced15380e6e4a9b657ce29ca38fd08842c",
+    "schema_version": 1,
+    "source": {
+      "commit": "sha1:cccccccccccccccccccccccccccccccccccccccc",
+      "kind": "trusted_ref",
+      "ref_name": "main"
+    }
+  },
+  "review_result": {
+    "coverage": "COMPLETE_FOR_SCOPE",
+    "created_at": "2026-10-25T00:00:00Z",
+    "evidence_manifest_id": "ae99b83f-116f-827a-82c9-d0c70b20e7ac",
+    "excluded_or_unreviewed": [
+      {
+        "path": "assets/logo.png",
+        "reason": "BINARY"
+      }
+    ],
+    "execution_outcome": "PLAN_EXECUTED",
+    "findings": [
+      {
+        "anchors": [],
+        "category": "RULE_VIOLATION",
+        "consequence": "acceptance criterion not met: Commit boundary and delivery mechanism are identified.",
+        "evidence_ids": [
+          "00000000-0000-0000-0000-000000000001",
+          "00000000-0000-0000-0000-000000000005"
+        ],
+        "explanation": "A stored order publishes order-created.",
+        "fingerprint": "sha256:29e66c49bc42894aa9b475f20677b8e6afce3e686d09f396744d3f3cde2dd800",
+        "id": "694a24e1-0415-8dc8-9a67-dfea12c3f77c",
+        "lifecycle": "OPEN",
+        "limitations": [],
+        "obligation_ids": [
+          "be938388-e1b1-8968-856d-5a0f0f4845f6"
+        ],
+        "predecessor_finding_id": null,
+        "rule_id": "EFFECT-01",
+        "scope": "5a55fb0c-a44c-8573-a809-e3ccf69b469a",
+        "severity": "HIGH",
+        "suggested_action": "Restore the behavior the rule requires.",
+        "support": "EXPLICIT_RULE",
+        "title": "EFFECT-01 violated: Order event is published",
+        "triggering_conditions": [],
+        "validation_expectation": "Commit boundary and delivery mechanism are identified."
+      }
+    ],
+    "obligations": [
+      {
+        "acceptable_evidence_kinds": [
+          "source",
+          "test"
+        ],
+        "acceptance_criterion": "Commit boundary and delivery mechanism are identified.",
+        "applicability": "APPLIES",
+        "code_refs": [],
+        "evidence_ids": [
+          "00000000-0000-0000-0000-000000000001",
+          "00000000-0000-0000-0000-000000000005"
+        ],
+        "id": "be938388-e1b1-8968-856d-5a0f0f4845f6",
+        "limitations": [],
+        "question": "A stored order publishes order-created.",
+        "required": true,
+        "review_unit_ids": [
+          "5a55fb0c-a44c-8573-a809-e3ccf69b469a"
+        ],
+        "risk_level": "HIGH",
+        "rule_id": "EFFECT-01",
+        "rule_version": 1,
+        "status": "VIOLATED"
+      },
+      {
+        "acceptable_evidence_kinds": [],
+        "acceptance_criterion": "The order form posts the accepted contract.",
+        "applicability": "DOES_NOT_APPLY",
+        "basis": "no changed path, old or new, matches applies_to.paths [\"frontend/**\"]",
+        "code_refs": [],
+        "evidence_ids": [],
+        "id": "742c3823-d9ac-8cd8-a6f0-f5146a1e3363",
+        "limitations": [],
+        "question": "The order form posts the accepted contract.",
+        "required": true,
+        "review_unit_ids": [],
+        "risk_level": "MEDIUM",
+        "rule_id": "FRONT-01",
+        "rule_version": 1,
+        "status": "NOT_APPLICABLE"
+      }
+    ],
+    "parent_result_id": null,
+    "policy_snapshot_id": "sha256:d4d1deae79215e00109b71571b2a05a0e06aa2997f91033ce22f99d7ed76f80e",
+    "provenance": {
+      "engine_version": "fixture",
+      "model_adapters": [
+        "fake"
+      ]
+    },
+    "recommendation": "ATTENTION_REQUIRED",
+    "rejected_candidates": [],
+    "result_id": "00000000-0000-0000-0000-000000000065",
+    "review_revision": 1,
+    "run_id": "00000000-0000-0000-0000-000000000064",
+    "schema_version": 1,
+    "scope_manifest": {
+      "excluded": [
+        {
+          "path": "assets/logo.png",
+          "reason": "BINARY"
+        }
+      ],
+      "requested_profiles": [
+        "correctness",
+        "project_rules",
+        "side_effects",
+        "migration_compatibility",
+        "infrastructure",
+        "nitpicks"
+      ],
+      "required_obligation_ids": [
+        "be938388-e1b1-8968-856d-5a0f0f4845f6",
+        "742c3823-d9ac-8cd8-a6f0-f5146a1e3363"
+      ],
+      "revision": 1,
+      "units": [
+        {
+          "id": "8c5292ef-815c-8c9c-b98f-ffa1f94b0a35",
+          "paths": [
+            "assets/logo.png"
+          ],
+          "title": "assets"
+        },
+        {
+          "id": "5a55fb0c-a44c-8573-a809-e3ccf69b469a",
+          "paths": [
+            "backend/orders/create.go"
+          ],
+          "title": "backend/orders"
+        }
+      ]
+    },
+    "source_snapshot_id": "sha256:40be609af9d1e7f8c02e4149ec30246718a311e4dddfe8ec488d400c0bd44572",
+    "unresolved_questions": [],
+    "usage_summary": {
+      "cost": {
+        "known": 0,
+        "reference_estimate": 0,
+        "unknown_cost_attempts": 0
+      },
+      "input_tokens": 0,
+      "model_attempts": 0,
+      "output_tokens": 0,
+      "reasoning_tokens": 0,
+      "routes": [],
+      "unknown_usage_attempts": 0
+    }
+  },
+  "scope_manifest": {
+    "excluded": [
+      {
+        "path": "assets/logo.png",
+        "reason": "BINARY"
+      }
+    ],
+    "requested_profiles": [
+      "correctness",
+      "project_rules",
+      "side_effects",
+      "migration_compatibility",
+      "infrastructure",
+      "nitpicks"
+    ],
+    "required_obligation_ids": [
+      "be938388-e1b1-8968-856d-5a0f0f4845f6",
+      "742c3823-d9ac-8cd8-a6f0-f5146a1e3363"
+    ],
+    "revision": 1,
+    "units": [
+      {
+        "id": "8c5292ef-815c-8c9c-b98f-ffa1f94b0a35",
+        "paths": [
+          "assets/logo.png"
+        ],
+        "title": "assets"
+      },
+      {
+        "id": "5a55fb0c-a44c-8573-a809-e3ccf69b469a",
+        "paths": [
+          "backend/orders/create.go"
+        ],
+        "title": "backend/orders"
+      }
+    ]
+  }
+}

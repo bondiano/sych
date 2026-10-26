@@ -1,0 +1,37 @@
+{
+    "artifact_sha256": "sha256:0f94d0c0615246d8beef52456015a8e83532c8a1291edc584dba2d405285c633",
+    "binding": {
+        "environment_id": null,
+        "head_oid": "sha1:1fa14b856fe5e72626088ff3dc2cd4a183d8587c",
+        "kind": "source",
+        "target_tip_oid": "sha1:c494f384746d1d6ce27c90fdba724fdf62d2e0b7",
+        "tested_oid": null
+    },
+    "code_refs": [
+        {
+            "blob_oid": "sha1:2c701f93a5549dae8c96d660c548d915e1309c7d",
+            "content_sha256": "sha256:706dd50277dcb863cc530bfb745729e94a427d280375f1091fbade4d783c4c7a",
+            "end_line": 3,
+            "path": "src/price.ts",
+            "side": "HEAD",
+            "snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+            "start_line": 1
+        }
+    ],
+    "completeness": "PARTIAL",
+    "id": "6cfb3b56-880c-8254-aafc-8a3d8b3ce4b9",
+    "kind": "semantic",
+    "limitations": [
+        "dependencies are not installed: imports of npm and workspace packages stay unresolved and their callers are missing"
+    ],
+    "observed_at": "2026-10-25T12:47:12.679106085Z",
+    "producer": {
+        "config_hash": "sha256:f38a2bcd60e9c61da3ad91feed78ad8577f801008fc9a48e0b4c4d3d7b76ca90",
+        "name": "typescript-go",
+        "version": "7.0.2"
+    },
+    "schema_version": 1,
+    "source_snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+    "trust_class": "DERIVED_LOCAL",
+    "validity": "VALID"
+}

@@ -1,0 +1,55 @@
+schema_version: 1
+id: react-form-submit-safe
+split: development
+language: typescript
+pair: react-form-submit
+variant: safe
+profiles: [correctness]
+rationale: "The submitted code is normalised; the default action is still prevented."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/PromoForm.tsx: |
+    import { useState } from 'react';
+
+    export function PromoForm({ onApply }: { onApply: (code: string) => void }) {
+      const [code, setCode] = useState('');
+      const submit = (event: React.FormEvent) => {
+        event.preventDefault();
+        onApply(code);
+      };
+      return (
+        <form onSubmit={submit}>
+          <input value={code} onChange={(e) => setCode(e.target.value)} />
+          <button type="submit">Apply</button>
+        </form>
+      );
+    }
+head:
+  src/PromoForm.tsx: |
+    import { useState } from 'react';
+
+    export function PromoForm({ onApply }: { onApply: (code: string) => void }) {
+      const [code, setCode] = useState('');
+      const submit = (event: React.FormEvent) => {
+        event.preventDefault();
+        onApply(code.toUpperCase());
+      };
+      return (
+        <form onSubmit={submit}>
+          <input value={code} onChange={(e) => setCode(e.target.value)} />
+          <button type="submit">Apply</button>
+        </form>
+      );
+    }
+expected:
+  facts:
+    - { kind: form_submit, side: HEAD, path: src/PromoForm.tsx, line: 10 }

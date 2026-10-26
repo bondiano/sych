@@ -1,0 +1,22 @@
+[package]
+name = "sych-style"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+readme = "README.md"
+description = "House style checks rustfmt and clippy do not cover"
+
+[[bin]]
+name = "sych-style"
+path = "bin/sych-style.rs"
+
+[dependencies]
+proc-macro2.workspace = true
+syn.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

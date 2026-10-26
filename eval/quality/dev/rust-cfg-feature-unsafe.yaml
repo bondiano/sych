@@ -1,0 +1,53 @@
+schema_version: 1
+id: rust-cfg-feature-unsafe
+split: development
+language: rust
+pair: rust-cfg-feature
+variant: unsafe
+profiles: [correctness]
+rationale: "record() is gated behind the non-default `metrics` feature but checkout() still calls it unconditionally: default builds fail."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+
+    [features]
+    default = []
+    metrics = []
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub fn record(name: &str) {
+        COUNTERS.increment(name);
+    }
+
+    pub fn checkout(cart: &Cart) -> Receipt {
+        record("checkout");
+        Receipt::from(cart)
+    }
+head:
+  src/lib.rs: |
+    #[cfg(feature = "metrics")]
+    pub fn record(name: &str) {
+        COUNTERS.increment(name);
+    }
+
+    pub fn checkout(cart: &Cart) -> Receipt {
+        record("checkout");
+        Receipt::from(cart)
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "default-feature build"
+      required_condition: "built without the metrics feature"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 1, end_line: 1 }
+        - { side: HEAD, path: src/lib.rs, start_line: 7, end_line: 7 }
+  facts:
+    - { kind: cfg_gate, side: HEAD, path: src/lib.rs, line: 1 }

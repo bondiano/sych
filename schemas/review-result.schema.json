@@ -1,0 +1,996 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReviewResult",
+  "type": "object",
+  "properties": {
+    "coverage": {
+      "$ref": "#/$defs/Coverage"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "evidence_manifest_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "excluded_or_unreviewed": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PathGap"
+      }
+    },
+    "execution_outcome": {
+      "$ref": "#/$defs/ExecutionOutcome"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Finding"
+      }
+    },
+    "obligations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Obligation"
+      }
+    },
+    "parent_result_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid"
+    },
+    "policy_snapshot_id": {
+      "$ref": "#/$defs/PolicySnapshotId"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "recommendation": {
+      "$ref": "#/$defs/Recommendation"
+    },
+    "rejected_candidates": {
+      "description": "Internal by default.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Candidate"
+      }
+    },
+    "result_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "review_revision": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    },
+    "scope_manifest": {
+      "$ref": "#/$defs/ScopeManifest"
+    },
+    "source_snapshot_id": {
+      "$ref": "#/$defs/SourceSnapshotId"
+    },
+    "unresolved_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "usage_summary": {
+      "$ref": "#/$defs/UsageSummary"
+    }
+  },
+  "required": [
+    "schema_version",
+    "result_id",
+    "run_id",
+    "review_revision",
+    "source_snapshot_id",
+    "policy_snapshot_id",
+    "evidence_manifest_id",
+    "scope_manifest",
+    "execution_outcome",
+    "coverage",
+    "recommendation",
+    "findings",
+    "obligations",
+    "unresolved_questions",
+    "excluded_or_unreviewed",
+    "usage_summary",
+    "created_at",
+    "provenance"
+  ],
+  "$defs": {
+    "Applicability": {
+      "description": "Three-valued rule applicability (spec §11.4).",
+      "type": "string",
+      "enum": [
+        "APPLIES",
+        "DOES_NOT_APPLY",
+        "UNKNOWN"
+      ]
+    },
+    "BillingKind": {
+      "type": "string",
+      "enum": [
+        "api_usage",
+        "subscription_quota"
+      ]
+    },
+    "Candidate": {
+      "type": "object",
+      "properties": {
+        "anchors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CodeRef"
+          }
+        },
+        "category": {
+          "$ref": "#/$defs/FindingCategory"
+        },
+        "causal_chain": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "claim": {
+          "type": "string"
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "consequences": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "limitations": {
+          "description": "Why the candidate is rejected or unresolved, when it is.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "obligation_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "origin": {
+          "$ref": "#/$defs/CandidateOrigin"
+        },
+        "proposed_severity": {
+          "description": "The proposer's guess; the verifier sets the finding's severity.",
+          "$ref": "#/$defs/Severity"
+        },
+        "refutation": {
+          "type": "string"
+        },
+        "verification_status": {
+          "$ref": "#/$defs/VerificationStatus"
+        }
+      },
+      "required": [
+        "id",
+        "origin",
+        "category",
+        "proposed_severity",
+        "claim",
+        "causal_chain",
+        "anchors",
+        "consequences",
+        "conditions",
+        "refutation",
+        "verification_status"
+      ]
+    },
+    "CandidateOrigin": {
+      "type": "string",
+      "enum": [
+        "MODEL",
+        "STATIC"
+      ]
+    },
+    "CodeRef": {
+      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
+      "type": "object",
+      "properties": {
+        "blob_oid": {
+          "$ref": "#/$defs/GitObjectId"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "end_line": {
+          "description": "1-based, inclusive.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "path": {
+          "$ref": "#/$defs/RepoPath"
+        },
+        "side": {
+          "$ref": "#/$defs/SourceSide"
+        },
+        "snapshot_id": {
+          "$ref": "#/$defs/SourceSnapshotId"
+        },
+        "start_line": {
+          "description": "1-based, inclusive.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "side",
+        "path",
+        "blob_oid",
+        "start_line",
+        "end_line",
+        "content_sha256"
+      ]
+    },
+    "CostSummary": {
+      "description": "Cost with explicit unknown part; an unknown charge is never recorded as zero (INV-13).",
+      "type": "object",
+      "properties": {
+        "known": {
+          "description": "Money the providers reported, or the price card computed, for settled API attempts.",
+          "$ref": "#/$defs/MicroUsd"
+        },
+        "reference_estimate": {
+          "description": "List-price estimate of the attempts with complete usage; not a charge.",
+          "$ref": "#/$defs/MicroUsd"
+        },
+        "unknown_cost_attempts": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "known",
+        "reference_estimate",
+        "unknown_cost_attempts"
+      ]
+    },
+    "Coverage": {
+      "type": "string",
+      "enum": [
+        "COMPLETE_FOR_SCOPE",
+        "PARTIAL",
+        "UNAVAILABLE"
+      ]
+    },
+    "Enforcement": {
+      "type": "string",
+      "enum": [
+        "api_hard",
+        "subscription_observable"
+      ]
+    },
+    "EvidenceKind": {
+      "type": "string",
+      "enum": [
+        "source",
+        "semantic",
+        "static",
+        "test",
+        "coverage",
+        "contract",
+        "infrastructure",
+        "human"
+      ]
+    },
+    "ExecutionOutcome": {
+      "description": "How the run reached FINALIZING; recorded inside the immutable result.",
+      "oneOf": [
+        {
+          "description": "Every planned task ran.",
+          "type": "string",
+          "const": "PLAN_EXECUTED"
+        },
+        {
+          "description": "A budget or size limit stopped the plan; skipped work is listed as gaps.",
+          "type": "string",
+          "const": "LIMIT_REACHED"
+        },
+        {
+          "description": "Retryable failures exhausted their retries; an honest partial result is kept.",
+          "type": "string",
+          "const": "RETRIES_EXHAUSTED"
+        },
+        {
+          "description": "Substantive analysis was impossible, for example the diff could not be read.",
+          "type": "string",
+          "const": "INPUT_UNAVAILABLE"
+        }
+      ]
+    },
+    "FeeShare": {
+      "description": "A subscription fee for one calendar month (UTC); charged to the monthly pool once, not per\nrequest or run.",
+      "type": "object",
+      "properties": {
+        "allocated": {
+          "$ref": "#/$defs/MicroUsd"
+        },
+        "amount": {
+          "$ref": "#/$defs/MicroUsd"
+        },
+        "period": {
+          "description": "`YYYY-MM`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "period",
+        "amount",
+        "allocated"
+      ]
+    },
+    "Finding": {
+      "type": "object",
+      "properties": {
+        "anchors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CodeRef"
+          }
+        },
+        "category": {
+          "$ref": "#/$defs/FindingCategory"
+        },
+        "consequence": {
+          "type": "string"
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/Lifecycle"
+        },
+        "limitations": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "obligation_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "predecessor_finding_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "rule_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope": {
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "suggested_action": {
+          "type": "string"
+        },
+        "support": {
+          "$ref": "#/$defs/Support"
+        },
+        "title": {
+          "type": "string"
+        },
+        "triggering_conditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "validation_expectation": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "category",
+        "severity",
+        "support",
+        "title",
+        "explanation",
+        "triggering_conditions",
+        "consequence",
+        "anchors",
+        "evidence_ids",
+        "suggested_action",
+        "validation_expectation",
+        "fingerprint",
+        "lifecycle",
+        "scope"
+      ]
+    },
+    "FindingCategory": {
+      "type": "string",
+      "enum": [
+        "DEFECT",
+        "RULE_VIOLATION",
+        "IMPROVEMENT",
+        "NIT"
+      ]
+    },
+    "GitObjectId": {
+      "type": "string",
+      "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
+    },
+    "Lifecycle": {
+      "type": "string",
+      "enum": [
+        "OPEN",
+        "RESOLVED",
+        "DISMISSED",
+        "OBSOLETE"
+      ]
+    },
+    "MicroUsd": {
+      "description": "Money as whole micro-USD; never a float (spec §5.1).",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "Obligation": {
+      "description": "One concrete question with its rule, scope, acceptance criterion and assessment.",
+      "type": "object",
+      "properties": {
+        "acceptable_evidence_kinds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceKind"
+          }
+        },
+        "acceptance_criterion": {
+          "type": "string"
+        },
+        "applicability": {
+          "$ref": "#/$defs/Applicability"
+        },
+        "code_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CodeRef"
+          }
+        },
+        "evidence_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "limitations": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "question": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "review_unit_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "risk_level": {
+          "$ref": "#/$defs/RiskLevel"
+        },
+        "rule_id": {
+          "type": "string"
+        },
+        "rule_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "waivers": {
+          "description": "Scoped exceptions in force; they lower the risk decision and never rewrite `status`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Waiver"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "SUPPORTED"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "VIOLATED"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "next_evidence_needed": {
+              "type": "string"
+            },
+            "reason_code": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "const": "UNKNOWN"
+            }
+          },
+          "required": [
+            "status",
+            "reason_code",
+            "next_evidence_needed"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "basis": {
+              "description": "Checkable basis of non-applicability.",
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "const": "NOT_APPLICABLE"
+            }
+          },
+          "required": [
+            "status",
+            "basis"
+          ]
+        }
+      ],
+      "required": [
+        "id",
+        "rule_id",
+        "rule_version",
+        "question",
+        "required",
+        "risk_level",
+        "review_unit_ids",
+        "code_refs",
+        "applicability",
+        "acceptance_criterion",
+        "acceptable_evidence_kinds"
+      ]
+    },
+    "PathGap": {
+      "description": "A path left out of reading or review, with the reason.",
+      "type": "object",
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/RepoPath"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "reason"
+      ]
+    },
+    "PolicySnapshotId": {
+      "description": "Content-derived identity of a [`crate::PolicySnapshot`].",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "Provenance": {
+      "type": "object",
+      "properties": {
+        "engine_version": {
+          "type": "string"
+        },
+        "model_adapters": {
+          "description": "Model adapters used, e.g. `fake`; a fake adapter proves the harness, not model quality.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "engine_version",
+        "model_adapters"
+      ]
+    },
+    "Recommendation": {
+      "description": "Computed by the reducer; never a model verdict or SCM approval (spec §5.7).",
+      "type": "string",
+      "enum": [
+        "ATTENTION_REQUIRED",
+        "NEEDS_EVIDENCE",
+        "NO_BLOCKING_FINDINGS_IN_SCOPE"
+      ]
+    },
+    "RepoPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ReviewUnit": {
+      "description": "Related changes reviewed together around one contract or behavior.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "paths": {
+          "description": "Where each file is reported: its new path, or old path when deleted. A renamed file's\nold path is still part of its identity in the diff manifest.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RepoPath"
+          }
+        },
+        "risk_hints": {
+          "description": "Routing hints from the planner; not evidence of a defect (spec §7.3).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RiskHint"
+          }
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "paths"
+      ]
+    },
+    "RiskHint": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "description": "Stable code such as `MIGRATION` or `CI_CONFIG`.",
+          "type": "string"
+        },
+        "level": {
+          "$ref": "#/$defs/RiskLevel"
+        },
+        "path": {
+          "$ref": "#/$defs/RepoPath"
+        }
+      },
+      "required": [
+        "level",
+        "code",
+        "path"
+      ]
+    },
+    "RiskLevel": {
+      "type": "string",
+      "enum": [
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "CRITICAL"
+      ]
+    },
+    "RouteUsage": {
+      "description": "One model route of the run: how it bills and which caps are hard (spec §17.2).",
+      "type": "object",
+      "properties": {
+        "attempts": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "billing": {
+          "$ref": "#/$defs/BillingKind"
+        },
+        "enforcement": {
+          "$ref": "#/$defs/Enforcement"
+        },
+        "fixed_fee": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeeShare"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "quota_attempts": {
+          "description": "Subscription attempts settled with no reported money: they spent included quota, which\nis not free. Remaining quota and its reset are not reported by any connected transport.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "profile",
+        "model",
+        "billing",
+        "enforcement",
+        "attempts",
+        "quota_attempts"
+      ]
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "ScopeManifest": {
+      "description": "Fixed before discovery; may only grow through a new revision (spec §7.4).",
+      "type": "object",
+      "properties": {
+        "excluded": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PathGap"
+          }
+        },
+        "requested_profiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_obligation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "revision": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "units": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReviewUnit"
+          }
+        }
+      },
+      "required": [
+        "revision",
+        "units",
+        "required_obligation_ids",
+        "requested_profiles",
+        "excluded"
+      ]
+    },
+    "Severity": {
+      "type": "string",
+      "enum": [
+        "INFO",
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "CRITICAL"
+      ]
+    },
+    "Sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "SourceSide": {
+      "type": "string",
+      "enum": [
+        "DIFF_BASE",
+        "HEAD",
+        "TARGET_TIP"
+      ]
+    },
+    "SourceSnapshotId": {
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "Support": {
+      "description": "Kind of support; independent of severity.",
+      "type": "string",
+      "enum": [
+        "EXECUTED_COUNTEREXAMPLE",
+        "STATIC_TRACE",
+        "SEMANTIC_ARGUMENT",
+        "EXPLICIT_RULE",
+        "PREFERENCE"
+      ]
+    },
+    "UsageSummary": {
+      "type": "object",
+      "properties": {
+        "cost": {
+          "$ref": "#/$defs/CostSummary"
+        },
+        "input_tokens": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "model_attempts": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "output_tokens": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "reasoning_tokens": {
+          "description": "Already part of `output_tokens`; never added to it.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RouteUsage"
+          }
+        },
+        "unknown_usage_attempts": {
+          "description": "Dispatched attempts whose tokens were not reported; the token sums leave them out.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "model_attempts",
+        "input_tokens",
+        "output_tokens",
+        "reasoning_tokens",
+        "unknown_usage_attempts",
+        "cost",
+        "routes"
+      ]
+    },
+    "VerificationStatus": {
+      "type": "string",
+      "enum": [
+        "PENDING",
+        "CONFIRMED",
+        "REJECTED",
+        "UNRESOLVED"
+      ]
+    },
+    "Waiver": {
+      "description": "A rule exception in force for one obligation (spec §11.6).",
+      "type": "object",
+      "properties": {
+        "author": {
+          "type": "string"
+        },
+        "expires_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reason": {
+          "type": "string"
+        },
+        "until": {
+          "description": "Completion condition when there is no fixed expiry.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "paths",
+        "reason",
+        "owner",
+        "author"
+      ]
+    }
+  }
+}

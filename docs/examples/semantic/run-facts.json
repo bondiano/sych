@@ -1,0 +1,284 @@
+{
+    "ci": [],
+    "schema_version": 1,
+    "semantic": [
+        {
+            "build_configuration": {
+                "dependencies": "not installed",
+                "lockfile": "pnpm-lock.yaml",
+                "package:.": "shop",
+                "tsconfig:tsconfig.json": "",
+                "typescript": "7.0.2"
+            },
+            "diagnostics": [],
+            "language": "typescript",
+            "limitations": [
+                "dependencies are not installed: imports of npm and workspace packages stay unresolved and their callers are missing"
+            ],
+            "position_encoding": "utf-8",
+            "producer": {
+                "config_hash": "sha256:f38a2bcd60e9c61da3ad91feed78ad8577f801008fc9a48e0b4c4d3d7b76ca90",
+                "name": "typescript-go",
+                "version": "7.0.2"
+            },
+            "query_scope": [
+                "src/price.ts"
+            ],
+            "schema_version": 1,
+            "side": "DIFF_BASE",
+            "source_snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+            "status": "READY",
+            "symbols": [
+                {
+                    "callers": {
+                        "completeness": "PARTIAL",
+                        "external": [],
+                        "refs": [
+                            {
+                                "blob_oid": "sha1:3a742893271cb20d38c8dab71283251a1e45c97c",
+                                "content_sha256": "sha256:acfa5cd0b831b070ec764e62e5348882e55ca650539bfb83b082cc8e2c7d278c",
+                                "end_line": 4,
+                                "path": "src/use.ts",
+                                "side": "DIFF_BASE",
+                                "snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+                                "start_line": 4
+                            }
+                        ],
+                        "status": "ANSWERED",
+                        "unresolved": []
+                    },
+                    "calling_constructs": [
+                        {
+                            "blob_oid": "sha1:3a742893271cb20d38c8dab71283251a1e45c97c",
+                            "content_sha256": "sha256:265d42462b22cdfe5933bace5d9339bd7d5639a731a09beb68a4e4632491c4e5",
+                            "end_line": 5,
+                            "path": "src/use.ts",
+                            "side": "DIFF_BASE",
+                            "snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+                            "start_line": 3
+                        }
+                    ],
+                    "container": [],
+                    "definition": {
+                        "blob_oid": "sha1:212ca667ec2c8a0deaaa6e77d0b26a415f034601",
+                        "content_sha256": "sha256:8d2d86ddf7b8c732c7be0bfff815f9a03b128f21b1f702694798a6b28fb150e5",
+                        "end_line": 3,
+                        "path": "src/price.ts",
+                        "side": "DIFF_BASE",
+                        "snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+                        "start_line": 1
+                    },
+                    "implementations": {
+                        "completeness": "PARTIAL",
+                        "external": [],
+                        "refs": [
+                            {
+                                "blob_oid": "sha1:212ca667ec2c8a0deaaa6e77d0b26a415f034601",
+                                "content_sha256": "sha256:8d2d86ddf7b8c732c7be0bfff815f9a03b128f21b1f702694798a6b28fb150e5",
+                                "end_line": 3,
+                                "path": "src/price.ts",
+                                "side": "DIFF_BASE",
+                                "snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+                                "start_line": 1
+                            }
+                        ],
+                        "status": "ANSWERED",
+                        "unresolved": []
+                    },
+                    "kind": "function",
+                    "name": "price",
+                    "path_class": "PRODUCTION",
+                    "readers": {
+                        "completeness": "UNKNOWN",
+                        "external": [],
+                        "refs": [],
+                        "status": "NOT_APPLICABLE",
+                        "unresolved": []
+                    },
+                    "references": {
+                        "completeness": "PARTIAL",
+                        "external": [],
+                        "refs": [
+                            {
+                                "blob_oid": "sha1:3a742893271cb20d38c8dab71283251a1e45c97c",
+                                "content_sha256": "sha256:acfa5cd0b831b070ec764e62e5348882e55ca650539bfb83b082cc8e2c7d278c",
+                                "end_line": 4,
+                                "path": "src/use.ts",
+                                "side": "DIFF_BASE",
+                                "snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+                                "start_line": 4
+                            }
+                        ],
+                        "status": "ANSWERED",
+                        "unresolved": []
+                    },
+                    "writers": {
+                        "completeness": "UNKNOWN",
+                        "external": [],
+                        "refs": [],
+                        "status": "NOT_APPLICABLE",
+                        "unresolved": []
+                    }
+                }
+            ]
+        },
+        {
+            "build_configuration": {
+                "dependencies": "not installed",
+                "lockfile": "pnpm-lock.yaml",
+                "package:.": "shop",
+                "tsconfig:tsconfig.json": "",
+                "typescript": "7.0.2"
+            },
+            "diagnostics": [],
+            "language": "typescript",
+            "limitations": [
+                "dependencies are not installed: imports of npm and workspace packages stay unresolved and their callers are missing"
+            ],
+            "position_encoding": "utf-8",
+            "producer": {
+                "config_hash": "sha256:f38a2bcd60e9c61da3ad91feed78ad8577f801008fc9a48e0b4c4d3d7b76ca90",
+                "name": "typescript-go",
+                "version": "7.0.2"
+            },
+            "query_scope": [
+                "src/price.ts"
+            ],
+            "schema_version": 1,
+            "side": "HEAD",
+            "source_snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+            "status": "READY",
+            "symbols": [
+                {
+                    "callers": {
+                        "completeness": "PARTIAL",
+                        "external": [],
+                        "refs": [
+                            {
+                                "blob_oid": "sha1:3a742893271cb20d38c8dab71283251a1e45c97c",
+                                "content_sha256": "sha256:acfa5cd0b831b070ec764e62e5348882e55ca650539bfb83b082cc8e2c7d278c",
+                                "end_line": 4,
+                                "path": "src/use.ts",
+                                "side": "HEAD",
+                                "snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+                                "start_line": 4
+                            }
+                        ],
+                        "status": "ANSWERED",
+                        "unresolved": []
+                    },
+                    "calling_constructs": [
+                        {
+                            "blob_oid": "sha1:3a742893271cb20d38c8dab71283251a1e45c97c",
+                            "content_sha256": "sha256:265d42462b22cdfe5933bace5d9339bd7d5639a731a09beb68a4e4632491c4e5",
+                            "end_line": 5,
+                            "path": "src/use.ts",
+                            "side": "HEAD",
+                            "snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+                            "start_line": 3
+                        }
+                    ],
+                    "container": [],
+                    "definition": {
+                        "blob_oid": "sha1:2c701f93a5549dae8c96d660c548d915e1309c7d",
+                        "content_sha256": "sha256:706dd50277dcb863cc530bfb745729e94a427d280375f1091fbade4d783c4c7a",
+                        "end_line": 3,
+                        "path": "src/price.ts",
+                        "side": "HEAD",
+                        "snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+                        "start_line": 1
+                    },
+                    "implementations": {
+                        "completeness": "PARTIAL",
+                        "external": [],
+                        "refs": [
+                            {
+                                "blob_oid": "sha1:2c701f93a5549dae8c96d660c548d915e1309c7d",
+                                "content_sha256": "sha256:706dd50277dcb863cc530bfb745729e94a427d280375f1091fbade4d783c4c7a",
+                                "end_line": 3,
+                                "path": "src/price.ts",
+                                "side": "HEAD",
+                                "snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+                                "start_line": 1
+                            }
+                        ],
+                        "status": "ANSWERED",
+                        "unresolved": []
+                    },
+                    "kind": "function",
+                    "name": "price",
+                    "path_class": "PRODUCTION",
+                    "readers": {
+                        "completeness": "UNKNOWN",
+                        "external": [],
+                        "refs": [],
+                        "status": "NOT_APPLICABLE",
+                        "unresolved": []
+                    },
+                    "references": {
+                        "completeness": "PARTIAL",
+                        "external": [],
+                        "refs": [
+                            {
+                                "blob_oid": "sha1:3a742893271cb20d38c8dab71283251a1e45c97c",
+                                "content_sha256": "sha256:acfa5cd0b831b070ec764e62e5348882e55ca650539bfb83b082cc8e2c7d278c",
+                                "end_line": 4,
+                                "path": "src/use.ts",
+                                "side": "HEAD",
+                                "snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190",
+                                "start_line": 4
+                            }
+                        ],
+                        "status": "ANSWERED",
+                        "unresolved": []
+                    },
+                    "writers": {
+                        "completeness": "UNKNOWN",
+                        "external": [],
+                        "refs": [],
+                        "status": "NOT_APPLICABLE",
+                        "unresolved": []
+                    }
+                }
+            ]
+        }
+    ],
+    "syntax": [
+        {
+            "facts": [],
+            "files": {
+                "src/price.ts": "ok"
+            },
+            "language": "typescript",
+            "limitations": [
+                "macros are not expanded and types are not resolved: facts are shapes, and a missing fact is not proof of absence"
+            ],
+            "producer": {
+                "config_hash": null,
+                "name": "oxc",
+                "version": "0.139"
+            },
+            "schema_version": 1,
+            "side": "DIFF_BASE",
+            "source_snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190"
+        },
+        {
+            "facts": [],
+            "files": {
+                "src/price.ts": "ok"
+            },
+            "language": "typescript",
+            "limitations": [
+                "macros are not expanded and types are not resolved: facts are shapes, and a missing fact is not proof of absence"
+            ],
+            "producer": {
+                "config_hash": null,
+                "name": "oxc",
+                "version": "0.139"
+            },
+            "schema_version": 1,
+            "side": "HEAD",
+            "source_snapshot_id": "sha256:f3067bf1f458205176aea428925bdf8ab8fcf8ad1aca827a19a396cd2dcc0190"
+        }
+    ]
+}

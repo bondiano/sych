@@ -1,0 +1,43 @@
+# Personal sandbox server (spec §26.1). Secrets are environment variable names, never values.
+schema_version: 1
+mode: personal
+
+storage:
+  database_url_env: SYCH_DATABASE_URL
+  artifact_store:
+    kind: local
+    path: "./.sych-data/artifacts"
+
+http:
+  bind: "127.0.0.1:8080"              # a non-loopback bind needs api_clients and behind_tls_proxy
+  public_base_url: null               # e.g. https://sych.example, for result links in summaries
+  behind_tls_proxy: false
+  metrics_allow: ["127.0.0.1", "::1"]
+  api_clients:
+    - name: owner
+      token_env: SYCH_API_TOKEN_OWNER  # at least 16 bytes
+      role: maintainer                 # reader < triage < writer < maintainer
+      repositories: ["*"]
+
+workers:
+  concurrency: 1
+  lease_seconds: 60
+  heartbeat_seconds: 15
+
+scm:
+  github:
+    - id: sandbox
+      app_id: 123456
+      private_key_file_env: SYCH_GITHUB_APP_KEY_FILE
+      webhook_secret_env: SYCH_GITHUB_WEBHOOK_SECRET
+      repositories: [bondiano/sych-sandbox]
+      bot_login: sych-sandbox[bot]
+      publish: true                    # advisory summary and inline comments
+      checks: false
+      ci_reports:
+        - report: tests
+          workflow: .github/workflows/ci.yml
+          job: test
+          artifact: reports
+          path: junit.xml
+          checkout_manifest: sych-ci.json

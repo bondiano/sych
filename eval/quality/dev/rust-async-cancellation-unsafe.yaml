@@ -1,0 +1,66 @@
+schema_version: 1
+id: rust-async-cancellation-unsafe
+split: development
+language: rust
+pair: rust-async-cancellation
+variant: unsafe
+profiles: [correctness]
+rationale: "`read_frame` is not cancel-safe: when the idle timer wins the select, a half-read frame is dropped and the stream desynchronises."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub async fn pump(mut socket: Socket, mut stop: Receiver<()>) -> Result<(), Error> {
+        loop {
+            let frame = read_frame(&mut socket).await?;
+            handle(frame)?;
+            if stop.try_recv().is_ok() {
+                return Ok(());
+            }
+        }
+    }
+
+    async fn read_frame(socket: &mut Socket) -> Result<Frame, Error> {
+        let mut len = [0u8; 4];
+        socket.read_exact(&mut len).await?;
+        let mut body = vec![0u8; u32::from_be_bytes(len) as usize];
+        socket.read_exact(&mut body).await?;
+        Frame::decode(&body)
+    }
+head:
+  src/lib.rs: |
+    pub async fn pump(mut socket: Socket, mut stop: Receiver<()>) -> Result<(), Error> {
+        loop {
+            tokio::select! {
+                frame = read_frame(&mut socket) => handle(frame?)?,
+                _ = tokio::time::sleep(IDLE) => ping(&mut socket).await?,
+                _ = stop.recv() => return Ok(()),
+            }
+        }
+    }
+
+    async fn read_frame(socket: &mut Socket) -> Result<Frame, Error> {
+        let mut len = [0u8; 4];
+        socket.read_exact(&mut len).await?;
+        let mut body = vec![0u8; u32::from_be_bytes(len) as usize];
+        socket.read_exact(&mut body).await?;
+        Frame::decode(&body)
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "frame stream integrity"
+      required_condition: "the idle timer fires while a frame is partially read"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 3, end_line: 7 }
+  facts:
+    - { kind: select_macro, side: HEAD, path: src/lib.rs, line: 3 }
+    - { kind: async_fn, side: HEAD, path: src/lib.rs, line: 1 }

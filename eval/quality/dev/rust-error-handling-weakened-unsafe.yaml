@@ -1,0 +1,43 @@
+schema_version: 1
+id: rust-error-handling-weakened-unsafe
+split: development
+language: rust
+pair: rust-error-handling-weakened
+variant: unsafe
+profiles: [correctness, nitpicks]
+rationale: "Error handling is replaced by unwrap and the lint is silenced: malformed user input now panics."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod parse;
+  src/parse.rs: |
+    pub fn parse_amount(input: &str) -> Result<Cents, ParseError> {
+        let value: u64 = input.trim().parse().map_err(ParseError::NotANumber)?;
+        Ok(Cents(value))
+    }
+head:
+  src/parse.rs: |
+    #[allow(clippy::unwrap_used)]
+    pub fn parse_amount(input: &str) -> Result<Cents, ParseError> {
+        let value: u64 = input.trim().parse().unwrap();
+        Ok(Cents(value))
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "parse_amount input validation"
+      required_condition: "input is not a number"
+      evidence_locations:
+        - { side: HEAD, path: src/parse.rs, start_line: 3, end_line: 3 }
+  facts:
+    - { kind: lint_suppressed, side: HEAD, path: src/parse.rs, line: 1 }
+    - { kind: unwrap, side: HEAD, path: src/parse.rs, line: 3 }

@@ -1,0 +1,13 @@
+pub mod chat;
+pub mod ci;
+pub mod git;
+pub mod github;
+pub mod lint;
+pub mod opencode_go;
+pub mod openrouter;
+pub mod pi;
+pub mod sandbox;
+pub mod semantic;
+pub mod siwc;
+pub mod syntax;
+pub mod tools;

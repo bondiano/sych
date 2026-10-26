@@ -1,0 +1,558 @@
+//! Durable local runs, result pointers and immutable artifacts (spec §8.2, §20).
+//!
+//! `SQLite` in WAL mode with one connection: one writer, one worker. Schema changes happen only
+//! through [`Storage::migrate`]; [`Storage::open`] refuses an unmigrated database.
+
+#[macro_use]
+mod sql;
+mod admission;
+mod api;
+mod artifacts;
+mod checkpoints;
+mod gc;
+mod jobs;
+mod ledger;
+mod lineage;
+mod outbox;
+mod publish;
+mod retention;
+mod scheduler;
+
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use sqlx::migrate::{MigrateError, Migrator};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
+use sqlx::{Row, SqlitePool};
+use sych_core::{
+    DecodeError, PolicySnapshotId, ReviewResult, RunId, SCHEMA_VERSION, Sha256Digest,
+    SourceSnapshotId, Timestamp, canonical_json, decode, sha256,
+};
+use thiserror::Error;
+
+pub use admission::{Admitted, Connection, Intent, MAX_DEBOUNCES};
+pub use api::{IDEMPOTENCY_TTL_SECONDS, Idempotency, Metrics, RunView};
+pub use artifacts::ArtifactStore;
+pub use checkpoints::{CHECKPOINT_ROLE, RunLedger};
+pub use gc::{PruneCandidate, PruneReason, PruneReport};
+pub use jobs::{Claim, Fence};
+pub use lineage::{FindingRow, WaiverRecord};
+pub use outbox::Operation;
+pub use publish::{MAX_PUBLISH_ATTEMPTS, PublishClaim, Uncertain, Unresolved};
+pub use retention::RecordPrune;
+pub use scheduler::ChangeRow;
+
+static MIGRATOR: Migrator = sqlx::migrate!("../../migrations/sqlite");
+
+pub const TENANT_LOCAL: &str = "local";
+const DAY: i64 = 86_400;
+
+#[derive(Debug, Error)]
+pub enum StorageError {
+    #[error("database {0} is not migrated to this build; run `sych db migrate`")]
+    NotMigrated(String),
+    #[error("database {0} has migrations this build does not know; use a newer sych")]
+    NewerSchema(String),
+    #[error("run {0} was not found")]
+    UnknownRun(RunId),
+    #[error("run {run} is {state}, not COMPLETED; it has no saved result")]
+    NotCompleted { run: RunId, state: String },
+    /// Pruned or lost bytes are reported, never regenerated (spec §20.4).
+    #[error("artifact {0} is no longer available")]
+    ArtifactUnavailable(Sha256Digest),
+    #[error("storage conflict: {0}")]
+    Conflict(String),
+    #[error("corrupt storage: {0}")]
+    Corrupt(String),
+    #[error("cannot decode stored document: {0}")]
+    Decode(#[from] DecodeError),
+    #[error("cannot encode document: {0}")]
+    Encode(#[from] serde_json::Error),
+    #[error("database: {0}")]
+    Db(#[from] sqlx::Error),
+    #[error("migration: {0}")]
+    Migrate(#[from] MigrateError),
+    #[error("artifact store: {0}")]
+    Io(#[from] io::Error),
+}
+
+/// Tenant and access scope; every query and artifact path is partitioned by both.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Partition {
+    pub tenant_id: String,
+    pub access_scope: String,
+}
+
+/// Retention by artifact kind (spec §20.4 defaults).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArtifactKind {
+    SourceSnapshot,
+    DiffManifest,
+    PolicySnapshot,
+    ExternalInputManifest,
+    EvidenceManifest,
+    Evidence,
+    Facts,
+    ContextPackets,
+    /// Model passes, attempts and what the engine accepted or refused from them.
+    Analysis,
+    ReviewResult,
+    /// An accepted model answer with its dependencies, for successor runs.
+    Checkpoint,
+}
+
+impl ArtifactKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SourceSnapshot => "source_snapshot",
+            Self::DiffManifest => "diff_manifest",
+            Self::PolicySnapshot => "policy_snapshot",
+            Self::ExternalInputManifest => "external_input_manifest",
+            Self::EvidenceManifest => "evidence_manifest",
+            Self::Evidence => "evidence",
+            Self::Facts => "facts",
+            Self::ContextPackets => "context_packets",
+            Self::Analysis => "analysis",
+            Self::ReviewResult => "review_result",
+            Self::Checkpoint => "checkpoint",
+        }
+    }
+
+    /// Source data 7 days; normalized results and evidence 30 days.
+    pub const fn retention_seconds(self) -> i64 {
+        match self {
+            Self::SourceSnapshot | Self::DiffManifest => 7 * DAY,
+            _ => 30 * DAY,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StoreConfig {
+    pub database: PathBuf,
+    pub artifacts: PathBuf,
+}
+
+/// An active run; its artifacts are pinned against GC until it is terminal. A server run
+/// carries the lease it is worked under; its pins and result need that fence.
+#[derive(Debug, Clone)]
+pub struct RunHandle {
+    pub id: RunId,
+    pub partition: Partition,
+    pub generation: u64,
+    pub fence: Option<Fence>,
+}
+
+pub struct Storage {
+    pool: SqlitePool,
+    store: ArtifactStore,
+}
+
+async fn pool(path: &Path, create: bool) -> Result<SqlitePool, StorageError> {
+    let options = SqliteConnectOptions::from_str("sqlite:")?
+        .filename(path)
+        .create_if_missing(create)
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Full)
+        .foreign_keys(true);
+    Ok(SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await?)
+}
+
+fn int(value: u64) -> i64 {
+    i64::try_from(value).unwrap_or(i64::MAX)
+}
+
+impl Storage {
+    /// Applies pending migrations; the only operation that changes the schema.
+    pub async fn migrate(config: &StoreConfig) -> Result<Vec<i64>, StorageError> {
+        if let Some(dir) = config.database.parent() {
+            fs::create_dir_all(dir)?;
+        }
+
+        let pool = pool(&config.database, true).await?;
+        let before = applied(&pool).await?;
+        MIGRATOR.run(&pool).await?;
+        let after = applied(&pool).await?;
+        pool.close().await;
+        tracing::info!(database = %config.database.display(), applied = after.len() - before.len(), "database migrated");
+        Ok(after.into_iter().filter(|v| !before.contains(v)).collect())
+    }
+
+    /// Opens a migrated database; never creates or changes the schema.
+    pub async fn open(config: &StoreConfig) -> Result<Self, StorageError> {
+        let name = config.database.display().to_string();
+        if !config.database.exists() {
+            return Err(StorageError::NotMigrated(name));
+        }
+
+        let pool = pool(&config.database, false).await?;
+        let applied = applied(&pool).await?;
+        let known: Vec<i64> = MIGRATOR.iter().map(|m| m.version).collect();
+        if applied.iter().any(|v| !known.contains(v)) {
+            return Err(StorageError::NewerSchema(name));
+        }
+
+        if known.iter().any(|v| !applied.contains(v)) {
+            return Err(StorageError::NotMigrated(name));
+        }
+
+        Ok(Self {
+            pool,
+            store: ArtifactStore::new(&config.artifacts),
+        })
+    }
+
+    /// Records a RUNNING run with the next generation of its change, in one transaction.
+    pub async fn begin_run(
+        &self,
+        partition: &Partition,
+        change_key: &str,
+        snapshot: &SourceSnapshotId,
+        policy: &PolicySnapshotId,
+        now: Timestamp,
+    ) -> Result<RunHandle, StorageError> {
+        let mut tx = self.pool.begin().await?;
+        let row = sqlx::query(
+            "INSERT INTO changes (tenant_id, access_scope, change_key, desired_generation)
+             VALUES (?, ?, ?, 1)
+             ON CONFLICT (tenant_id, access_scope, change_key)
+             DO UPDATE SET desired_generation = desired_generation + 1
+             RETURNING id, desired_generation",
+        )
+        .bind(&partition.tenant_id)
+        .bind(&partition.access_scope)
+        .bind(change_key)
+        .fetch_one(&mut *tx)
+        .await?;
+        let change_id: i64 = row.get(0);
+        let generation: i64 = row.get(1);
+        let id = RunId::new_v7();
+        sqlx::query(
+            "INSERT INTO runs (id, tenant_id, access_scope, change_id, generation,
+                 source_snapshot_id, policy_snapshot_id, state, stage, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'RUNNING', 'PLAN', ?)",
+        )
+        .bind(id.to_string())
+        .bind(&partition.tenant_id)
+        .bind(&partition.access_scope)
+        .bind(change_id)
+        .bind(generation)
+        .bind(snapshot.0.to_string())
+        .bind(policy.0.to_string())
+        .bind(now.as_second())
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        tracing::info!(run = %id, generation, change = %change_key, "run started");
+        Ok(RunHandle {
+            id,
+            partition: partition.clone(),
+            generation: u64::try_from(generation).unwrap_or_default(),
+            fence: None,
+        })
+    }
+
+    /// Stores a document as canonical JSON and pins it to the run under `role`.
+    /// The row is written before the bytes, so a crash leaves a row GC can see.
+    pub async fn put_artifact<T: Serialize>(
+        &self,
+        run: &RunHandle,
+        role: &str,
+        kind: ArtifactKind,
+        value: &T,
+        now: Timestamp,
+    ) -> Result<Sha256Digest, StorageError> {
+        let bytes = canonical_json(value)?;
+        let digest = sha256(&bytes);
+        let key = ArtifactStore::key(&run.partition, &digest);
+        let p = &run.partition;
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
+            "INSERT INTO artifacts (tenant_id, access_scope, sha256, kind, schema_version,
+                 store_key, size, created_at, retain_until)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT (tenant_id, access_scope, sha256)
+             DO UPDATE SET retain_until = max(retain_until, excluded.retain_until)",
+        )
+        .bind(&p.tenant_id)
+        .bind(&p.access_scope)
+        .bind(digest.to_string())
+        .bind(kind.as_str())
+        .bind(i64::from(SCHEMA_VERSION))
+        .bind(&key)
+        .bind(int(bytes.len() as u64))
+        .bind(now.as_second())
+        .bind(now.as_second() + kind.retention_seconds())
+        .execute(&mut *tx)
+        .await?;
+        // A retried server run pins again under its current fence; a stale one pins nothing.
+        let fence = run.fence.as_ref();
+        let pinned = sqlx::query(concat!(
+            "INSERT INTO run_artifacts (run_id, role, tenant_id, access_scope, sha256)
+             SELECT ?, ?, ?, ?, ? WHERE ? IS NULL OR EXISTS (SELECT 1 FROM runs
+                 WHERE runs.id = ? AND runs.state IN ",
+            active!(),
+            " AND ",
+            fenced!(),
+            ")
+             ON CONFLICT (run_id, role) DO UPDATE SET sha256 = excluded.sha256"
+        ))
+        .bind(run.id.to_string())
+        .bind(role)
+        .bind(&p.tenant_id)
+        .bind(&p.access_scope)
+        .bind(digest.to_string())
+        .bind(fence.map(|f| f.job_id))
+        .bind(run.id.to_string())
+        .bind(fence.map(|f| f.job_id))
+        .bind(fence.map(|f| f.owner.clone()))
+        .bind(fence.map(|f| f.epoch))
+        .bind(now.as_second())
+        .execute(&mut *tx)
+        .await?;
+        if pinned.rows_affected() != 1 {
+            return Err(StorageError::Conflict(format!(
+                "run {} is no longer worked under this lease",
+                run.id
+            )));
+        }
+
+        tx.commit().await?;
+        self.store.put(&key, &bytes)?;
+        Ok(digest)
+    }
+
+    /// Result pointer, usage and terminal state in one transaction (spec §20.2). Fails, and
+    /// leaves the run RUNNING, if the result bytes are not stored or the run is not active; a
+    /// server run also needs its current `fence` and generation, and finishes its job.
+    pub async fn complete_run(
+        &self,
+        run: &RunHandle,
+        result: &ReviewResult,
+        result_sha256: &Sha256Digest,
+        now: Timestamp,
+    ) -> Result<(), StorageError> {
+        if result.run_id != run.id {
+            return Err(StorageError::Conflict(format!(
+                "result belongs to run {}, not {}",
+                result.run_id, run.id
+            )));
+        }
+
+        let p = &run.partition;
+        let fence = run.fence.as_ref();
+        let mut tx = self.pool.begin().await?;
+        let stored = sqlx::query(
+            "SELECT a.store_key FROM run_artifacts ra
+             JOIN artifacts a ON a.tenant_id = ra.tenant_id
+                 AND a.access_scope = ra.access_scope AND a.sha256 = ra.sha256
+             WHERE ra.run_id = ? AND ra.role = 'review_result' AND ra.sha256 = ?",
+        )
+        .bind(run.id.to_string())
+        .bind(result_sha256.to_string())
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(row) = stored else {
+            return Err(StorageError::Conflict(
+                "result artifact is not stored for this run".into(),
+            ));
+        };
+        let key: String = row.get(0);
+        // The pointer may only reference bytes that are already durable.
+        self.store.get(&key, result_sha256)?;
+        let usage = &result.usage_summary;
+        let updated = sqlx::query(concat!(
+            "UPDATE runs SET state = 'COMPLETED', stage = 'REDUCE', result_id = ?,
+                 result_sha256 = ?, model_attempts = ?, input_tokens = ?, output_tokens = ?,
+                 cost_known_micro_usd = ?, unknown_cost_attempts = ?, finished_at = ?,
+                 coverage = ?, unknown_obligations = ?
+             WHERE id = ? AND tenant_id = ? AND access_scope = ? AND state = 'RUNNING'
+                 AND (? IS NULL OR (stage = 'ANALYZE' AND ",
+            fenced!(),
+            "))"
+        ))
+        .bind(result.result_id.to_string())
+        .bind(result_sha256.to_string())
+        .bind(i64::from(usage.model_attempts))
+        .bind(int(usage.input_tokens))
+        .bind(int(usage.output_tokens))
+        .bind(int(usage.cost.known.0))
+        .bind(i64::from(usage.cost.unknown_cost_attempts))
+        .bind(now.as_second())
+        .bind(format!("{:?}", result.coverage))
+        .bind(int(result
+            .obligations
+            .iter()
+            .filter(|o| matches!(o.status, sych_core::ObligationStatus::Unknown { .. }))
+            .count() as u64))
+        .bind(run.id.to_string())
+        .bind(&p.tenant_id)
+        .bind(&p.access_scope)
+        .bind(fence.map(|f| f.job_id))
+        .bind(fence.map(|f| f.job_id))
+        .bind(fence.map(|f| f.owner.clone()))
+        .bind(fence.map(|f| f.epoch))
+        .bind(now.as_second())
+        .execute(&mut *tx)
+        .await?;
+        if updated.rows_affected() != 1 {
+            return Err(StorageError::Conflict(format!(
+                "run {} is not RUNNING with frozen inputs under a current lease and generation",
+                run.id
+            )));
+        }
+
+        // A server run's job and its publication intent commit with the result (spec §20.2).
+        if let Some(fence) = fence {
+            jobs::finish_job(&mut tx, fence, "DONE", None, now.as_second()).await?;
+            outbox::enqueue(&mut tx, run, result.result_id, now.as_second()).await?;
+        }
+
+        tx.commit().await?;
+        tracing::info!(run = %run.id, "run completed");
+        Ok(())
+    }
+
+    /// Marks an active run FAILED; its artifacts become GC orphans.
+    pub async fn fail_run(
+        &self,
+        run: &RunHandle,
+        reason: &str,
+        now: Timestamp,
+    ) -> Result<(), StorageError> {
+        tracing::warn!(run = %run.id, %reason, "run failed");
+        self.end_run(run, "FAILED", reason, now).await
+    }
+
+    /// Marks an active run CANCELLED after an accepted user cancellation; no result is kept.
+    pub async fn cancel_run(&self, run: &RunHandle, now: Timestamp) -> Result<(), StorageError> {
+        self.end_run(run, "CANCELLED", "cancelled by user", now)
+            .await
+    }
+
+    async fn end_run(
+        &self,
+        run: &RunHandle,
+        state: &str,
+        reason: &str,
+        now: Timestamp,
+    ) -> Result<(), StorageError> {
+        sqlx::query(
+            "UPDATE runs SET state = ?, failure = ?, finished_at = ?
+             WHERE id = ? AND state = 'RUNNING'",
+        )
+        .bind(state)
+        .bind(reason)
+        .bind(now.as_second())
+        .bind(run.id.to_string())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn run_state(&self, tenant_id: &str, run: RunId) -> Result<String, StorageError> {
+        let row = sqlx::query("SELECT state FROM runs WHERE id = ? AND tenant_id = ?")
+            .bind(run.to_string())
+            .bind(tenant_id)
+            .fetch_optional(&self.pool)
+            .await?;
+        row.map(|r| r.get(0)).ok_or(StorageError::UnknownRun(run))
+    }
+
+    /// Reads a saved result; never runs analysis.
+    pub async fn load_result(
+        &self,
+        tenant_id: &str,
+        run: RunId,
+    ) -> Result<ReviewResult, StorageError> {
+        let row = sqlx::query(
+            "SELECT r.state, r.result_sha256, a.store_key FROM runs r
+             LEFT JOIN artifacts a ON a.tenant_id = r.tenant_id
+                 AND a.access_scope = r.access_scope AND a.sha256 = r.result_sha256
+             WHERE r.id = ? AND r.tenant_id = ?",
+        )
+        .bind(run.to_string())
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(StorageError::UnknownRun(run))?;
+        let state: String = row.get(0);
+        let digest: Option<String> = row.get(1);
+        let key: Option<String> = row.get(2);
+        let (Some(digest), true) = (digest, state == "COMPLETED") else {
+            return Err(StorageError::NotCompleted { run, state });
+        };
+        self.read_document(&digest, key)
+    }
+
+    /// Reads a document pinned to a run under `role`; lost bytes are reported, never rebuilt.
+    pub async fn load_artifact<T: DeserializeOwned>(
+        &self,
+        tenant_id: &str,
+        run: RunId,
+        role: &str,
+    ) -> Result<T, StorageError> {
+        let row = sqlx::query(
+            "SELECT ra.sha256, a.store_key FROM runs r
+             JOIN run_artifacts ra ON ra.run_id = r.id
+             LEFT JOIN artifacts a ON a.tenant_id = ra.tenant_id
+                 AND a.access_scope = ra.access_scope AND a.sha256 = ra.sha256
+             WHERE r.id = ? AND r.tenant_id = ? AND ra.role = ?",
+        )
+        .bind(run.to_string())
+        .bind(tenant_id)
+        .bind(role)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or_else(|| StorageError::Corrupt(format!("run {run} has no `{role}` artifact")))?;
+        let digest: String = row.get(0);
+        let key: Option<String> = row.get(1);
+        self.read_document(&digest, key)
+    }
+
+    fn read_document<T: DeserializeOwned>(
+        &self,
+        digest: &str,
+        key: Option<String>,
+    ) -> Result<T, StorageError> {
+        let digest: Sha256Digest = digest
+            .parse()
+            .map_err(|e: sych_core::FormatError| StorageError::Corrupt(e.to_string()))?;
+        let key = key.ok_or_else(|| StorageError::ArtifactUnavailable(digest.clone()))?;
+        let bytes = self.store.get(&key, &digest)?;
+        let text = String::from_utf8(bytes).map_err(|e| StorageError::Corrupt(e.to_string()))?;
+        Ok(decode(&text)?)
+    }
+
+    pub(crate) fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
+    pub(crate) fn store(&self) -> &ArtifactStore {
+        &self.store
+    }
+}
+
+async fn applied(pool: &SqlitePool) -> Result<Vec<i64>, StorageError> {
+    let exists = sqlx::query(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_sqlx_migrations'",
+    )
+    .fetch_optional(pool)
+    .await?
+    .is_some();
+    if !exists {
+        return Ok(Vec::new());
+    }
+
+    let rows = sqlx::query("SELECT version FROM _sqlx_migrations WHERE success = 1")
+        .fetch_all(pool)
+        .await?;
+    Ok(rows.iter().map(|r| r.get(0)).collect())
+}

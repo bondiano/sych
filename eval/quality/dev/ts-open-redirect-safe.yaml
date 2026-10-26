@@ -1,0 +1,63 @@
+schema_version: 1
+id: ts-open-redirect-safe
+split: development
+language: typescript
+pair: ts-open-redirect
+variant: safe
+profiles: [correctness]
+rationale: "`next` is only followed when it is a same-origin absolute path; protocol-relative `//host` and `/\\host` fall back to /dashboard."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {
+        "express": "^5.1.0"
+      }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/routes/login.ts: |
+    import { Router } from 'express';
+    import { verifyPassword } from '../auth';
+
+    export const login = Router();
+
+    login.post('/login', async (req, res) => {
+      const user = await verifyPassword(req.body.email, req.body.password);
+      if (!user) {
+        res.status(401).send('invalid credentials');
+        return;
+      }
+      req.session.userId = user.id;
+      res.redirect('/dashboard');
+    });
+head:
+  src/routes/login.ts: |
+    import { Router } from 'express';
+    import { verifyPassword } from '../auth';
+
+    export const login = Router();
+
+    function localPath(next: unknown): string {
+      if (typeof next !== 'string' || !next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) {
+        return '/dashboard';
+      }
+      return next;
+    }
+
+    login.post('/login', async (req, res) => {
+      const user = await verifyPassword(req.body.email, req.body.password);
+      if (!user) {
+        res.status(401).send('invalid credentials');
+        return;
+      }
+      req.session.userId = user.id;
+      res.redirect(localPath(req.query.next));
+    });
+expected:
+  forbidden_claims:
+    - "The login redirect is an open redirect."

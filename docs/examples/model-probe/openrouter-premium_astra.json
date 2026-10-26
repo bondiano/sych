@@ -1,0 +1,44 @@
+{
+  "attempts": [
+    {
+      "attempt_id": "01a173ea-9153-7147-9031-2a912bdef42c",
+      "billing": "api_usage",
+      "charge": 2010,
+      "charge_state": "SETTLED",
+      "enforcement": "api_hard",
+      "failure": null,
+      "generation_id": "gen-1792946115-37yOpBIWoywwP6eVxCLN",
+      "kind": "INITIAL",
+      "profile": "premium_astra",
+      "reference": 2010,
+      "requested_model": "openai/gpt-6-astra",
+      "reserved": 204110,
+      "resolved_model": "openai/gpt-6-astra",
+      "schema_name": "probe",
+      "template": "probe@1",
+      "upstream_provider": "OpenAI",
+      "usage": {
+        "input_tokens": 131,
+        "output_tokens": 14,
+        "reasoning_tokens": 0
+      }
+    }
+  ],
+  "echo_matches": true,
+  "failure": null,
+  "probe": "premium_astra",
+  "route": {
+    "adapter": "openrouter",
+    "billing": "api_usage",
+    "enforcement": "api_hard",
+    "model": "openai/gpt-6-astra",
+    "price_revision": "openrouter-2026-10-25",
+    "profile": "premium_astra",
+    "provider": "openrouter",
+    "upstreams": [
+      "openai"
+    ]
+  },
+  "run_id": "01a173ea-914c-7065-b16f-c7743534d1ee",
+  "valid": true
+}

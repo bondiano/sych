@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PolicySnapshot",
+  "type": "object",
+  "properties": {
+    "authorization_policy_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "config_hash": {
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "id": {
+      "$ref": "#/$defs/PolicySnapshotId"
+    },
+    "rules_hash": {
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    },
+    "source": {
+      "$ref": "#/$defs/PolicySource"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "source",
+    "rules_hash",
+    "config_hash",
+    "authorization_policy_version",
+    "created_at"
+  ],
+  "$defs": {
+    "GitObjectId": {
+      "type": "string",
+      "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
+    },
+    "PolicySnapshotId": {
+      "description": "Content-derived identity of a [`crate::PolicySnapshot`].",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "PolicySource": {
+      "description": "Where active rules came from. The reviewed head is never a policy source.",
+      "oneOf": [
+        {
+          "description": "Engine defaults only; no repository policy was accepted.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "engine_defaults"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Policy read from an accepted ref pinned to a commit.",
+          "type": "object",
+          "properties": {
+            "commit": {
+              "$ref": "#/$defs/GitObjectId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "trusted_ref"
+            },
+            "ref_name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "ref_name",
+            "commit"
+          ]
+        }
+      ]
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "Sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

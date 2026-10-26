@@ -1,0 +1,50 @@
+schema_version: 1
+id: react-mutation-invalidation-unsafe
+split: development
+language: typescript
+pair: react-mutation-invalidation
+variant: unsafe
+profiles: [correctness]
+rationale: "Invalidation after the mutation is removed: order lists show the old name until a manual reload."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/use-rename-order.ts: |
+    import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+    export function useRenameOrder() {
+      const client = useQueryClient();
+      return useMutation({
+        mutationFn: renameOrder,
+        onSuccess: () => client.invalidateQueries({ queryKey: ['orders'] }),
+      });
+    }
+head:
+  src/use-rename-order.ts: |
+    import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+    export function useRenameOrder() {
+      const client = useQueryClient();
+      return useMutation({
+        mutationFn: renameOrder,
+      });
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "orders query freshness"
+      required_condition: "an order is renamed while a list is mounted"
+      evidence_locations:
+        - { side: HEAD, path: src/use-rename-order.ts, start_line: 5, end_line: 7 }
+  facts:
+    - { kind: mutation_call, side: HEAD, path: src/use-rename-order.ts, line: 5 }
+  forbidden_facts:
+    - { kind: invalidation_call, side: HEAD, path: src/use-rename-order.ts, line: 5 }

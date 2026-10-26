@@ -1,0 +1,51 @@
+schema_version: 1
+id: rust-blocking-in-async-unsafe
+split: development
+language: rust
+pair: rust-blocking-in-async
+variant: unsafe
+profiles: [correctness]
+rationale: "`std::thread::sleep` in an async fn blocks the executor thread for the whole backoff."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub async fn send_with_retry(client: &Client, request: Request) -> Result<Response, Error> {
+        for attempt in 0..3 {
+            match client.send(&request).await {
+                Ok(response) => return Ok(response),
+                Err(_) if attempt < 2 => continue,
+                Err(e) => return Err(e),
+            }
+        }
+        unreachable!()
+    }
+head:
+  src/lib.rs: |
+    pub async fn send_with_retry(client: &Client, request: Request) -> Result<Response, Error> {
+        for attempt in 0..3 {
+            match client.send(&request).await {
+                Ok(response) => return Ok(response),
+                Err(_) if attempt < 2 => std::thread::sleep(backoff(attempt)),
+                Err(e) => return Err(e),
+            }
+        }
+        unreachable!()
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "executor responsiveness during retries"
+      required_condition: "a send fails and the retry backs off"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 5, end_line: 5 }
+  facts:
+    - { kind: blocking_in_async, side: HEAD, path: src/lib.rs, line: 5 }

@@ -1,0 +1,9 @@
+/target/
+/.local/
+/.sych-output/
+/.env
+/.env.*
+!/.env.example
+!/.env.*.example
+.DS_Store
+.sych-data/

@@ -1,0 +1,65 @@
+schema_version: 1
+id: rust-sql-injection-unsafe
+split: development
+language: rust
+pair: rust-sql-injection
+variant: unsafe
+profiles: [correctness]
+rationale: "The new user search formats the caller's term into the SQL string: a term containing `'` closes the literal and injects arbitrary SQL."
+base:
+  Cargo.toml: |
+    [package]
+    name = "users"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+    sqlx = { version = "0.8", features = ["postgres", "runtime-tokio"] }
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    use sqlx::PgPool;
+
+    #[derive(sqlx::FromRow)]
+    pub struct User {
+        pub id: i64,
+        pub email: String,
+    }
+
+    pub async fn find(pool: &PgPool, id: i64) -> sqlx::Result<Option<User>> {
+        sqlx::query_as::<_, User>("SELECT id, email FROM users WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+    }
+head:
+  src/lib.rs: |
+    use sqlx::PgPool;
+
+    #[derive(sqlx::FromRow)]
+    pub struct User {
+        pub id: i64,
+        pub email: String,
+    }
+
+    pub async fn find(pool: &PgPool, id: i64) -> sqlx::Result<Option<User>> {
+        sqlx::query_as::<_, User>("SELECT id, email FROM users WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+    }
+
+    pub async fn search(pool: &PgPool, term: &str) -> sqlx::Result<Vec<User>> {
+        let sql = format!("SELECT id, email FROM users WHERE email LIKE '%{term}%' ORDER BY id");
+        sqlx::query_as::<_, User>(&sql).fetch_all(pool).await
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "SQL executed by the user search"
+      required_condition: "the search term contains a single quote"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 17, end_line: 18 }
+  forbidden_claims:
+    - "The search query uses bind parameters."

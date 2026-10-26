@@ -1,0 +1,76 @@
+schema_version: 1
+id: go-tx-extraction-safe
+split: development
+language: go
+pair: go-tx-extraction
+variant: safe
+profiles: [correctness, side_effects]
+rationale: "The ledger insert moves into a helper that takes the transaction: the write stays inside it and rolls back with the order."
+base:
+  go.mod: |
+    module example.com/shop
+
+    go 1.26
+  orders/create.go: |
+    package orders
+
+    import (
+    	"context"
+    	"database/sql"
+    )
+
+    type Store struct {
+    	db *sql.DB
+    }
+
+    func (s *Store) Create(ctx context.Context, id string, total int) error {
+    	tx, err := s.db.BeginTx(ctx, nil)
+    	if err != nil {
+    		return err
+    	}
+    	defer tx.Rollback()
+    	if _, err := tx.ExecContext(ctx, "INSERT INTO orders (id) VALUES ($1)", id); err != nil {
+    		return err
+    	}
+    	if _, err := tx.ExecContext(ctx, "INSERT INTO ledger (order_id, total) VALUES ($1, $2)", id, total); err != nil {
+    		return err
+    	}
+    	return tx.Commit()
+    }
+head:
+  orders/create.go: |
+    package orders
+
+    import (
+    	"context"
+    	"database/sql"
+    )
+
+    type Store struct {
+    	db *sql.DB
+    }
+
+    func (s *Store) Create(ctx context.Context, id string, total int) error {
+    	tx, err := s.db.BeginTx(ctx, nil)
+    	if err != nil {
+    		return err
+    	}
+    	defer tx.Rollback()
+    	if _, err := tx.ExecContext(ctx, "INSERT INTO orders (id) VALUES ($1)", id); err != nil {
+    		return err
+    	}
+    	if err := addLedger(ctx, tx, id, total); err != nil {
+    		return err
+    	}
+    	return tx.Commit()
+    }
+
+    func addLedger(ctx context.Context, tx *sql.Tx, id string, total int) error {
+    	_, err := tx.ExecContext(ctx, "INSERT INTO ledger (order_id, total) VALUES ($1, $2)", id, total)
+    	return err
+    }
+expected:
+  facts:
+    - { kind: db_call, side: HEAD, path: orders/create.go, line: 28 }
+  forbidden_claims:
+    - "addLedger writes outside the transaction."

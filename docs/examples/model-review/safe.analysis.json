@@ -1,0 +1,382 @@
+{
+    "answers": [
+        {
+            "limitations": [],
+            "operation": {
+                "op": "search_source",
+                "query": "function sum ",
+                "side": "HEAD"
+            },
+            "packet": 0,
+            "question": "How is sum defined, and does it tolerate an empty or non-array accumulator?",
+            "refs": 0,
+            "status": "COMPLETE_FOR_QUERY"
+        },
+        {
+            "limitations": [],
+            "operation": {
+                "op": "search_source",
+                "query": "total(",
+                "side": "HEAD"
+            },
+            "packet": 0,
+            "question": "Which call sites pass total() a value that can be a non-nullish falsy such as 0, '', false or NaN?",
+            "refs": 2,
+            "status": "COMPLETE_FOR_QUERY"
+        }
+    ],
+    "assessments": [
+        {
+            "assessment": {
+                "evidence_ids": [
+                    "dead7230-e4e2-8bd1-ae74-51cbfa4d5415"
+                ],
+                "limitations": [
+                    "sum is not shown, but reduce with an explicit initial value returns that value unchanged for an empty array, so the callback body is irrelevant here."
+                ],
+                "rule_id": "ORDER-01",
+                "status": "SUPPORTED"
+            },
+            "criteria": [
+                {
+                    "anchors": [
+                        {
+                            "blob_oid": "sha1:9a587d0ab4d5dbbc4242c40617ee058dddea45cb",
+                            "content_sha256": "sha256:5a2415646f1465b6d1bfb689026fda6c3736d81452124187fec4f8aefe8388e9",
+                            "end_line": 2,
+                            "path": "src/order.ts",
+                            "side": "HEAD",
+                            "snapshot_id": "sha256:a2f259d50e8df71ef7d71eb38d16cc555cb83f6d32fb9a815e60329c1aa9b85e",
+                            "start_line": 2
+                        }
+                    ],
+                    "criterion": "total() returns 0 when items is undefined instead of throwing.",
+                    "evidence_ids": [
+                        "dead7230-e4e2-8bd1-ae74-51cbfa4d5415"
+                    ],
+                    "status": "MET"
+                }
+            ],
+            "missing_inputs": [],
+            "obligation_id": "c1f15f52-680a-87a9-8787-f7c4eed6d6c8",
+            "problems": [],
+            "proposed_status": "SUPPORTED",
+            "rationale": "On HEAD an undefined items becomes [], and reduce(sum, 0) on an empty array returns the initial value 0, so no throw occurs, matching the obligation.",
+            "rule_id": "ORDER-01"
+        }
+    ],
+    "attempts": [
+        {
+            "attempt_id": "01a17361-1805-7181-9bcf-8694f0a84921",
+            "billing": "api_usage",
+            "charge": 550,
+            "charge_state": "SETTLED",
+            "enforcement": "api_hard",
+            "failure": null,
+            "generation_id": "gen-1792937105-zzzpF56osWu84yPDmLwE",
+            "kind": "INITIAL",
+            "profile": "cheap_api",
+            "reference": 1807,
+            "requested_model": "deepseek/deepseek-v4.1-flash",
+            "reserved": 6065,
+            "resolved_model": "deepseek/deepseek-v4.1-flash",
+            "schema_name": "review",
+            "template": "review@1",
+            "upstream_provider": "DeepInfra",
+            "usage": {
+                "input_tokens": 1111,
+                "output_tokens": 1228,
+                "reasoning_tokens": 425
+            }
+        },
+        {
+            "attempt_id": "01a17361-53cf-710c-9d1c-19a69d0bacb1",
+            "billing": "api_usage",
+            "charge": 240,
+            "charge_state": "SETTLED",
+            "enforcement": "api_hard",
+            "failure": null,
+            "generation_id": "gen-1792937120-QIw21aqLtdqVFFLny4Qf",
+            "kind": "INITIAL",
+            "profile": "cheap_api",
+            "reference": 845,
+            "requested_model": "deepseek/deepseek-v4.1-flash",
+            "reserved": 5772,
+            "resolved_model": "deepseek/deepseek-v4.1-flash",
+            "schema_name": "discovery",
+            "template": "risk_audit@1",
+            "upstream_provider": "DeepInfra",
+            "usage": {
+                "input_tokens": 883,
+                "output_tokens": 483,
+                "reasoning_tokens": 461
+            }
+        },
+        {
+            "attempt_id": "01a17361-63f2-7120-bea6-5045ddb35fa6",
+            "billing": "api_usage",
+            "charge": 731,
+            "charge_state": "SETTLED",
+            "enforcement": "api_hard",
+            "failure": null,
+            "generation_id": "gen-1792937124-urI3QlK9OWbOaneKoAmV",
+            "kind": "INITIAL",
+            "profile": "cheap_api",
+            "reference": 2093,
+            "requested_model": "deepseek/deepseek-v4.1-flash",
+            "reserved": 6352,
+            "resolved_model": "deepseek/deepseek-v4.1-flash",
+            "schema_name": "candidate_verdicts",
+            "template": "verify@1",
+            "upstream_provider": "DeepInfra",
+            "usage": {
+                "input_tokens": 1443,
+                "output_tokens": 1383,
+                "reasoning_tokens": 862
+            }
+        }
+    ],
+    "billing": "api_usage",
+    "candidates": [
+        {
+            "anchors": [
+                {
+                    "blob_oid": "sha1:1bd578a33e66c60044aae6a965f4e932524e79b9",
+                    "content_sha256": "sha256:b3bde39efeb3482429709edbe1b5922327aa8f1b8e258a3112d79548465793b6",
+                    "end_line": 3,
+                    "path": "src/order.ts",
+                    "side": "DIFF_BASE",
+                    "snapshot_id": "sha256:a2f259d50e8df71ef7d71eb38d16cc555cb83f6d32fb9a815e60329c1aa9b85e",
+                    "start_line": 2
+                },
+                {
+                    "blob_oid": "sha1:9a587d0ab4d5dbbc4242c40617ee058dddea45cb",
+                    "content_sha256": "sha256:5a2415646f1465b6d1bfb689026fda6c3736d81452124187fec4f8aefe8388e9",
+                    "end_line": 2,
+                    "path": "src/order.ts",
+                    "side": "HEAD",
+                    "snapshot_id": "sha256:a2f259d50e8df71ef7d71eb38d16cc555cb83f6d32fb9a815e60329c1aa9b85e",
+                    "start_line": 2
+                }
+            ],
+            "category": "DEFECT",
+            "causal_chain": [
+                "BASE guarded with if (!items) so any falsy input returned 0; HEAD replaced it with ?? which only covers null/undefined; a falsy non-nullish input now reaches .reduce on a non-array and throws TypeError."
+            ],
+            "claim": "HEAD changes behaviour for falsy non-nullish inputs: total(0) (or '', false, NaN) returned 0 in BASE but now throws TypeError because 0 is not nullish and has no reduce.",
+            "conditions": [],
+            "consequences": [
+                "Callers that previously passed 0 or another falsy sentinel receive a runtime TypeError instead of 0."
+            ],
+            "evidence_ids": [
+                "dead7230-e4e2-8bd1-ae74-51cbfa4d5415"
+            ],
+            "id": "66f7918f-eaa4-8733-80a9-85492c414466",
+            "limitations": [
+                "No call sites are shown, so whether any caller actually passes 0/''/false/NaN is unknown; the behaviour change at the function boundary itself is established.",
+                "engine: no anchor in the shown spans"
+            ],
+            "obligation_ids": [
+                "c1f15f52-680a-87a9-8787-f7c4eed6d6c8"
+            ],
+            "origin": "MODEL",
+            "proposed_severity": "MEDIUM",
+            "refutation": "Do all call sites guarantee items is an array or null/undefined, so no falsy non-nullish value can reach total()?",
+            "verification_status": "UNRESOLVED"
+        },
+        {
+            "anchors": [
+                {
+                    "blob_oid": "sha1:9a587d0ab4d5dbbc4242c40617ee058dddea45cb",
+                    "content_sha256": "sha256:5a2415646f1465b6d1bfb689026fda6c3736d81452124187fec4f8aefe8388e9",
+                    "end_line": 2,
+                    "path": "src/order.ts",
+                    "side": "HEAD",
+                    "snapshot_id": "sha256:a2f259d50e8df71ef7d71eb38d16cc555cb83f6d32fb9a815e60329c1aa9b85e",
+                    "start_line": 2
+                }
+            ],
+            "category": "IMPROVEMENT",
+            "causal_chain": [
+                "Base 0 means malformed input silently produces a zero total, which the new nullish fallback preserves."
+            ],
+            "claim": "Consider distinguishing null/undefined from other invalid inputs, e.g. Array.isArray(items) ? items.reduce(sum, 0) : 0, so a silent-zero result is only produced for the cases the rule intends.",
+            "conditions": [],
+            "consequences": [
+                "Narrows the silent-zero behaviour to the documented missing-items case, making other bad inputs visible."
+            ],
+            "evidence_ids": [
+                "dead7230-e4e2-8bd1-ae74-51cbfa4d5415"
+            ],
+            "id": "95aedb82-957c-826e-9618-46f6d19d2032",
+            "limitations": [
+                "Whether any caller relies on 0/''/false silently returning 0 is not shown in the spans.",
+                "engine: no anchor in the shown spans"
+            ],
+            "obligation_ids": [
+                "c1f15f52-680a-87a9-8787-f7c4eed6d6c8"
+            ],
+            "origin": "MODEL",
+            "proposed_severity": "LOW",
+            "refutation": "Does the ORDER-01 contract explicitly want all falsy inputs to still yield 0, making a stricter guard a behaviour change?",
+            "verification_status": "UNRESOLVED"
+        }
+    ],
+    "discovered": [
+        {
+            "asks": [
+                {
+                    "operation": {
+                        "op": "search_source",
+                        "query": "function sum ",
+                        "side": "HEAD"
+                    },
+                    "question": "How is sum defined, and does it tolerate an empty or non-array accumulator?"
+                },
+                {
+                    "operation": {
+                        "op": "search_source",
+                        "query": "total(",
+                        "side": "HEAD"
+                    },
+                    "question": "Which call sites pass total() a value that can be a non-nullish falsy such as 0, '', false or NaN?"
+                }
+            ],
+            "candidates": [
+                {
+                    "anchors": [
+                        {
+                            "blob_oid": "sha1:1bd578a33e66c60044aae6a965f4e932524e79b9",
+                            "content_sha256": "sha256:b3bde39efeb3482429709edbe1b5922327aa8f1b8e258a3112d79548465793b6",
+                            "end_line": 3,
+                            "path": "src/order.ts",
+                            "side": "DIFF_BASE",
+                            "snapshot_id": "sha256:a2f259d50e8df71ef7d71eb38d16cc555cb83f6d32fb9a815e60329c1aa9b85e",
+                            "start_line": 2
+                        },
+                        {
+                            "blob_oid": "sha1:9a587d0ab4d5dbbc4242c40617ee058dddea45cb",
+                            "content_sha256": "sha256:5a2415646f1465b6d1bfb689026fda6c3736d81452124187fec4f8aefe8388e9",
+                            "end_line": 2,
+                            "path": "src/order.ts",
+                            "side": "HEAD",
+                            "snapshot_id": "sha256:a2f259d50e8df71ef7d71eb38d16cc555cb83f6d32fb9a815e60329c1aa9b85e",
+                            "start_line": 2
+                        }
+                    ],
+                    "category": "DEFECT",
+                    "causal_chain": [
+                        "BASE guarded with if (!items) so any falsy input returned 0; HEAD replaced it with ?? which only covers null/undefined; a falsy non-nullish input now reaches .reduce on a non-array and throws TypeError."
+                    ],
+                    "claim": "HEAD changes behaviour for falsy non-nullish inputs: total(0) (or '', false, NaN) returned 0 in BASE but now throws TypeError because 0 is not nullish and has no reduce.",
+                    "conditions": [],
+                    "consequences": [
+                        "Callers that previously passed 0 or another falsy sentinel receive a runtime TypeError instead of 0."
+                    ],
+                    "evidence_ids": [
+                        "dead7230-e4e2-8bd1-ae74-51cbfa4d5415"
+                    ],
+                    "id": "66f7918f-eaa4-8733-80a9-85492c414466",
+                    "limitations": [],
+                    "obligation_ids": [
+                        "c1f15f52-680a-87a9-8787-f7c4eed6d6c8"
+                    ],
+                    "origin": "MODEL",
+                    "proposed_severity": "MEDIUM",
+                    "refutation": "Do all call sites guarantee items is an array or null/undefined, so no falsy non-nullish value can reach total()?",
+                    "verification_status": "PENDING"
+                },
+                {
+                    "anchors": [
+                        {
+                            "blob_oid": "sha1:9a587d0ab4d5dbbc4242c40617ee058dddea45cb",
+                            "content_sha256": "sha256:5a2415646f1465b6d1bfb689026fda6c3736d81452124187fec4f8aefe8388e9",
+                            "end_line": 2,
+                            "path": "src/order.ts",
+                            "side": "HEAD",
+                            "snapshot_id": "sha256:a2f259d50e8df71ef7d71eb38d16cc555cb83f6d32fb9a815e60329c1aa9b85e",
+                            "start_line": 2
+                        }
+                    ],
+                    "category": "IMPROVEMENT",
+                    "causal_chain": [
+                        "Base 0 means malformed input silently produces a zero total, which the new nullish fallback preserves."
+                    ],
+                    "claim": "Consider distinguishing null/undefined from other invalid inputs, e.g. Array.isArray(items) ? items.reduce(sum, 0) : 0, so a silent-zero result is only produced for the cases the rule intends.",
+                    "conditions": [],
+                    "consequences": [
+                        "Narrows the silent-zero behaviour to the documented missing-items case, making other bad inputs visible."
+                    ],
+                    "evidence_ids": [
+                        "dead7230-e4e2-8bd1-ae74-51cbfa4d5415"
+                    ],
+                    "id": "95aedb82-957c-826e-9618-46f6d19d2032",
+                    "limitations": [],
+                    "obligation_ids": [
+                        "c1f15f52-680a-87a9-8787-f7c4eed6d6c8"
+                    ],
+                    "origin": "MODEL",
+                    "proposed_severity": "LOW",
+                    "refutation": "Does the ORDER-01 contract explicitly want all falsy inputs to still yield 0, making a stricter guard a behaviour change?",
+                    "verification_status": "PENDING"
+                }
+            ],
+            "rejected": [],
+            "rejected_asks": [],
+            "unresolved_questions": []
+        },
+        {
+            "asks": [],
+            "candidates": [],
+            "rejected": [],
+            "rejected_asks": [],
+            "unresolved_questions": []
+        }
+    ],
+    "enforcement": "api_hard",
+    "fixed_fee": null,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "passes": [
+        {
+            "attempt_ids": [
+                "01a17361-1805-7181-9bcf-8694f0a84921"
+            ],
+            "obligation_id": null,
+            "packets": [
+                0
+            ],
+            "status": {
+                "status": "DONE"
+            },
+            "template": "review@1"
+        },
+        {
+            "attempt_ids": [
+                "01a17361-53cf-710c-9d1c-19a69d0bacb1"
+            ],
+            "obligation_id": "c1f15f52-680a-87a9-8787-f7c4eed6d6c8",
+            "packets": [
+                1
+            ],
+            "status": {
+                "status": "DONE"
+            },
+            "template": "risk_audit@1"
+        },
+        {
+            "attempt_ids": [
+                "01a17361-63f2-7120-bea6-5045ddb35fa6"
+            ],
+            "obligation_id": null,
+            "packets": [
+                0
+            ],
+            "status": {
+                "status": "DONE"
+            },
+            "template": "verify@1"
+        }
+    ],
+    "profile": "cheap_api",
+    "schema_version": 1
+}

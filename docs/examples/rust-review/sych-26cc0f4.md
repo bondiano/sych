@@ -1,0 +1,334 @@
+# Sych review
+
+- recommendation: **NEEDS_EVIDENCE**
+- coverage: **PARTIAL**
+- execution outcome: PLAN_EXECUTED
+- run: 01a174da-7ed5-722b-bbf9-c26cd8edd5ca (revision 1), result: 01a174db-98a7-77a8-959a-24fba96e7ef3, created 2026-10-25T20:56:50.36258312Z
+
+## Snapshot
+
+- repository: local:sha256:a1d6340f6ad04ec6c03453bb95eca0a5281e2322004a23a20ea29bb1506e51ab
+- target: 81ff2a7 at sha1:81ff2a7c09516b9bfdde0598056487e6ed73194d
+- diff base: sha1:81ff2a7c09516b9bfdde0598056487e6ed73194d (MERGE_BASE)
+- head: sha1:26cc0f4c0dc01d4efaeb9b64d59963e22170cd4e
+- snapshot: sha256:1d853a43a27084187278485a13673811ac0fc2ce62ff40bc8f1a211fede409ba
+
+## Policy
+
+- source: trusted ref 81ff2a7 at sha1:81ff2a7c09516b9bfdde0598056487e6ed73194d
+- policy snapshot: sha256:5b1fd4a8411b032c31ba12d2dec6fddc209c6e10bb947ed1c7d34f33d468de35
+- rules: sha256:01713596e511552f43113db197bdc9d8061c78b5a52ad6e78e6509bd5d009b4f, config: sha256:ea39fdc364f4a634dc9b38504114b877cce081580e16428ec9444e9e29df4dca
+
+Provenance:
+
+- engine: sych 0.1.0 
+- server: examples/personal/sych.yaml sha256:12779967ca34e222e450b6fa5275741d20fb3119e83800735f766da7605862d8
+
+Proposed by head, not applied:
+
+- none
+
+## Scope (revision 1)
+
+- crates/sych-app/src/analysis: crates/sych-app/src/analysis/passes.rs
+- crates/sych-core/src/model: crates/sych-core/src/model/budget.rs, crates/sych-core/src/model/router.rs
+- crates/sych-core/tests: crates/sych-core/tests/router.rs
+- docs: docs/MODELS.md, docs/SYCH\_ROADMAP.md
+
+## Obligations
+
+- **TEST-INTEGRITY** v1 (required, risk MEDIUM, applicability APPLIES): UNKNOWN (TEST\_ORACLE\_ONLY); next: evidence for: No assertion, test or CI gate that guarded behaviour was removed, skipped or loosened without an equivalent check.
+  - id: f833968e-9c41-853a-a24c-0e7a8dbc8a0f
+  - question: A change to assertions, skips, fixtures or CI gates does not quietly weaken an important check.
+  - acceptance: No assertion, test or CI gate that guarded behaviour was removed, skipped or loosened without an equivalent check.
+  - evidence: cf6b0854-1e6d-8655-938b-995f3ac6e139
+  - evidence: 5235a4a1-cfc0-8b24-8969-89bc86fbf187
+  - limitation: Only the shown hunk is inspected; tests outside crates/sych-core/tests/router.rs are not visible.
+  - limitation: The HEAD text of docs/SYCH\_ROADMAP.md is not shown, but documentation checkboxes are not assertions or CI gates.
+  - limitation: engine: every MET criterion rests on test files only
+
+## Findings
+
+- none
+
+## Gaps
+
+- TEST-INTEGRITY: TEST\_ORACLE\_ONLY; next: evidence for: No assertion, test or CI gate that guarded behaviour was removed, skipped or loosened without an equivalent check.
+- unverified candidate: UNKNOWN: \`discover\` now routes through \`router.search\`, whose contract (single schema-bound answer, \`falls\_back\`/cool-down behaviour, \`search\` vs \`structured\` output) is not visible in this change, while the surrounding code still assumes one \`DiscoveryOutput\` answer per pass.
+- REQUIRED\_OVER\_BUDGET: crates/sych-core/src/model/router.rs:184-294
+- REQUIRED\_OVER\_BUDGET: docs/MODELS.md:44-52
+- REQUIRED\_OVER\_BUDGET: docs/SYCH\_ROADMAP.md:40-46
+- REQUIRED\_OVER\_BUDGET: docs/SYCH\_ROADMAP.md:215-221
+- REQUIRED\_OVER\_BUDGET: docs/SYCH\_ROADMAP.md:228-234
+- open question: Whether any file outside the shown spans (other test modules) lost assertions; no further hunks are handed out.
+- open question: Is \`max\_attempts == 1\` (or 0) reachable from configuration, and if so is the full money reservation intended?
+- open question: Does \`Router::search\` return exactly one structured answer like \`Router::structured\`?
+
+## Evidence
+
+- 10f64b9c-2e29-8777-af81-67ae9423a704 semantic VALID PARTIAL DERIVED_LOCAL by rust-analyzer 0\.3.3089-standalone
+  - crates/sych-app/src/analysis/passes.rs:119-143 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-core/src/model/budget.rs:15-20 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/router.rs:184-273 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/tests/router.rs:299-325 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - limitation: build scripts and proc-macros are not run: generated and macro-expanded items are missing, so absent references are not proof of absence
+  - limitation: only default features and the host cfg are analysed: code behind other features, targets or cfgs is not checked
+  - limitation: diagnostics are rust-analyzer native checks without proc-macros or cargo check; they are not CI facts and errors may be analysis artefacts
+- 43ceae55-66bc-8e2e-a27b-ad6962599bce source VALID PARTIAL SOURCE_OBSERVATION by sych-broker 0\.1.0
+  - crates/sych-core/src/model/budget.rs:15-23 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/router.rs:184-273 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/budget.rs:18-38 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-app/src/analysis/passes.rs:32-69 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-core/src/model/budget.rs:11-12 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:247-247 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:262-262 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - limitation: SEMANTIC\_REQUEST\_LIMIT: neighbours of \`search\` not included
+  - limitation: SEMANTIC\_REQUEST\_LIMIT: neighbours of \`route\` not included
+  - limitation: REQUIRED\_OVER\_BUDGET: crates/sych-core/src/model/router.rs:184-294
+- 4e31af58-418f-8d52-902c-97bc0662c062 source VALID COMPLETE_FOR_QUERY SOURCE_OBSERVATION by sych-broker 0\.1.0
+  - crates/sych-app/src/analysis/passes.rs:119-143 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-app/src/analysis/passes.rs:119-143 (HEAD, blob sha1:d4abd3c11a04dfc13e787acdd58618cacc81ae87)
+  - crates/sych-app/src/analysis/mod.rs:89-100 (DIFF_BASE, blob sha1:3fb7b47327890f97383473984b58c589be8a0d0e)
+  - crates/sych-app/src/analysis/passes.rs:3-13 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-app/src/analysis/passes.rs:245-266 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-app/src/analysis/passes.rs:268-299 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-core/src/analysis/context.rs:74-82 (DIFF_BASE, blob sha1:a64b6a53e39ae1d0ee99cc36a742e198c3308cf9)
+  - crates/sych-core/src/analysis/discovery.rs:175-183 (DIFF_BASE, blob sha1:8e509cca9fddc504d79d41ce97d01aba5e28999a)
+  - crates/sych-core/src/model/contract.rs:54-64 (DIFF_BASE, blob sha1:1ff7832fe4881f52d27c517943cc7744e29edc1d)
+- 5235a4a1-cfc0-8b24-8969-89bc86fbf187 source VALID PARTIAL SOURCE_OBSERVATION by sych-broker 0\.1.0
+  - docs/SYCH\_ROADMAP.md:40-46 (DIFF_BASE, blob sha1:57f5964b5044c07b58a6818e490af18c2db5e1c6)
+  - docs/SYCH\_ROADMAP.md:215-221 (DIFF_BASE, blob sha1:57f5964b5044c07b58a6818e490af18c2db5e1c6)
+  - docs/SYCH\_ROADMAP.md:228-234 (DIFF_BASE, blob sha1:57f5964b5044c07b58a6818e490af18c2db5e1c6)
+  - docs/MODELS.md:43-49 (DIFF_BASE, blob sha1:760db573d6090b6d7b72e1040a59941acef2209d)
+  - limitation: REQUIRED\_OVER\_BUDGET: docs/MODELS.md:44-52
+  - limitation: REQUIRED\_OVER\_BUDGET: docs/SYCH\_ROADMAP.md:40-46
+  - limitation: REQUIRED\_OVER\_BUDGET: docs/SYCH\_ROADMAP.md:215-221
+  - limitation: REQUIRED\_OVER\_BUDGET: docs/SYCH\_ROADMAP.md:228-234
+- a069b9b0-6f85-8c4d-8d23-b91a267b4fb9 static VALID PARTIAL DERIVED_LOCAL by syn 2
+  - crates/sych-app/src/analysis/passes.rs:3-7 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-app/src/analysis/passes.rs:8-8 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-app/src/analysis/passes.rs:9-9 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-app/src/analysis/passes.rs:10-10 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-app/src/analysis/passes.rs:11-11 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-app/src/analysis/passes.rs:13-13 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-app/src/analysis/passes.rs:32-32 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-app/src/analysis/passes.rs:73-80 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-app/src/analysis/passes.rs:119-127 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-app/src/analysis/passes.rs:184-190 (DIFF_BASE, blob sha1:5c7dbc4bb4297ec6ec38d01aed10637efa265c98)
+  - crates/sych-core/src/model/budget.rs:3-3 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:5-5 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:7-7 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:8-8 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:9-9 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:16-16 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:26-26 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:27-27 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:34-34 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:43-43 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:44-44 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:51-51 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:58-58 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:67-67 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:74-74 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:90-90 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:109-109 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:121-121 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:122-122 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:152-152 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:204-204 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:205-205 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:223-223 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:226-226 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:227-227 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:245-245 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:245-263 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/budget.rs:247-247 (DIFF_BASE, blob sha1:ff84bc20274debba12087802515498e7acaf7f9f)
+  - crates/sych-core/src/model/router.rs:7-7 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:8-8 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:9-9 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:11-11 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:12-12 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:13-13 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:15-18 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:19-19 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:20-20 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:24-24 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:37-37 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:57-57 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:82-82 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:90-90 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:91-91 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:111-111 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:108-108 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:116-116 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:122-122 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:185-190 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/src/model/router.rs:185-190 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/tests/router.rs:4-4 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:5-5 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:6-6 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:7-7 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:8-8 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:10-10 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:11-14 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:15-15 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:19-19 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:24-24 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:39-39 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:87-87 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:112-112 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:139-139 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:160-160 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:179-179 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:205-205 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:228-228 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:245-245 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:275-275 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:279-279 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:295-295 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:296-296 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:303-303 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:321-321 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - limitation: macros are not expanded and types are not resolved: facts are shapes, and a missing fact is not proof of absence
+- a89363a0-5fe0-89f7-aaf9-e8b2b34f3faa static VALID PARTIAL DERIVED_LOCAL by syn 2
+  - crates/sych-app/src/analysis/passes.rs:3-7 (HEAD, blob sha1:d4abd3c11a04dfc13e787acdd58618cacc81ae87)
+  - crates/sych-app/src/analysis/passes.rs:8-8 (HEAD, blob sha1:d4abd3c11a04dfc13e787acdd58618cacc81ae87)
+  - crates/sych-app/src/analysis/passes.rs:9-9 (HEAD, blob sha1:d4abd3c11a04dfc13e787acdd58618cacc81ae87)
+  - crates/sych-app/src/analysis/passes.rs:10-10 (HEAD, blob sha1:d4abd3c11a04dfc13e787acdd58618cacc81ae87)
+  - crates/sych-app/src/analysis/passes.rs:11-11 (HEAD, blob sha1:d4abd3c11a04dfc13e787acdd58618cacc81ae87)
+  - crates/sych-app/src/analysis/passes.rs:13-13 (HEAD, blob sha1:d4abd3c11a04dfc13e787acdd58618cacc81ae87)
+  - crates/sych-app/src/analysis/passes.rs:32-32 (HEAD, blob sha1:d4abd3c11a04dfc13e787acdd58618cacc81ae87)
+  - crates/sych-app/src/analysis/passes.rs:73-80 (HEAD, blob sha1:d4abd3c11a04dfc13e787acdd58618cacc81ae87)
+  - crates/sych-app/src/analysis/passes.rs:119-127 (HEAD, blob sha1:d4abd3c11a04dfc13e787acdd58618cacc81ae87)
+  - crates/sych-app/src/analysis/passes.rs:184-190 (HEAD, blob sha1:d4abd3c11a04dfc13e787acdd58618cacc81ae87)
+  - crates/sych-core/src/model/budget.rs:3-3 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:5-5 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:7-7 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:8-8 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:9-9 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:16-16 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:25-25 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:41-41 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:42-42 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:49-49 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:58-58 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:59-59 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:66-66 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:73-73 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:82-82 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:89-89 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:105-105 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:124-124 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:136-136 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:137-137 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:167-167 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:219-219 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:220-220 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:238-238 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:241-241 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:242-242 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:260-260 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:260-278 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/budget.rs:262-262 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/router.rs:7-7 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:8-8 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:9-9 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:11-11 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:12-12 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:13-13 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:15-18 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:19-19 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:20-20 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:24-24 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:37-37 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:57-57 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:82-82 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:90-90 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:91-91 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:111-111 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:108-108 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:116-116 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:122-122 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:185-190 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:185-190 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:195-200 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:195-200 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:205-211 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/tests/router.rs:4-4 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:5-5 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:6-6 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:7-7 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:8-8 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:10-10 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:11-14 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:15-15 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:19-19 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:24-24 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:39-39 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:87-87 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:112-112 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:139-139 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:160-160 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:179-179 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:205-205 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:228-228 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:245-245 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:275-275 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:279-279 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:295-295 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:296-296 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:303-303 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:321-321 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:328-328 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - limitation: macros are not expanded and types are not resolved: facts are shapes, and a missing fact is not proof of absence
+- b6b06474-a0eb-8ed6-852f-df06bfbd05a3 semantic VALID PARTIAL DERIVED_LOCAL by rust-analyzer 0\.3.3089-standalone
+  - crates/sych-app/src/analysis/passes.rs:119-143 (HEAD, blob sha1:d4abd3c11a04dfc13e787acdd58618cacc81ae87)
+  - crates/sych-core/src/model/budget.rs:22-35 (HEAD, blob sha1:3f3ebcf0a98ad39839cd24bb17a461831cc0ff09)
+  - crates/sych-core/src/model/router.rs:184-192 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:194-203 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/src/model/router.rs:205-294 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/tests/router.rs:327-352 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - limitation: build scripts and proc-macros are not run: generated and macro-expanded items are missing, so absent references are not proof of absence
+  - limitation: only default features and the host cfg are analysed: code behind other features, targets or cfgs is not checked
+  - limitation: diagnostics are rust-analyzer native checks without proc-macros or cargo check; they are not CI facts and errors may be analysis artefacts
+- bf4d432e-67c4-80f5-8ac8-5c67688977ae source VALID COMPLETE_FOR_QUERY SOURCE_OBSERVATION by sych-broker 0\.1.0
+  - crates/sych-core/tests/router.rs:299-325 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:323-352 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/src/config/models.rs:137-145 (DIFF_BASE, blob sha1:efc12844f9de65c46ead77331653cb3867acc822)
+  - crates/sych-core/src/model/router.rs:55-79 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/tests/router.rs:4-15 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:19-19 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:293-297 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/src/config/models.rs:137-145 (HEAD, blob sha1:efc12844f9de65c46ead77331653cb3867acc822)
+  - crates/sych-core/src/model/router.rs:194-203 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/tests/common/mod.rs:17-21 (HEAD, blob sha1:0dbf1caea8fa1551d5d6013edd70f948b0ccedd3)
+  - crates/sych-core/tests/common/mod.rs:25-28 (HEAD, blob sha1:0dbf1caea8fa1551d5d6013edd70f948b0ccedd3)
+  - crates/sych-core/tests/common/mod.rs:31-36 (HEAD, blob sha1:0dbf1caea8fa1551d5d6013edd70f948b0ccedd3)
+  - crates/sych-core/tests/common/mod.rs:78-81 (HEAD, blob sha1:0dbf1caea8fa1551d5d6013edd70f948b0ccedd3)
+  - crates/sych-core/tests/common/mod.rs:179-191 (HEAD, blob sha1:0dbf1caea8fa1551d5d6013edd70f948b0ccedd3)
+  - crates/sych-core/tests/router.rs:4-15 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:19-19 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+- cf6b0854-1e6d-8655-938b-995f3ac6e139 source VALID COMPLETE_FOR_QUERY SOURCE_OBSERVATION by sych-broker 0\.1.0
+  - crates/sych-core/tests/router.rs:299-325 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:323-352 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/src/config/models.rs:137-145 (DIFF_BASE, blob sha1:efc12844f9de65c46ead77331653cb3867acc822)
+  - crates/sych-core/src/model/router.rs:55-79 (DIFF_BASE, blob sha1:7da8af27754987ccaed14e704cc36b90dbc505ec)
+  - crates/sych-core/tests/router.rs:4-15 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:19-19 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/tests/router.rs:293-297 (DIFF_BASE, blob sha1:32f06499ac77998239f3d2e2d8eb75cd588906c5)
+  - crates/sych-core/src/config/models.rs:137-145 (HEAD, blob sha1:efc12844f9de65c46ead77331653cb3867acc822)
+  - crates/sych-core/src/model/router.rs:194-203 (HEAD, blob sha1:852b475986306bac8d42e3267f4e872b0f9a0f1c)
+  - crates/sych-core/tests/common/mod.rs:17-21 (HEAD, blob sha1:0dbf1caea8fa1551d5d6013edd70f948b0ccedd3)
+  - crates/sych-core/tests/common/mod.rs:25-28 (HEAD, blob sha1:0dbf1caea8fa1551d5d6013edd70f948b0ccedd3)
+  - crates/sych-core/tests/common/mod.rs:31-36 (HEAD, blob sha1:0dbf1caea8fa1551d5d6013edd70f948b0ccedd3)
+  - crates/sych-core/tests/common/mod.rs:78-81 (HEAD, blob sha1:0dbf1caea8fa1551d5d6013edd70f948b0ccedd3)
+  - crates/sych-core/tests/common/mod.rs:179-191 (HEAD, blob sha1:0dbf1caea8fa1551d5d6013edd70f948b0ccedd3)
+  - crates/sych-core/tests/router.rs:4-15 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+  - crates/sych-core/tests/router.rs:19-19 (HEAD, blob sha1:8169f2ae6d0d7695b7ce5587b1c70735eafd7813)
+
+## Usage
+
+- model attempts: 4, tokens in/out: 24550/8909 (reasoning 6278 of output), attempts with unreported tokens: 0
+- known cost: 6833 micro-USD, attempts with unknown cost: 0, list-price estimate: 18058 micro-USD
+- route cheap\_api:deepseek/deepseek-v4.1-flash: api_usage, api_hard, 4 attempts
+- engine 0\.1.0+f8f841e906dc83c91cb8074f45753632ce3cb9a4, model adapters: cheap\_api:deepseek/deepseek-v4.1-flash

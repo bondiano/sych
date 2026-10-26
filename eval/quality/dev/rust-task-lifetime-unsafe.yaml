@@ -1,0 +1,39 @@
+schema_version: 1
+id: rust-task-lifetime-unsafe
+split: development
+language: rust
+pair: rust-task-lifetime
+variant: unsafe
+profiles: [correctness]
+rationale: "The flush is detached: shutdown returns before it finishes and its error is lost; the runtime may stop it mid-write."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub async fn shutdown(buffer: Buffer) -> Result<(), Error> {
+        flush(buffer).await?;
+        Ok(())
+    }
+head:
+  src/lib.rs: |
+    pub async fn shutdown(buffer: Buffer) -> Result<(), Error> {
+        tokio::spawn(flush(buffer));
+        Ok(())
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "buffer flush on shutdown"
+      required_condition: "the runtime shuts down right after shutdown() returns"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 2, end_line: 2 }
+  facts:
+    - { kind: detached_spawn, side: HEAD, path: src/lib.rs, line: 2 }

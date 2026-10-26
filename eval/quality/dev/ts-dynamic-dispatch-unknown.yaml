@@ -1,0 +1,43 @@
+schema_version: 1
+id: ts-dynamic-dispatch-unknown
+split: development
+language: typescript
+variant: unknown
+profiles: [correctness]
+rationale: "A handler is registered under a computed key; which events reach it depends on a runtime constant outside the snapshot."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/events.ts: |
+    const handlers: Record<string, (event: ShopEvent) => void> = {
+      'order.created': notifyWarehouse,
+      'order.paid': sendReceipt,
+    };
+
+    export function dispatch(event: ShopEvent) {
+      handlers[event.type]?.(event);
+    }
+head:
+  src/events.ts: |
+    const handlers: Record<string, (event: ShopEvent) => void> = {
+      'order.created': notifyWarehouse,
+      'order.paid': sendReceipt,
+      [`order.${REFUND}`]: refundPayment,
+    };
+
+    export function dispatch(event: ShopEvent) {
+      handlers[event.type]?.(event);
+    }
+expected:
+  forbidden_claims:
+    - "refundPayment is never called."
+    - "All event types have handlers."
+  unknown: "REFUND is defined elsewhere, so the event type routed to refundPayment cannot be determined statically."

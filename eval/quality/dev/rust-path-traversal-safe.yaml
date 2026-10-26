@@ -1,0 +1,53 @@
+schema_version: 1
+id: rust-path-traversal-safe
+split: development
+language: rust
+pair: rust-path-traversal
+variant: safe
+profiles: [correctness]
+rationale: "The decoded name is accepted only when every component is a normal file name, so `..`, `/` roots and prefixes are rejected before the join."
+base:
+  Cargo.toml: |
+    [package]
+    name = "avatars"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+    axum = "0.8"
+    tokio = { version = "1", features = ["fs"] }
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    use std::path::Path as FsPath;
+
+    use axum::extract::Path;
+    use axum::http::StatusCode;
+
+    const AVATAR_DIR: &str = "/var/lib/app/avatars";
+
+    pub async fn avatar(Path(user_id): Path<u64>) -> Result<Vec<u8>, StatusCode> {
+        let file = FsPath::new(AVATAR_DIR).join(format!("{user_id}.png"));
+        tokio::fs::read(file).await.map_err(|_| StatusCode::NOT_FOUND)
+    }
+head:
+  src/lib.rs: |
+    use std::path::{Component, Path as FsPath};
+
+    use axum::extract::Path;
+    use axum::http::StatusCode;
+
+    const AVATAR_DIR: &str = "/var/lib/app/avatars";
+
+    pub async fn avatar(Path(name): Path<String>) -> Result<Vec<u8>, StatusCode> {
+        let relative = FsPath::new(&name);
+        if !relative.components().all(|c| matches!(c, Component::Normal(_))) {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        let file = FsPath::new(AVATAR_DIR).join(relative);
+        tokio::fs::read(file).await.map_err(|_| StatusCode::NOT_FOUND)
+    }
+expected:
+  forbidden_claims:
+    - "The avatar handler allows path traversal."

@@ -1,0 +1,60 @@
+schema_version: 1
+id: react-wrapper-hook-unsafe
+split: development
+language: typescript
+pair: react-wrapper-hook
+variant: unsafe
+profiles: [correctness]
+rationale: "The effect moves into a project hook whose implementation lost the cleanup; the component looks clean, the wrapper leaks."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/Banner.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function Banner() {
+      const [width, setWidth] = useState(window.innerWidth);
+      useEffect(() => {
+        const onResize = () => setWidth(window.innerWidth);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+      }, []);
+      return <div className={width > 800 ? 'wide' : 'narrow'} />;
+    }
+head:
+  src/Banner.tsx: |
+    import { useWindowWidth } from './use-window-width';
+
+    export function Banner() {
+      const width = useWindowWidth();
+      return <div className={width > 800 ? 'wide' : 'narrow'} />;
+    }
+  src/use-window-width.ts: |
+    import { useEffect, useState } from 'react';
+
+    export function useWindowWidth() {
+      const [width, setWidth] = useState(window.innerWidth);
+      useEffect(() => {
+        const onResize = () => setWidth(window.innerWidth);
+        window.addEventListener('resize', onResize);
+      }, []);
+      return width;
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "resize listener lifetime"
+      required_condition: "the banner unmounts and remounts"
+      evidence_locations:
+        - { side: HEAD, path: src/use-window-width.ts, start_line: 5, end_line: 8 }
+  facts:
+    - { kind: custom_hook_call, side: HEAD, path: src/Banner.tsx, line: 4 }
+    - { kind: unpaired_listener, side: HEAD, path: src/use-window-width.ts, line: 5 }

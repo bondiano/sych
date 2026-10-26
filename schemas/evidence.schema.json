@@ -1,0 +1,265 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Evidence",
+  "type": "object",
+  "properties": {
+    "artifact_sha256": {
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "binding": {
+      "$ref": "#/$defs/EvidenceBinding"
+    },
+    "code_refs": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CodeRef"
+      }
+    },
+    "completeness": {
+      "$ref": "#/$defs/Completeness"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "kind": {
+      "$ref": "#/$defs/EvidenceKind"
+    },
+    "limitations": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "producer": {
+      "$ref": "#/$defs/Producer"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    },
+    "source_snapshot_id": {
+      "$ref": "#/$defs/SourceSnapshotId"
+    },
+    "trust_class": {
+      "$ref": "#/$defs/TrustClass"
+    },
+    "validity": {
+      "$ref": "#/$defs/Validity"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "kind",
+    "source_snapshot_id",
+    "producer",
+    "binding",
+    "validity",
+    "completeness",
+    "trust_class",
+    "artifact_sha256",
+    "observed_at"
+  ],
+  "$defs": {
+    "BindingKind": {
+      "type": "string",
+      "enum": [
+        "source",
+        "ci",
+        "environment"
+      ]
+    },
+    "CodeRef": {
+      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
+      "type": "object",
+      "properties": {
+        "blob_oid": {
+          "$ref": "#/$defs/GitObjectId"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "end_line": {
+          "description": "1-based, inclusive.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "path": {
+          "$ref": "#/$defs/RepoPath"
+        },
+        "side": {
+          "$ref": "#/$defs/SourceSide"
+        },
+        "snapshot_id": {
+          "$ref": "#/$defs/SourceSnapshotId"
+        },
+        "start_line": {
+          "description": "1-based, inclusive.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "side",
+        "path",
+        "blob_oid",
+        "start_line",
+        "end_line",
+        "content_sha256"
+      ]
+    },
+    "Completeness": {
+      "type": "string",
+      "enum": [
+        "COMPLETE_FOR_QUERY",
+        "PARTIAL",
+        "UNKNOWN"
+      ]
+    },
+    "EvidenceBinding": {
+      "description": "What the evidence was observed against.",
+      "type": "object",
+      "properties": {
+        "environment_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "head_oid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GitObjectId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/BindingKind"
+        },
+        "target_tip_oid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GitObjectId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tested_oid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GitObjectId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
+    "EvidenceKind": {
+      "type": "string",
+      "enum": [
+        "source",
+        "semantic",
+        "static",
+        "test",
+        "coverage",
+        "contract",
+        "infrastructure",
+        "human"
+      ]
+    },
+    "GitObjectId": {
+      "type": "string",
+      "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
+    },
+    "Producer": {
+      "type": "object",
+      "properties": {
+        "config_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sha256Digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ]
+    },
+    "RepoPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "Sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "SourceSide": {
+      "type": "string",
+      "enum": [
+        "DIFF_BASE",
+        "HEAD",
+        "TARGET_TIP"
+      ]
+    },
+    "SourceSnapshotId": {
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "TrustClass": {
+      "description": "Provenance class. `AuthenticatedCi` proves origin, not oracle independence from the author.",
+      "type": "string",
+      "enum": [
+        "TRUSTED_POLICY",
+        "SOURCE_OBSERVATION",
+        "DERIVED_LOCAL",
+        "AUTHENTICATED_CI",
+        "AUTHOR_CLAIM",
+        "HUMAN_ATTESTATION"
+      ]
+    },
+    "Validity": {
+      "type": "string",
+      "enum": [
+        "VALID",
+        "STALE",
+        "UNAVAILABLE",
+        "MALFORMED",
+        "FAILED"
+      ]
+    }
+  }
+}

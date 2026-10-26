@@ -1,0 +1,63 @@
+schema_version: 1
+id: ts-ssrf-safe
+split: development
+language: typescript
+pair: ts-ssrf
+variant: safe
+profiles: [correctness]
+rationale: "Only https URLs on a fixed allowlist of public image hosts are fetched, and redirects are refused so the allowlist cannot be bypassed."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {
+        "express": "^5.1.0"
+      }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/routes/avatar.ts: |
+    import { Router } from 'express';
+    import { saveAvatar } from '../storage';
+
+    export const avatar = Router();
+
+    avatar.put('/me/avatar', async (req, res) => {
+      await saveAvatar(req.user.id, req.body as Buffer);
+      res.sendStatus(204);
+    });
+head:
+  src/routes/avatar.ts: |
+    import { Router } from 'express';
+    import { saveAvatar } from '../storage';
+
+    const IMAGE_HOSTS = new Set(['images.unsplash.com', 'i.imgur.com', 'avatars.githubusercontent.com']);
+
+    export const avatar = Router();
+
+    avatar.put('/me/avatar', async (req, res) => {
+      await saveAvatar(req.user.id, req.body as Buffer);
+      res.sendStatus(204);
+    });
+
+    avatar.post('/me/avatar/import', async (req, res) => {
+      const url = URL.parse(String(req.body.url));
+      if (!url || url.protocol !== 'https:' || !IMAGE_HOSTS.has(url.hostname)) {
+        res.status(400).send('unsupported image host');
+        return;
+      }
+      const response = await fetch(url, { redirect: 'error' });
+      if (!response.ok) {
+        res.status(502).send('could not fetch image');
+        return;
+      }
+      await saveAvatar(req.user.id, Buffer.from(await response.arrayBuffer()));
+      res.sendStatus(204);
+    });
+expected:
+  forbidden_claims:
+    - "The avatar import allows SSRF to internal hosts."

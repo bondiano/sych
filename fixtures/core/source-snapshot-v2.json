@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "repository": "local:sych-fixture",
+  "target_ref": "refs/heads/main",
+  "target_tip": "sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "diff_base": "sha1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "head": "sha1:cccccccccccccccccccccccccccccccccccccccc",
+  "comparison": "MERGE_BASE",
+  "source_manifest_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "diff_manifest_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "created_at": "2026-10-23T00:00:00Z"
+}

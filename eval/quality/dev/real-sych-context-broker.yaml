@@ -1,0 +1,15 @@
+schema_version: 1
+id: real-sych-context-broker
+split: development
+language: rust
+variant: safe
+profiles: [correctness]
+rationale: "Sych commit adding the ContextBroker; no defect is known. Reviewers must not claim complete caller sets from LSP answers."
+# Historical refs before squash; --repo sych=PATH requires an archival clone.
+repository_fixture:
+  repo: sych
+  base_ref: "31632db~1"
+  head_ref: "31632db"
+expected:
+  forbidden_claims:
+    - "All callers of the changed functions were found."

@@ -1,0 +1,62 @@
+schema_version: 1
+id: ts-command-injection-unsafe
+split: development
+language: typescript
+pair: ts-command-injection
+variant: unsafe
+profiles: [correctness]
+rationale: "thumbnail switches from execFile to a shell command and interpolates the client-controlled `size`: `size=1;rm -rf ~` runs arbitrary commands on the server."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {
+        "express": "^5.1.0"
+      }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/thumbnail.ts: |
+    import { execFile } from 'node:child_process';
+    import { promisify } from 'node:util';
+
+    const run = promisify(execFile);
+
+    export async function thumbnail(src: string, dst: string): Promise<void> {
+      await run('magick', [src, '-resize', '200x200', dst]);
+    }
+head:
+  src/thumbnail.ts: |
+    import { exec } from 'node:child_process';
+    import { promisify } from 'node:util';
+
+    const run = promisify(exec);
+
+    export async function thumbnail(src: string, dst: string, size: string): Promise<void> {
+      await run(`magick ${src} -resize ${size} ${dst}`);
+    }
+  src/routes/thumbs.ts: |
+    import { Router } from 'express';
+    import { thumbnail } from '../thumbnail';
+
+    export const thumbs = Router();
+
+    thumbs.post('/images/:id/thumbnail', async (req, res) => {
+      const src = `uploads/${Number(req.params.id)}.png`;
+      const dst = `thumbs/${Number(req.params.id)}.png`;
+      await thumbnail(src, dst, String(req.query.size ?? '200x200'));
+      res.sendStatus(204);
+    });
+expected:
+  findings:
+    - category: defect
+      semantic_target: "command line run for thumbnails"
+      required_condition: "the size query parameter contains shell metacharacters"
+      evidence_locations:
+        - { side: HEAD, path: src/thumbnail.ts, start_line: 7, end_line: 7 }
+  forbidden_claims:
+    - "The size parameter cannot reach a shell."

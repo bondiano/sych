@@ -1,0 +1,11 @@
+# PR text alone cannot support an obligation (INV-19): the reducer keeps it UNKNOWN.
+schema_version: 1
+evidence:
+  - key: pr-description
+    kind: source
+    completeness: COMPLETE_FOR_QUERY
+    trust_class: AUTHOR_CLAIM
+assessments:
+  - rule_id: EFFECT-01
+    status: SUPPORTED
+    evidence: [pr-description]

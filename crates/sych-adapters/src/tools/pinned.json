@@ -1,0 +1,229 @@
+{
+  "tools": [
+    {
+      "name": "rust-analyzer",
+      "version": "2026-10-19",
+      "archive": "gzip",
+      "binary": "rust-analyzer",
+      "targets": {
+        "aarch64-linux": {
+          "url": "https://github.com/rust-lang/rust-analyzer/releases/download/2026-10-19/rust-analyzer-aarch64-unknown-linux-gnu.gz",
+          "sha256": "d31ee384ab788b9abd8e7aa8e1322f23e6cd4310471d373e9a79ce4656e21896"
+        },
+        "x86_64-linux": {
+          "url": "https://github.com/rust-lang/rust-analyzer/releases/download/2026-10-19/rust-analyzer-x86_64-unknown-linux-gnu.gz",
+          "sha256": "8fde1c9dae81459f98e99eedae3654846a9166abea686306c26e57773be558da"
+        },
+        "aarch64-macos": {
+          "url": "https://github.com/rust-lang/rust-analyzer/releases/download/2026-10-19/rust-analyzer-aarch64-apple-darwin.gz",
+          "sha256": "eedad08a96f7bf92afd0890463787337d17591ea2e3df216033c6bc3ccc9d802"
+        },
+        "x86_64-macos": {
+          "url": "https://github.com/rust-lang/rust-analyzer/releases/download/2026-10-19/rust-analyzer-x86_64-apple-darwin.gz",
+          "sha256": "bdfd46e82731a8d3502d852d28b6462c1f1c13eed0b3e76bbcf1ba839028249c"
+        }
+      }
+    },
+    {
+      "name": "typescript",
+      "version": "7.0.2",
+      "archive": "tar-gzip",
+      "binary": "package/lib/tsc",
+      "targets": {
+        "aarch64-linux": {
+          "url": "https://registry.npmjs.org/@typescript/typescript-linux-arm64/-/typescript-linux-arm64-7.0.2.tgz",
+          "sha256": "c83d931ac9dd7549cde6e71246aa9d6a9812843023df3e277fe3b5dcf41dd0ea"
+        },
+        "x86_64-linux": {
+          "url": "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.0.2.tgz",
+          "sha256": "7ecad6f67377e831856367ab062ef394f21506a611405bf8ac0ff039348637d3"
+        },
+        "aarch64-macos": {
+          "url": "https://registry.npmjs.org/@typescript/typescript-darwin-arm64/-/typescript-darwin-arm64-7.0.2.tgz",
+          "sha256": "902e2fe1cf0799198ef902c6b8c310a450fef629a6baba41d45641ef75c04ebd"
+        },
+        "x86_64-macos": {
+          "url": "https://registry.npmjs.org/@typescript/typescript-darwin-x64/-/typescript-darwin-x64-7.0.2.tgz",
+          "sha256": "eba158cb54050f723d5ff781438f33de5640054440bb4f2bd170cfe9bc2eb551"
+        }
+      }
+    },
+    {
+      "name": "pnpm",
+      "version": "12.14.0",
+      "archive": "tar-gzip",
+      "binary": "package/pnpm",
+      "targets": {
+        "aarch64-linux": {
+          "url": "https://registry.npmjs.org/@pnpm/exe.linux-arm64/-/exe.linux-arm64-12.14.0.tgz",
+          "sha256": "e7ca24224eb626a032828ec584c67903ad2f389911b849d009ed70a19f70d8d3"
+        },
+        "x86_64-linux": {
+          "url": "https://registry.npmjs.org/@pnpm/exe.linux-x64/-/exe.linux-x64-12.14.0.tgz",
+          "sha256": "1de98ed2e9621113b0887b06322b461efb9df73d913fc1d151039b10b7117a41"
+        },
+        "aarch64-macos": {
+          "url": "https://registry.npmjs.org/@pnpm/exe.darwin-arm64/-/exe.darwin-arm64-12.14.0.tgz",
+          "sha256": "06136920c9cccad4f615bb080e054d9ac086fedfc32497bd87a892b7a4586f6f"
+        },
+        "x86_64-macos": {
+          "url": "https://registry.npmjs.org/@pnpm/exe.darwin-x64/-/exe.darwin-x64-12.14.0.tgz",
+          "sha256": "4fe5aa6c0ba3013f8aefb1cc23dd3c54f7272814be4b0275eb4d6a98d7769e26"
+        }
+      }
+    },
+    {
+      "name": "go",
+      "version": "1.27.3",
+      "archive": "tar-gzip",
+      "binary": "go/bin/go",
+      "targets": {
+        "aarch64-linux": {
+          "url": "https://go.dev/dl/go1.27.3.linux-arm64.tar.gz",
+          "sha256": "a06e99309dbcbdca1a8ccd2282c3ee146e55930886e26b4f1193269587165f49"
+        },
+        "x86_64-linux": {
+          "url": "https://go.dev/dl/go1.27.3.linux-amd64.tar.gz",
+          "sha256": "65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40"
+        },
+        "aarch64-macos": {
+          "url": "https://go.dev/dl/go1.27.3.darwin-arm64.tar.gz",
+          "sha256": "dd3908cf20959d798c1e06ebe5b72213f0505ce01373b40ce3110975a6cd99c2"
+        },
+        "x86_64-macos": {
+          "url": "https://go.dev/dl/go1.27.3.darwin-amd64.tar.gz",
+          "sha256": "b6f8e931e4ab497fcde6da8ae4499a58f9d258e55c8a80824a516eae5950a750"
+        }
+      }
+    },
+    {
+      "name": "gopls",
+      "version": "0.24.0",
+      "archive": "go-module",
+      "binary": "gopls",
+      "module": "golang.org/x/tools/gopls@v0.24.0",
+      "targets": {
+        "aarch64-linux": {
+          "url": "https://proxy.golang.org/golang.org/x/tools/gopls/@v/v0.24.0.zip",
+          "sha256": "9cf3bf2df7d86b8b0feb651eb9e99ae4f3e764f19a6631a5faf646bdb4de9388"
+        },
+        "x86_64-linux": {
+          "url": "https://proxy.golang.org/golang.org/x/tools/gopls/@v/v0.24.0.zip",
+          "sha256": "9cf3bf2df7d86b8b0feb651eb9e99ae4f3e764f19a6631a5faf646bdb4de9388"
+        },
+        "aarch64-macos": {
+          "url": "https://proxy.golang.org/golang.org/x/tools/gopls/@v/v0.24.0.zip",
+          "sha256": "9cf3bf2df7d86b8b0feb651eb9e99ae4f3e764f19a6631a5faf646bdb4de9388"
+        },
+        "x86_64-macos": {
+          "url": "https://proxy.golang.org/golang.org/x/tools/gopls/@v/v0.24.0.zip",
+          "sha256": "9cf3bf2df7d86b8b0feb651eb9e99ae4f3e764f19a6631a5faf646bdb4de9388"
+        }
+      }
+    },
+    {
+      "name": "ruff",
+      "version": "0.17.2",
+      "archive": "tar-gzip",
+      "binary": "ruff",
+      "targets": {
+        "aarch64-linux": {
+          "url": "https://github.com/astral-sh/ruff/releases/download/0.17.2/ruff-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "468f29d64949574f0d28442c02f0b4fb680cff7ba8fc26b6287a73b945308e1c",
+          "binary": "ruff-aarch64-unknown-linux-gnu/ruff"
+        },
+        "x86_64-linux": {
+          "url": "https://github.com/astral-sh/ruff/releases/download/0.17.2/ruff-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "7b2e6a6e132ecf7b5fe726163b186d5d209befe93bb25f83767b2d97fbdf14e5",
+          "binary": "ruff-x86_64-unknown-linux-gnu/ruff"
+        },
+        "aarch64-macos": {
+          "url": "https://github.com/astral-sh/ruff/releases/download/0.17.2/ruff-aarch64-apple-darwin.tar.gz",
+          "sha256": "94fbca85f19e8b6bb068adb7cbc9a74e3e6c01004cc67c6b00246a094ad4ccd9",
+          "binary": "ruff-aarch64-apple-darwin/ruff"
+        },
+        "x86_64-macos": {
+          "url": "https://github.com/astral-sh/ruff/releases/download/0.17.2/ruff-x86_64-apple-darwin.tar.gz",
+          "sha256": "db57a84e385435a2c4a7c8946e588f79b9de0851d8618a1b5d4431edfff0bf01",
+          "binary": "ruff-x86_64-apple-darwin/ruff"
+        }
+      }
+    },
+    {
+      "name": "oxlint",
+      "version": "1.89.0",
+      "archive": "tar-gzip",
+      "binary": "oxlint",
+      "targets": {
+        "aarch64-linux": {
+          "url": "https://github.com/oxc-project/oxc/releases/download/oxlint_v1.89.0/oxlint-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "69b3680c38b21395d4ea509fbd1019fa011db0cd717dd7be2ede2575cb6f7915",
+          "binary": "oxlint-aarch64-unknown-linux-gnu"
+        },
+        "x86_64-linux": {
+          "url": "https://github.com/oxc-project/oxc/releases/download/oxlint_v1.89.0/oxlint-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "88492c336807a34062fa540416fe75037c04bcce1ed77824e3db3aaec215949a",
+          "binary": "oxlint-x86_64-unknown-linux-gnu"
+        },
+        "aarch64-macos": {
+          "url": "https://github.com/oxc-project/oxc/releases/download/oxlint_v1.89.0/oxlint-aarch64-apple-darwin.tar.gz",
+          "sha256": "fa4349f33b24221e2d303ace66de3dac2ff756eab48126b2cb58429ed36bccbc",
+          "binary": "oxlint-aarch64-apple-darwin"
+        },
+        "x86_64-macos": {
+          "url": "https://github.com/oxc-project/oxc/releases/download/oxlint_v1.89.0/oxlint-x86_64-apple-darwin.tar.gz",
+          "sha256": "198261cfb91c0f0387c55642ba5c2c4aa2c3cf9593188f86187c759f280bae88",
+          "binary": "oxlint-x86_64-apple-darwin"
+        }
+      }
+    },
+    {
+      "name": "actionlint",
+      "version": "1.7.12",
+      "archive": "tar-gzip",
+      "binary": "actionlint",
+      "targets": {
+        "aarch64-linux": {
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_arm64.tar.gz",
+          "sha256": "325e971b6ba9bfa504672e29be93c24981eeb1c07576d730e9f7c8805afff0c6"
+        },
+        "x86_64-linux": {
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+          "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        },
+        "aarch64-macos": {
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_darwin_arm64.tar.gz",
+          "sha256": "aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f"
+        },
+        "x86_64-macos": {
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_darwin_amd64.tar.gz",
+          "sha256": "5b44c3bc2255115c9b69e30efc0fecdf498fdb63c5d58e17084fd5f16324c644"
+        }
+      }
+    },
+    {
+      "name": "zizmor",
+      "version": "1.31.1",
+      "archive": "tar-gzip",
+      "binary": "zizmor",
+      "targets": {
+        "aarch64-linux": {
+          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "37eebbd5762a44f262d94875431b14a6d2402991e90a685113ea97b8b41be833"
+        },
+        "x86_64-linux": {
+          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99"
+        },
+        "aarch64-macos": {
+          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-aarch64-apple-darwin.tar.gz",
+          "sha256": "ad5aa633cd56215b11e6c51d51f90c7e6b22904a75047d1215abbd422f61d698"
+        },
+        "x86_64-macos": {
+          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-x86_64-apple-darwin.tar.gz",
+          "sha256": "72ae63bb85b67229c06242f04195cb43927e9fab5f43803c6434dc701a517d61"
+        }
+      }
+    }
+  ]
+}

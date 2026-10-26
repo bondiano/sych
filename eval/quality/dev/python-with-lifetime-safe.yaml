@@ -1,0 +1,33 @@
+schema_version: 1
+id: python-with-lifetime-safe
+split: development
+language: python
+pair: python-with-lifetime
+variant: safe
+profiles: [correctness, side_effects]
+rationale: "Only the row encoding changes; every write stays inside the `with` block that closes the file."
+base:
+  app/__init__.py: ""
+  app/export.py: |
+    import json
+
+
+    def export(path, rows):
+        with open(path, "w") as f:
+            for row in rows:
+                f.write(json.dumps(row) + "\n")
+head:
+  app/export.py: |
+    import json
+
+
+    def export(path, rows):
+        with open(path, "w") as f:
+            for row in rows:
+                f.write(json.dumps(row, sort_keys=True) + "\n")
+expected:
+  facts:
+    - { kind: resource_scope, side: HEAD, path: app/export.py, line: 5 }
+    - { kind: write_call, side: HEAD, path: app/export.py, line: 7 }
+  forbidden_claims:
+    - "The export file is left open."

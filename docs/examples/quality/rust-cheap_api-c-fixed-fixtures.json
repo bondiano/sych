@@ -1,0 +1,3486 @@
+{
+  "suite": "eval/quality/dev",
+  "models": "cheap_api",
+  "variant": "C",
+  "semantic": true,
+  "runs_per_case": 2,
+  "skipped": [],
+  "totals": {
+    "runs": 96,
+    "errors": 0,
+    "expected_findings": 36,
+    "matched_expected": 31,
+    "correctness_findings": 49,
+    "labelled_findings": 35,
+    "clean_runs": 50,
+    "clean_runs_with_correctness_finding": 10,
+    "clean_runs_with_false_finding": 1,
+    "tolerated_findings": 8,
+    "overrated_nits": 1,
+    "unknown_runs": 10,
+    "unknown_kept": 5,
+    "obligation_checks": 26,
+    "obligation_agreements": 22,
+    "nits": 17,
+    "expected_nits": 12,
+    "matched_nits": 9,
+    "model_attempts": 239,
+    "cost_known_micro_usd": 168579,
+    "unknown_cost_attempts": 0,
+    "nit_recall": 0.75,
+    "precision": 0.7142857142857143,
+    "recall": 0.8611111111111112,
+    "clean_false_positive_rate": 0.2,
+    "clean_false_finding_rate": 0.02,
+    "unknown_kept_rate": 0.5
+  },
+  "by_language": {
+    "rust": {
+      "runs": 96,
+      "errors": 0,
+      "expected_findings": 36,
+      "matched_expected": 31,
+      "correctness_findings": 49,
+      "labelled_findings": 35,
+      "clean_runs": 50,
+      "clean_runs_with_correctness_finding": 10,
+      "clean_runs_with_false_finding": 1,
+      "tolerated_findings": 8,
+      "overrated_nits": 1,
+      "unknown_runs": 10,
+      "unknown_kept": 5,
+      "obligation_checks": 26,
+      "obligation_agreements": 22,
+      "nits": 17,
+      "expected_nits": 12,
+      "matched_nits": 9,
+      "model_attempts": 239,
+      "cost_known_micro_usd": 168579,
+      "unknown_cost_attempts": 0,
+      "nit_recall": 0.75,
+      "precision": 0.7142857142857143,
+      "recall": 0.8611111111111112,
+      "clean_false_positive_rate": 0.2,
+      "clean_false_finding_rate": 0.02,
+      "unknown_kept_rate": 0.5
+    }
+  },
+  "runs": [
+    {
+      "id": "clean-rust-extract-function",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17702-31dc-76ce-9c3f-0217b44e1fd4",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1857,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "clean-rust-extract-function",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17702-caad-72a8-b59f-f03364a028f7",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1047,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-atomic-ptr",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17703-3ccf-7153-b660-83cc7ce9ca74",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 1,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1782,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-atomic-ptr",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17703-cd66-7454-844f-c223ee97b8a3",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 1,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "IMPROVEMENT",
+            "title": "AtomicUsize interning of a pointer is less idiomatic than AtomicPtr",
+            "at": [
+              "src/current.rs:8-8",
+              "src/current.rs:11-11",
+              "src/current.rs:15-15",
+              "src/current.rs:17-17"
+            ],
+            "labelled": true
+          },
+          {
+            "category": "RULE_VIOLATION",
+            "title": "EFFECT-02 violated: Failure, cancellation and lifetime behaviour is kept",
+            "at": [
+              "src/current.rs:1-15",
+              "src/current.rs:1-18"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2806,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-history-comment",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17705-629f-747d-a388-b89b82894944",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 1,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1056,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-history-comment",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17705-e0eb-7414-8a76-d818f70ebdec",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "NIT",
+            "title": "Clamp constant 10 is undocumented relative to MAX_DELAY",
+            "at": [
+              "src/backoff.rs:7-9"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1662,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-inline-helper",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17706-7d78-72c8-b8aa-6b4961205343",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "NIT",
+            "title": "Test does not distinguish clamping from always returning `i32::MAX`",
+            "at": [
+              "src/listen.rs:17-17",
+              "src/listen.rs:9-10"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1633,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-inline-helper",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17707-1ca9-7107-b51c-1b0a944050b7",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "IMPROVEMENT",
+            "title": "Test covers only the saturating input",
+            "at": [
+              "src/listen.rs:16-17",
+              "src/listen.rs:9-11"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1589,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-must-use",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17707-b8f7-71ea-b0ad-66ad97e6a133",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 1,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1831,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-must-use",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17708-75ed-77ef-82cf-0506d97ca8ef",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "NIT",
+            "title": "`timeout` lacks `#[must_use]` unlike `new`/`header`",
+            "at": [
+              "src/builder.rs:22-24",
+              "src/builder.rs:11-16"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 976,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-reread-in-loop",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17708-e12a-761c-be16-9b4a624c89e8",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "IMPROVEMENT",
+            "title": "Loop re-reads settings().line_width() already bound as width",
+            "at": [
+              "src/render.rs:5-6",
+              "src/render.rs:2-2"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1151,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nit-rust-reread-in-loop",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17709-6841-756a-854b-a41bb5223204",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "IMPROVEMENT",
+            "title": "Redundant doc.settings().line_width() call inside block loop",
+            "at": [
+              "src/render.rs:2-2",
+              "src/render.rs:5-6"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1429,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nitpick-doc-typo",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1770a-2c23-7304-9327-f528a36c9390",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "NIT",
+            "title": "Doc comment misspells 'service' as 'servcie'",
+            "at": [
+              "src/total.rs:1-1"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 620,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "nitpick-doc-typo",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1770a-7f9a-737c-8fc1-2e68a32a58ee",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 1,
+        "matched_nits": 1,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "NIT",
+            "title": "Misspelled 'servcie' in HEAD doc comment",
+            "at": [
+              "src/total.rs:1-1"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1783,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "real-sych-context-broker",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1770b-23e7-76ba-af77-4fd5d9cd6068",
+        "recommendation": "NEEDS_EVIDENCE",
+        "coverage": "PARTIAL",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "NIT",
+            "title": "Stderr-dumping assertion message applied to `show` but not the adjacent `explain` status check",
+            "at": [
+              "crates/sych-app/tests/cli.rs:143-148",
+              "crates/sych-app/tests/cli.rs:161-161"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 6,
+        "cost_known_micro_usd": 11006,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "real-sych-context-broker",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1770c-fe98-71d2-a7bc-7606848c91f5",
+        "recommendation": "NEEDS_EVIDENCE",
+        "coverage": "PARTIAL",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "NIT",
+            "title": "explain exit-code assertion still lacks stderr diagnostic",
+            "at": [
+              "crates/sych-app/tests/cli.rs:143-148",
+              "crates/sych-app/tests/cli.rs:161-161"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 5,
+        "cost_known_micro_usd": 7077,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-async-cancellation-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1770f-062b-775d-a7ff-a0dd61657dbd",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "tolerated_findings": 1,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Closed stop channel now ends pump instead of being ignored",
+            "at": [
+              "src/lib.rs:8-8",
+              "src/lib.rs:5-5"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1661,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-async-cancellation-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1770f-cc17-7136-a44f-3048f7663fbf",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2356,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-async-cancellation-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17711-4209-7496-b380-19720609cc5d",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2063,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-async-cancellation-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17712-3c24-7264-b91b-4e8cf3e729eb",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2456,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-blocking-in-async-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17713-5d8a-7072-b9af-236b128cbb28",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1548,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-blocking-in-async-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17714-7572-702a-8726-51463daf5bf1",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "IMPROVEMENT",
+            "title": "Backoff now applies to every error kind",
+            "at": [
+              "src/lib.rs:2-2",
+              "src/lib.rs:5-5",
+              "src/lib.rs:5-5"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1683,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-blocking-in-async-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17715-5daa-73e0-a7c2-260600e50fd3",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "PARTIAL",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "std::thread::sleep blocks the async executor thread during retry backoff",
+            "at": [
+              "src/lib.rs:5-5",
+              "src/lib.rs:1-1"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1142,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-blocking-in-async-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17715-df3d-71ca-b74e-f497c934b147",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "PARTIAL",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Blocking std::thread::sleep inside async send_with_retry stalls the runtime thread",
+            "at": [
+              "src/lib.rs:1-1",
+              "src/lib.rs:5-5"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1282,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-cfg-feature-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17716-9f2b-7317-8bd5-4b6b2917ef27",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1751,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-cfg-feature-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17717-7c2b-763a-a3aa-1b23977c4017",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1036,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-cfg-feature-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17718-0d34-7125-8eda-313ee4df806a",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "`record` is feature-gated but `checkout` still calls it unconditionally",
+            "at": [
+              "src/lib.rs:1-4",
+              "Cargo.toml:9-9",
+              "src/lib.rs:5-8"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 820,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-cfg-feature-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17718-7069-7501-959d-223d57a1dbad",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "cfg-gated `record` contradicts the unguarded call in `checkout`",
+            "at": [
+              "src/lib.rs:1-2",
+              "src/lib.rs:5-6"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1752,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-cfg-target-unknown",
+      "language": "rust",
+      "variant": "unknown",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17719-9287-7685-9b9e-c8e09cbd97c1",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": false,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 919,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-cfg-target-unknown",
+      "language": "rust",
+      "variant": "unknown",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1771a-2569-73af-ab00-6cb52d491f9c",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": false,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1103,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-command-injection-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1771a-c65b-7548-819a-b5d5e3bf7317",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "tolerated_findings": 1,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "New required branch field breaks existing request bodies at deserialization",
+            "at": [
+              "src/lib.rs:5-8",
+              "src/lib.rs:5-9"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2227,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-command-injection-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1771b-f8eb-70c1-b5db-95acbbe2330e",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "tolerated_findings": 1,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Required branch field breaks existing preview request payloads",
+            "at": [
+              "src/lib.rs:5-8",
+              "src/lib.rs:6-8"
+            ],
+            "labelled": false
+          },
+          {
+            "category": "IMPROVEMENT",
+            "title": "Empty branch is not validated before git invocation",
+            "at": [
+              "src/lib.rs:14-20"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1609,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-command-injection-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1771c-ee72-7128-be95-3a7523219d96",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Shell injection in git clone via sh -c",
+            "at": [
+              "src/lib.rs:12-18",
+              "src/lib.rs:18-18"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2009,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-command-injection-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1771d-c202-747b-856c-cdd6ae372690",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Shell injection via unescaped branch and repo_url in sh -c",
+            "at": [
+              "src/lib.rs:5-8",
+              "src/lib.rs:12-18"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2136,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-error-handling-weakened-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1771e-a8b6-769a-9daf-4eae1e4d41f1",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1718,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-error-handling-weakened-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1771f-6fe7-75cf-87a2-7f2a60722ec6",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1137,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-error-handling-weakened-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17720-047b-73fa-8d6a-17bf2bd7b4dc",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 2,
+        "labelled_findings": 2,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "unwrap panics where BASE returned Err",
+            "at": [
+              "src/parse.rs:2-2",
+              "src/parse.rs:3-3"
+            ],
+            "labelled": true
+          },
+          {
+            "category": "RULE_VIOLATION",
+            "title": "TEST-INTEGRITY violated: Important checks are not weakened",
+            "at": [
+              "src/parse.rs:1-4",
+              "src/parse.rs:1-5"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1663,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-error-handling-weakened-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17720-9f14-7589-a84b-24ade898c829",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "parse_amount unwraps parse instead of returning ParseError::NotANumber",
+            "at": [
+              "src/parse.rs:1-3",
+              "src/parse.rs:2-2"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1253,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-lock-across-await-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17721-26fc-728f-9ec4-b80093b51e7d",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Hit counter incremented before remote await counts cancelled lookups",
+            "at": [
+              "src/lib.rs:9-11",
+              "src/lib.rs:9-14"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1310,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-lock-across-await-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17721-c15d-7564-816c-e935019f1070",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2289,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-lock-across-await-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17722-e8dc-77dc-9189-3025841ba2b6",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "std::sync::MutexGuard held across await makes the future non-Send and holds the lock for the remote round-trip",
+            "at": [
+              "src/lib.rs:9-11",
+              "src/lib.rs:9-10"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2021,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-lock-across-await-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17723-97ae-72be-813c-d1c84c476b0d",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "std::sync::Mutex guard for `hits` is held across `remote.get(key).await`",
+            "at": [
+              "src/lib.rs:9-11",
+              "src/lib.rs:4-4",
+              "src/lib.rs:1-1"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1192,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-log-secrets-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17724-27b5-7022-b6dd-8f6a667cf5d1",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "PRIV-01",
+            "expected": "SUPPORTED",
+            "actual": "SUPPORTED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 566,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-log-secrets-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17724-61cf-7149-8c34-37b7bfb056e1",
+        "recommendation": "NEEDS_EVIDENCE",
+        "coverage": "PARTIAL",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "PRIV-01",
+            "expected": "SUPPORTED",
+            "actual": "UNKNOWN"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 3,
+        "cost_known_micro_usd": 960,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-log-secrets-unknown",
+      "language": "rust",
+      "variant": "unknown",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17724-c887-7252-bcdf-43a773766365",
+        "recommendation": "NEEDS_EVIDENCE",
+        "coverage": "PARTIAL",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "PRIV-01",
+            "expected": "UNKNOWN",
+            "actual": "UNKNOWN"
+          }
+        ],
+        "unknown_kept": true,
+        "findings": [],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 1561,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-log-secrets-unknown",
+      "language": "rust",
+      "variant": "unknown",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17725-6d61-77ae-89e1-1dd5843f52a7",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "PRIV-01",
+            "expected": "UNKNOWN",
+            "actual": "VIOLATED"
+          }
+        ],
+        "unknown_kept": false,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "PRIV-01 violated: No credentials or prompt text in logs",
+            "at": [
+              "src/lib.rs:1-12",
+              "src/lib.rs:1-12"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 1920,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-log-secrets-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17726-3166-76a0-b3a3-4571cdce6ee1",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "PRIV-01",
+            "expected": "VIOLATED",
+            "actual": "VIOLATED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "HEAD debug log emits API key and full request body",
+            "at": [
+              "src/lib.rs:3-3",
+              "src/lib.rs:3-3",
+              "src/lib.rs:7-7"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 1275,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-log-secrets-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17726-aafe-76ff-b92e-9871f793fa50",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "PRIV-01",
+            "expected": "VIOLATED",
+            "actual": "VIOLATED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "Debug event now logs provider API key and full request body",
+            "at": [
+              "src/lib.rs:3-3",
+              "src/lib.rs:3-3"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 1357,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-paid-fallback-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17727-22bc-747c-a1e5-2fdf08dfa843",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "ROUTE-01",
+            "expected": "SUPPORTED",
+            "actual": "SUPPORTED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 974,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-paid-fallback-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17727-729d-70be-a580-02a6d7902007",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "ROUTE-01",
+            "expected": "SUPPORTED",
+            "actual": "SUPPORTED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 443,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-paid-fallback-unknown",
+      "language": "rust",
+      "variant": "unknown",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17727-adc5-758d-ae23-9f0de359888e",
+        "recommendation": "NEEDS_EVIDENCE",
+        "coverage": "PARTIAL",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "ROUTE-01",
+            "expected": "UNKNOWN",
+            "actual": "UNKNOWN"
+          }
+        ],
+        "unknown_kept": true,
+        "findings": [],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 1807,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-paid-fallback-unknown",
+      "language": "rust",
+      "variant": "unknown",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17728-5482-76ed-97c0-5dd09f718db8",
+        "recommendation": "NEEDS_EVIDENCE",
+        "coverage": "PARTIAL",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "ROUTE-01",
+            "expected": "UNKNOWN",
+            "actual": "UNKNOWN"
+          }
+        ],
+        "unknown_kept": true,
+        "findings": [],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 1426,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-paid-fallback-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17728-d87b-776c-930f-f361d4059831",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "ROUTE-01",
+            "expected": "VIOLATED",
+            "actual": "VIOLATED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "QuotaExhausted arm selects a healthy route without a billing filter",
+            "at": [
+              "src/lib.rs:6-6",
+              "src/lib.rs:1-1"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 2401,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-paid-fallback-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17729-c248-759d-bb36-d24a596a3ada",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "ROUTE-01",
+            "expected": "VIOLATED",
+            "actual": "VIOLATED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "QuotaExhausted arm now accepts non-subscription healthy routes",
+            "at": [
+              "src/lib.rs:6-6",
+              "src/lib.rs:6-6",
+              "src/lib.rs:5-5"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 1980,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-path-traversal-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1772a-9c2b-7019-b390-69ed2731368e",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "IMPROVEMENT",
+            "title": "Lexical component whitelist does not block symlink escape from AVATAR_DIR",
+            "at": [
+              "src/lib.rs:10-13"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1717,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-path-traversal-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1772b-8668-726b-b8f7-f5a5afac8c33",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2386,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-path-traversal-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1772c-cfd2-77d1-bc08-38ef1ebc2022",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Path traversal in avatar handler",
+            "at": [
+              "src/lib.rs:8-8",
+              "src/lib.rs:9-9",
+              "src/lib.rs:10-10"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1886,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-path-traversal-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1772d-c2de-7173-b2a8-42f7adb4b831",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Base appended `.png`, HEAD joins the caller string without any suffix constraint",
+            "at": [
+              "src/lib.rs:9-9",
+              "src/lib.rs:9-9"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1677,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-raii-guard-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1772e-95d0-725e-b933-8e514da98978",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 1,
+        "cost_known_micro_usd": 236,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-raii-guard-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1772e-cd75-72a1-adff-ac53e647dce3",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 1,
+        "cost_known_micro_usd": 256,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-raii-guard-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1772f-0c10-70be-8cbd-f70962e4121b",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "EFFECT-02 violated: Failure, cancellation and lifetime behaviour is kept",
+            "at": [
+              "src/lib.rs:6-13",
+              "src/lib.rs:6-12",
+              "src/lib.rs:1-1",
+              "src/lib.rs:1-1"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2372,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-raii-guard-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1772f-cded-700b-a5d6-752436be7bab",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 2,
+        "labelled_findings": 2,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Per-append sort removed, ordering no longer maintained in append",
+            "at": [
+              "src/lib.rs:11-11",
+              "src/lib.rs:10-10"
+            ],
+            "labelled": true
+          },
+          {
+            "category": "RULE_VIOLATION",
+            "title": "EFFECT-02 violated: Failure, cancellation and lifetime behaviour is kept",
+            "at": [
+              "src/lib.rs:6-13",
+              "src/lib.rs:6-12",
+              "src/lib.rs:1-1",
+              "src/lib.rs:1-1"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2327,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-result-propagation-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17730-86a2-7433-bbb7-3f3e4635f8f9",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "EFFECT-01",
+            "expected": "SUPPORTED",
+            "actual": "SUPPORTED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 743,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-result-propagation-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17730-d36b-740a-8fb1-3bad0f68abe0",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "EFFECT-01",
+            "expected": "SUPPORTED",
+            "actual": "SUPPORTED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 431,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-result-propagation-unknown",
+      "language": "rust",
+      "variant": "unknown",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17731-1260-7672-af24-11b0a433cd36",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "EFFECT-01",
+            "expected": "UNKNOWN",
+            "actual": "VIOLATED"
+          }
+        ],
+        "unknown_kept": false,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "EFFECT-01 violated: Stored order publishes order-created",
+            "at": [
+              "src/lib.rs:6-12",
+              "src/lib.rs:6-12"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 1140,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-result-propagation-unknown",
+      "language": "rust",
+      "variant": "unknown",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17731-ad87-72c6-ab53-c5f9fdb2e5c5",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "EFFECT-01",
+            "expected": "UNKNOWN",
+            "actual": "VIOLATED"
+          }
+        ],
+        "unknown_kept": false,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "EFFECT-01 violated: Stored order publishes order-created",
+            "at": [
+              "src/lib.rs:6-12",
+              "src/lib.rs:6-12"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 1383,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-result-propagation-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17732-2a30-70a5-897d-bd98f4b4b8d0",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "EFFECT-01",
+            "expected": "VIOLATED",
+            "actual": "VIOLATED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Order-created publish error swallowed by `let _ =`, so save returns Ok",
+            "at": [
+              "src/lib.rs:9-9",
+              "src/lib.rs:9-9"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 1466,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-result-propagation-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17732-9ec3-7112-81df-0f8b0361ef89",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "EFFECT-01",
+            "expected": "VIOLATED",
+            "actual": "VIOLATED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "Publish error is discarded in Store::save",
+            "at": [
+              "src/lib.rs:9-9",
+              "src/lib.rs:9-9"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 1699,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-serde-contract-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17733-2e63-75fa-aaa9-aa4ee107661f",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "NIT",
+            "title": "`#[serde(default)]` is inert without Deserialize",
+            "at": [
+              "src/view.rs:3-7"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1119,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-serde-contract-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17733-ba50-73f5-b29b-5d59bd2a2cd5",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "NIT",
+            "title": "Useless serde(default) on a Serialize-only struct",
+            "at": [
+              "src/view.rs:3-4",
+              "src/view.rs:7-8"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2860,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-serde-contract-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17735-24a7-7512-98fd-642f0b35c655",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1141,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-serde-contract-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17735-d3d7-774b-b276-32bceee54f09",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 912,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-sql-injection-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17736-65bc-7141-bf08-dbe9072003e6",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "tolerated_findings": 1,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "LIKE metacharacters in term act as wildcards",
+            "at": [
+              "src/lib.rs:18-20",
+              "src/lib.rs:20-20"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2276,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-sql-injection-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17737-9deb-7029-904b-8ddf1551f67d",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "tolerated_findings": 1,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Unescaped `term` in LIKE pattern enables wildcard injection",
+            "at": [
+              "src/lib.rs:17-20"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1503,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-sql-injection-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17738-81cf-7275-8c64-8643b0ec33f3",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "LIKE metacharacters in `term` are not escaped",
+            "at": [
+              "src/lib.rs:17-17"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1381,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-sql-injection-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17739-367a-72e7-bc96-ef53205ab22e",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "search interpolates term into SQL text instead of binding it",
+            "at": [
+              "src/lib.rs:17-17",
+              "src/lib.rs:18-18"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1417,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-task-lifetime-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1773a-1643-72d8-a7d1-65481e21c56c",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "tolerated_findings": 1,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Spawning flush makes shutdown no longer cancel-safe",
+            "at": [
+              "src/lib.rs:2-3",
+              "src/lib.rs:2-2"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1971,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-task-lifetime-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1773b-3c45-7220-9b56-130d20bdcd06",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2060,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-task-lifetime-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1773c-6fe8-7674-888f-c96d634ea8a2",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "shutdown detaches flush, discarding its Result and returning early",
+            "at": [
+              "src/lib.rs:2-2",
+              "src/lib.rs:3-3"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1010,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-task-lifetime-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1773c-d14f-76b8-a2b9-88aab996ee8d",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "Spawned flush error silently discarded",
+            "at": [
+              "src/lib.rs:2-2",
+              "src/lib.rs:2-2",
+              "src/lib.rs:3-3"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1131,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-test-ignored",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1773d-3b83-763a-881a-d29d056866cd",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "PARTIAL",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 2,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "EFFECT-01",
+            "expected": "VIOLATED",
+            "actual": "VIOLATED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "save now discards the publish result",
+            "at": [
+              "src/lib.rs:9-9",
+              "src/lib.rs:9-9",
+              "src/lib.rs:10-10"
+            ],
+            "labelled": true
+          },
+          {
+            "category": "DEFECT",
+            "title": "failed_publication_fails_the_save is marked #[ignore]",
+            "at": [
+              "src/lib.rs:19-19",
+              "src/lib.rs:20-22"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 3051,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-test-ignored",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1773e-0437-732f-81a3-13c7042f4614",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 3,
+        "labelled_findings": 2,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "EFFECT-01",
+            "expected": "VIOLATED",
+            "actual": "VIOLATED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "Discarded publish result makes failed publication return Ok",
+            "at": [
+              "src/lib.rs:9-10",
+              "src/lib.rs:9-9",
+              "src/lib.rs:9-9"
+            ],
+            "labelled": true
+          },
+          {
+            "category": "DEFECT",
+            "title": "ob-1 regression test is now ignored",
+            "at": [
+              "src/lib.rs:19-22",
+              "src/lib.rs:18-22"
+            ],
+            "labelled": false
+          },
+          {
+            "category": "RULE_VIOLATION",
+            "title": "EFFECT-02 violated: Failure, cancellation and lifetime behaviour is kept",
+            "at": [
+              "src/lib.rs:6-12",
+              "src/lib.rs:15-22",
+              "src/lib.rs:6-12",
+              "src/lib.rs:16-23",
+              "src/lib.rs:1-4",
+              "src/lib.rs:1-4"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 2798,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-trait-api-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1773e-d74e-7444-b471-12e6635f70a8",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 1,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "IMPROVEMENT",
+            "title": "Default `exists` delegates to full-row `find`",
+            "at": [
+              "src/store.rs:4-6",
+              "src/store.rs:2-2"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 928,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-trait-api-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a1773f-4bb4-77ca-b623-35920361dc98",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 767,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-trait-api-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a1773f-b4b5-767f-8555-5115d40028fd",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Query failure masked as 404 by `.ok().flatten()` in `find`",
+            "at": [
+              "src/store.rs:6-7",
+              "src/api.rs:2-4"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1272,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-trait-api-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17740-3427-72c2-94e9-ebd4c95511d4",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Store errors are collapsed into not-found results",
+            "at": [
+              "src/store.rs:2-2",
+              "src/api.rs:2-2",
+              "src/store.rs:2-2",
+              "src/store.rs:7-7",
+              "src/api.rs:2-2",
+              "src/api.rs:4-4"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1414,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-unbounded-read-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17740-e0a6-77e3-9599-1c1f7e669f91",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "tolerated_findings": 1,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "All to_bytes errors reported as 413 PAYLOAD_TOO_LARGE",
+            "at": [
+              "src/lib.rs:8-10"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2164,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-unbounded-read-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17741-d6da-7559-8041-5d40968be292",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 1,
+        "labelled_findings": 0,
+        "tolerated_findings": 1,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "All body errors collapsed to 413",
+            "at": [
+              "src/lib.rs:8-10"
+            ],
+            "labelled": false
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 2730,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-unbounded-read-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17743-12a9-72da-b20d-bf71d82cff63",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1779,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-unbounded-read-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17743-debb-77f4-94c9-85d31c9b3858",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Request body is buffered with no size limit",
+            "at": [
+              "src/lib.rs:4-4",
+              "src/lib.rs:4-7",
+              "src/lib.rs:1-1"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 2,
+        "cost_known_micro_usd": 1900,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-unknown-charge-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17744-bfc6-7287-9779-6b7ff80334b3",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "BILL-01",
+            "expected": "SUPPORTED",
+            "actual": "SUPPORTED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 2266,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-unknown-charge-safe",
+      "language": "rust",
+      "variant": "safe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17745-6325-7457-9087-3edb0f1f0dd9",
+        "recommendation": "NO_BLOCKING_FINDINGS_IN_SCOPE",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "BILL-01",
+            "expected": "SUPPORTED",
+            "actual": "SUPPORTED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 3100,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-unknown-charge-unknown",
+      "language": "rust",
+      "variant": "unknown",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17746-71cd-7670-ac9f-3e0ddaeb7018",
+        "recommendation": "NEEDS_EVIDENCE",
+        "coverage": "PARTIAL",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "BILL-01",
+            "expected": "UNKNOWN",
+            "actual": "UNKNOWN"
+          }
+        ],
+        "unknown_kept": true,
+        "findings": [],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 2239,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-unknown-charge-unknown",
+      "language": "rust",
+      "variant": "unknown",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17747-2f2c-76f8-b4e6-c96c568a6c11",
+        "recommendation": "NEEDS_EVIDENCE",
+        "coverage": "PARTIAL",
+        "expected_findings": 0,
+        "matched_expected": 0,
+        "correctness_findings": 0,
+        "labelled_findings": 0,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "BILL-01",
+            "expected": "UNKNOWN",
+            "actual": "UNKNOWN"
+          }
+        ],
+        "unknown_kept": true,
+        "findings": [],
+        "model_attempts": 5,
+        "cost_known_micro_usd": 2559,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-unknown-charge-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 1,
+      "error": null,
+      "measured": {
+        "run_id": "01a17748-1024-7080-ab7b-49d477d31113",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "BILL-01",
+            "expected": "VIOLATED",
+            "actual": "VIOLATED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "DEFECT",
+            "title": "Timeout outcome settles as Known(MicroUsd(0)) instead of the reserved charge",
+            "at": [
+              "src/lib.rs:3-7",
+              "src/lib.rs:5-5"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 1812,
+        "unknown_cost_attempts": 0
+      }
+    },
+    {
+      "id": "rust-unknown-charge-unsafe",
+      "language": "rust",
+      "variant": "unsafe",
+      "run": 2,
+      "error": null,
+      "measured": {
+        "run_id": "01a17748-c3ac-724e-b0e0-783bbb28e641",
+        "recommendation": "ATTENTION_REQUIRED",
+        "coverage": "COMPLETE_FOR_SCOPE",
+        "expected_findings": 1,
+        "matched_expected": 1,
+        "correctness_findings": 1,
+        "labelled_findings": 1,
+        "tolerated_findings": 0,
+        "overrated_nits": 0,
+        "nits": 0,
+        "expected_nits": 0,
+        "matched_nits": 0,
+        "obligations": [
+          {
+            "rule_id": "BILL-01",
+            "expected": "VIOLATED",
+            "actual": "VIOLATED"
+          }
+        ],
+        "unknown_kept": null,
+        "findings": [
+          {
+            "category": "RULE_VIOLATION",
+            "title": "Timeout now settles as Known(MicroUsd(0)), dropping the reserved charge",
+            "at": [
+              "src/lib.rs:5-5",
+              "src/lib.rs:5-5",
+              "src/lib.rs:3-7"
+            ],
+            "labelled": true
+          }
+        ],
+        "model_attempts": 4,
+        "cost_known_micro_usd": 1189,
+        "unknown_cost_attempts": 0
+      }
+    }
+  ]
+}

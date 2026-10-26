@@ -1,0 +1,4 @@
+# Proposed by a reviewed head: raises context beyond the server ceiling and drops rules.
+schema_version: 1
+context:
+  max_tokens_per_request: 1000000

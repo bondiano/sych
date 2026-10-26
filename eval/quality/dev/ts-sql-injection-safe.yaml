@@ -1,0 +1,55 @@
+schema_version: 1
+id: ts-sql-injection-safe
+split: development
+language: typescript
+pair: ts-sql-injection
+variant: safe
+profiles: [correctness]
+rationale: "The search passes `q` as the bound parameter $1 and builds the LIKE pattern inside SQL, so the input is never parsed as SQL."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {
+        "express": "^5.1.0",
+        "pg": "^8.13.0"
+      }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/routes/products.ts: |
+    import { Router } from 'express';
+    import { Pool } from 'pg';
+
+    const db = new Pool();
+
+    export const products = Router();
+
+    products.get('/products', async (_req, res) => {
+      const { rows } = await db.query('SELECT id, name, price FROM products ORDER BY name');
+      res.json(rows);
+    });
+head:
+  src/routes/products.ts: |
+    import { Router } from 'express';
+    import { Pool } from 'pg';
+
+    const db = new Pool();
+
+    export const products = Router();
+
+    products.get('/products', async (req, res) => {
+      const q = String(req.query.q ?? '');
+      const { rows } = await db.query(
+        "SELECT id, name, price FROM products WHERE name ILIKE '%' || $1 || '%' ORDER BY name",
+        [q],
+      );
+      res.json(rows);
+    });
+expected:
+  forbidden_claims:
+    - "The product search is vulnerable to SQL injection."

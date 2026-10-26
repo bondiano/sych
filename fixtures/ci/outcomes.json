@@ -1,0 +1,3 @@
+{"schema_version": 1,
+ "commands": [{"name": "cargo test --all-features", "exit_code": 101}],
+ "tests": [{"name": "saves", "suite": "store", "file": "tests/lib_test.rs", "status": "PASSED", "message": null}]}

@@ -1,0 +1,44 @@
+schema_version: 1
+id: clean-ts-rename
+split: development
+language: typescript
+variant: safe
+profiles: [correctness]
+rationale: "A local variable is renamed; the rendered output is identical."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/Clock.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function Clock() {
+      const [now, setNow] = useState(Date.now());
+      useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+      }, []);
+      return <time>{new Date(now).toLocaleTimeString()}</time>;
+    }
+head:
+  src/Clock.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function Clock() {
+      const [current, setCurrent] = useState(Date.current());
+      useEffect(() => {
+        const timer = setInterval(() => setCurrent(Date.current()), 1000);
+        return () => clearInterval(timer);
+      }, []);
+      return <time>{new Date(current).toLocaleTimeString()}</time>;
+    }
+expected:
+  forbidden_facts:
+    - { kind: unpaired_timer, side: HEAD, path: src/Clock.tsx, line: 5 }

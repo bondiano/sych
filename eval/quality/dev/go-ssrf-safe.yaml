@@ -1,0 +1,60 @@
+schema_version: 1
+id: go-ssrf-safe
+split: development
+language: go
+pair: go-ssrf
+variant: safe
+profiles: [correctness]
+rationale: "Only https URLs on an allowlist of video hosts are fetched, and the client refuses redirects so the allowlist cannot be bypassed."
+base:
+  go.mod: |
+    module example.com/unfurl
+
+    go 1.24
+  unfurl.go: |
+    package unfurl
+
+    import (
+    	"io"
+    	"net/http"
+    )
+
+    func Preview(w http.ResponseWriter, r *http.Request) {
+    	w.Header().Set("Content-Type", "text/plain")
+    	io.WriteString(w, "link previews are disabled")
+    }
+head:
+  unfurl.go: |
+    package unfurl
+
+    import (
+    	"errors"
+    	"io"
+    	"net/http"
+    	"net/url"
+    )
+
+    var allowedHosts = map[string]bool{"youtube.com": true, "www.youtube.com": true, "vimeo.com": true}
+
+    var client = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+    	return errors.New("redirects are not followed")
+    }}
+
+    func Preview(w http.ResponseWriter, r *http.Request) {
+    	target, err := url.Parse(r.URL.Query().Get("url"))
+    	if err != nil || target.Scheme != "https" || !allowedHosts[target.Hostname()] {
+    		http.Error(w, "unsupported url", http.StatusBadRequest)
+    		return
+    	}
+    	resp, err := client.Get(target.String())
+    	if err != nil {
+    		http.Error(w, "fetch failed", http.StatusBadGateway)
+    		return
+    	}
+    	defer resp.Body.Close()
+    	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
+    	io.Copy(w, io.LimitReader(resp.Body, 1<<20))
+    }
+expected:
+  forbidden_claims:
+    - "Preview allows SSRF."

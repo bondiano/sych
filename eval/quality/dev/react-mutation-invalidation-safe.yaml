@@ -1,0 +1,43 @@
+schema_version: 1
+id: react-mutation-invalidation-safe
+split: development
+language: typescript
+pair: react-mutation-invalidation
+variant: safe
+profiles: [correctness]
+rationale: "Invalidation moves to onSettled, so it also runs after a failed rename."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/use-rename-order.ts: |
+    import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+    export function useRenameOrder() {
+      const client = useQueryClient();
+      return useMutation({
+        mutationFn: renameOrder,
+        onSuccess: () => client.invalidateQueries({ queryKey: ['orders'] }),
+      });
+    }
+head:
+  src/use-rename-order.ts: |
+    import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+    export function useRenameOrder() {
+      const client = useQueryClient();
+      return useMutation({
+        mutationFn: renameOrder,
+        onSettled: () => client.invalidateQueries({ queryKey: ['orders'] }),
+      });
+    }
+expected:
+  facts:
+    - { kind: invalidation_call, side: HEAD, path: src/use-rename-order.ts, line: 7 }

@@ -1,0 +1,403 @@
+//! Model passes of one review (spec §16.1): required assessments first, so discovery can
+//! never spend the verification reserve; then the independent high-risk audit, discovery
+//! with typed context asks, and verification of every candidate. A discovery batch that
+//! shows an obligation whole assesses it in the same call (`review@1`), which comes first.
+//! Each pass goes through the gateway and ledger; a failed or denied pass leaves an
+//! explicit gap.
+
+use std::cmp::Reverse;
+
+use serde::Serialize;
+use sych_adapters::git::LocalSnapshot;
+use sych_core::analysis::{
+    self, AssessmentRecord, Context, Discovered, merge_overlapping, prompts,
+};
+use sych_core::broker::{EvidencePacket, OpStatus, REQUIRED_OVER_BUDGET};
+use sych_core::config::{BillingKind, Enforcement, ReasoningEffort, Role};
+use sych_core::model::{
+    AttemptRecord, HopRecord, Ledger, ModelProvider, RoutePlan, Router, TaskFailure,
+};
+use sych_core::{
+    Assessment, Candidate, CodeRef, Evidence, FeeShare, Finding, NOT_ASSESSED, ObligationId,
+    ObligationStatus, PlannedObligation, ReviewPlan, ReviewUnitId, RiskLevel, RunFacts,
+    SchemaVersion,
+};
+
+mod parts;
+mod passes;
+
+use parts::{Reviewed, Task};
+
+/// Answers kept per context ask; each is a span the verifier sees.
+const MAX_REFS_PER_ANSWER: usize = 3;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PassStatus {
+    Done,
+    Failed { failure: TaskFailure },
+    Skipped { reason: String },
+}
+
+/// One planned model call and what happened to it; no prompt text.
+#[derive(Debug, Clone, Serialize)]
+pub struct Pass {
+    pub template: String,
+    /// Packets shown in the call; a discovery batch shows several.
+    pub packets: Vec<usize>,
+    pub obligation_id: Option<ObligationId>,
+    pub status: PassStatus,
+    pub attempt_ids: Vec<sych_core::AttemptId>,
+    /// The parent run whose checkpoint answered; no call was made.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reused_from: Option<sych_core::RunId>,
+    /// Why the accepted answer was not checkpointed; a successor asks again.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checkpoint_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AskAnswer {
+    pub packet: usize,
+    pub question: String,
+    pub operation: analysis::AskOperation,
+    pub status: Option<OpStatus>,
+    pub refs: usize,
+    pub limitations: Vec<String>,
+}
+
+/// One profile the run's plan may dispatch to.
+#[derive(Debug, Clone, Serialize)]
+pub struct PlannedRoute {
+    pub profile: String,
+    pub model: String,
+    /// Profile settings sent with each request; the app fills them from the resolved profile.
+    pub reasoning_effort: Option<ReasoningEffort>,
+    pub upstreams: Vec<String>,
+    pub billing: BillingKind,
+    pub enforcement: Enforcement,
+    /// The subscription fee of the month the run fell in; API routes have none.
+    pub fixed_fee: Option<FeeShare>,
+}
+
+/// The `analysis` artifact: routes, passes, accepted and refused model output, attempts.
+#[derive(Debug, Clone, Serialize)]
+pub struct AnalysisRecord {
+    pub schema_version: SchemaVersion,
+    /// Chains per role and their revision, fixed for the run.
+    pub plan: RoutePlan,
+    /// The resolved profiles of the plan, primary of the reviewer first.
+    pub routes: Vec<PlannedRoute>,
+    pub passes: Vec<Pass>,
+    pub assessments: Vec<AssessmentRecord>,
+    pub discovered: Vec<Discovered>,
+    pub answers: Vec<AskAnswer>,
+    pub candidates: Vec<Candidate>,
+    pub attempts: Vec<AttemptRecord>,
+    /// Every profile each task visited, with why it moved on or stopped.
+    pub hops: Vec<HopRecord>,
+}
+
+pub struct Outcome {
+    pub assessments: Vec<Assessment>,
+    pub candidates: Vec<Candidate>,
+    pub findings: Vec<Finding>,
+    pub record: AnalysisRecord,
+    /// A budget, deadline, attempt or output limit stopped some pass.
+    pub limit_reached: bool,
+    /// Failed passes and dropped model output, for the result's unresolved questions.
+    pub gaps: Vec<String>,
+    /// Open model questions: reported, but they do not lower coverage.
+    pub questions: Vec<String>,
+}
+
+pub struct Engine<'a, P, L> {
+    pub router: Router<'a, P, L>,
+    pub snap: &'a LocalSnapshot,
+    pub plan: &'a ReviewPlan,
+    pub packets: &'a [EvidencePacket],
+    /// Source evidence of each packet, aligned with `packets`.
+    pub packet_evidence: &'a [Evidence],
+    pub facts: &'a RunFacts,
+    pub evidence: &'a [Evidence],
+    /// Locations existing diagnostics already report.
+    pub known: Vec<CodeRef>,
+    /// Shown tokens one discovery request may batch (`context.max_tokens_per_request`).
+    pub batch_tokens: u32,
+    /// The independent high-risk search; off only for an evaluation baseline.
+    pub risk_audit: bool,
+    /// Verification of candidates; off only for evaluation baseline A (one reviewer).
+    pub verify: bool,
+    /// Model calls in flight at once (`budgets.analysis.max_parallel_calls`), at least 1.
+    pub parallel: usize,
+}
+
+fn needs_assessment(planned: &PlannedObligation) -> bool {
+    matches!(&planned.obligation.status,
+        ObligationStatus::Unknown { reason_code, .. } if reason_code == NOT_ASSESSED)
+}
+
+impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
+    /// Resolved profiles of the plan in chain order, the reviewer's primary first.
+    fn routes(&self) -> Vec<PlannedRoute> {
+        let r = &self.router;
+        let period = (r.now)().strftime("%Y-%m").to_string();
+        let mut names: Vec<&String> = Vec::new();
+        for name in r.plan.chains.values().flatten() {
+            if !names.contains(&name) {
+                names.push(name);
+            }
+        }
+        if let Some(primary) = r.plan.chains.get(&Role::Reviewer).and_then(|c| c.first()) {
+            names.retain(|n| *n != primary);
+            names.insert(0, primary);
+        }
+
+        names
+            .into_iter()
+            .filter_map(|name| r.hops.get(name)?.as_ref().ok())
+            .map(|hop| PlannedRoute {
+                profile: hop.route.profile.clone(),
+                model: hop.route.model.clone(),
+                reasoning_effort: None,
+                upstreams: Vec::new(),
+                billing: hop.route.billing,
+                enforcement: hop.route.enforcement,
+                fixed_fee: hop
+                    .fixed_fee
+                    .filter(|_| hop.route.billing == BillingKind::SubscriptionQuota)
+                    .map(|fee| FeeShare {
+                        period: period.clone(),
+                        amount: fee.amount_micro_usd,
+                        allocated: fee.allocated_micro_usd,
+                    }),
+            })
+            .collect()
+    }
+
+    pub async fn run(&self) -> Outcome {
+        let mut out = self.part();
+        out.record.routes = self.routes();
+        let mut planned: Vec<&PlannedObligation> = self
+            .plan
+            .obligations
+            .iter()
+            .filter(|o| needs_assessment(o))
+            .collect();
+        planned.sort_by_key(|o| (!o.obligation.required, Reverse(o.obligation.risk_level)));
+
+        // Obligations a discovery batch shows whole are assessed in that batch's one call.
+        let batches = self.discovery_batches();
+        let mut assessing: Vec<Task<'_, Option<Reviewed<'_>>>> = Vec::new();
+        let mut assessed_in_review = Vec::new();
+        for batch in &batches {
+            let (context, linked) = self.batch_view(batch);
+            let assessed: Vec<usize> = (0..linked.len())
+                .filter(|&i| {
+                    planned
+                        .iter()
+                        .any(|p| p.obligation.id == linked[i].obligation.id)
+                        && self.shown_whole(linked[i].obligation.id, batch)
+                })
+                .collect();
+            if assessed.is_empty() {
+                continue;
+            }
+
+            assessed_in_review.extend(assessed.iter().map(|&i| linked[i].obligation.id));
+            assessing.push(Box::pin(async move {
+                let mut part = self.part();
+                let (context, found) = self
+                    .review(batch, &linked, &assessed, context, &mut part)
+                    .await;
+                (part, Some((batch, linked, context, found)))
+            }));
+        }
+        for obligation in planned
+            .iter()
+            .filter(|o| !assessed_in_review.contains(&o.obligation.id))
+        {
+            assessing.push(Box::pin(async move {
+                let mut part = self.part();
+                self.assess(obligation, &mut part).await;
+                (part, None)
+            }));
+        }
+        let mut reviewed = Vec::new();
+        for (part, review) in self.each(assessing).await {
+            out.absorb(part);
+            reviewed.extend(review);
+        }
+
+        let done: Vec<&Vec<usize>> = reviewed.iter().map(|(batch, ..)| *batch).collect();
+        let mut searching: Vec<Task<'_, ()>> = Vec::new();
+        for obligation in planned
+            .iter()
+            .filter(|o| self.risk_audit && o.obligation.risk_level >= RiskLevel::High)
+        {
+            if let Some(index) = self.verification_packet(obligation.obligation.id) {
+                searching.push(Box::pin(async move {
+                    (self.audit(obligation, index).await, ())
+                }));
+            }
+        }
+        for (batch, linked, context, found) in reviewed {
+            searching.push(Box::pin(async move {
+                let mut part = self.part();
+                self.verify(batch, &linked, context, found, &mut part).await;
+                (part, ())
+            }));
+        }
+        for batch in batches.iter().filter(|b| !done.contains(b)) {
+            searching.push(Box::pin(async move { (self.search(batch).await, ()) }));
+        }
+        for (part, ()) in self.each(searching).await {
+            out.absorb(part);
+        }
+        out.findings = merge_overlapping(out.findings);
+        out.record.candidates.clone_from(&out.candidates);
+        out
+    }
+
+    /// The independent search for one high-risk obligation and verification of what it found.
+    async fn audit(&self, obligation: &PlannedObligation, index: usize) -> Outcome {
+        let mut part = self.part();
+        let mut context = self.context(index);
+        let prompt = prompts::risk_audit(&context, obligation);
+        let ids = [obligation.obligation.id];
+        let found = self
+            .discover(
+                &[index],
+                Some(obligation.obligation.id),
+                &prompt,
+                &context,
+                &ids,
+                &mut part,
+            )
+            .await;
+        if let Some(found) = &found {
+            self.answer(index, &found.asks, &mut context, &mut part);
+        }
+
+        self.verify(&[index], &[obligation], context, found, &mut part)
+            .await;
+        part
+    }
+
+    /// Discovery of one batch, its context asks answered, and verification.
+    async fn search(&self, batch: &[usize]) -> Outcome {
+        let mut part = self.part();
+        let (mut context, linked) = self.batch_view(batch);
+        let ids: Vec<ObligationId> = linked.iter().map(|o| o.obligation.id).collect();
+        let prompt = prompts::discovery(&context, &linked, &self.title(batch));
+        let found = self
+            .discover(batch, None, &prompt, &context, &ids, &mut part)
+            .await;
+        if let Some(found) = &found {
+            self.answer(batch[0], &found.asks, &mut context, &mut part);
+        }
+
+        self.verify(batch, &linked, context, found, &mut part).await;
+        part
+    }
+
+    /// Consecutive discovery packets whose shown tokens fit one request: one call for a small
+    /// PR instead of one per review unit (spec §16.1).
+    fn discovery_batches(&self) -> Vec<Vec<usize>> {
+        let mut batches: Vec<(Vec<usize>, u32)> = Vec::new();
+        for (i, packet) in self.packets.iter().enumerate() {
+            if packet.request.obligation_id.is_some() {
+                continue;
+            }
+
+            let tokens = packet.usage.tokens;
+            match batches.last_mut() {
+                Some((batch, used)) if *used + tokens <= self.batch_tokens => {
+                    batch.push(i);
+                    *used += tokens;
+                }
+                _ => batches.push((vec![i], tokens)),
+            }
+        }
+        batches.into_iter().map(|(batch, _)| batch).collect()
+    }
+
+    fn verification_packet(&self, obligation: ObligationId) -> Option<usize> {
+        self.packets
+            .iter()
+            .position(|p| p.request.obligation_id == Some(obligation))
+    }
+
+    fn context(&self, index: usize) -> Context {
+        let mut context = Context::default();
+        context.add_packet(
+            &self.packets[index],
+            &self.packet_evidence[index],
+            self.snap,
+        );
+        context
+    }
+
+    /// The spans of a discovery batch and the obligations linked to its units.
+    fn batch_view(&self, batch: &[usize]) -> (Context, Vec<&PlannedObligation>) {
+        let mut context = Context::default();
+        for &i in batch {
+            context.add_packet(&self.packets[i], &self.packet_evidence[i], self.snap);
+        }
+
+        let units: Vec<ReviewUnitId> = batch
+            .iter()
+            .flat_map(|&i| self.packets[i].request.review_unit_ids.iter().copied())
+            .collect();
+        let linked = self
+            .plan
+            .obligations
+            .iter()
+            .filter(|o| {
+                o.obligation
+                    .review_unit_ids
+                    .iter()
+                    .any(|u| units.contains(u))
+            })
+            .collect();
+        (context, linked)
+    }
+
+    fn title(&self, batch: &[usize]) -> String {
+        batch
+            .iter()
+            .map(|&i| self.packets[i].request.question.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// Whether every span of the obligation's verification packet lies inside the batch's
+    /// spans, with no required span left over the budget.
+    fn shown_whole(&self, obligation: ObligationId, batch: &[usize]) -> bool {
+        let Some(packet) = self
+            .verification_packet(obligation)
+            .map(|i| &self.packets[i])
+        else {
+            return false;
+        };
+        let shown: Vec<&CodeRef> = batch
+            .iter()
+            .flat_map(|&i| &self.packets[i].fragments)
+            .map(|f| &f.code_ref)
+            .collect();
+        let inside = |r: &CodeRef| {
+            shown.iter().any(|s| {
+                s.side == r.side
+                    && s.path == r.path
+                    && s.blob_oid == r.blob_oid
+                    && s.start_line <= r.start_line
+                    && r.end_line <= s.end_line
+            })
+        };
+        packet
+            .excluded
+            .iter()
+            .all(|e| e.reason != REQUIRED_OVER_BUDGET)
+            && packet.fragments.iter().all(|f| inside(&f.code_ref))
+    }
+}

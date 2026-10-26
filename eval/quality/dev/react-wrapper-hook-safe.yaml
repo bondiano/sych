@@ -1,0 +1,59 @@
+schema_version: 1
+id: react-wrapper-hook-safe
+split: development
+language: typescript
+pair: react-wrapper-hook
+variant: safe
+profiles: [correctness]
+rationale: "The effect moves into a project hook unchanged, cleanup included."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/Banner.tsx: |
+    import { useEffect, useState } from 'react';
+
+    export function Banner() {
+      const [width, setWidth] = useState(window.innerWidth);
+      useEffect(() => {
+        const onResize = () => setWidth(window.innerWidth);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+      }, []);
+      return <div className={width > 800 ? 'wide' : 'narrow'} />;
+    }
+head:
+  src/Banner.tsx: |
+    import { useWindowWidth } from './use-window-width';
+
+    export function Banner() {
+      const width = useWindowWidth();
+      return <div className={width > 800 ? 'wide' : 'narrow'} />;
+    }
+  src/use-window-width.ts: |
+    import { useEffect, useState } from 'react';
+
+    export function useWindowWidth() {
+      const [width, setWidth] = useState(window.innerWidth);
+      useEffect(() => {
+        const onResize = () => setWidth(window.innerWidth);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+      }, []);
+      return width;
+    }
+expected:
+  facts:
+    - { kind: custom_hook_call, side: HEAD, path: src/Banner.tsx, line: 4 }
+    - { kind: effect_with_cleanup, side: HEAD, path: src/use-window-width.ts, line: 5 }
+  forbidden_facts:
+    - { kind: unpaired_listener, side: HEAD, path: src/use-window-width.ts, line: 5 }
+  forbidden_claims:
+    - "The listener is no longer removed."

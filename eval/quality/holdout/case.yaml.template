@@ -1,0 +1,28 @@
+# Holdout case template (spec §27.3). Copy to <id>.yaml; the file name must equal `id`.
+# `sych eval validate --suite eval/quality/holdout --repo sych=. --repo vkusori=../vkusori` checks it.
+schema_version: 1
+id: vkusori-<topic>-<variant>
+split: holdout
+language: typescript            # typescript | rust | go (go counts only from M3)
+pair: vkusori-<topic>           # optional; a pair needs both safe and unsafe
+variant: unsafe                 # safe | unsafe | unknown
+profiles: [correctness]         # correctness | project_rules | side_effects | nitpicks | …
+rationale: "What the change does and why it is (not) correct, in one or two sentences."
+repository_fixture:
+  repo: vkusori                 # name given with --repo NAME=PATH
+  base_ref: "<commit>~1"
+  head_ref: "<commit>"
+expected:
+  # For rule-backed cases: the rule must exist in .sych/rules.yaml at base_ref.
+  obligations: []
+  #   - { rule_id: EFFECT-01, expected_status: VIOLATED }
+  findings:
+    - category: defect          # defect | rule_violation | nitpick
+      semantic_target: "what breaks, by meaning"
+      required_condition: "when it breaks"
+      evidence_locations:
+        - { side: HEAD, path: src/…, start_line: 1, end_line: 1 }
+  # Remarks a review must not make, matched by meaning.
+  forbidden_claims: []
+  # For `unknown` cases only: what cannot be decided from the available evidence.
+  # unknown: "…"

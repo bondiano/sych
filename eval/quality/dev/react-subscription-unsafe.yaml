@@ -1,0 +1,49 @@
+schema_version: 1
+id: react-subscription-unsafe
+split: development
+language: typescript
+pair: react-subscription
+variant: unsafe
+profiles: [correctness]
+rationale: "The block body no longer returns the unsubscribe function, so the store keeps a listener per mount."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/CartBadge.tsx: |
+    import { useEffect, useState } from 'react';
+    import { cartStore } from './cart-store';
+
+    export function CartBadge() {
+      const [count, setCount] = useState(cartStore.count());
+      useEffect(() => cartStore.subscribe(() => setCount(cartStore.count())), []);
+      return <span className="badge">{count}</span>;
+    }
+head:
+  src/CartBadge.tsx: |
+    import { useEffect, useState } from 'react';
+    import { cartStore } from './cart-store';
+
+    export function CartBadge() {
+      const [count, setCount] = useState(cartStore.count());
+      useEffect(() => {
+        cartStore.subscribe(() => setCount(cartStore.count()));
+      }, []);
+      return <span className="badge">{count}</span>;
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "cart store subscription lifetime"
+      required_condition: "the badge unmounts"
+      evidence_locations:
+        - { side: HEAD, path: src/CartBadge.tsx, start_line: 7, end_line: 7 }
+  facts:
+    - { kind: unpaired_subscription, side: HEAD, path: src/CartBadge.tsx, line: 6 }

@@ -1,0 +1,46 @@
+[package]
+name = "sych-adapters"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+readme = "README.md"
+description = "Sych adapters: Git, model, pinned tools and semantic providers"
+
+[dependencies]
+base64.workspace = true
+flate2.workspace = true
+jiff.workspace = true
+oxc_allocator.workspace = true
+oxc_ast.workspace = true
+oxc_ast_visit.workspace = true
+oxc_parser.workspace = true
+oxc_span.workspace = true
+oxc_syntax.workspace = true
+proc-macro2.workspace = true
+quick-xml.workspace = true
+quote.workspace = true
+reqwest.workspace = true
+ring.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+sha2.workspace = true
+sych-core.workspace = true
+syn.workspace = true
+tar.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["io-util", "process", "time"] }
+toml.workspace = true
+tree-sitter.workspace = true
+tree-sitter-go.workspace = true
+tree-sitter-python.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "net", "io-util"] }
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

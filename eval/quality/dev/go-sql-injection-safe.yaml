@@ -1,0 +1,62 @@
+schema_version: 1
+id: go-sql-injection-safe
+split: development
+language: go
+pair: go-sql-injection
+variant: safe
+profiles: [correctness]
+rationale: "The author is passed as the placeholder argument $1 to db.Query, so it is never parsed as SQL."
+base:
+  go.mod: |
+    module example.com/posts
+
+    go 1.24
+  posts.go: |
+    package posts
+
+    import "database/sql"
+
+    type Post struct {
+    	ID    int64
+    	Title string
+    }
+
+    func Recent(db *sql.DB) ([]Post, error) {
+    	rows, err := db.Query("SELECT id, title FROM posts ORDER BY created_at DESC LIMIT 20")
+    	if err != nil {
+    		return nil, err
+    	}
+    	defer rows.Close()
+    	return scan(rows)
+    }
+head:
+  posts.go: |
+    package posts
+
+    import "database/sql"
+
+    type Post struct {
+    	ID    int64
+    	Title string
+    }
+
+    func Recent(db *sql.DB) ([]Post, error) {
+    	rows, err := db.Query("SELECT id, title FROM posts ORDER BY created_at DESC LIMIT 20")
+    	if err != nil {
+    		return nil, err
+    	}
+    	defer rows.Close()
+    	return scan(rows)
+    }
+
+    func ByAuthor(db *sql.DB, author string) ([]Post, error) {
+    	rows, err := db.Query("SELECT id, title FROM posts WHERE author = $1 ORDER BY created_at DESC", author)
+    	if err != nil {
+    		return nil, err
+    	}
+    	defer rows.Close()
+    	return scan(rows)
+    }
+expected:
+  forbidden_claims:
+    - "ByAuthor is vulnerable to SQL injection."

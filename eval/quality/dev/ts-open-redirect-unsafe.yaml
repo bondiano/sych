@@ -1,0 +1,62 @@
+schema_version: 1
+id: ts-open-redirect-unsafe
+split: development
+language: typescript
+pair: ts-open-redirect
+variant: unsafe
+profiles: [correctness]
+rationale: "After login the user is redirected to the raw `next` query parameter: `/login?next=https://evil.example` sends a freshly authenticated user to an attacker's site (phishing)."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {
+        "express": "^5.1.0"
+      }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/routes/login.ts: |
+    import { Router } from 'express';
+    import { verifyPassword } from '../auth';
+
+    export const login = Router();
+
+    login.post('/login', async (req, res) => {
+      const user = await verifyPassword(req.body.email, req.body.password);
+      if (!user) {
+        res.status(401).send('invalid credentials');
+        return;
+      }
+      req.session.userId = user.id;
+      res.redirect('/dashboard');
+    });
+head:
+  src/routes/login.ts: |
+    import { Router } from 'express';
+    import { verifyPassword } from '../auth';
+
+    export const login = Router();
+
+    login.post('/login', async (req, res) => {
+      const user = await verifyPassword(req.body.email, req.body.password);
+      if (!user) {
+        res.status(401).send('invalid credentials');
+        return;
+      }
+      req.session.userId = user.id;
+      res.redirect(String(req.query.next ?? '/dashboard'));
+    });
+expected:
+  findings:
+    - category: defect
+      semantic_target: "redirect target after a successful login"
+      required_condition: "next is an absolute URL or protocol-relative //host"
+      evidence_locations:
+        - { side: HEAD, path: src/routes/login.ts, start_line: 13, end_line: 13 }
+  forbidden_claims:
+    - "The login redirect only allows same-origin paths."

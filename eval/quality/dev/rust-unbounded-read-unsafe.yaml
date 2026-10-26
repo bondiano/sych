@@ -1,0 +1,57 @@
+schema_version: 1
+id: rust-unbounded-read-unsafe
+split: development
+language: rust
+pair: rust-unbounded-read
+variant: unsafe
+profiles: [correctness]
+rationale: "To accept exports larger than axum's 2 MiB default, the handler buffers the raw body with `to_bytes(body, usize::MAX)`: any client can stream an endless body and exhaust server memory."
+base:
+  Cargo.toml: |
+    [package]
+    name = "importer"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+    axum = "0.8"
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    use axum::body::Bytes;
+    use axum::http::StatusCode;
+
+    pub async fn import_csv(bytes: Bytes) -> Result<String, StatusCode> {
+        let rows = parse_rows(&bytes).map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
+        Ok(format!("imported {rows} rows"))
+    }
+
+    pub fn router() -> axum::Router {
+        axum::Router::new().route("/import", axum::routing::post(import_csv))
+    }
+head:
+  src/lib.rs: |
+    use axum::body::{Body, to_bytes};
+    use axum::http::StatusCode;
+
+    pub async fn import_csv(body: Body) -> Result<String, StatusCode> {
+        let bytes = to_bytes(body, usize::MAX)
+            .await
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
+        let rows = parse_rows(&bytes).map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
+        Ok(format!("imported {rows} rows"))
+    }
+
+    pub fn router() -> axum::Router {
+        axum::Router::new().route("/import", axum::routing::post(import_csv))
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "memory used to buffer an import request body"
+      required_condition: "a client sends a very large or never-ending body"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 5, end_line: 5 }
+  forbidden_claims:
+    - "The import body size is bounded."

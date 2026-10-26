@@ -1,0 +1,59 @@
+schema_version: 1
+id: rust-serde-contract-safe
+split: development
+language: rust
+pair: rust-serde-contract
+variant: safe
+profiles: [correctness, migration_compatibility]
+rationale: "An optional field is added and omitted when absent; existing fields keep their names."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+    axum = "0.8"
+    serde = { version = "1", features = ["derive"] }
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod api;
+    pub mod view;
+  src/api.rs: |
+    use axum::Json;
+    use axum::extract::Path;
+
+    use crate::view::OrderView;
+
+    pub fn router() -> axum::Router {
+        axum::Router::new().route("/v1/orders/{id}", axum::routing::get(order))
+    }
+
+    async fn order(Path(id): Path<String>) -> Json<OrderView> {
+        Json(OrderView::load(&id))
+    }
+  src/view.rs: |
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    pub struct OrderView {
+        pub order_id: String,
+        pub total_cents: u64,
+    }
+head:
+  src/view.rs: |
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    pub struct OrderView {
+        pub order_id: String,
+        pub total_cents: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub coupon: Option<String>,
+    }
+expected:
+  facts:
+    - { kind: serde_attribute, side: HEAD, path: src/view.rs, line: 7 }

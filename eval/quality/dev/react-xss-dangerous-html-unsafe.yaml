@@ -1,0 +1,59 @@
+schema_version: 1
+id: react-xss-dangerous-html-unsafe
+split: development
+language: typescript
+pair: react-xss-dangerous-html
+variant: unsafe
+profiles: [correctness]
+rationale: "Comment bodies written by users are now rendered as Markdown into dangerouslySetInnerHTML; marked passes raw HTML through, so `<img src=x onerror=...>` in a comment runs script for every reader."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {
+        "react": "^19.1.0",
+        "marked": "^15.0.0",
+        "dompurify": "^3.2.0"
+      }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/Comment.tsx: |
+    type CommentProps = { author: string; body: string };
+
+    export function Comment({ author, body }: CommentProps) {
+      return (
+        <article>
+          <h4>{author}</h4>
+          <p>{body}</p>
+        </article>
+      );
+    }
+head:
+  src/Comment.tsx: |
+    import { marked } from 'marked';
+
+    type CommentProps = { author: string; body: string };
+
+    export function Comment({ author, body }: CommentProps) {
+      const html = marked.parse(body, { async: false });
+      return (
+        <article>
+          <h4>{author}</h4>
+          <div className="markdown" dangerouslySetInnerHTML={{ __html: html }} />
+        </article>
+      );
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "HTML rendered from a user comment body"
+      required_condition: "a comment body contains raw HTML with script or event handlers"
+      evidence_locations:
+        - { side: HEAD, path: src/Comment.tsx, start_line: 6, end_line: 10 }
+  forbidden_claims:
+    - "marked escapes HTML, so the comment rendering is safe."

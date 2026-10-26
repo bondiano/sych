@@ -1,0 +1,68 @@
+schema_version: 1
+id: rust-result-propagation-safe
+split: development
+language: rust
+pair: rust-result-propagation
+variant: safe
+profiles: [correctness, side_effects]
+rationale: "The publish error is wrapped into a domain error and still propagated with `?`."
+base:
+  Cargo.toml: |
+    [package]
+    name = "orders"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  .sych/rules.yaml: |
+    schema_version: 1
+    rules:
+      - id: EFFECT-01
+        version: 1
+        title: Stored order publishes order-created
+        kind: invariant
+        required: true
+        severity_on_violation: high
+        owner: backend
+        applies_to:
+          paths: ["src/**"]
+        statement: A stored order publishes order-created, and a failed publication fails the save.
+  src/lib.rs: |
+    pub struct Store {
+        db: Db,
+        bus: Bus,
+    }
+
+    impl Store {
+        pub fn save(&self, order: &Order) -> Result<(), Error> {
+            self.db.insert(order)?;
+            self.bus.publish(OrderCreated::from(order))?;
+            Ok(())
+        }
+    }
+head:
+  src/lib.rs: |
+    pub struct Store {
+        db: Db,
+        bus: Bus,
+    }
+
+    impl Store {
+        pub fn save(&self, order: &Order) -> Result<(), Error> {
+            self.db.insert(order)?;
+            self.bus
+                .publish(OrderCreated::from(order))
+                .map_err(Error::Publish)?;
+            Ok(())
+        }
+    }
+expected:
+  obligations:
+    - { rule_id: EFFECT-01, expected_status: SUPPORTED }
+  forbidden_facts:
+    - { kind: discarded_result, side: HEAD, path: src/lib.rs, line: 11 }
+  forbidden_claims:
+    - "The publish error is ignored."

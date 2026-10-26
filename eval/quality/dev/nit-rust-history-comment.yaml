@@ -1,0 +1,51 @@
+schema_version: 1
+id: nit-rust-history-comment
+split: development
+language: rust
+variant: safe
+profiles: [nitpicks]
+rationale: "The overflow fix is correct, but the comment narrates the old bug; a reader needs the invariant (2^10 * 100ms already exceeds MAX_DELAY, so larger exponents cannot matter)."
+base:
+  Cargo.toml: |
+    [package]
+    name = "retry"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod backoff;
+  src/backoff.rs: |
+    use std::time::Duration;
+
+    const BASE: Duration = Duration::from_millis(100);
+    const MAX_DELAY: Duration = Duration::from_secs(30);
+
+    pub fn next_delay(attempt: u32) -> Duration {
+        (BASE * 2u32.pow(attempt)).min(MAX_DELAY)
+    }
+head:
+  src/backoff.rs: |
+    use std::time::Duration;
+
+    const BASE: Duration = Duration::from_millis(100);
+    const MAX_DELAY: Duration = Duration::from_secs(30);
+
+    pub fn next_delay(attempt: u32) -> Duration {
+        // Previously this overflowed for large attempts (bug #812), so we clamp now.
+        let exponent = attempt.min(10);
+        (BASE * 2u32.pow(exponent)).min(MAX_DELAY)
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "comment should state the clamp invariant, not the bug history"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: src/backoff.rs, start_line: 7, end_line: 7 }
+  forbidden_claims:
+    - "Add more comments to next_delay."
+    - "Clamping the exponent is a defect."

@@ -1,0 +1,4 @@
+[{"description": "Function has too many statements", "check_name": "complexity", "fingerprint": "a1",
+  "severity": "major", "location": {"path": "src/lib.rs", "lines": {"begin": 1}}},
+ {"description": "escape", "check_name": "x", "fingerprint": "a2", "severity": "minor",
+  "location": {"path": "../etc/passwd", "lines": {"begin": 1}}}]

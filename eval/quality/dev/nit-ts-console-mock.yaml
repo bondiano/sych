@@ -1,0 +1,65 @@
+schema_version: 1
+id: nit-ts-console-mock
+split: development
+language: typescript
+variant: safe
+profiles: [nitpicks]
+rationale: "The test is correct, but it overwrites console.error and never restores it, so errors are silenced in every later test in the file; jest.spyOn(console, 'error') with restoreAllMocks does not leak."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {
+        "react": "^19.1.0",
+        "jest": "^30.0.0",
+        "@testing-library/react": "^16.3.0"
+      }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/ErrorBoundary.tsx: |
+    import { Component, type ReactNode } from 'react';
+
+    type Props = { fallback: ReactNode; children: ReactNode };
+
+    export class ErrorBoundary extends Component<Props, { failed: boolean }> {
+      state = { failed: false };
+      static getDerivedStateFromError() {
+        return { failed: true };
+      }
+      render() {
+        return this.state.failed ? this.props.fallback : this.props.children;
+      }
+    }
+head:
+  src/ErrorBoundary.test.tsx: |
+    import { render, screen } from '@testing-library/react';
+    import { ErrorBoundary } from './ErrorBoundary';
+
+    function Boom(): never {
+      throw new Error('boom');
+    }
+
+    test('shows the fallback when a child throws', () => {
+      console.error = jest.fn();
+      render(
+        <ErrorBoundary fallback={<p>Something went wrong</p>}>
+          <Boom />
+        </ErrorBoundary>,
+      );
+      expect(screen.getByText('Something went wrong')).toBeTruthy();
+    });
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "console.error replaced without restore in the test"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: src/ErrorBoundary.test.tsx, start_line: 9, end_line: 9 }
+  forbidden_claims:
+    - "Add more tests for ErrorBoundary."
+    - "The ErrorBoundary test is a defect."

@@ -1,0 +1,62 @@
+schema_version: 1
+id: ts-ssrf-unsafe
+split: development
+language: typescript
+pair: ts-ssrf
+variant: unsafe
+profiles: [correctness]
+rationale: "The new avatar import fetches any client-supplied URL from the server and stores the response: `http://169.254.169.254/...` or internal services are read and returned as the user's avatar."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": {
+        "express": "^5.1.0"
+      }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/routes/avatar.ts: |
+    import { Router } from 'express';
+    import { saveAvatar } from '../storage';
+
+    export const avatar = Router();
+
+    avatar.put('/me/avatar', async (req, res) => {
+      await saveAvatar(req.user.id, req.body as Buffer);
+      res.sendStatus(204);
+    });
+head:
+  src/routes/avatar.ts: |
+    import { Router } from 'express';
+    import { saveAvatar } from '../storage';
+
+    export const avatar = Router();
+
+    avatar.put('/me/avatar', async (req, res) => {
+      await saveAvatar(req.user.id, req.body as Buffer);
+      res.sendStatus(204);
+    });
+
+    avatar.post('/me/avatar/import', async (req, res) => {
+      const response = await fetch(String(req.body.url));
+      if (!response.ok) {
+        res.status(502).send('could not fetch image');
+        return;
+      }
+      await saveAvatar(req.user.id, Buffer.from(await response.arrayBuffer()));
+      res.sendStatus(204);
+    });
+expected:
+  findings:
+    - category: defect
+      semantic_target: "hosts the server fetches for avatar import"
+      required_condition: "the url points at an internal address or cloud metadata endpoint"
+      evidence_locations:
+        - { side: HEAD, path: src/routes/avatar.ts, start_line: 12, end_line: 12 }
+  forbidden_claims:
+    - "The avatar import only fetches trusted hosts."

@@ -1,0 +1,39 @@
+[package]
+name = "sych-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+readme = "README.md"
+description = "Evidence-based code review"
+
+[[bin]]
+name = "sych"
+path = "bin/sych.rs"
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+ring.workspace = true
+clap.workspace = true
+futures-util.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+sych-adapters.workspace = true
+sych-core.workspace = true
+sych-storage.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "net", "signal", "sync", "time"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+flate2.workspace = true
+reqwest.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,73 @@
+[workspace]
+resolver = "3"
+members = ["crates/sych-adapters", "crates/sych-app", "crates/sych-core", "crates/sych-storage", "crates/sych-style"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+publish = false
+
+[workspace.dependencies]
+anyhow = "1.0.104"
+axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio", "json", "query"] }
+base64 = "0.22.1"
+clap = { version = "4.6.7", features = ["derive"] }
+flate2 = "1.1.10"
+futures-util = { version = "0.3.34", default-features = false, features = ["alloc"] }
+jiff = { version = "0.2.37", features = ["serde"] }
+oxc_allocator = "0.139.0"
+oxc_ast = "0.139.0"
+oxc_ast_visit = "0.139.0"
+oxc_parser = "0.139.0"
+oxc_span = "0.139.0"
+oxc_syntax = "0.139.0"
+proc-macro2 = { version = "1.0.107", features = ["span-locations"] }
+quick-xml = "0.42.0"
+quote = "1.0.47"
+# Already in the graph through tracing-subscriber; its meta engine runs in linear time.
+regex-automata = "0.4.18"
+ring = "0.17.14"
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
+schemars = { version = "1.2.3", features = ["jiff02", "uuid1"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+serde_path_to_error = "0.1.20"
+serde_yaml_ng = "0.10.0"
+sha2 = "0.10.9"
+sqlx = { version = "0.9.0", default-features = false, features = ["macros", "migrate", "runtime-tokio", "sqlite-bundled"] }
+sych-adapters = { path = "crates/sych-adapters" }
+sych-core = { path = "crates/sych-core" }
+sych-storage = { path = "crates/sych-storage" }
+syn = { version = "2.0.119", features = ["full", "visit"] }
+tar = "0.4.46"
+tempfile = "3.20.0"
+thiserror = "2.0.21"
+tokio = { version = "1.53.2", features = ["rt"] }
+toml = "1.1.8"
+tree-sitter = "0.27.1"
+tree-sitter-go = "0.25.0"
+tree-sitter-python = "0.25.0"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+url = "2.5.8"
+uuid = { version = "1.18.1", features = ["serde", "v7"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+absolute_paths = "warn"
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+module_name_repetitions = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

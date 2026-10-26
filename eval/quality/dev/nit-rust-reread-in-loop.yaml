@@ -1,0 +1,50 @@
+schema_version: 1
+id: nit-rust-reread-in-loop
+split: development
+language: rust
+variant: safe
+profiles: [nitpicks]
+rationale: "Wrapping blocks is correct, but the loop re-reads the line width that is already in `width` before the loop."
+base:
+  Cargo.toml: |
+    [package]
+    name = "docs"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod render;
+  src/render.rs: |
+    pub fn render(doc: &Document, out: &mut String) {
+        let width = doc.settings().line_width();
+        out.push_str(&wrap(doc.title(), width));
+        for block in doc.blocks() {
+            out.push_str(block.text());
+            out.push('\n');
+        }
+    }
+head:
+  src/render.rs: |
+    pub fn render(doc: &Document, out: &mut String) {
+        let width = doc.settings().line_width();
+        out.push_str(&wrap(doc.title(), width));
+        for block in doc.blocks() {
+            let line_width = doc.settings().line_width();
+            out.push_str(&wrap(block.text(), line_width));
+            out.push('\n');
+        }
+    }
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "redundant re-read of line_width inside the loop"
+      required_condition: "always"
+      evidence_locations:
+        - { side: HEAD, path: src/render.rs, start_line: 5, end_line: 5 }
+  forbidden_claims:
+    - "Extract the block loop into a separate function."
+    - "Wrapping blocks is a defect."

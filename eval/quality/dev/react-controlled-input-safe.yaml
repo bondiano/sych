@@ -1,0 +1,57 @@
+schema_version: 1
+id: react-controlled-input-safe
+split: development
+language: typescript
+pair: react-controlled-input
+variant: safe
+profiles: [correctness]
+rationale: "The handler still updates the controlled value, now trimmed."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "jsx": "react-jsx", "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/PromoForm.tsx: |
+    import { useState } from 'react';
+
+    export function PromoForm({ onApply }: { onApply: (code: string) => void }) {
+      const [code, setCode] = useState('');
+      const submit = (event: React.FormEvent) => {
+        event.preventDefault();
+        onApply(code);
+      };
+      return (
+        <form onSubmit={submit}>
+          <input value={code} onChange={(e) => setCode(e.target.value)} />
+          <button type="submit">Apply</button>
+        </form>
+      );
+    }
+head:
+  src/PromoForm.tsx: |
+    import { useState } from 'react';
+
+    export function PromoForm({ onApply }: { onApply: (code: string) => void }) {
+      const [code, setCode] = useState('');
+      const submit = (event: React.FormEvent) => {
+        event.preventDefault();
+        onApply(code);
+      };
+      return (
+        <form onSubmit={submit}>
+          <input value={code} onChange={(e) => setCode(e.target.value.trim())} />
+          <button type="submit">Apply</button>
+        </form>
+      );
+    }
+expected:
+  facts:
+    - { kind: controlled_input, side: HEAD, path: src/PromoForm.tsx, line: 11 }
+  forbidden_facts:
+    - { kind: controlled_without_handler, side: HEAD, path: src/PromoForm.tsx, line: 11 }
