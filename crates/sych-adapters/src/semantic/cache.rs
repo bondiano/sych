@@ -33,6 +33,8 @@ pub fn key(
 ) -> Option<String> {
     canonical_sha256(&json!({
         "engine": env!("CARGO_PKG_VERSION"),
+        // Discard facts computed before workspace roots were canonicalized.
+        "revision": 1,
         "snapshot": snapshot,
         "side": side,
         "language": language,
@@ -137,6 +139,43 @@ mod tests {
             diagnostics: Vec::new(),
             limitations: Vec::new(),
         }
+    }
+
+    #[test]
+    fn pre_canonical_workspace_facts_are_not_reused() {
+        let dir = tempfile::tempdir().expect("dir");
+        let cached = facts();
+        let snapshot = &cached.source_snapshot_id;
+        let profile = profile();
+        let tooling = Tooling::default();
+        let legacy_key = canonical_sha256(&json!({
+            "engine": env!("CARGO_PKG_VERSION"),
+            "snapshot": snapshot,
+            "side": SourceSide::Head,
+            "language": Language::Rust,
+            "tool": [&profile.tool.name, &profile.tool.version],
+            "args": profile.args,
+            "init": profile.init_options,
+            "build": profile.build_configuration,
+            "install": [tooling.dependency_install, &tooling.sandbox.backends],
+        }))
+        .expect("legacy key")
+        .hex()
+        .to_owned();
+        store(dir.path(), &legacy_key, "repo", &cached);
+        let current_key = key(
+            snapshot,
+            SourceSide::Head,
+            Language::Rust,
+            &profile,
+            &tooling,
+        )
+        .expect("current key");
+        assert_eq!(
+            load(dir.path(), &current_key, "repo"),
+            None,
+            "facts from pre-canonical-root analysis must be recomputed"
+        );
     }
 
     #[test]
