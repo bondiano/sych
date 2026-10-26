@@ -104,9 +104,12 @@ pub fn collect(
 
         let dir = tempfile::tempdir()
             .map_err(|e| SnapshotError::Git(format!("workspace directory: {e}")))?;
-        let materialized = snapshot.materialize(side, dir.path(), MAX_WORKSPACE_BLOB_BYTES)?;
+        // Use the same canonical root as servers reporting locations through getcwd().
+        let root = fs::canonicalize(dir.path())
+            .map_err(|e| SnapshotError::Git(format!("workspace directory: {e}")))?;
+        let materialized = snapshot.materialize(side, &root, MAX_WORKSPACE_BLOB_BYTES)?;
         let workspace = Workspace {
-            root: dir.path(),
+            root: &root,
             side,
             snapshot: snapshot.snapshot.id.clone(),
             partition: &snapshot.snapshot.repository,

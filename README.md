@@ -111,9 +111,11 @@ M0 закрыт на fake adapter: внешних API-вызовов нет, к�
 
 Нужны [rustup](https://rustup.rs/) и [just](https://just.systems/) (в CI — just 1.59.0).
 Rust 1.94.1, rustfmt и Clippy зафиксированы в `rust-toolchain.toml`; зависимости — в `Cargo.lock`.
+Для поиска неиспользуемых зависимостей нужен [cargo-machete](https://github.com/bnjbvr/cargo-machete) 0.9.2; в CI закреплена та же версия.
 
 ```sh
 rustup show active-toolchain
+cargo install cargo-machete --version 0.9.2 --locked
 just check
 just run
 ```
@@ -125,13 +127,14 @@ just run
 ## Quality-гейты
 
 - `just fmt` — форматирование Rust-кода.
-- `just lint` — проверка rustfmt и Clippy для всего workspace, всех targets и features; warnings считаются ошибками.
+- `just lint` — rustfmt, Clippy для всего workspace со всеми targets и features (warnings — ошибки), `sych-style`
+  и `cargo machete` для поиска неиспользуемых зависимостей.
 - `just test` — тесты workspace со всеми features.
 - `just check` — lint и test; тот же рецепт запускается в GitHub Actions.
 - `just build` — сборка приложения.
 - `just schemas` — перегенерация `schemas/*.schema.json` из Rust DTO; `just test` падает, если закоммиченные схемы устарели.
 
-Cargo-команды сборки и проверок используют `--locked`: изменения зависимостей требуют явного обновления lockfile.
+Cargo-команды сборки и тестов, а также Clippy используют `--locked`: изменения зависимостей требуют явного обновления lockfile.
 Общие lints наследуются каждым пакетом через `[lints] workspace = true`.
 Как в flick-lang, запрещены unsafe-код и игнорирование обязательных результатов;
 включены Clippy all/pedantic, проверки `unwrap` и абсолютных путей.

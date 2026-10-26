@@ -16,7 +16,7 @@ use sych_core::{
 };
 
 use crate::ci;
-use crate::git::LocalSnapshot;
+use crate::git::{LocalSnapshot, SnapshotError};
 use crate::semantic::Resolve;
 use crate::tools::{self, ToolError, host_target};
 
@@ -131,19 +131,25 @@ pub fn collect(snapshot: &LocalSnapshot, resolve: &Resolve<'_>) -> Vec<LintFacts
             return Vec::new();
         }
     };
-    let materialized =
-        snapshot.materialize(SourceSide::Head, workspace.path(), MAX_WORKSPACE_BLOB_BYTES);
+    // External tools report canonical paths, including macOS /var -> /private/var.
+    let materialized = fs::canonicalize(workspace.path())
+        .map_err(|err| SnapshotError::Git(format!("workspace directory: {err}")))
+        .and_then(|root| {
+            snapshot
+                .materialize(SourceSide::Head, &root, MAX_WORKSPACE_BLOB_BYTES)
+                .map(|materialized| (root, materialized))
+        });
     wanted
         .into_iter()
         .map(|(linter, files)| {
             let mut facts = lint_facts(snapshot, linter, &files);
             match &materialized {
-                Ok(m) => {
+                Ok((root, m)) => {
                     // Skipped secret, oversized or non-UTF-8 files are not on disk.
                     let present: Vec<&str> = files
                         .iter()
                         .copied()
-                        .filter(|f| workspace.path().join(f).is_file())
+                        .filter(|f| root.join(f).is_file())
                         .collect();
                     if present.len() < files.len() {
                         facts.limitations.push(format!(
@@ -163,7 +169,7 @@ pub fn collect(snapshot: &LocalSnapshot, resolve: &Resolve<'_>) -> Vec<LintFacts
                         snapshot,
                         linter,
                         &present,
-                        workspace.path(),
+                        root,
                         scratch.path(),
                         resolve,
                         &mut facts,

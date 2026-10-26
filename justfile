@@ -10,6 +10,7 @@ fmt:
 # Static checks CI runs
 lint:
     cargo fmt --all --check
+    cargo machete
     cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
     cargo run --locked -q -p sych-style -- crates
 

@@ -1,6 +1,7 @@
 //! Snapshot behaviour on real Git repositories built in temporary directories.
 
 use std::ffi::OsStr;
+use std::fmt::Debug;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
@@ -18,7 +19,7 @@ use tempfile::TempDir;
 const MAX_BLOB: u64 = 1 << 20;
 
 /// Deterministic git for building fixtures: fixed identity and dates, no user config.
-fn git(dir: &Path, args: &[&str]) -> Vec<u8> {
+fn git(dir: &Path, args: &[impl AsRef<OsStr> + Debug]) -> Vec<u8> {
     let out = Command::new("git")
         .current_dir(dir)
         .env_clear()
@@ -119,9 +120,22 @@ fn scenario() -> TempDir {
         &vec![b'x'; usize::try_from(MAX_BLOB).expect("fits") + 1],
     );
     symlink("/etc/passwd", d.join("passwd-link")).expect("symlink");
-    let weird = d.join(OsStr::from_bytes(b"bad-\xff.txt"));
-    fs::write(weird, b"x\n").expect("write");
     git(d, &["add", "-A"]);
+    // APFS rejects non-UTF-8 filenames; store this entry only in Git's index.
+    write(d, ".git/non-utf8-blob", b"x\n");
+    let blob =
+        String::from_utf8(git(d, &["hash-object", "-w", ".git/non-utf8-blob"])).expect("blob id");
+    git(
+        d,
+        &[
+            OsStr::new("update-index"),
+            OsStr::new("--add"),
+            OsStr::new("--cacheinfo"),
+            OsStr::new("100644"),
+            OsStr::new(blob.trim()),
+            OsStr::from_bytes(b"bad-\xff.txt"),
+        ],
+    );
     // After `add -A`, which would stage a gitlink without a directory as deleted.
     git(
         d,

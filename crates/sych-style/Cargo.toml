@@ -7,6 +7,10 @@ publish.workspace = true
 readme = "README.md"
 description = "House style checks rustfmt and clippy do not cover"
 
+[package.metadata.cargo-machete]
+# Enables span-locations for Span::start/end used through syn.
+ignored = ["proc-macro2"]
+
 [[bin]]
 name = "sych-style"
 path = "bin/sych-style.rs"
