@@ -34,6 +34,7 @@ pub struct ExecutionProfile {
     pub args: Vec<ProfileArg>,
     pub timeout_seconds: u32,
     /// Format of what the command prints on stdout; imported like a CI report of the head.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub report: Option<CiFormat>,
     #[serde(default = "memory_mb")]
     pub memory_mb: u32,

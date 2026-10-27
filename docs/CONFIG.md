@@ -37,7 +37,7 @@ is rejected without printing the value itself.
   workspace (secrets, symlinks, submodules and tool configs left out), mounted as the only volume of a docker
   container with `--network none`, `--cap-drop ALL`, `--read-only`, no-new-privileges and the limits; the environment
   carries no Sych secret. Docker is the only backend for repository code. The stdout is imported as a CI report bound
-  to the head (`TrustClass::DerivedLocal`, binding `ENVIRONMENT`, producer `profile@image`); a non-zero exit is a
+  to the head (`TrustClass::DerivedLocal`, binding `ENVIRONMENT`, runner `<profile> in <image>`); a non-zero exit is a
   result, not an error. A refused (`disabled`, `not allowed`, `missing` or `invalid` parameter) or failed run is a
   task gap `EXECUTION_REFUSED` / `EXECUTION_FAILED`, never a passed check. No request supplies parameters yet, so a
   profile with choices is refused as missing them. Without runtime evidence the verifier keeps a bounded static
