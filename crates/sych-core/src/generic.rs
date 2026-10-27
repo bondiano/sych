@@ -154,7 +154,10 @@ pub(crate) fn pack() -> Vec<GenericRule> {
                 "Infrastructure replacement is intended",
                 High,
                 "A resource replacement or deletion matches the accepted intent.",
-                &["Every replaced or deleted resource is intended."],
+                &[
+                    "Every replaced or deleted resource holds no data, or the change keeps its data \
+                   (create_before_destroy, prevent_destroy, a snapshot/restore or moved block).",
+                ],
             ),
             Infrastructure,
             Trigger::Paths(&["**/*.tf", "**/*.tfvars"]),

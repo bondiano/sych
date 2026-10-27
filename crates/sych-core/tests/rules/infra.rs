@@ -62,7 +62,7 @@ fn tf_change_needs_a_plan_bound_to_the_head() {
     assert!(
         bound
             .acceptance_criterion
-            .contains("aws_db_instance.main delete/create (delete before create: downtime)"),
+            .contains("delete/create aws_db_instance.main (delete before create: downtime)"),
         "{}",
         bound.acceptance_criterion
     );
