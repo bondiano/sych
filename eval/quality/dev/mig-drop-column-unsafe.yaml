@@ -1,0 +1,56 @@
+schema_version: 1
+id: mig-drop-column-unsafe
+split: development
+language: go
+pair: mig-drop-column
+variant: unsafe
+profiles: [migration_compatibility]
+rationale: "The migration drops orders.status in the same release while the running app still selects it; the deployment model declares a rolling update with mixed versions, so the old app hits a missing column (spec §13.2, old app + changed schema)."
+base:
+  .sych/deploy.yaml: |
+    schema_version: 1
+    environment: staging
+    owner: orders
+    initial_versions:
+      value:
+        app_image: ghcr.io/shop/orders@sha256:aaaa
+        source_commit: "1111111111111111111111111111111111111111"
+        schema_phase: expanded
+        supported_clients: ["orders-web >= 2026.10"]
+      source: argocd app orders-staging
+    order: {value: [schema, app], source: deploy/README.md}
+    mixed_versions: {value: true, source: "rolling update, maxSurge 1"}
+    compatibility_window: {value: 14d, source: release policy}
+    recovery: {value: roll_forward_repair, source: runbook RB-3}
+  go.mod: |
+    module example.com/shop
+
+    go 1.26
+  migrations/0001_orders.sql: |
+    CREATE TABLE orders (id TEXT PRIMARY KEY, status TEXT NOT NULL);
+  orders/read.go: |
+    package orders
+
+    import (
+    	"context"
+    	"database/sql"
+    )
+
+    func Status(ctx context.Context, db *sql.DB, id string) (string, error) {
+    	var status string
+    	err := db.QueryRowContext(ctx, "SELECT status FROM orders WHERE id = $1", id).Scan(&status)
+    	return status, err
+    }
+head:
+  migrations/0002_drop_status.sql: |
+    ALTER TABLE orders DROP COLUMN status;
+expected:
+  findings:
+    - category: defect
+      semantic_target: "orders.status, still selected by the running app"
+      required_condition: "the schema migration runs while the old app version serves reads"
+      evidence_locations:
+        - { side: HEAD, path: migrations/0002_drop_status.sql, start_line: 1, end_line: 1 }
+        - { side: HEAD, path: orders/read.go, start_line: 10, end_line: 10 }
+  forbidden_claims:
+    - "Dropping the column is safe because nothing in the new code reads it."

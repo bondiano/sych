@@ -3,6 +3,7 @@
 
 mod effective;
 mod endpoint;
+mod execution;
 mod http;
 mod models;
 mod redaction;
@@ -21,6 +22,7 @@ use serde::de::DeserializeOwned;
 use crate::redact;
 
 pub use effective::*;
+pub use execution::*;
 pub use http::*;
 pub use models::*;
 pub use redaction::*;
