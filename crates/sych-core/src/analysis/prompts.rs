@@ -7,11 +7,11 @@ use super::context::Context;
 use crate::model::{DataBlock, Prompt};
 use crate::{Candidate, PlannedObligation};
 
-pub const DISCOVERY: &str = "discovery@5";
-pub const RISK_AUDIT: &str = "risk_audit@4";
-pub const ASSESSMENT: &str = "assessment@3";
-pub const VERIFY: &str = "verify@2";
-pub const REVIEW: &str = "review@4";
+pub const DISCOVERY: &str = "discovery@6";
+pub const RISK_AUDIT: &str = "risk_audit@5";
+pub const ASSESSMENT: &str = "assessment@4";
+pub const VERIFY: &str = "verify@3";
+pub const REVIEW: &str = "review@5";
 
 /// The fields of one assessment; `ob` names the obligation id the answer must carry.
 fn assessment_fields(ob: &str) -> String {
@@ -70,13 +70,14 @@ const ANCHORS: &str = "Anchors name a handed-out span and lines inside it: \
     least one anchor; one without anchors is discarded. Evidence ids are the `ev-N` listed in \
     the task. Use no other ids, paths or hashes.";
 
-fn shared_rules() -> Vec<String> {
+fn shared_rules(context: &Context) -> Vec<String> {
     [
         "Claims must follow from the shown source; say UNKNOWN or leave a question when they do not.",
         "Do not claim that any test, build or command was run; nothing was executed.",
         "An empty answer is valid. Do not invent problems to have something to report.",
         "Keep explanations short and causal. Do not include hidden reasoning.",
         ANCHORS,
+        context.language.instruction(),
     ]
     .map(str::to_owned)
     .to_vec()
@@ -145,7 +146,7 @@ pub fn discovery(context: &Context, obligations: &[&PlannedObligation], unit: &s
              \"unresolved_questions\": [...]}} matching the schema. {CANDIDATES_CONTRACT}"
         ),
         rules: {
-            let mut rules = shared_rules();
+            let mut rules = shared_rules(context);
             rules.extend(NIT_RULES.map(str::to_owned));
             rules
         },
@@ -190,7 +191,7 @@ pub fn assessment(context: &Context, obligation: &PlannedObligation) -> Prompt {
             assessment_fields("ob-1")
         ),
         rules: {
-            let mut rules = shared_rules();
+            let mut rules = shared_rules(context);
             rules.extend(ASSESSMENT_RULES.map(str::to_owned));
             rules
         },
@@ -292,7 +293,7 @@ pub fn verify(
             verified again."
             .into(),
         rules: {
-            let mut rules = shared_rules();
+            let mut rules = shared_rules(context);
             rules.extend(
                 [
                     "CONFIRMED only when the shown spans establish the claim; UNRESOLVED when \

@@ -4,7 +4,7 @@
 
 use std::fmt::Write;
 
-use super::{Placement, Planned};
+use super::{Placement, Planned, reason_text, tr};
 use crate::{Coverage, FindingCategory, ObligationStatus, ReviewResult, Severity};
 
 /// What the summary needs besides the result.
@@ -29,7 +29,8 @@ fn location(finding: &crate::Finding) -> String {
     )
 }
 
-/// Renders the summary of `result` with the inline plan of its revision.
+/// Renders the summary of `result` with the inline plan of its revision, in the result's
+/// language.
 pub fn render_summary(result: &ReviewResult, plan: &[Planned], ctx: &SummaryContext<'_>) -> String {
     let mut out = String::new();
     header(&mut out, result, ctx);
@@ -41,35 +42,64 @@ pub fn render_summary(result: &ReviewResult, plan: &[Planned], ctx: &SummaryCont
 }
 
 fn header(out: &mut String, result: &ReviewResult, ctx: &SummaryContext<'_>) {
+    let l = result.language;
     let _ = writeln!(out, "<!-- {} -->", ctx.marker);
-    let _ = writeln!(out, "### Sych review — advisory\n");
     let _ = writeln!(
         out,
-        "Reviewed head `{}` against target `{}` · result `{}` (revision {}).",
+        "### {}\n",
+        tr(l, "Sych review — advisory", "Ревью Sych — рекомендательное")
+    );
+    let _ = writeln!(
+        out,
+        "{} `{}` {} `{}` · {} `{}` ({} {}).",
+        tr(l, "Reviewed head", "Проверен head"),
         short(ctx.head_sha),
+        tr(l, "against target", "относительно target"),
         short(ctx.base_sha),
+        tr(l, "result", "результат"),
         result.result_id,
+        tr(l, "revision", "ревизия"),
         result.review_revision
     );
     let coverage = match result.coverage {
-        Coverage::CompleteForScope => "complete for the reviewed scope",
-        Coverage::Partial => {
-            "**partial** — the gaps below were not checked; this is not \"no problems\""
-        }
-        Coverage::Unavailable => "**unavailable** — no substantive review was possible",
+        Coverage::CompleteForScope => tr(
+            l,
+            "complete for the reviewed scope",
+            "полное для проверенного объёма",
+        ),
+        Coverage::Partial => tr(
+            l,
+            "**partial** — the gaps below were not checked; this is not \"no problems\"",
+            "**частичное** — пробелы ниже не проверены; это не «проблем нет»",
+        ),
+        Coverage::Unavailable => tr(
+            l,
+            "**unavailable** — no substantive review was possible",
+            "**недоступно** — содержательное ревью было невозможно",
+        ),
     };
     let _ = writeln!(
         out,
-        "Coverage: {coverage} · recommendation `{:?}` · execution `{:?}`.",
-        result.recommendation, result.execution_outcome
+        "{}: {coverage} · {} `{:?}` · {} `{:?}`.",
+        tr(l, "Coverage", "Покрытие"),
+        tr(l, "recommendation", "рекомендация"),
+        result.recommendation,
+        tr(l, "execution", "выполнение"),
+        result.execution_outcome
     );
     let profiles = &result.scope_manifest.requested_profiles;
     if !profiles.is_empty() {
-        let _ = writeln!(out, "Profiles: {}.", profiles.join(", "));
+        let _ = writeln!(
+            out,
+            "{}: {}.",
+            tr(l, "Profiles", "Профили"),
+            profiles.join(", ")
+        );
     }
 }
 
 fn problems(out: &mut String, result: &ReviewResult, plan: &[Planned]) {
+    let l = result.language;
     let placement = |fp: &str| {
         plan.iter()
             .find(|p| p.fingerprint == fp)
@@ -91,24 +121,44 @@ fn problems(out: &mut String, result: &ReviewResult, plan: &[Planned]) {
             .cmp(&a.severity)
             .then_with(|| a.fingerprint.cmp(&b.fingerprint))
     });
-    let _ = writeln!(out, "\n#### Problems ({})", problems.len());
+    let _ = writeln!(
+        out,
+        "\n#### {} ({})",
+        tr(l, "Problems", "Проблемы"),
+        problems.len()
+    );
     if problems.is_empty() {
         let none = if result.coverage == Coverage::CompleteForScope {
-            "None confirmed in the reviewed scope."
+            tr(
+                l,
+                "None confirmed in the reviewed scope.",
+                "В проверенном объёме подтверждённых проблем нет.",
+            )
         } else {
-            "None confirmed in what could be checked."
+            tr(
+                l,
+                "None confirmed in what could be checked.",
+                "В том, что удалось проверить, подтверждённых проблем нет.",
+            )
         };
         let _ = writeln!(out, "{none}");
     } else {
         let _ = writeln!(
             out,
-            "| Severity | Finding | Where | Shown |\n|---|---|---|---|"
+            "{}\n|---|---|---|---|",
+            tr(
+                l,
+                "| Severity | Finding | Where | Shown |",
+                "| Важность | Замечание | Где | Показано |"
+            )
         );
         for f in &problems {
             let shown = match placement(&f.fingerprint.to_string()) {
-                Some(Placement::Inline { .. }) => "inline".to_owned(),
-                Some(Placement::Summary { reason }) => format!("here ({reason})"),
-                None => "here".to_owned(),
+                Some(Placement::Inline { .. }) => tr(l, "inline", "в коде").to_owned(),
+                Some(Placement::Summary { reason }) => {
+                    format!("{} ({})", tr(l, "here", "здесь"), reason_text(l, reason))
+                }
+                None => tr(l, "here", "здесь").to_owned(),
             };
             let rule = f
                 .rule_id
@@ -127,6 +177,7 @@ fn problems(out: &mut String, result: &ReviewResult, plan: &[Planned]) {
 }
 
 fn unknowns(out: &mut String, result: &ReviewResult) {
+    let l = result.language;
     let unknown: Vec<String> = result
         .obligations
         .iter()
@@ -135,17 +186,31 @@ fn unknowns(out: &mut String, result: &ReviewResult) {
                 reason_code,
                 next_evidence_needed,
             } => Some(format!(
-                "{}`{}` {} — {reason_code}; needs: {next_evidence_needed}",
-                if o.required { "**required** " } else { "" },
+                "{}`{}` {} — {reason_code}; {}: {next_evidence_needed}",
+                if o.required {
+                    tr(l, "**required** ", "**обязательное** ")
+                } else {
+                    ""
+                },
                 o.rule_id,
-                o.question
+                o.question,
+                tr(l, "needs", "нужно")
             )),
             _ => None,
         })
         .chain(result.unresolved_questions.iter().cloned())
         .collect();
     if !unknown.is_empty() {
-        let _ = writeln!(out, "\n#### Unknown and missing checks ({})", unknown.len());
+        let _ = writeln!(
+            out,
+            "\n#### {} ({})",
+            tr(
+                l,
+                "Unknown and missing checks",
+                "Неизвестное и непроверенное"
+            ),
+            unknown.len()
+        );
         for u in &unknown {
             let _ = writeln!(out, "- {u}");
         }
@@ -153,6 +218,7 @@ fn unknowns(out: &mut String, result: &ReviewResult) {
 }
 
 fn optional(out: &mut String, result: &ReviewResult) {
+    let l = result.language;
     let optional: Vec<_> = result
         .findings
         .iter()
@@ -166,11 +232,16 @@ fn optional(out: &mut String, result: &ReviewResult) {
     if !optional.is_empty() {
         let _ = writeln!(
             out,
-            "\n<details><summary>Improvements and nitpicks ({}) — optional</summary>\n",
-            optional.len()
+            "\n<details><summary>{} ({}) — {}</summary>\n",
+            tr(l, "Improvements and nitpicks", "Улучшения и мелочи"),
+            optional.len(),
+            tr(l, "optional", "необязательно")
         );
         for f in &optional {
-            let basis = f.rule_id.as_deref().unwrap_or("preference");
+            let basis = f
+                .rule_id
+                .as_deref()
+                .unwrap_or_else(|| tr(l, "preference", "предпочтение"));
             let _ = writeln!(
                 out,
                 "- {:?} · {basis}: {} ({})",
@@ -184,6 +255,7 @@ fn optional(out: &mut String, result: &ReviewResult) {
 }
 
 fn footer(out: &mut String, result: &ReviewResult, ctx: &SummaryContext<'_>) {
+    let l = result.language;
     let high = result
         .findings
         .iter()
@@ -192,34 +264,52 @@ fn footer(out: &mut String, result: &ReviewResult, ctx: &SummaryContext<'_>) {
     let cost = result.usage_summary.cost.known.0;
     let _ = write!(
         out,
-        "\nCost: ${}.{:06} known",
+        "\n{}: ${}.{:06} {}",
+        tr(l, "Cost", "Стоимость"),
         cost / 1_000_000,
-        cost % 1_000_000
+        cost % 1_000_000,
+        tr(l, "known", "известная")
     );
-    if result.usage_summary.cost.unknown_cost_attempts > 0 {
+    let unknown = result.usage_summary.cost.unknown_cost_attempts;
+    if unknown > 0 {
         let _ = write!(
             out,
-            " + {} attempts of unknown cost",
-            result.usage_summary.cost.unknown_cost_attempts
+            " + {unknown} {}",
+            tr(
+                l,
+                "attempts of unknown cost",
+                "попыток неизвестной стоимости"
+            )
         );
     }
 
     let _ = write!(
         out,
-        " · {} model attempts",
-        result.usage_summary.model_attempts
+        " · {} {}",
+        result.usage_summary.model_attempts,
+        tr(l, "model attempts", "попыток модели")
     );
     if let Some(d) = ctx.duration_seconds {
-        let _ = write!(out, " · {d} s");
-    }
-
-    let _ = writeln!(out, " · {high} high or critical.");
-    if let Some(url) = &ctx.result_url {
-        let _ = writeln!(out, "Full result: {url}");
+        let _ = write!(out, " · {d} {}", tr(l, "s", "с"));
     }
 
     let _ = writeln!(
         out,
-        "\n_Advisory: Sych never approves, requests changes or gates merges._"
+        " · {high} {}.",
+        tr(l, "high or critical", "high или critical")
+    );
+    if let Some(url) = &ctx.result_url {
+        let _ = writeln!(out, "{}: {url}", tr(l, "Full result", "Полный результат"));
+    }
+
+    let _ = writeln!(
+        out,
+        "\n_{}_",
+        tr(
+            l,
+            "Advisory: Sych never approves, requests changes or gates merges.",
+            "Рекомендательно: Sych никогда не одобряет, не запрашивает изменения и не блокирует \
+             слияние."
+        )
     );
 }

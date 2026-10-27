@@ -55,6 +55,14 @@ policy version. `provenance` lists the layers with SHA-256 of the source files; 
 The path/domain layer is expressed through rules' `applies_to.paths`; engine generic rules come after repository rules
 and are replaced by them by ID. The specification does not define a separate file for personal preferences, so there is no such layer yet.
 
+## Review language
+
+`review.language` in `.sych/config.yaml` is `en` (default) or `ru`; any other value is a config error. Every model
+prompt asks for human-readable fields (titles, claims, explanations, questions, suggestions) in that language, with
+code, identifiers, paths, ids and enum values unchanged, and the static text of the summary and inline
+comments is rendered in it. The language is part of the policy snapshot and of every prompt, so a change of language
+makes a new policy id and new checkpoint keys.
+
 ## Policy from head is not applied
 
 `sych review` reads `.sych/` only from the target tip. Changes to `.sych/` in the head under review go into

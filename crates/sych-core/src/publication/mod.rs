@@ -9,7 +9,7 @@ use std::fmt::Write;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{DiffManifest, Finding, FindingCategory, ReviewResult, SourceSide};
+use crate::{DiffManifest, Finding, FindingCategory, ReviewLanguage, ReviewResult, SourceSide};
 
 pub use summary::{SummaryContext, render_summary};
 
@@ -166,24 +166,83 @@ pub fn plan(
         .collect()
 }
 
-/// The body of an inline comment; the marker finds it again.
-pub fn inline_body(finding: &Finding) -> String {
+/// The `en` or `ru` form of a static text of a comment.
+pub(crate) const fn tr(
+    language: ReviewLanguage,
+    en: &'static str,
+    ru: &'static str,
+) -> &'static str {
+    match language {
+        ReviewLanguage::En => en,
+        ReviewLanguage::Ru => ru,
+    }
+}
+
+/// A placement reason of [`plan`] in `language`; the reasons stay English in the plan itself.
+pub(crate) fn reason_text(language: ReviewLanguage, reason: &str) -> String {
+    if language == ReviewLanguage::En {
+        return reason.to_owned();
+    }
+
+    let ru = match reason {
+        "no source anchor" => "нет привязки к коду",
+        "anchored on the target tip, not in the diff" => "привязано к target, а не к diff",
+        "file is not in the diff" => "файла нет в diff",
+        "anchor names another blob than the diff" => "привязка к другому blob, чем в diff",
+        "line is outside the diff GitHub shows" => "строка вне diff, который показывает GitHub",
+        "optional; summary only" => "необязательное; только в сводке",
+        "provider diff is incomplete" => "diff провайдера неполный",
+        "the provider rejected the inline position" => "провайдер отклонил позицию в коде",
+        _ if reason.starts_with("over the ") => {
+            return format!("сверх {MAX_INLINE} новых комментариев в коде за ревизию");
+        }
+        other => other,
+    };
+    ru.to_owned()
+}
+
+/// The body of an inline comment in the result's `language`; the marker finds it again.
+pub fn inline_body(finding: &Finding, language: ReviewLanguage) -> String {
+    let l = language;
     let mut out = format!(
         "<!-- sych:inline:{} -->\n**{:?} · {:?}** {}\n\n{}\n",
         finding.fingerprint, finding.severity, finding.category, finding.title, finding.explanation
     );
     if !finding.triggering_conditions.is_empty() {
-        let _ = writeln!(out, "\nWhen: {}", finding.triggering_conditions.join("; "));
+        let _ = writeln!(
+            out,
+            "\n{}: {}",
+            tr(l, "When", "Когда"),
+            finding.triggering_conditions.join("; ")
+        );
     }
 
     if !finding.consequence.is_empty() {
-        let _ = writeln!(out, "\nConsequence: {}", finding.consequence);
+        let _ = writeln!(
+            out,
+            "\n{}: {}",
+            tr(l, "Consequence", "Последствие"),
+            finding.consequence
+        );
     }
 
     if !finding.suggested_action.is_empty() {
-        let _ = writeln!(out, "\nSuggested: {}", finding.suggested_action);
+        let _ = writeln!(
+            out,
+            "\n{}: {}",
+            tr(l, "Suggested", "Предлагается"),
+            finding.suggested_action
+        );
     }
 
-    out.push_str("\n_Advisory finding by Sych; not a merge gate._\n");
+    let _ = writeln!(
+        out,
+        "\n_{}_",
+        tr(
+            l,
+            "Advisory finding by Sych; not a merge gate.",
+            "Рекомендательное замечание Sych; не блокирует слияние."
+        )
+    );
     out
 }

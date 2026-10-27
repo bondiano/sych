@@ -558,6 +558,7 @@ fn violated_run_bundle_matches_fixture() {
                 model_adapters: vec!["fake".into()],
             },
             created_at: at(),
+            language: sych_core::ReviewLanguage::En,
         },
         &plan,
         &policy,

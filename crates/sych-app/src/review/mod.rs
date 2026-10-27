@@ -330,6 +330,7 @@ fn execute(
         verify: args.verify,
         ci_gaps: &args.ci_gaps,
         parent: args.parent,
+        language: effective.repository.config.review.language,
         now,
     };
     let saved =
@@ -392,5 +393,7 @@ struct Session<'a> {
     ci_gaps: &'a [String],
     /// The parent run whose checkpoints may answer this run's tasks.
     parent: Option<sych_core::RunId>,
+    /// `review.language` of the trusted policy.
+    language: sych_core::ReviewLanguage,
     now: Timestamp,
 }

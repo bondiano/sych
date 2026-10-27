@@ -149,7 +149,7 @@ impl Engine {
                 .ok_or_else(|| {
                     anyhow::anyhow!("finding {:?} is not in the result", c.fingerprint)
                 })?;
-            return Ok(inline_body(finding));
+            return Ok(inline_body(finding, result.language));
         }
 
         let objects = storage.inline_objects(c.change_id).await?;

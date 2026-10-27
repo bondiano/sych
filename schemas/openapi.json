@@ -771,6 +771,14 @@
         "title": "RerunRequest",
         "type": "object"
       },
+      "ReviewLanguage": {
+        "description": "The language of every human-readable text a review writes (`review.language`): model\nprose and the static text of published comments. Code, paths, ids and enum values stay as\nthey are.",
+        "enum": [
+          "en",
+          "ru"
+        ],
+        "type": "string"
+      },
       "ReviewRequest": {
         "additionalProperties": false,
         "description": "`POST /v1/reviews`.",
@@ -828,6 +836,11 @@
               "$ref": "#/$defs/Finding"
             },
             "type": "array"
+          },
+          "language": {
+            "$ref": "#/$defs/ReviewLanguage",
+            "default": "en",
+            "description": "The language of the result's prose and of its publication."
           },
           "obligations": {
             "items": {

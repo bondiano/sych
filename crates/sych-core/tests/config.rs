@@ -7,7 +7,7 @@ use sych_core::config::{
     ConfigError, EffectiveConfig, PolicyChange, PolicyFiles, PolicyInput, RepositoryPolicy,
     ServerConfig, ServerInput, policy_diff,
 };
-use sych_core::{GitHashAlgorithm, GitObjectId, PolicySource, RepoPath, Timestamp};
+use sych_core::{GitHashAlgorithm, GitObjectId, PolicySource, RepoPath, ReviewLanguage, Timestamp};
 
 const ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
 const SECRET: &str = "sk-or-v1-0123456789abcdef0123456789abcdef";
@@ -84,6 +84,33 @@ fn personal_examples_validate() {
             .egress_allowed("https://openrouter.ai.evil.example/api/v1")
     );
     assert!(!config.server.egress_allowed("https://example.com/"));
+}
+
+#[test]
+fn review_language_is_en_or_ru_and_defaults_to_en() {
+    let config = |text: &str| with(PolicyFiles::default(), ".sych/config.yaml", text);
+    let parsed = |text: &str| {
+        RepositoryPolicy::parse(&config(text), &ServerConfig::engine_default())
+            .expect("policy")
+            .config
+            .review
+            .language
+    };
+    assert_eq!(parsed("schema_version: 1\n"), ReviewLanguage::En);
+    assert_eq!(
+        parsed("schema_version: 1\nreview:\n  language: ru\n"),
+        ReviewLanguage::Ru
+    );
+    let errors = repo_errors(&config("schema_version: 1\nreview:\n  language: de\n"));
+    assert_eq!(errors[0].path, "review.language", "{}", errors[0]);
+    assert_eq!(
+        effective(&example_policy())
+            .repository
+            .config
+            .review
+            .language,
+        ReviewLanguage::Ru
+    );
 }
 
 #[test]

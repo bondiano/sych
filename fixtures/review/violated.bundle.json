@@ -16,16 +16,16 @@
         "validity": "VALID"
       }
     ],
-    "external_input_manifest_id": "sha256:026f6c3412bb987b28f8e6a95260f7d16176fec81aa6945c60b9d964dbf427fe",
+    "external_input_manifest_id": "sha256:15e50bcdd44e9f6bf6822cae0215f8a91c295e5884c5a59f3111e1e67ff0fe0e",
     "frozen_at": "2026-10-25T00:00:00Z",
-    "id": "ae99b83f-116f-827a-82c9-d0c70b20e7ac",
-    "policy_snapshot_id": "sha256:d4d1deae79215e00109b71571b2a05a0e06aa2997f91033ce22f99d7ed76f80e",
+    "id": "23185bd3-97fc-8816-989f-ec244d066a12",
+    "policy_snapshot_id": "sha256:b68d2db136bba431ffcf9be20b00eb0110473f7079d5dfd57bd2b7915b5a260b",
     "schema_version": 1,
     "source_snapshot_id": "sha256:40be609af9d1e7f8c02e4149ec30246718a311e4dddfe8ec488d400c0bd44572"
   },
   "external_input_manifest": {
     "frozen_at": "2026-10-25T00:00:00Z",
-    "id": "sha256:026f6c3412bb987b28f8e6a95260f7d16176fec81aa6945c60b9d964dbf427fe",
+    "id": "sha256:15e50bcdd44e9f6bf6822cae0215f8a91c295e5884c5a59f3111e1e67ff0fe0e",
     "inputs": [
       {
         "artifact_sha256": "sha256:cb9a02f579da3ffa03dc3ed340e0162018c4c446875d8b15d9f4e23152b25822",
@@ -33,15 +33,15 @@
         "kind": "test"
       }
     ],
-    "policy_snapshot_id": "sha256:d4d1deae79215e00109b71571b2a05a0e06aa2997f91033ce22f99d7ed76f80e",
+    "policy_snapshot_id": "sha256:b68d2db136bba431ffcf9be20b00eb0110473f7079d5dfd57bd2b7915b5a260b",
     "schema_version": 1,
     "source_snapshot_id": "sha256:40be609af9d1e7f8c02e4149ec30246718a311e4dddfe8ec488d400c0bd44572"
   },
   "policy_snapshot": {
     "authorization_policy_version": 1,
-    "config_hash": "sha256:e65bf13b25464763ffa50be6bd1b1c1f5aafa16c0a11c2e90cec24b0ec5e4132",
+    "config_hash": "sha256:aafb6fbe1267329c3d185133b0c8c7f602c71d56c2dc7ff79e84face1a2bbf50",
     "created_at": "2026-10-25T00:00:00Z",
-    "id": "sha256:d4d1deae79215e00109b71571b2a05a0e06aa2997f91033ce22f99d7ed76f80e",
+    "id": "sha256:b68d2db136bba431ffcf9be20b00eb0110473f7079d5dfd57bd2b7915b5a260b",
     "rules_hash": "sha256:b6be6ee9263ee65ce080a322663f91ced15380e6e4a9b657ce29ca38fd08842c",
     "schema_version": 1,
     "source": {
@@ -53,7 +53,7 @@
   "review_result": {
     "coverage": "COMPLETE_FOR_SCOPE",
     "created_at": "2026-10-25T00:00:00Z",
-    "evidence_manifest_id": "ae99b83f-116f-827a-82c9-d0c70b20e7ac",
+    "evidence_manifest_id": "23185bd3-97fc-8816-989f-ec244d066a12",
     "excluded_or_unreviewed": [
       {
         "path": "assets/logo.png",
@@ -89,6 +89,7 @@
         "validation_expectation": "Commit boundary and delivery mechanism are identified."
       }
     ],
+    "language": "en",
     "obligations": [
       {
         "acceptable_evidence_kinds": [
@@ -133,7 +134,7 @@
       }
     ],
     "parent_result_id": null,
-    "policy_snapshot_id": "sha256:d4d1deae79215e00109b71571b2a05a0e06aa2997f91033ce22f99d7ed76f80e",
+    "policy_snapshot_id": "sha256:b68d2db136bba431ffcf9be20b00eb0110473f7079d5dfd57bd2b7915b5a260b",
     "provenance": {
       "engine_version": "fixture",
       "model_adapters": [

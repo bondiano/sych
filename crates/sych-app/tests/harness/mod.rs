@@ -328,6 +328,7 @@ pub async fn run_reusing(
             .analysis
             .max_parallel_calls
             .map_or(1, |n| usize::try_from(n).unwrap_or(1)),
+        language: policy.config.review.language,
     };
     let outcome = engine.run().await;
     drop(engine);

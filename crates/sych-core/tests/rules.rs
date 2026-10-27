@@ -273,6 +273,12 @@ fn a_rule_contract_reaches_its_obligation_and_the_prompt_as_trusted_text() {
     let prompt = prompts::assessment(&Context::default(), planned);
     assert!(prompt.task.contains(&format!("contract {path} ({hash}):")));
     assert!(prompt.task.contains(&format!("    {}", text.trim())));
+    // The review language is a rule of every prompt, so it is part of the checkpoint key.
+    let english = sych_core::ReviewLanguage::En.instruction();
+    assert!(prompt.rules.iter().any(|r| r == english));
+    let russian = prompts::assessment(&Context::new(sych_core::ReviewLanguage::Ru), planned);
+    assert!(russian.rules.iter().any(|r| r.contains("in Russian")));
+    assert!(!russian.rules.iter().any(|r| r == english));
 }
 
 fn ledger_facts(matched: EffectMatch, notes: &[&str]) -> RunFacts {
