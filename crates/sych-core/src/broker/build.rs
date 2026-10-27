@@ -2,21 +2,18 @@
 //! diagnostics, then depth-1 callers, implementations, tests and references; overlapping
 //! spans merge; required, refuting and supporting evidence fill the budget in that order.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use super::neighbours::Neighbourhood;
 use super::observations;
-use super::{
-    ContextRequest, EvidencePacket, Excluded, Fragment, Link, PacketResolution, PacketUsage,
-    Priority, Purpose, QueryRecord, REQUIRED_OVER_BUDGET, Relation,
-};
+use super::select::select;
+use super::{ContextRequest, EvidencePacket, Priority, Purpose, Relation};
 use crate::config::ContextSettings;
 use crate::effects::EffectLedger;
 use crate::{
     BackendStatus, CiFacts, CodeRef, Completeness, DiffManifest, EvidenceId, FileChange, LintFacts,
-    PolicySnapshotId, RepoPath, ReviewPlan, ReviewUnit, RunId, SchemaVersion, SemanticFacts,
-    SnapshotReader, SourceSide, SourceSnapshotId, SyntaxFacts, is_secret_path, sha256,
-    source_language,
+    PolicySnapshotId, RepoPath, ReviewPlan, ReviewUnit, RunId, SemanticFacts, SnapshotReader,
+    SourceSide, SourceSnapshotId, SyntaxFacts, source_language,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,14 +77,6 @@ pub(super) struct RunState {
     pub requests: u32,
 }
 
-fn rank(c: Completeness) -> u8 {
-    match c {
-        Completeness::Unknown => 0,
-        Completeness::Partial => 1,
-        Completeness::CompleteForQuery => 2,
-    }
-}
-
 fn side_name(side: SourceSide) -> &'static str {
     match side {
         SourceSide::DiffBase => "base",
@@ -96,7 +85,8 @@ fn side_name(side: SourceSide) -> &'static str {
     }
 }
 
-/// Discovery packets per unit, then verification packets per applicable obligation.
+/// Discovery packets per unit, then verification packets per applicable obligation: one,
+/// or several chunks when its required spans do not fit one request together.
 pub fn build_packets(input: &BrokerInput<'_>, reader: &dyn SnapshotReader) -> Vec<EvidencePacket> {
     let mut state = RunState::default();
     let mut packets = Vec::new();
@@ -108,7 +98,7 @@ pub fn build_packets(input: &BrokerInput<'_>, reader: &dyn SnapshotReader) -> Ve
             unit.title.clone(),
             input.limits.unit_tokens,
         );
-        packets.push(packet(input, reader, &mut state, request, &[unit], &[]));
+        packets.extend(packet(input, reader, &mut state, &request, &[unit], &[]));
     }
     for planned in &input.plan.obligations {
         let o = &planned.obligation;
@@ -132,11 +122,11 @@ pub fn build_packets(input: &BrokerInput<'_>, reader: &dyn SnapshotReader) -> Ve
         let mut request = request(input, &units, Some(o.id), o.question.clone(), budget);
         request.purpose = Purpose::Verification;
         request.seed_refs.clone_from(&o.code_refs);
-        packets.push(packet(
+        packets.extend(packet(
             input,
             reader,
             &mut state,
-            request,
+            &request,
             &units,
             &o.code_refs,
         ));
@@ -186,10 +176,10 @@ fn packet(
     input: &BrokerInput<'_>,
     reader: &dyn SnapshotReader,
     state: &mut RunState,
-    request: ContextRequest,
+    request: &ContextRequest,
     units: &[&ReviewUnit],
     seeds: &[CodeRef],
-) -> EvidencePacket {
+) -> Vec<EvidencePacket> {
     let mut gaps = Vec::new();
     let mut queries = Vec::new();
     let mut candidates: Vec<Candidate> = seeds
@@ -361,218 +351,4 @@ fn diff_candidates(
             from = to + 1;
         }
     }
-}
-
-struct Merged {
-    side: SourceSide,
-    path: RepoPath,
-    start: u32,
-    end: u32,
-    priority: Priority,
-    reasons: Vec<String>,
-    evidence: Vec<EvidenceId>,
-    completeness: Completeness,
-}
-
-/// Overlapping or adjacent spans of one file and side become one span.
-fn merge(mut candidates: Vec<Candidate>) -> Vec<Merged> {
-    candidates.sort_by(|a, b| (a.side, &a.path, a.start).cmp(&(b.side, &b.path, b.start)));
-    let mut out: Vec<Merged> = Vec::new();
-    for c in candidates {
-        match out.last_mut() {
-            Some(m)
-                if m.side == c.side && m.path == c.path && c.start <= m.end.saturating_add(1) =>
-            {
-                m.end = m.end.max(c.end);
-                m.priority = m.priority.min(c.priority);
-                if !m.reasons.contains(&c.reason) {
-                    m.reasons.push(c.reason);
-                }
-
-                m.evidence
-                    .extend(c.evidence.filter(|e| !m.evidence.contains(e)));
-                if rank(c.completeness) < rank(m.completeness) {
-                    m.completeness = c.completeness;
-                }
-            }
-            _ => out.push(Merged {
-                side: c.side,
-                path: c.path,
-                start: c.start,
-                end: c.end,
-                priority: c.priority,
-                reasons: vec![c.reason],
-                evidence: c.evidence.into_iter().collect(),
-                completeness: c.completeness,
-            }),
-        }
-    }
-    out
-}
-
-fn fragment_id(r: &CodeRef) -> String {
-    let key = format!(
-        "{:?}:{}:{}:{}-{}",
-        r.side, r.path, r.blob_oid, r.start_line, r.end_line
-    );
-    sha256(key.as_bytes()).hex()[..12].to_owned()
-}
-
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one call site assembling the packet"
-)]
-fn select(
-    reader: &dyn SnapshotReader,
-    state: &mut RunState,
-    request: ContextRequest,
-    candidates: Vec<Candidate>,
-    queries: Vec<QueryRecord>,
-    mut gaps: Vec<String>,
-    requests: u32,
-    max_files: u32,
-) -> EvidencePacket {
-    let links: Vec<RawLink> = candidates
-        .iter()
-        .filter_map(|c| {
-            c.link
-                .clone()
-                .map(|(path, line, rel)| (c.side, path, line, c.path.clone(), c.start, rel))
-        })
-        .collect();
-    let mut merged = merge(candidates);
-    merged.sort_by_key(|m| m.priority);
-    let budget = request.remaining_budget;
-    let mut usage = PacketUsage {
-        semantic_items: requests,
-        ..PacketUsage::default()
-    };
-    let mut fragments = Vec::new();
-    let mut excluded = Vec::new();
-    let mut files = BTreeSet::new();
-    for m in merged {
-        if is_secret_path(m.path.as_str()) {
-            gaps.push(format!("SECRET_PATH {} not read", m.path));
-            continue;
-        }
-
-        let (code_ref, tokens) = match read(reader, &m) {
-            Ok(read) => read,
-            Err(err) => {
-                gaps.push(err);
-                continue;
-            }
-        };
-        let exclude = |reason: &str| Excluded {
-            code_ref: code_ref.clone(),
-            priority: m.priority,
-            reason: reason.to_owned(),
-        };
-        let file = (m.side, m.path.clone());
-        let new_file = !state.files.contains(&file);
-        if new_file
-            && m.priority != Priority::Required
-            && state.files.len() >= usize::try_from(max_files).unwrap_or(usize::MAX)
-        {
-            excluded.push(exclude("LIMIT_MAX_SOURCE_FILES"));
-            continue;
-        }
-
-        if usage.tokens.saturating_add(tokens) > budget {
-            if m.priority == Priority::Required {
-                gaps.push(format!(
-                    "{REQUIRED_OVER_BUDGET}: {}:{}-{}",
-                    m.path, m.start, m.end
-                ));
-                excluded.push(exclude(REQUIRED_OVER_BUDGET));
-            } else {
-                // A writer elsewhere that could refute a hypothesis is not dropped silently.
-                if m.priority == Priority::Refuting {
-                    gaps.push(format!(
-                        "REFUTING_OVER_BUDGET: {}:{}-{}",
-                        m.path, m.start, m.end
-                    ));
-                }
-
-                excluded.push(exclude("BUDGET"));
-            }
-
-            continue;
-        }
-
-        usage.tokens += tokens;
-        files.insert(file.clone());
-        state.files.insert(file);
-        fragments.push(Fragment {
-            id: fragment_id(&code_ref),
-            code_ref,
-            priority: m.priority,
-            reason_selected: m.reasons,
-            evidence_ids: m.evidence,
-            completeness: m.completeness,
-            tokens,
-            transformation: "none".into(),
-        });
-    }
-    usage.files = u32::try_from(files.len()).unwrap_or(u32::MAX);
-    let links = resolve_links(&fragments, links);
-    let resolution = if fragments.is_empty() {
-        PacketResolution::Unavailable
-    } else if gaps.is_empty() {
-        PacketResolution::Satisfied
-    } else {
-        PacketResolution::Partial
-    };
-    EvidencePacket {
-        schema_version: SchemaVersion,
-        request,
-        fragments,
-        links,
-        queries,
-        excluded,
-        gaps,
-        usage,
-        resolution,
-    }
-}
-
-/// The exact reference and token bound of a merged span; the reader checks the hash.
-fn read(reader: &dyn SnapshotReader, m: &Merged) -> Result<(CodeRef, u32), String> {
-    let unreadable =
-        |err: crate::ReadError| format!("UNREADABLE {}:{}-{}: {err}", m.path, m.start, m.end);
-    let code_ref = reader
-        .code_ref(m.side, &m.path, m.start, m.end)
-        .map_err(unreadable)?;
-    let span = reader.read_span(&code_ref).map_err(unreadable)?;
-    Ok((code_ref, u32::try_from(span.text.len()).unwrap_or(u32::MAX)))
-}
-
-type RawLink = (SourceSide, RepoPath, u32, RepoPath, u32, Relation);
-
-/// Links between the included fragments that contain each end; self-links are dropped.
-fn resolve_links(fragments: &[Fragment], links: Vec<RawLink>) -> Vec<Link> {
-    let containing = |side: SourceSide, path: &RepoPath, line: u32| {
-        fragments
-            .iter()
-            .find(|f| {
-                f.code_ref.side == side
-                    && &f.code_ref.path == path
-                    && (f.code_ref.start_line..=f.code_ref.end_line).contains(&line)
-            })
-            .map(|f| f.id.clone())
-    };
-    let mut link_set = BTreeMap::new();
-    for (side, from_path, from_line, to_path, to_line, relation) in links {
-        if let (Some(from), Some(to)) = (
-            containing(side, &from_path, from_line),
-            containing(side, &to_path, to_line),
-        ) && from != to
-        {
-            link_set.insert(
-                (from.clone(), to.clone(), relation as u8),
-                Link { from, to, relation },
-            );
-        }
-    }
-    link_set.into_values().collect()
 }

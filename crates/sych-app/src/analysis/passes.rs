@@ -29,11 +29,17 @@ fn failed(planned: &PlannedObligation, failure: &TaskFailure) -> AssessmentRecor
 }
 
 impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
+    /// One assessment per chunk of the obligation; `context_limited` merges them.
     pub(super) async fn assess(&self, planned: &PlannedObligation, out: &mut Outcome) {
         let id = planned.obligation.id;
-        let Some(index) = self.verification_packet(id) else {
-            return;
-        };
+        let chunks: Vec<usize> = self.verification_packets(id).collect();
+        for index in chunks {
+            self.assess_chunk(planned, index, out).await;
+        }
+    }
+
+    async fn assess_chunk(&self, planned: &PlannedObligation, index: usize, out: &mut Outcome) {
+        let id = planned.obligation.id;
         let packet = &self.packets[index];
         if packet
             .excluded

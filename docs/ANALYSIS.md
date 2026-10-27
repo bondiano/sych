@@ -29,8 +29,10 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    runs in the same call as discovery: `review@5` returns `assessments` and hypotheses, and such calls
    run first. For a small PR this is one call instead of assessment + discovery. The remaining obligations
    each get a separate `assessment@4`. An assessment missing from the `review@5` reply is `UNKNOWN/MODEL_FAILED`
-   ("ob-N was not assessed"). An obligation whose required span did not fit in the packet
-   (`REQUIRED_OVER_BUDGET`) gets no call and stays `UNKNOWN/CONTEXT_LIMIT`.
+   ("ob-N was not assessed"). An obligation whose verification packet was split into chunks gets one
+   `assessment@4` per chunk; `context_limited` merges them per rule: a violation in any chunk stands, then an
+   unknown, then support. The packet holding a required span that fits no chunk (`REQUIRED_OVER_BUDGET`) gets
+   no call, and the obligation stays `UNKNOWN/CONTEXT_LIMIT` unless another chunk shows a violation.
 2. **Risk audit** (`risk_audit@5`) — for HIGH/CRITICAL risk obligations, a separate search over the obligation's verification packet.
    It does not see the discovery output and runs even when discovery is empty; this is not a promise of
    statistical independence of errors.

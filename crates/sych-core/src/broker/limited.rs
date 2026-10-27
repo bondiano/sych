@@ -1,6 +1,7 @@
 //! What a packet budget cut out of the review, or the snapshot does not show: obligations
 //! lose their verdict, discovery spans leave a gap that keeps coverage partial.
 
+use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
 use super::{EvidencePacket, REQUIRED_OVER_BUDGET, UNSEEN_GAPS};
@@ -28,10 +29,40 @@ fn rule_ids<'a>(
         .collect()
 }
 
+/// The assessments of one obligation's chunks become one: a violation in any chunk stands,
+/// then an unknown, then support; evidence comes from the deciding chunks.
+fn combine(into: &mut Assessment, a: Assessment) {
+    let rank = |s: &ObligationStatus| match s {
+        ObligationStatus::NotApplicable { .. } => 0,
+        ObligationStatus::Supported => 1,
+        ObligationStatus::Unknown { .. } => 2,
+        ObligationStatus::Violated => 3,
+    };
+    for limitation in a.limitations {
+        if !into.limitations.contains(&limitation) {
+            into.limitations.push(limitation);
+        }
+    }
+    match rank(&a.status).cmp(&rank(&into.status)) {
+        Ordering::Greater => {
+            into.status = a.status;
+            into.evidence_ids = a.evidence_ids;
+        }
+        Ordering::Equal => {
+            for id in a.evidence_ids {
+                if !into.evidence_ids.contains(&id) {
+                    into.evidence_ids.push(id);
+                }
+            }
+        }
+        Ordering::Less => {}
+    }
+}
+
 /// Obligations whose required context did not fit cannot keep a verdict: their assessment
-/// becomes `UNKNOWN/CONTEXT_LIMIT` (spec §9.3). One whose changed code the snapshot does not
-/// show (`UNSEEN_GAPS`) cannot be `SUPPORTED`: it becomes `UNKNOWN/SEMANTIC_GAP`; a violation
-/// shown elsewhere in the change stands.
+/// becomes `UNKNOWN/CONTEXT_LIMIT` (spec §9.3), unless a chunk that did fit shows a violation.
+/// One whose changed code the snapshot does not show (`UNSEEN_GAPS`) cannot be `SUPPORTED`:
+/// it becomes `UNKNOWN/SEMANTIC_GAP`; a violation shown elsewhere in the change stands.
 pub fn context_limited(
     plan: &ReviewPlan,
     packets: &[EvidencePacket],
@@ -40,23 +71,37 @@ pub fn context_limited(
     let limited = rule_ids(plan, packets, |p| {
         p.excluded.iter().any(|e| e.reason == REQUIRED_OVER_BUDGET)
     });
-    let mut out: Vec<Assessment> = assessments
+    let mut merged: Vec<Assessment> = Vec::new();
+    for a in assessments {
+        match merged.iter_mut().find(|m| m.rule_id == a.rule_id) {
+            Some(into) => combine(into, a),
+            None => merged.push(a),
+        }
+    }
+    let mut out: Vec<Assessment> = merged
         .into_iter()
-        .filter(|a| !limited.contains(a.rule_id.as_str()))
+        .filter(|a| a.status == ObligationStatus::Violated || !limited.contains(a.rule_id.as_str()))
         .map(|a| unseen_unknown(plan, packets, a))
         .collect();
-    out.extend(limited.into_iter().map(|rule_id| Assessment {
-        rule_id: rule_id.to_owned(),
-        status: ObligationStatus::Unknown {
-            reason_code: "CONTEXT_LIMIT".into(),
-            next_evidence_needed:
-                "split the review unit so its required guard fits the request budget".into(),
-        },
-        evidence_ids: Vec::new(),
-        limitations: vec![format!(
-            "required context exceeded the packet budget ({REQUIRED_OVER_BUDGET})"
-        )],
-    }));
+    let decided: BTreeSet<String> = out.iter().map(|a| a.rule_id.clone()).collect();
+    out.extend(
+        limited
+            .into_iter()
+            .filter(|rule_id| !decided.contains(*rule_id))
+            .map(|rule_id| Assessment {
+                rule_id: rule_id.to_owned(),
+                status: ObligationStatus::Unknown {
+                    reason_code: "CONTEXT_LIMIT".into(),
+                    next_evidence_needed:
+                        "split the review unit so its required guard fits the request budget"
+                            .into(),
+                },
+                evidence_ids: Vec::new(),
+                limitations: vec![format!(
+                    "required context exceeded the packet budget ({REQUIRED_OVER_BUDGET})"
+                )],
+            }),
+    );
     out
 }
 

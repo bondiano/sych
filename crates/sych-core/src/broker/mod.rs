@@ -9,6 +9,7 @@ mod limited;
 mod neighbours;
 mod observations;
 mod ops;
+mod select;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

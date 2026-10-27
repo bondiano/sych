@@ -354,9 +354,13 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     }
 
     fn verification_packet(&self, obligation: ObligationId) -> Option<usize> {
-        self.packets
-            .iter()
-            .position(|p| p.request.obligation_id == Some(obligation))
+        self.verification_packets(obligation).next()
+    }
+
+    /// The packet of an obligation, or its chunks when its required spans did not fit one.
+    fn verification_packets(&self, obligation: ObligationId) -> impl Iterator<Item = usize> {
+        (0..self.packets.len())
+            .filter(move |&i| self.packets[i].request.obligation_id == Some(obligation))
     }
 
     fn context(&self, index: usize) -> Context {
@@ -405,12 +409,10 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     /// Whether every span of the obligation's verification packet lies inside the batch's
     /// spans, with no required span left over the budget.
     fn shown_whole(&self, obligation: ObligationId, batch: &[usize]) -> bool {
-        let Some(packet) = self
-            .verification_packet(obligation)
+        let chunks: Vec<&EvidencePacket> = self
+            .verification_packets(obligation)
             .map(|i| &self.packets[i])
-        else {
-            return false;
-        };
+            .collect();
         let shown: Vec<&CodeRef> = batch
             .iter()
             .flat_map(|&i| &self.packets[i].fragments)
@@ -425,10 +427,13 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                     && r.end_line <= s.end_line
             })
         };
-        packet
-            .excluded
-            .iter()
-            .all(|e| e.reason != REQUIRED_OVER_BUDGET)
-            && packet.fragments.iter().all(|f| inside(&f.code_ref))
+        !chunks.is_empty()
+            && chunks.iter().all(|packet| {
+                packet
+                    .excluded
+                    .iter()
+                    .all(|e| e.reason != REQUIRED_OVER_BUDGET)
+                    && packet.fragments.iter().all(|f| inside(&f.code_ref))
+            })
     }
 }
