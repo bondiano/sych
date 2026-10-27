@@ -1,6 +1,6 @@
 # Configuration, policy and doctor
 
-Implements roadmap M0.3 and M1.4: §11, §22–23 and §24.1 of the [specification](SYCH_SPEC.md).
+Implements roadmap M0.3 and M1.4: §11, §22–23 and §24.1 of the specification.
 
 ## Files
 
