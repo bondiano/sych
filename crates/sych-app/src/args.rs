@@ -31,6 +31,9 @@ pub enum Commands {
     Show(ShowArguments),
     /// Explain one obligation of a saved run with the evidence it cites; never runs analysis
     Explain(ExplainArguments),
+    /// Generate a guided tour of a saved run with a model profile and store it; never reviews
+    /// again
+    Tour(TourArguments),
     /// Harness evaluation against fixtures
     #[command(subcommand)]
     Eval(EvalCommands),
@@ -260,6 +263,23 @@ pub struct ExplainArguments {
     pub obligation: String,
     #[arg(long)]
     pub config: Option<PathBuf>,
+    #[command(flatten)]
+    pub out: Output,
+}
+
+#[derive(clap::Args)]
+pub struct TourArguments {
+    #[arg(long)]
+    pub run: String,
+    /// Server config with the model profiles and the store
+    #[arg(long)]
+    pub config: PathBuf,
+    /// The repository the run reviewed; its snapshot is captured again and must match
+    #[arg(long, default_value = ".")]
+    pub repo: PathBuf,
+    /// `roles` or one model profile; the tour has its own budget (`budgets.tour`)
+    #[arg(long, value_parser = ModelSelection::parse, default_value = "roles")]
+    pub models: ModelSelection,
     #[command(flatten)]
     pub out: Output,
 }

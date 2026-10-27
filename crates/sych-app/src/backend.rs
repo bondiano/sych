@@ -6,6 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use sych_adapters::opencode_go::{self, OpencodeGo};
 use sych_adapters::openrouter::{self, OpenRouter};
@@ -17,10 +18,12 @@ use sych_core::config::{
     ServerConfig,
 };
 use sych_core::model::{
-    Capabilities, ErrorKind, ModelProvider, ModelReply, ModelRequest, PriceCard, PriceCatalog,
-    ProviderError, REVIEW_ROLES, Recheck, Route, RoutePlan, plan,
+    Capabilities, Checkpoint, ErrorKind, Hop, Limits, ModelProvider, ModelReply, ModelRequest,
+    PriceCard, PriceCatalog, ProviderError, Purpose, REVIEW_ROLES, Recheck, Route, RoutePlan,
+    Router, plan,
 };
-use sych_core::{Redactor, Timestamp, canonical_sha256};
+use sych_core::{Redactor, RunId, Sha256Digest, Timestamp, canonical_sha256};
+use sych_storage::TENANT_LOCAL;
 use tokio::time::timeout;
 
 /// Every transport behind one gateway; secrets stay inside the adapter.
@@ -297,6 +300,50 @@ pub struct Routing {
     /// Resolves a profile again before each hop: mode, billing, egress and credentials still
     /// hold, and the route is the one planned.
     pub recheck: Box<Recheck>,
+}
+
+impl Routing {
+    /// The router of one run and purpose over these resolved profiles.
+    pub fn router<'a, L>(
+        &'a self,
+        ledger: &'a L,
+        run_id: RunId,
+        purpose: Purpose,
+        limits: Limits,
+        deadline: Option<Timestamp>,
+        reuse: BTreeMap<Sha256Digest, Checkpoint>,
+    ) -> Router<'a, Backend, L> {
+        Router {
+            hops: self
+                .profiles
+                .iter()
+                .map(|(name, resolved)| {
+                    let hop = resolved.as_ref().map_err(Clone::clone).map(|r| Hop {
+                        provider: &r.provider,
+                        route: r.route.clone(),
+                        price: r.price,
+                        fixed_fee: r.fixed_fee,
+                    });
+                    (name.clone(), hop)
+                })
+                .collect(),
+            plan: self.plan.clone(),
+            on: self.on.clone(),
+            cooldown_seconds: self.cooldown_seconds,
+            ledger,
+            tenant_id: TENANT_LOCAL.into(),
+            run_id,
+            purpose,
+            limits,
+            deadline,
+            now: Timestamp::now,
+            redactor: &self.redactor,
+            cooldowns: RefCell::default(),
+            reuse,
+            models_revision: self.models_revision.clone(),
+            eligible: Some(&*self.recheck),
+        }
+    }
 }
 
 /// Plans a review run: the pinned `selected` profile must resolve itself; with role routing
