@@ -341,7 +341,8 @@ impl<P: ModelProvider, L: Ledger> Gateway<'_, P, L> {
 
 /// The output schema with every subschema inlined: structured-output upstreams do not all
 /// resolve `$ref`, and an unresolved one silently empties arrays of nested objects. `oneOf`
-/// becomes `anyOf`: Anthropic and strict OpenAI reject `oneOf`, and serde still decodes one variant.
+/// becomes `anyOf`: `Anthropic` and strict `OpenAI` reject `oneOf`, and serde still decodes one
+/// variant.
 pub(super) fn output_schema<T: JsonSchema>() -> Schema {
     SchemaSettings::draft2020_12()
         .with(|s| s.inline_subschemas = true)
