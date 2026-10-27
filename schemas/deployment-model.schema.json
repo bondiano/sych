@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DeploymentModel",
+  "description": "`deploy.yaml` of one environment (spec §13.1). Every field is optional: what the owner\nhas not declared stays unknown and is reported, never filled in.",
+  "type": "object",
+  "properties": {
+    "backfill": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Sourced4"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "compatibility_window": {
+      "description": "How long old clients and consumers stay supported, e.g. `14d`.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Sourced4"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "contract": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Sourced4"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "downtime": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Sourced3"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "environment": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "excluded_states": {
+      "description": "States the rollout cannot reach; each needs its own confirmed constraint.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Sourced6"
+      }
+    },
+    "initial_versions": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Sourced"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mixed_versions": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Sourced3"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "order": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Sourced2"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "owner": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "recovery": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Sourced5"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version"
+  ],
+  "$defs": {
+    "Component": {
+      "type": "string",
+      "enum": [
+        "schema",
+        "app",
+        "frontend",
+        "jobs"
+      ]
+    },
+    "InitialVersions": {
+      "description": "The deployed starting point; without the build → source link it pins nothing.",
+      "type": "object",
+      "properties": {
+        "app_image": {
+          "description": "Image or build identity actually running, e.g. `ghcr.io/o/app@sha256:…`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "schema_phase": {
+          "description": "Schema/data phase, e.g. `expanded`, `backfilling`, `contracted`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_commit": {
+          "description": "The source commit that image was built from.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "supported_clients": {
+          "description": "Client versions still supported (open tabs, mobile builds, external consumers).",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Recovery": {
+      "type": "string",
+      "enum": [
+        "compatible_rollback",
+        "roll_forward_repair",
+        "restore_replay",
+        "other"
+      ]
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "Sourced": {
+      "description": "A claim and who or what states it (a runbook, a deploy config, the owner).",
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/InitialVersions"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "source"
+      ]
+    },
+    "Sourced2": {
+      "description": "A claim and who or what states it (a runbook, a deploy config, the owner).",
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "value": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Component"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "source"
+      ]
+    },
+    "Sourced3": {
+      "description": "A claim and who or what states it (a runbook, a deploy config, the owner).",
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "value": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "source"
+      ]
+    },
+    "Sourced4": {
+      "description": "A claim and who or what states it (a runbook, a deploy config, the owner).",
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "source"
+      ]
+    },
+    "Sourced5": {
+      "description": "A claim and who or what states it (a runbook, a deploy config, the owner).",
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/Recovery"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "source"
+      ]
+    },
+    "Sourced6": {
+      "description": "A claim and who or what states it (a runbook, a deploy config, the owner).",
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/TransitionState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "source"
+      ]
+    },
+    "TransitionState": {
+      "description": "The reachable combinations of spec §13.2.",
+      "type": "string",
+      "enum": [
+        "old_app_expanded_schema",
+        "mixed_apps",
+        "old_frontend_new_backend",
+        "partial_backfill_concurrent_writes",
+        "backfill_retry",
+        "contract_phase",
+        "recovery_after_new_writes"
+      ]
+    }
+  }
+}

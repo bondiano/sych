@@ -1,0 +1,61 @@
+# Deployment model (M3.4)
+
+`.sych/deploy.yaml` (path: `policy.deployment_file`) describes one environment's rollout, as declared by its
+owner. Sych never derives it from Git: `diff_base` and `target_tip` are not the deployed version. Every claim is
+`{value, source}`; a claim with an empty `source` counts as not declared. Unknown fields are rejected. Schemas:
+[deployment-model](../schemas/deployment-model.schema.json), [transition-matrix](../schemas/transition-matrix.schema.json).
+
+```yaml
+schema_version: 1
+environment: staging
+owner: payments
+initial_versions:
+  value:
+    app_image: ghcr.io/acme/orders@sha256:…      # what actually runs
+    source_commit: "<40-hex commit it was built from>"
+    schema_phase: expanded
+    supported_clients: ["web >= 2026.10.01", "billing-consumer v3"]
+  source: argocd app orders-staging, 2026-10-20
+order: {value: [schema, app, frontend, jobs], source: deploy/README.md}
+mixed_versions: {value: true, source: "rolling update, maxSurge 1"}
+downtime: {value: false, source: SLO doc}
+compatibility_window: {value: 14d, source: frontend release policy}
+backfill: {value: "batched, checkpointed by id", source: jobs/backfill.go}
+contract: {value: "drop after backfill gate + 14d", source: RFC-31}
+recovery: {value: roll_forward_repair, source: runbook RB-12}   # compatible_rollback | roll_forward_repair | restore_replay | other
+excluded_states:
+  - {value: old_frontend_new_backend, source: "server-rendered, no long-lived tabs"}
+```
+
+## Transition matrix
+
+Built from the model ([`deploy::matrix`](../crates/sych-core/src/deploy.rs)); every state of spec §13.2 is
+reachable unless a sourced constraint excludes it. A missing description never makes a state `NOT_APPLICABLE`.
+
+| State | What must hold |
+|---|---|
+| `old_app_expanded_schema` | old readers and writers keep working |
+| `mixed_apps` | data, API and events stay compatible between versions (excluded by `mixed_versions: false` with a source) |
+| `old_frontend_new_backend` | the declared contract of the old client is supported |
+| `partial_backfill_concurrent_writes` | fresher data is not lost and both forms are handled |
+| `backfill_retry` | the backfill is idempotent or resumes correctly |
+| `contract_phase` | the old path is no longer needed within the compatibility window |
+| `recovery_after_new_writes` | the restored version handles the actual data state |
+
+## What the environment owner provides
+
+What is not declared is reported in `missing_inputs`; obligations that depend on it stay `UNKNOWN`, unrelated
+static review is not blocked.
+
+| Gap | Owner input |
+|---|---|
+| `ENVIRONMENT_OWNER` | `environment`, `owner` |
+| `INITIAL_VERSION_UNKNOWN` | `initial_versions` with a source |
+| `BUILD_SOURCE_UNKNOWN` | `app_image` together with its `source_commit` |
+| `ORDER_UNKNOWN` | `order` of schema/app/frontend/jobs |
+| `COMPATIBILITY_WINDOW_UNKNOWN` | `compatibility_window` |
+| `RECOVERY_UNKNOWN` | `recovery` path |
+| `EXTERNAL_CONSUMERS_UNKNOWN` | `supported_clients`: searching this repository does not prove a field removal safe |
+
+DB engine, migration framework and controller semantics (locks, transactions, ordering) are prerequisites the
+owner chooses; Sych does not pick them and keeps them outside the confirmed scope until a DB-specific profile exists.
