@@ -37,6 +37,11 @@ impl Session<'_> {
                 facts: &self.facts.semantic,
                 syntax: &self.facts.syntax,
                 ci: &self.facts.ci,
+                head_compiled: self
+                    .facts
+                    .ci
+                    .iter()
+                    .any(|r| r.compiled(&self.snap.snapshot)),
                 ledger: &self.facts.ledger,
                 lint: &self.facts.lint,
                 limits: self.limits,

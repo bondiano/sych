@@ -295,6 +295,7 @@ pub async fn run_reusing(
             facts: &[],
             syntax: &[],
             ci: &[],
+            head_compiled: false,
             ledger: &EffectLedger::default(),
             lint: &[],
             limits: BrokerLimits::from_settings(&policy.config.context),

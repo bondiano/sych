@@ -51,6 +51,8 @@ pub struct BrokerInput<'a> {
     pub facts: &'a [SemanticFacts],
     pub syntax: &'a [SyntaxFacts],
     pub ci: &'a [CiFacts],
+    /// A CI report bound to the head says it compiled: analyzer errors are artefacts then.
+    pub head_compiled: bool,
     pub ledger: &'a EffectLedger,
     pub lint: &'a [LintFacts],
     pub limits: Limits,
@@ -221,6 +223,7 @@ fn packet(
                         queries: &mut queries,
                         gaps: &mut gaps,
                         syntax: input.syntax,
+                        head_compiled: input.head_compiled,
                     };
                     ctx.collect();
                 }
