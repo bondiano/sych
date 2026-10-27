@@ -19,7 +19,7 @@ pub struct SummaryContext<'a> {
 }
 
 fn short(sha: &str) -> &str {
-    sha.get(..12).unwrap_or(sha)
+    &sha[..12]
 }
 
 fn location(finding: &crate::Finding) -> String {
