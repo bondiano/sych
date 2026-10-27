@@ -37,7 +37,7 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
 3. **Discovery** (`discovery@6`) — over the discovery packets of review units with the list of their obligations. Adjacent
    packets are merged into one call as long as their tokens fit in `context.max_tokens_per_request`: for a
    small PR this is one discovery instead of a call per unit.
-4. **Verify** (`verify@3`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
+4. **Verify** (`verify@4`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
    requests.
 
 A pass that did not complete (budget, deadline, truncation, provider error, schema after repair) is recorded in the

@@ -1,0 +1,69 @@
+schema_version: 1
+id: clean-rust-unread-default
+split: development
+language: rust
+variant: safe
+profiles: [correctness, migration_compatibility]
+rationale: "The default of a settings field nobody reads changes; no behaviour changes."
+base:
+  Cargo.toml: |
+    [package]
+    name = "reviews"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+    serde = { version = "1", features = ["derive"] }
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod settings;
+    pub mod summary;
+  src/settings.rs: |
+    use serde::Deserialize;
+
+    #[derive(Debug, Clone, Deserialize)]
+    #[serde(default)]
+    pub struct Settings {
+        pub language: String,
+        pub max_comments: usize,
+    }
+
+    impl Default for Settings {
+        fn default() -> Self {
+            Self {
+                language: "ru".into(),
+                max_comments: 8,
+            }
+        }
+    }
+  src/summary.rs: |
+    use crate::settings::Settings;
+
+    pub fn summary(settings: &Settings, findings: &[String]) -> String {
+        let shown = findings.len().min(settings.max_comments);
+        format!("Findings: {shown} of {}", findings.len())
+    }
+head:
+  src/settings.rs: |
+    use serde::Deserialize;
+
+    #[derive(Debug, Clone, Deserialize)]
+    #[serde(default)]
+    pub struct Settings {
+        pub language: String,
+        pub max_comments: usize,
+    }
+
+    impl Default for Settings {
+        fn default() -> Self {
+            Self {
+                language: "en".into(),
+                max_comments: 8,
+            }
+        }
+    }
+expected:
+  forbidden_claims:
+    - "Changing the default language changes the output of existing configurations."

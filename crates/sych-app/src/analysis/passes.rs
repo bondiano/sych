@@ -7,7 +7,7 @@ use sych_core::analysis::{
 };
 use sych_core::broker::{Ops, REQUIRED_OVER_BUDGET, unseen_spans};
 use sych_core::config::Role;
-use sych_core::model::{Ledger, ModelProvider, Prompt, RoutedOutcome, TaskFailure};
+use sych_core::model::{DataBlock, Ledger, ModelProvider, Prompt, RoutedOutcome, TaskFailure};
 use sych_core::{Candidate, ObligationId, PlannedObligation, VerificationStatus};
 
 use super::{AskAnswer, Engine, MAX_REFS_PER_ANSWER, Outcome, Pass, PassStatus};
@@ -189,6 +189,13 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                     for r in result.refs.iter().take(MAX_REFS_PER_ANSWER) {
                         context.add_span(r, &reason, self.snap);
                         answer.refs += 1;
+                    }
+                    // An empty answer is evidence too: "nothing reads it" can refute a claim.
+                    if result.refs.is_empty() {
+                        context.blocks.push(DataBlock {
+                            label: reason,
+                            content: format!("no matches ({:?})", result.status),
+                        });
                     }
                 }
             }
