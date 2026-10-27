@@ -1,6 +1,7 @@
 //! Rule contract `rules.yaml` (spec §11.3, §11.6), effect registry `effects.yaml` (§12.3)
 //! and the deployment model file.
 
+use crate::deploy::DeploymentModel;
 use std::collections::{BTreeMap, BTreeSet};
 
 use schemars::JsonSchema;
@@ -151,13 +152,7 @@ pub struct EffectsFile {
 }
 
 /// `deploy.yaml`, versioned and hashed as normalized JSON.
-// shortcut: fields stay untyped until DeploymentModel lands (roadmap M3); type them then.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DeploymentFile {
-    pub schema_version: SchemaVersion,
-    #[serde(flatten)]
-    pub model: BTreeMap<String, serde_json::Value>,
-}
+pub type DeploymentFile = DeploymentModel;
 
 fn is_rule_id(id: &str) -> bool {
     id.starts_with(|c: char| c.is_ascii_uppercase())

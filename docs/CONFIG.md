@@ -8,7 +8,7 @@ Implements roadmap M0.3 and M1.4: §11, §22–23 and §24.1 of the [specificati
 |---|---|---|
 | `sych.yaml` | process owner / operator | local file, `--config` |
 | `.sych/config.yaml` | repository owner | Git objects of the **target tip** (`--base`) |
-| `.sych/rules.yaml`, `effects.yaml`, `deploy.yaml` | repository owner | same; paths are set in `policy.*_file` |
+| `.sych/rules.yaml`, `effects.yaml`, `deploy.yaml` ([DEPLOYMENT.md](DEPLOYMENT.md)) | repository owner | same; paths are set in `policy.*_file` |
 | `.sych/contracts/**` | repository owner | same; hashed as is |
 
 Working examples: [`examples/personal/`](../examples/personal/). Secrets are not stored in the configuration:
