@@ -40,7 +40,7 @@ The rule applies to commit messages; installing commitlint, a release bot and au
 
 ## 2. Starting point and order of work
 
-According to the current [README](../README.md), M0 is done on a fake adapter: the local path `review → JSON/Markdown → show/explain`, SQLite/artifacts and the fake eval suite; evidence is the workspace tests, CLI smoke and the [local review guide](LOCAL_REVIEW.md). Review quality on real models is not confirmed by this. Status is marked with checkboxes: `[x]` on a task means all its AC/DoD are closed; `[x]` on an individual AC/DoD means the item is confirmed by code and documentation (M1.1–M1.7, M1.9, M2.2 and M2.4 fully; M1.8, M1.10–M1.14 partially — subscriptions have no real smokes, the holdout is not labeled; M2.1, M2.3 and M2.5–M2.9 partially — implemented and verified on a loopback GitHub fake, the real sandbox connection is waiting for the owner's App; M3.1–M3.2 fully, M3.3 without the real domain evaluation of M3.8 — [SEMANTIC.md](SEMANTIC.md); model review — [ANALYSIS.md](ANALYSIS.md), server — [SERVER.md](SERVER.md)), `[ ]` means not closed or no evidence yet.
+According to the current [README](../README.md), M0 is done on a fake adapter: the local path `review → JSON/Markdown → show/explain`, SQLite/artifacts and the fake eval suite; evidence is the workspace tests, CLI smoke and the [local review guide](LOCAL_REVIEW.md). Review quality on real models is not confirmed by this. Status is marked with checkboxes: `[x]` on a task means all its AC/DoD are closed; `[x]` on an individual AC/DoD means the item is confirmed by code and documentation (M1.1–M1.7, M1.9, M2.2 and M2.4 fully; M1.8, M1.10–M1.14 partially — subscriptions have no real smokes, the holdout is not labeled; M2.1 and M2.5 fully (the real App connection and provider smoke — [SERVER.md](SERVER.md#real-connection-2026-10-27)); M2.3 and M2.6–M2.9 partially — implemented and verified on a loopback GitHub fake and on the production self-review, without a recorded end-to-end protocol; M3.1–M3.2 fully, M3.3 without the real domain evaluation of M3.8 — [SEMANTIC.md](SEMANTIC.md); model review — [ANALYSIS.md](ANALYSIS.md), server — [SERVER.md](SERVER.md)), `[ ]` means not closed or no evidence yet.
 
 The M0–M6 numbering is kept from the specification; the execution order is refined by dependencies:
 
@@ -458,7 +458,7 @@ First we finish one local M0 scenario, then the high-quality TS/React and Rust p
 
 **Stage result:** the chosen non-production pet repository goes through an autonomous advisory flow via a GitHub App: durable admission → scheduler → CI/evidence → persisted result → recoverable publication, with rerun/feedback and an operational interface. A persisted result does not require paying for analysis again when the publisher restarts.
 
-### [ ] M2.1. GitHub App adapter, secure admission and tenant identity
+### [x] M2.1. GitHub App adapter, secure admission and tenant identity
 
 **Result and boundary:** authenticated GitHub ingress and a tenant-scoped connection/repository binding; the webhook only accepts a durable signal and does not run the model synchronously.
 
@@ -474,7 +474,7 @@ First we finish one local M0 scenario, then the high-quality TS/React and Rust p
 5. One physical repo in two tenants/connections has separate generations, policy, credentials and mutable publication state; another tenant's cached artifact is not read even with a matching hash. A fork is analyzed read-only at the requested pinned commit if access is available; lack of access yields a limitation, not a substitution with the default branch. Fork code is not executed with publisher credentials.
 
 **DoD**
-- [ ] The GitHub App capability/permission matrix and the protocol of the real sandbox connection ([SERVER.md](SERVER.md): the matrix and connection steps are ready; the real connection is waiting for the owner's App) are saved, with the endpoints used, installation scope and safe token references, without secret values.
+- [x] The GitHub App capability/permission matrix and the protocol of the real sandbox connection are saved, with the endpoints used, installation scope and safe token references, without secret values. ([SERVER.md](SERVER.md#real-connection-2026-10-27): granted permissions → capabilities of installation `175773247`, env references only)
 - [x] The acceptance corpus has raw-body signature/body-limit cases, duplicate delivery and two tenant/connection bindings of one repo; receipts and scheduling records show the atomic admission boundary and isolation.
 - [x] The adapter error mapping is versioned: `UNAUTHORIZED | UNSUPPORTED_CAPABILITY | NOT_FOUND | RATE_LIMITED | TRANSIENT | INCOMPLETE_DIFF | INVALID_ANCHOR | PUBLICATION_UNKNOWN`; the endpoint/credential trust agreement is included in the operational configuration.
 
@@ -539,7 +539,7 @@ First we finish one local M0 scenario, then the high-quality TS/React and Rust p
 - [x] A crash/fault matrix is saved: lease expiry, push at commit, bytes failure, DB failure, result/outbox commit followed by process death; evidence includes result/usage/outbox pointers and the absence of a new model attempt after a committed result.
 - [x] There is a retention/GC inventory with active pins, the orphan grace policy, unknown-charge/publication exclusions and a dry-run deletion plan; schema changes have a compatibility/migration record and an old-version fixture.
 
-### [ ] M2.5. Durable outbox, uncertain delivery and remote reconciliation
+### [x] M2.5. Durable outbox, uncertain delivery and remote reconciliation
 
 **Result and boundary:** bot-owned publication objects are delivered and reconciled; an unknown outcome is not masked as success, does not trigger a blind CREATE and does not promise external exactly-once.
 
@@ -557,7 +557,7 @@ First we finish one local M0 scenario, then the high-quality TS/React and Rust p
 
 **DoD**
 - [x] Outbox state-transition/operation records and fault-injection traces for a lost POST response, dispatch crash, lease loss, pagination, a copied marker, lost close and late UPDATE are saved; the number of CREATEs and remote ownership are verifiable.
-- [ ] There is a sandbox provider smoke of creating/updating/reconciling its own object, with remote IDs/markers/revisions and subsequent readback; deterministic transport faults complement, but do not replace, the real GitHub integration.
+- [x] There is a sandbox provider smoke of creating/updating/reconciling its own object, with remote IDs/markers/revisions and subsequent readback; deterministic transport faults complement, but do not replace, the real GitHub integration. (`doctor --scm-smoke` on PR #20 — [SERVER.md](SERVER.md#real-connection-2026-10-27))
 - [x] An operator reconciliation runbook is prepared: recognizing unresolved outcomes, the bounded window/next action, audit of a new CREATE under separate permission and the known duplicate risk; outbox lag/uncertain age/repair metrics and an alert are wired in. ([SERVER.md](SERVER.md), alerts — `docs/examples/server/alerts.yaml`)
 
 ### [ ] M2.6. Advisory summary, verified inline comments and exact anchors

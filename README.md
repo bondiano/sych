@@ -88,8 +88,8 @@ M1 in progress:
   idempotency, error envelope), `serve`/`api`/`worker` roles, health/metrics/alerts, `review --change`,
   `publish`/`cancel`/`rerun`, OpenAPI from DTOs. M2.9 — self-review with a pin of a trusted
   build, production (`bondiano/sych`) only this way ([SERVER.md](docs/SERVER.md#self-review-bondianosych)), server routes without local-only subscriptions, an example CI
-  mirror without `pull_request_target`. The real connection is waiting for the owner's App —
-  [docs/SERVER.md](docs/SERVER.md).
+  mirror without `pull_request_target`. The real App connection, its permission matrix and a provider smoke are in
+  [docs/SERVER.md](docs/SERVER.md#real-connection-2026-10-27).
 - Quality suite (M1.8/M1.14, labelling) — 103 development cases in `eval/quality/dev` (Rust, TS/React and Go
   safe/unsafe/UNKNOWN pairs, routing/billing/privacy triples, clean, nitpick, real commits) and `sych eval validate`;
   the holdout is labelled by the owner. `sych eval measure` on DeepSeek V4.1 Flash, baselines A/B/C: the full pipeline C —

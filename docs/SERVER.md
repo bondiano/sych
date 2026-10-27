@@ -49,6 +49,39 @@ for a single repository (`POST /app/installations/{id}/access_tokens` with `repo
 is refreshed 5 minutes before expiry — independently of the run. The App JWT (RS256) is signed with the key from the PEM (PKCS#1, as
 GitHub issues it, or PKCS#8) and is valid for 9 minutes.
 
+### Real connection (2026-10-27)
+
+The App `sych-reviewer` (bot `sych-reviewer[bot]`) is installed on `bondiano/sych` only; the production connection
+`sych` runs from petinfra (namespace `sych`, setup in petinfra `docs/deployments.md`). Secrets are env references
+from the Secret `sych/sych-env` — `SYCH_GITHUB_APP_KEY_FILE` (PEM mounted at `/run/sych`), `SYCH_GITHUB_WEBHOOK_SECRET`,
+`SYCH_OPENROUTER_API_KEY`, `SYCH_DATABASE_URL`, `SYCH_API_TOKEN_OWNER`; no value is stored in either repository.
+Events: Pull request, Issue comment, Workflow run, Check suite. Granted permissions, as the installation reports
+them, and the capabilities computed from them:
+
+| Permission | Level | Capabilities |
+|---|---|---|
+| Pull requests | write | change_refs, full_diff (with Contents), own_comments, summary_write, inline_write, reconciliation |
+| Contents | read | blobs, full_diff |
+| Actions | read | ci_runs, ci_artifacts |
+| Checks | read | ci_runs; `checks_write` is false — `checks: false` on the connection |
+| Issues | read | the `issue_comment` event |
+| Metadata | read | actor_permissions |
+
+`missing_capabilities` is empty for `checks: false`. Installation `175773247`; tokens are requested per run for the
+single repository and never logged.
+
+**Provider smoke** (M2.5): `sych doctor --config /etc/sych/sych.yaml --repo /tmp --scm-smoke sych --pr 20`, run with
+`kubectl exec` in the production pod on reviewer `de09d763` (`ghcr.io/bondiano/sych@sha256:17552121…`), exit 0:
+
+| Step | Result |
+|---|---|
+| installation → token for `bondiano/sych` | installation `175773247`, permissions as above |
+| create comment on PR #20 | id `6447223738`, marker `sych:smoke:01a17e26-0b07-77e3-9c0c-66227c708dbd` |
+| read back revision 1 | own (`Bot`, `sych-reviewer[bot]`), body `sha256:04198d47…` |
+| update + read back revision 2 | body `sha256:0df4cceb…` |
+| find by marker over all comments | found, same id |
+| delete, read back | `404` (`gh api …/issues/comments/6447223738` → Not Found) |
+
 ### Admission
 
 `POST /hooks/github/:connection`, in order, before JSON parsing:
@@ -357,7 +390,7 @@ binding; the worker passes the active ones into the review as rule exceptions: t
 
 The HTTP transport for feedback and waivers is M2.8.
 
-The real connection has not been made yet: it needs the owner's App. Tests — `cargo test -p sych-app --test server`
+The real connection is described above ([Real connection](#real-connection-2026-10-27)). Tests — `cargo test -p sych-app --test server`
 (signature, limit, content/event types, duplicates, health), `--test github` (JWT → scoped token, cache, reads, mapping) on a
 loopback fake, `-p sych-storage --test admission` (atomicity, coalescing, two tenants), `--test scheduler`
 (supersede/fence, reaper, cancel, waiting for evidence), `-p sych-app --test scheduler` (end-to-end traces on fake GitHub,
@@ -446,8 +479,9 @@ completeness, held budget. Tour/session metrics will be added by M5.
 9. **Storage**: `sych cache prune --dry-run`, then without the flag; backup — stop the process and copy the whole
    `.sych-data/`.
 
-A real end-to-end run on a pet repository (force-push, late CI, restart, rerun/feedback) waits for the owner's App;
-deterministic scenarios are covered by the `-p sych-app` tests.
+The real App writes, reads back, reconciles and deletes its own comment ([provider smoke](#real-connection-2026-10-27));
+a full end-to-end protocol (late CI, restart, rerun/feedback with the usage ledger) is not recorded yet. Deterministic
+scenarios are covered by the `-p sych-app` tests.
 
 ## Self-review Sych (M2.9)
 
@@ -494,7 +528,7 @@ merge commit; without a checkout manifest — `UNVERIFIED`.
 `personal_local` (a subscription the owner signed into on their own machine) does not enter a hosted route. The route is the
 M1.13 role plan; budgets — `budgets` in the server config; model keys — env references (`SYCH_OPENROUTER_API_KEY`).
 
-**Scenarios** (deterministic in the `-p sych-app` tests; on the mirror — after the owner's App is connected): force-push
+**Scenarios** (deterministic in the `-p sych-app` tests; on `bondiano/sych` see [self-review traces](#self-review-traces)): force-push
 and late CI (supersede, successor), a duplicate webhook, the bot's own comment, a lost publication reply and
 a restart — without extra inference or CREATE; a stale summary — `STALE`; `RESOLVED` only after re-verification; the bot does not
 approve/request-changes/merge.
@@ -516,3 +550,19 @@ approve, request changes or merge. Agents must wait for its summary on the curre
 - **CI evidence.** The `check` job in [ci.yml](../.github/workflows/ci.yml) puts into the `sych-reports` artifact the output of
   `cargo clippy --message-format=json` (`clippy.json`), the result of `just check` (`outcomes.json`) and the checkout manifest
   (`sych-ci.json`); [.sych/config.yaml](../.sych/config.yaml) waits for them up to 15 minutes, `ci_reports` live in petinfra.
+
+
+### Self-review traces
+
+Recorded on `bondiano/sych` itself (2026-10-27), production reviewer before and after the release of `de09d763`:
+
+| Trace | PR | What happened |
+|---|---|---|
+| finding → fix → new head | #17 | revision 1 (result `01a17dfe-2aaa-…`) flagged that the head dropped `head_compiled`, `CiFacts::compiled` and the storage write lock — a real regression from a bad squash; the branch was rebuilt, revisions 2–4 re-reviewed each new head (last `01a17e11-e3ba-…`), merged as `2588723` |
+| force-push | #16 | rebase + force-push `6fabfec` → `6e20aaa`; revision 2 (`01a17df9-2800-…`) reviewed the new head; the earlier summary was edited in place, no second summary |
+| target moved | #15, #19, #20, #21 | `update-branch` produced a new head; each got a new revision before merge (`main` requires an up-to-date branch and green `check`) |
+| reviewer artefact | #20 | revision 1 on the pre-#15 reviewer still asked about an `E0308` from rust-analyzer: the defect #15 fixes only takes effect once that build is released |
+| trusted pin | — | Deployment `sych` runs `ghcr.io/bondiano/sych@sha256:17552121…` with `petinfra/revision` = `reviewer_commit` = `de09d7634e29dc65273eeddaf48ba87c95fa0533`; released by `just sych-deploy` after merge, never by a PR |
+
+The bot only commented: no approve, request-changes or merge. Not recorded yet: fork PR, reviewer/policy tampering,
+lost-ACK and late CI on the live repository (covered by the deterministic `-p sych-app` tests).
