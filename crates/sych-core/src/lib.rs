@@ -11,6 +11,7 @@ mod evidence;
 mod finding;
 mod freeze;
 mod generic;
+pub use generic::generic_rule_ids;
 mod glob;
 mod hash;
 pub mod kubernetes;

@@ -1,0 +1,49 @@
+schema_version: 1
+id: mig-backfill-concurrent-unsafe
+split: development
+language: go
+pair: mig-backfill-concurrent
+variant: unsafe
+profiles: [migration_compatibility]
+rationale: "The backfill copies status into state for every row, unconditionally, while the new app already writes state: a row updated by the app between batches is overwritten with the stale status (spec §13.2, partial backfill + concurrent writes)."
+base:
+  .sych/deploy.yaml: |
+    schema_version: 1
+    environment: staging
+    owner: orders
+    mixed_versions: {value: true, source: "rolling update"}
+    backfill: {value: "batched job after the app rollout", source: jobs/README.md}
+  go.mod: |
+    module example.com/shop
+
+    go 1.26
+  migrations/0001_orders.sql: |
+    CREATE TABLE orders (id TEXT PRIMARY KEY, status TEXT NOT NULL);
+  migrations/0002_add_state.sql: |
+    ALTER TABLE orders ADD COLUMN state TEXT NULL;
+  orders/update.go: |
+    package orders
+
+    import (
+    	"context"
+    	"database/sql"
+    )
+
+    func SetState(ctx context.Context, db *sql.DB, id, state string) error {
+    	_, err := db.ExecContext(ctx, "UPDATE orders SET state = $1 WHERE id = $2", state, id)
+    	return err
+    }
+head:
+  migrations/0003_backfill_state.sql: |
+    UPDATE orders SET state = status;
+expected:
+  obligations:
+    - { rule_id: MIG-RESTART, expected_status: VIOLATED }
+  findings:
+    - category: defect
+      semantic_target: "orders.state written by the app during the backfill"
+      required_condition: "the app sets state on a row after the rollout and before or while the backfill runs"
+      evidence_locations:
+        - { side: HEAD, path: migrations/0003_backfill_state.sql, start_line: 1, end_line: 1 }
+  forbidden_claims:
+    - "The backfill only fills rows that have no state yet."

@@ -45,6 +45,8 @@ head:
   migrations/0002_drop_status.sql: |
     ALTER TABLE orders DROP COLUMN status;
 expected:
+  obligations:
+    - { rule_id: MIG-COMPAT, expected_status: VIOLATED }
   findings:
     - category: defect
       semantic_target: "orders.status, still selected by the running app"

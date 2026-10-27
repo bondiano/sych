@@ -1,0 +1,31 @@
+schema_version: 1
+id: tf-replace-db-unknown
+split: development
+language: terraform
+pair: tf-replace-db
+variant: unknown
+profiles: [infrastructure]
+rationale: "The same replacement-forcing change without a plan: whether it is applied in place or as delete-before-create cannot be told from the HCL alone (spec §14.1)."
+base:
+  infra/db.tf: |
+    resource "aws_db_instance" "orders" {
+      identifier     = "orders"
+      engine         = "postgres"
+      engine_version = "15"
+      instance_class = "db.t4g.small"
+    }
+head:
+  infra/db.tf: |
+    resource "aws_db_instance" "orders" {
+      identifier     = "orders"
+      engine         = "postgres"
+      engine_version = "16"
+      instance_class = "db.t4g.small"
+    }
+expected:
+  obligations:
+    - { rule_id: TF-CHANGE, expected_status: UNKNOWN }
+  forbidden_claims:
+    - "The upgrade replaces the database."
+    - "The upgrade is safe in place."
+  unknown: "No Terraform plan of this change was imported, so the action order is not known."

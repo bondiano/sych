@@ -1,0 +1,45 @@
+schema_version: 1
+id: old-frontend-field-removal-safe
+split: development
+language: go
+pair: old-frontend-field-removal
+variant: safe
+profiles: [correctness, migration_compatibility]
+rationale: "Expand-only release: the new frontend stops reading legacy_status while the API and the column keep it, so old tabs keep working; removal is left to a later contract release after the window (spec §13.2)."
+base:
+  .sych/deploy.yaml: |
+    schema_version: 1
+    environment: production
+    owner: orders
+    order: {value: [schema, app, frontend], source: deploy/README.md}
+    mixed_versions: {value: true, source: "rolling update"}
+    compatibility_window: {value: 14d, source: "frontend release policy: open tabs live up to 14 days"}
+    initial_versions:
+      value: {app_image: "ghcr.io/shop/api@sha256:aaaa", source_commit: "1111111111111111111111111111111111111111", supported_clients: ["web bundles of the last 14 days"]}
+      source: argocd
+    recovery: {value: roll_forward_repair, source: runbook}
+  go.mod: |
+    module example.com/shop
+
+    go 1.26
+  migrations/0001_orders.sql: |
+    CREATE TABLE orders (id TEXT PRIMARY KEY, legacy_status TEXT NOT NULL);
+  api/order.go: |
+    package api
+
+    type Order struct {
+    	ID           string `json:"id"`
+    	LegacyStatus string `json:"legacy_status"`
+    }
+  web/order.ts: |
+    export function label(order: { id: string; legacy_status: string }): string {
+      return `${order.id}: ${order.legacy_status.toUpperCase()}`;
+    }
+head:
+  web/order.ts: |
+    export function label(order: { id: string }): string {
+      return order.id;
+    }
+expected:
+  forbidden_claims:
+    - "Old frontend tabs break after this release."

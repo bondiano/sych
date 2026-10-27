@@ -62,6 +62,7 @@ fn review_case(
     let Some(comparison) = materialize(case, repos, dir.path())? else {
         return Ok(None);
     };
+    let ci = super::ci::write(case.ci.as_ref(), &comparison)?;
     let review = ReviewArguments {
         comparison,
         change: None,
@@ -70,8 +71,8 @@ fn review_case(
         policy_ref: None,
         fake_responses: None,
         semantic: args.semantic,
-        ci_facts: Vec::new(),
-        ci_manifest: None,
+        ci_facts: ci.reports.clone(),
+        ci_manifest: ci.manifest.clone(),
         exit_policy: ExitPolicy::Operational,
         out: Output {
             format: Format::Json,

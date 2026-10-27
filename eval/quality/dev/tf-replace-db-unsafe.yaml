@@ -1,0 +1,45 @@
+schema_version: 1
+id: tf-replace-db-unsafe
+split: development
+language: terraform
+pair: tf-replace-db
+variant: unsafe
+profiles: [infrastructure]
+rationale: "Bumping engine_version on this instance forces a replacement, and the plan orders it delete before create: the orders database is destroyed with its data before a new empty one exists (spec §14.1)."
+base:
+  infra/db.tf: |
+    resource "aws_db_instance" "orders" {
+      identifier     = "orders"
+      engine         = "postgres"
+      engine_version = "15"
+      instance_class = "db.t4g.small"
+    }
+head:
+  infra/db.tf: |
+    resource "aws_db_instance" "orders" {
+      identifier     = "orders"
+      engine         = "postgres"
+      engine_version = "16"
+      instance_class = "db.t4g.small"
+    }
+ci:
+  plan.json: |
+    {"format_version": "1.2", "terraform_version": "1.9.5",
+     "resource_changes": [{"address": "aws_db_instance.orders", "change": {
+       "actions": ["delete", "create"],
+       "before": {"engine_version": "15", "password": "s3cret"},
+       "after": {"engine_version": "16", "password": "s3cret"},
+       "after_unknown": {"id": true, "endpoint": true},
+       "before_sensitive": {"password": true}, "after_sensitive": {"password": true},
+       "replace_paths": [["engine_version"]]}}]}
+expected:
+  obligations:
+    - { rule_id: TF-CHANGE, expected_status: VIOLATED }
+  findings:
+    - category: defect
+      semantic_target: "the orders database instance"
+      required_condition: "the plan is applied: the instance is deleted before its replacement is created"
+      evidence_locations:
+        - { side: HEAD, path: infra/db.tf, start_line: 4, end_line: 4 }
+  forbidden_claims:
+    - "The engine upgrade is applied in place."

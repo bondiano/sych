@@ -1,0 +1,43 @@
+schema_version: 1
+id: mig-backfill-concurrent-safe
+split: development
+language: go
+pair: mig-backfill-concurrent
+variant: safe
+profiles: [migration_compatibility]
+rationale: "The backfill only fills rows the app has not written yet, so fresher values survive and a repeated run is a no-op (spec §13.2)."
+base:
+  .sych/deploy.yaml: |
+    schema_version: 1
+    environment: staging
+    owner: orders
+    mixed_versions: {value: true, source: "rolling update"}
+    backfill: {value: "batched job after the app rollout", source: jobs/README.md}
+  go.mod: |
+    module example.com/shop
+
+    go 1.26
+  migrations/0001_orders.sql: |
+    CREATE TABLE orders (id TEXT PRIMARY KEY, status TEXT NOT NULL);
+  migrations/0002_add_state.sql: |
+    ALTER TABLE orders ADD COLUMN state TEXT NULL;
+  orders/update.go: |
+    package orders
+
+    import (
+    	"context"
+    	"database/sql"
+    )
+
+    func SetState(ctx context.Context, db *sql.DB, id, state string) error {
+    	_, err := db.ExecContext(ctx, "UPDATE orders SET state = $1 WHERE id = $2", state, id)
+    	return err
+    }
+head:
+  migrations/0003_backfill_state.sql: |
+    UPDATE orders SET state = status WHERE state IS NULL;
+expected:
+  obligations:
+    - { rule_id: MIG-RESTART, expected_status: SUPPORTED }
+  forbidden_claims:
+    - "The backfill overwrites state written by the app."
