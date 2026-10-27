@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Waits for the Sych advisory review of a pull request's current head and prints it.
+# Usage: scripts/wait-sych [PR] — default: the PR of the current branch.
+# Exit 0: review printed; 1: no review before SYCH_WAIT_SECONDS (default 1800).
+set -euo pipefail
+
+bot="${SYCH_BOT_LOGIN:-sych-reviewer[bot]}"
+deadline=$((SECONDS + ${SYCH_WAIT_SECONDS:-1800}))
+pr="$(gh pr view ${1:+"$1"} --json number --jq .number)"
+repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+
+while ((SECONDS < deadline)); do
+    # Re-read the head every round: a push while waiting needs the review of the new head.
+    head="$(gh pr view "$pr" --json headRefOid --jq .headRefOid)"
+    summary="$(gh api --paginate "repos/$repo/issues/$pr/comments" \
+        --jq ".[] | select(.user.login == \"$bot\") | select(.body | contains(\"Reviewed head \`${head:0:12}\`\")) | .body")"
+    if [[ -n "$summary" ]]; then
+        printf '%s\n' "$summary"
+        gh api --paginate "repos/$repo/pulls/$pr/comments" \
+            --jq ".[] | select(.user.login == \"$bot\" and .commit_id == \"$head\") | \"\n--- \(.path):\(.line // .original_line)\n\(.body)\""
+        exit 0
+    fi
+    sleep 20
+done
+echo "wait-sych: no Sych review of ${head:0:12} on PR #$pr within ${SYCH_WAIT_SECONDS:-1800}s" >&2
+exit 1

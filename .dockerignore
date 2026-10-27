@@ -1,0 +1,7 @@
+target
+.git
+.local
+.sych-data
+.sych-output
+.env
+.env.*

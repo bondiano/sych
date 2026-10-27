@@ -86,8 +86,8 @@
   summary, neutral check run по желанию. M2.7 — lineage findings (RESOLVED только после сопоставимой перепроверки,
   rename не закрывает), feedback и waivers по правам репозитория. M2.8 — `/v1` (identity, repository scope,
   idempotency, envelope ошибок), роли `serve`/`api`/`worker`, health/metrics/alerts, `review --change`,
-  `publish`/`cancel`/`rerun`, OpenAPI из DTO. M2.9 — self-review только на sandbox-зеркале с pin доверенной
-  сборки, production (`bondiano/sych`) отвергается до R1, server-маршруты без local-only подписок, пример CI
+  `publish`/`cancel`/`rerun`, OpenAPI из DTO. M2.9 — self-review с pin доверенной
+  сборки, production (`bondiano/sych`) — только так ([SERVER.md](docs/SERVER.md#self-review-bondianosych)), server-маршруты без local-only подписок, пример CI
   зеркала без `pull_request_target`. Реальное подключение ждёт App владельца —
   [docs/SERVER.md](docs/SERVER.md).
 - Quality suite (M1.8/M1.14, разметка) — 103 development cases в `eval/quality/dev` (Rust, TS/React и Go
@@ -105,7 +105,7 @@ M0 закрыт на fake adapter: внешних API-вызовов нет, к�
 (`NO_MERGE_BASE`, `SHALLOW_HISTORY`, `AMBIGUOUS_MERGE_BASE`), без сравнения с произвольным commit.
 Тесты покрывают контракты `sych-core`, Git snapshot, storage и реальный CLI smoke на временных репозиториях (нужен `git` в `PATH`); зелёный тестовый запуск не подтверждает acceptance cases спецификации.
 
-Согласованный scope включает качественный Rust review, OpenRouter и GPT/GLM/OpenCode subscription access, дешёвый DeepSeek V4.1 Flash и bounded fallback с эскалацией на Astra/Fable. Это требования к будущей реализации, не готовые возможности CLI. GitHub self-review Sych описан в M2.9 roadmap; текущий workflow выполняет только quality-проверки и не включает reviewer или production deploy.
+Согласованный scope включает качественный Rust review, OpenRouter и GPT/GLM/OpenCode subscription access, дешёвый DeepSeek V4.1 Flash и bounded fallback с эскалацией на Astra/Fable. Это требования к будущей реализации, не готовые возможности CLI. GitHub self-review Sych описан в M2.9 roadmap и [SERVER.md](docs/SERVER.md#self-review-bondianosych): CI выполняет quality-проверки, `image.yml` собирает образ ревьюера из `main`, а сам бот работает в petinfra.
 
 ## Локальная разработка
 

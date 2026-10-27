@@ -1,8 +1,8 @@
 # Server: GitHub App, admission, scheduling and publication
 
 `sych serve --config sych.yaml` — один процесс personal sandbox: приём webhooks, scheduler, worker и publisher
-(M2). Webhook только принимает durable signal; модель в handler не вызывается. Production до R1 запрещён:
-подключение к `bondiano/sych` — отдельное разрешение владельца после R1.
+(M2). Webhook только принимает durable signal; модель в handler не вызывается. Production —
+только self-review `bondiano/sych` закреплённой сборкой ([ниже](#self-review-bondianosych)).
 
 ## Подключение GitHub App (M2.1)
 
@@ -450,9 +450,8 @@ completeness, удерживаемый бюджет. Метрики tour/session
 
 ## Self-review Sych (M2.9)
 
-Один общий engine и publisher — второго бота нет. До R1 self-review работает только на sandbox-зеркале Sych;
-`bondiano/sych` (и любая connection с `environment: production`) отвергается валидатором до R1 gate и
-отдельного решения владельца — подготовленная конфигурация не включает боевой запуск.
+Один общий engine и publisher — второго бота нет. `bondiano/sych` (и любая connection с
+`environment: production`) принимается валидатором только с `self_review: true` и `reviewer_commit`.
 
 **Доверенный reviewer.** Prompts, schemas и engine вкомпилированы в бинарник; policy берётся из target tip, а
 `.sych/` из PR только сравнивается (`policy_diff`). Connection с `self_review: true` требует `reviewer_commit` —
@@ -499,5 +498,18 @@ role plan M1.13; бюджеты — `budgets` server config; модельные 
 рестарт — без лишних inference и CREATE; устаревший summary — `STALE`; `RESOLVED` только после перепроверки; бот не
 делает approve/request-changes/merge.
 
-**Активация production** — после R1: отдельное письменное решение владельца, `PRODUCTION_ALLOWED` в
-`sych_core::config` меняется вместе с этим решением, затем новая connection на `bondiano/sych` с тем же flow.
+### Self-review bondiano/sych
+
+Владелец включил production self-review до R1 (2026-10-27), сразу после открытия исходников: каждый PR Sych, в
+том числе агентский, ревьюит сам Sych, и дефекты ревьюера видны на собственных изменениях. Бот advisory: не
+approve, не request-changes, не merge. Агенты обязаны дождаться его summary на текущий head
+(`scripts/wait-sych`, [AGENTS.md](../AGENTS.md)); `main` защищён — только PR с зелёным CI.
+
+- **Образ.** [image.yml](../.github/workflows/image.yml) на push в `main` собирает
+  `ghcr.io/bondiano/sych:<commit>` с `SYCH_BUILD_COMMIT`; PR образ не собирает и не публикует.
+- **Pin.** Deployment в petinfra (namespace `sych`) запускает образ по digest, `reviewer_commit` — тот же
+  commit; обновление ревьюера — осознанный выпуск человеком, а не merge. Server config, ключ App, webhook
+  secret и ключ OpenRouter живут только там.
+- **Модели.** Роли по M1.13 без local-only подписок: `reviewer`/`verifier` — DeepSeek через OpenRouter,
+  `risk_auditor` и `deep_roles.verifier` — Astra с fallback на Fable; лимиты — `budgets` server config.
+- CI evidence пока не подключено (`ci_reports` пуст): Rust CI виден в PR отдельно, summary называет это gap.
