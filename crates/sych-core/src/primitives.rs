@@ -56,6 +56,8 @@ uuid_id!(
     AttemptId,
     /// One structured model task: its first attempt and its repair share one conversation.
     TaskId,
+    /// One immutable tour of one result revision; regeneration makes a new one.
+    TourId,
 );
 
 fn is_lower_hex(s: &str, len: usize) -> bool {
