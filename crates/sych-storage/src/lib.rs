@@ -203,7 +203,9 @@ impl Storage {
         Ok(RunHandle {
             id,
             partition: partition.clone(),
-            generation: u64::try_from(generation).unwrap_or_default(),
+            generation: u64::try_from(generation).map_err(|_| {
+                StorageError::Corrupt(format!("run {run} has generation {generation}"))
+            })?,
             fence: None,
         })
     }
