@@ -1,8 +1,8 @@
 //! The generic rule pack shipped with the engine (spec §11.4). A generic rule is enabled by
 //! its review profile and activates only on the changes it is about; a repository rule with
-//! the same id replaces it. Rules whose domain checker arrives in M3 stay `UNKNOWN` when they
-//! activate: a missing provider never excludes a rule. Migration rules are bound to the
-//! deployment model's transition matrix (`migration::bind`).
+//! the same id replaces it. Domain rules are bound to their inputs after planning: migration
+//! rules to the deployment model (`migration::bind`), TF-CHANGE to a Terraform plan and
+//! K8S-ROLLOUT to rendered manifests; a missing input keeps them `UNKNOWN`, never excluded.
 
 use crate::config::{Acceptance, AppliesTo, Effect, ReviewProfile, Rule, RuleKind, RuleSeverity};
 use crate::effects::{EffectLedger, EffectMatch, LedgerEntry};
@@ -26,8 +26,6 @@ pub(crate) struct GenericRule {
     pub rule: Rule,
     pub profile: ReviewProfile,
     pub trigger: Trigger,
-    /// The domain checker this rule waits for; `None` when the model assesses it now.
-    pub pending_provider: Option<&'static str>,
 }
 
 const MIGRATION: &[&str] = &["**/migrations/**", "**/migrate/**", "**/*.sql"];
@@ -69,18 +67,16 @@ fn rule(id: &str, title: &str, severity: RuleSeverity, statement: &str, criteria
 pub(crate) fn pack() -> Vec<GenericRule> {
     use ReviewProfile::{Correctness, Infrastructure, MigrationCompatibility, SideEffects};
     use RuleSeverity::{High, Medium};
-    let generic = |rule, profile, trigger, pending_provider| GenericRule {
+    let generic = |rule, profile, trigger| GenericRule {
         rule,
         profile,
         trigger,
-        pending_provider,
     };
     let migration = |id, title, statement| {
         generic(
             rule(id, title, High, statement, &[statement]),
             MigrationCompatibility,
             Trigger::Paths(MIGRATION),
-            None,
         )
     };
     vec![
@@ -96,7 +92,6 @@ pub(crate) fn pack() -> Vec<GenericRule> {
             ),
             SideEffects,
             Trigger::Effects,
-            None,
         ),
         generic(
             rule(
@@ -122,7 +117,6 @@ pub(crate) fn pack() -> Vec<GenericRule> {
                 SyntaxKind::UnpairedSubscription,
                 SyntaxKind::AsyncEffectUnguarded,
             ]),
-            None,
         ),
         migration(
             "MIG-COMPAT",
@@ -154,7 +148,6 @@ pub(crate) fn pack() -> Vec<GenericRule> {
             ),
             Infrastructure,
             Trigger::Paths(&["**/*.tf", "**/*.tfvars"]),
-            None,
         ),
         generic(
             rule(
@@ -166,7 +159,6 @@ pub(crate) fn pack() -> Vec<GenericRule> {
             ),
             Infrastructure,
             Trigger::Paths(&["**/k8s/**", "**/helm/**", "**/charts/**"]),
-            None,
         ),
         generic(
             rule(
@@ -180,7 +172,6 @@ pub(crate) fn pack() -> Vec<GenericRule> {
             ),
             Correctness,
             Trigger::TestIntegrity,
-            None,
         ),
     ]
 }
