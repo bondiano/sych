@@ -75,7 +75,7 @@ impl Storage {
     ) -> Result<Idempotency, StorageError> {
         let (tenant, actor, endpoint) = scope;
         let at = now.as_second();
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         sqlx::query(
             "DELETE FROM idempotency_keys WHERE tenant_id = ? AND actor = ? AND endpoint = ?
                  AND key = ? AND expires_at <= ?",
@@ -190,7 +190,7 @@ impl Storage {
         now: Timestamp,
     ) -> Result<Option<String>, StorageError> {
         let at = now.as_second();
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let done = sqlx::query(concat!(
             "UPDATE runs SET state = 'CANCELLED', failure = ?, finished_at = ?
              WHERE id = ? AND tenant_id = ? AND state IN ",
@@ -340,7 +340,7 @@ impl Storage {
         repo: &RepositoryRef,
         number: u64,
     ) -> Result<i64, StorageError> {
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let repository: i64 = sqlx::query_scalar(
             "INSERT INTO repositories (tenant_id, connection_id, provider_instance, external_id, full_name)
              VALUES (?, ?, ?, ?, ?)

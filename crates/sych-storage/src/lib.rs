@@ -9,6 +9,7 @@ mod admission;
 mod api;
 mod artifacts;
 mod checkpoints;
+mod connection;
 mod gc;
 mod jobs;
 mod ledger;
@@ -18,15 +19,12 @@ mod publish;
 mod retention;
 mod scheduler;
 
-use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
+use std::path::PathBuf;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use sqlx::migrate::{MigrateError, Migrator};
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 use sqlx::{Row, SqlitePool};
 use sych_core::{
     DecodeError, PolicySnapshotId, ReviewResult, RunId, SCHEMA_VERSION, Sha256Digest,
@@ -152,63 +150,11 @@ pub struct Storage {
     store: ArtifactStore,
 }
 
-async fn pool(path: &Path, create: bool) -> Result<SqlitePool, StorageError> {
-    let options = SqliteConnectOptions::from_str("sqlite:")?
-        .filename(path)
-        .create_if_missing(create)
-        .journal_mode(SqliteJournalMode::Wal)
-        .synchronous(SqliteSynchronous::Full)
-        .foreign_keys(true);
-    Ok(SqlitePoolOptions::new()
-        .max_connections(1)
-        .connect_with(options)
-        .await?)
-}
-
 fn int(value: u64) -> i64 {
     i64::try_from(value).unwrap_or(i64::MAX)
 }
 
 impl Storage {
-    /// Applies pending migrations; the only operation that changes the schema.
-    pub async fn migrate(config: &StoreConfig) -> Result<Vec<i64>, StorageError> {
-        if let Some(dir) = config.database.parent() {
-            fs::create_dir_all(dir)?;
-        }
-
-        let pool = pool(&config.database, true).await?;
-        let before = applied(&pool).await?;
-        MIGRATOR.run(&pool).await?;
-        let after = applied(&pool).await?;
-        pool.close().await;
-        tracing::info!(database = %config.database.display(), applied = after.len() - before.len(), "database migrated");
-        Ok(after.into_iter().filter(|v| !before.contains(v)).collect())
-    }
-
-    /// Opens a migrated database; never creates or changes the schema.
-    pub async fn open(config: &StoreConfig) -> Result<Self, StorageError> {
-        let name = config.database.display().to_string();
-        if !config.database.exists() {
-            return Err(StorageError::NotMigrated(name));
-        }
-
-        let pool = pool(&config.database, false).await?;
-        let applied = applied(&pool).await?;
-        let known: Vec<i64> = MIGRATOR.iter().map(|m| m.version).collect();
-        if applied.iter().any(|v| !known.contains(v)) {
-            return Err(StorageError::NewerSchema(name));
-        }
-
-        if known.iter().any(|v| !applied.contains(v)) {
-            return Err(StorageError::NotMigrated(name));
-        }
-
-        Ok(Self {
-            pool,
-            store: ArtifactStore::new(&config.artifacts),
-        })
-    }
-
     /// Records a RUNNING run with the next generation of its change, in one transaction.
     pub async fn begin_run(
         &self,
@@ -218,7 +164,7 @@ impl Storage {
         policy: &PolicySnapshotId,
         now: Timestamp,
     ) -> Result<RunHandle, StorageError> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self.write().await?;
         let row = sqlx::query(
             "INSERT INTO changes (tenant_id, access_scope, change_key, desired_generation)
              VALUES (?, ?, ?, 1)
@@ -273,7 +219,7 @@ impl Storage {
         let digest = sha256(&bytes);
         let key = ArtifactStore::key(&run.partition, &digest);
         let p = &run.partition;
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self.write().await?;
         sqlx::query(
             "INSERT INTO artifacts (tenant_id, access_scope, sha256, kind, schema_version,
                  store_key, size, created_at, retain_until)
@@ -348,7 +294,7 @@ impl Storage {
 
         let p = &run.partition;
         let fence = run.fence.as_ref();
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self.write().await?;
         let stored = sqlx::query(
             "SELECT a.store_key FROM run_artifacts ra
              JOIN artifacts a ON a.tenant_id = ra.tenant_id
@@ -531,28 +477,7 @@ impl Storage {
         Ok(decode(&text)?)
     }
 
-    pub(crate) fn pool(&self) -> &SqlitePool {
-        &self.pool
-    }
-
     pub(crate) fn store(&self) -> &ArtifactStore {
         &self.store
     }
-}
-
-async fn applied(pool: &SqlitePool) -> Result<Vec<i64>, StorageError> {
-    let exists = sqlx::query(
-        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_sqlx_migrations'",
-    )
-    .fetch_optional(pool)
-    .await?
-    .is_some();
-    if !exists {
-        return Ok(Vec::new());
-    }
-
-    let rows = sqlx::query("SELECT version FROM _sqlx_migrations WHERE success = 1")
-        .fetch_all(pool)
-        .await?;
-    Ok(rows.iter().map(|r| r.get(0)).collect())
 }

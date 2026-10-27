@@ -193,7 +193,7 @@ impl Storage {
         now: Timestamp,
     ) -> Result<RunHandle, StorageError> {
         let at = now.as_second();
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let superseded = sqlx::query(concat!(
             "UPDATE runs SET state = 'SUPERSEDED', finished_at = ?
              WHERE change_id = ? AND state IN ",
@@ -289,7 +289,7 @@ impl Storage {
         now: Timestamp,
     ) -> Result<Vec<String>, StorageError> {
         let at = now.as_second();
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let cancelled: Vec<String> = sqlx::query(concat!(
             "UPDATE runs SET state = 'CANCELLED', failure = ?, finished_at = ?
              WHERE change_id = ? AND state IN ",

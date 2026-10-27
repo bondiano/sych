@@ -92,7 +92,7 @@ impl crate::Storage {
         run_id: &str,
         at: i64,
     ) -> Result<Option<i64>, StorageError> {
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let result: String = sqlx::query_scalar(
             "SELECT result_id FROM runs WHERE id = ? AND tenant_id = ? AND state = 'COMPLETED'",
         )
@@ -155,7 +155,7 @@ impl crate::Storage {
         items: &[(String, String)],
         at: i64,
     ) -> Result<Vec<i64>, StorageError> {
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let mut ops = Vec::new();
         for (fingerprint, anchor) in items {
             let object: Option<i64> = sqlx::query_scalar(
@@ -219,7 +219,7 @@ impl crate::Storage {
         run: &crate::RunHandle,
         at: i64,
     ) -> Result<Option<i64>, StorageError> {
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let op = enqueue_check(&mut tx, &run.id.to_string(), "", at).await?;
         tx.commit().await?;
         Ok(op)

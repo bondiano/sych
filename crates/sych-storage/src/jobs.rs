@@ -36,7 +36,7 @@ impl Storage {
         now: Timestamp,
     ) -> Result<Option<Claim>, StorageError> {
         let at = now.as_second();
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let row = sqlx::query(
             "UPDATE jobs SET state = 'CLAIMED', owner = ?, lease_epoch = lease_epoch + 1,
                  lease_until = ?, attempts = attempts + 1
@@ -117,7 +117,7 @@ impl Storage {
     /// run fail instead. Returns how many jobs it moved.
     pub async fn reap(&self, now: Timestamp) -> Result<u64, StorageError> {
         let at = now.as_second();
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let failed: Vec<String> = sqlx::query(
             "UPDATE jobs SET state = 'FAILED', lease_epoch = lease_epoch + 1, finished_at = ?,
                  last_error = 'lease expired'
@@ -259,7 +259,7 @@ impl Storage {
         now: Timestamp,
     ) -> Result<bool, StorageError> {
         let at = now.as_second();
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let done = sqlx::query(concat!(
             "UPDATE runs SET state = 'FAILED', failure = ?, finished_at = ?
              WHERE id = ? AND state IN ",
