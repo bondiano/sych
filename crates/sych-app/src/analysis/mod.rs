@@ -130,6 +130,8 @@ pub struct Engine<'a, P, L> {
     pub verify: bool,
     /// Model calls in flight at once (`budgets.analysis.max_parallel_calls`), at least 1.
     pub parallel: usize,
+    /// `review.language`: every prompt asks for prose in it.
+    pub language: sych_core::ReviewLanguage,
 }
 
 fn needs_assessment(planned: &PlannedObligation) -> bool {
@@ -329,7 +331,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     }
 
     fn context(&self, index: usize) -> Context {
-        let mut context = Context::default();
+        let mut context = Context::new(self.language);
         context.add_packet(
             &self.packets[index],
             &self.packet_evidence[index],
@@ -340,7 +342,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
 
     /// The spans of a discovery batch and the obligations linked to its units.
     fn batch_view(&self, batch: &[usize]) -> (Context, Vec<&PlannedObligation>) {
-        let mut context = Context::default();
+        let mut context = Context::new(self.language);
         for &i in batch {
             context.add_packet(&self.packets[i], &self.packet_evidence[i], self.snap);
         }

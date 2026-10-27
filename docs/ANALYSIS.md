@@ -26,18 +26,18 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
 1. **Assessment** — required ones first, then by descending risk; this is the verification reserve: discovery cannot
    spend the budget the obligations need. If a discovery batch (item 3) shows an obligation's verification packet
    in full (each of its spans lies within the batch spans, nothing required is excluded), the assessment
-   runs in the same call as discovery: `review@4` returns `assessments` and hypotheses, and such calls
+   runs in the same call as discovery: `review@5` returns `assessments` and hypotheses, and such calls
    run first. For a small PR this is one call instead of assessment + discovery. The remaining obligations
-   each get a separate `assessment@3`. An assessment missing from the `review@4` reply is `UNKNOWN/MODEL_FAILED`
+   each get a separate `assessment@4`. An assessment missing from the `review@5` reply is `UNKNOWN/MODEL_FAILED`
    ("ob-N was not assessed"). An obligation whose required span did not fit in the packet
    (`REQUIRED_OVER_BUDGET`) gets no call and stays `UNKNOWN/CONTEXT_LIMIT`.
-2. **Risk audit** (`risk_audit@4`) — for HIGH/CRITICAL risk obligations, a separate search over the obligation's verification packet.
+2. **Risk audit** (`risk_audit@5`) — for HIGH/CRITICAL risk obligations, a separate search over the obligation's verification packet.
    It does not see the discovery output and runs even when discovery is empty; this is not a promise of
    statistical independence of errors.
-3. **Discovery** (`discovery@5`) — over the discovery packets of review units with the list of their obligations. Adjacent
+3. **Discovery** (`discovery@6`) — over the discovery packets of review units with the list of their obligations. Adjacent
    packets are merged into one call as long as their tokens fit in `context.max_tokens_per_request`: for a
    small PR this is one discovery instead of a call per unit.
-4. **Verify** (`verify@1`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
+4. **Verify** (`verify@3`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
    requests.
 
 A pass that did not complete (budget, deadline, truncation, provider error, schema after repair) is recorded in the
@@ -139,8 +139,8 @@ discovery in batches and verify, 1 candidate `REJECTED`, 1 `UNRESOLVED` (the new
   text; `max_attempts: 1` — the reserve goes to the obligation, the rest is `LIMIT_REACHED`; a dispatched timeout gives an
   `UNKNOWN` charge; a non-dispatched `UNSUPPORTED` gives `RELEASED` and `MODEL_FAILED`, not an empty success; a context
   request `read_lines` is answered via the broker and visible to the verifier as `answer to: …`; a small PR gets
-  `review@4` instead of assessment + discovery, and an obligation that no batch shows in full
-  gets a separate assessment; `review@4` without an assessment leaves `UNKNOWN/MODEL_FAILED`.
+  `review@5` instead of assessment + discovery, and an obligation that no batch shows in full
+  gets a separate assessment; `review@5` without an assessment leaves `UNKNOWN/MODEL_FAILED`.
 - Real smoke of `cheap_api` (DeepSeek V4.1 Flash, `reasoning_effort: low`) on an unsafe/safe pair via
   `review@2`: a removed guard gives `VIOLATED` and a confirmed finding; replacing the guard with `?? []` gives `SUPPORTED`, with no
   findings; 3 calls each (review, risk audit, verify), ~$0.0015 per run ([example](examples/model-review/)).

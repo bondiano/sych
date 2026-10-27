@@ -1896,7 +1896,7 @@ The models example defines the shape of personal routing, not ready-made authori
 ```yaml
 schema_version: 1
 review:
-  language: ru
+  language: en   # en | ru (default en): prose of models and published comments
   profiles:
     - correctness
     - project_rules

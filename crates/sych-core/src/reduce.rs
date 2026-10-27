@@ -469,6 +469,7 @@ pub struct RunInfo {
     pub usage: UsageSummary,
     pub provenance: Provenance,
     pub created_at: Timestamp,
+    pub language: crate::ReviewLanguage,
 }
 
 /// Assembles the immutable result; the plan's scope is carried unchanged (spec §7.4).
@@ -505,5 +506,6 @@ pub fn finalize(
         usage_summary: run.usage,
         created_at: run.created_at,
         provenance: run.provenance,
+        language: run.language,
     }
 }

@@ -29,6 +29,11 @@
         "$ref": "#/$defs/Finding"
       }
     },
+    "language": {
+      "description": "The language of the result's prose and of its publication.",
+      "$ref": "#/$defs/ReviewLanguage",
+      "default": "en"
+    },
     "obligations": {
       "type": "array",
       "items": {
@@ -699,6 +704,14 @@
     "RepoPath": {
       "type": "string",
       "minLength": 1
+    },
+    "ReviewLanguage": {
+      "description": "The language of every human-readable text a review writes (`review.language`): model\nprose and the static text of published comments. Code, paths, ids and enum values stay as\nthey are.",
+      "type": "string",
+      "enum": [
+        "en",
+        "ru"
+      ]
     },
     "ReviewUnit": {
       "description": "Related changes reviewed together around one contract or behavior.",

@@ -11,8 +11,8 @@ use sych_core::publication::{
     render_summary,
 };
 use sych_core::{
-    Coverage, DiffManifest, ExecutionOutcome, Finding, FindingCategory, GitObjectId, ReviewResult,
-    Severity, SourceSide, decode, sha256,
+    Coverage, DiffManifest, ExecutionOutcome, Finding, FindingCategory, GitObjectId,
+    ReviewLanguage, ReviewResult, Severity, SourceSide, decode, sha256,
 };
 
 fn fixture(name: &str) -> PathBuf {
@@ -199,7 +199,9 @@ fn at_most_eight_new_inline_comments_and_optional_findings_stay_in_the_summary()
             .iter()
             .all(|p| !matches!(p.placement, Placement::Inline { .. }))
     );
-    assert!(inline_body(&r.findings[0]).starts_with("<!-- sych:inline:sha256:"));
+    assert!(
+        inline_body(&r.findings[0], ReviewLanguage::En).starts_with("<!-- sych:inline:sha256:")
+    );
 }
 
 fn golden(name: &str, text: &str) {
@@ -263,4 +265,29 @@ fn summaries_match_their_golden_files() {
         text.contains("**unavailable**") && !text.contains("None confirmed in the reviewed scope")
     );
     golden("summary-unavailable", &text);
+}
+
+/// The same results in Russian: the static text changes, enum values, paths and the marker
+/// do not.
+#[test]
+fn russian_summaries_and_inline_bodies_match_their_golden_files() {
+    let mut crowded = crowded();
+    crowded.language = ReviewLanguage::Ru;
+    let planned = plan(&crowded, &manifest(), &[], &[], true);
+    let text = render_summary(&crowded, &planned, &ctx());
+    assert!(text.starts_with("<!-- sych:summary:7 -->\n### Ревью Sych"));
+    assert!(text.contains("| Critical |") && text.contains("сверх 8 новых"));
+    golden("summary-crowded.ru", &text);
+
+    let mut partial = result();
+    partial.language = ReviewLanguage::Ru;
+    let planned = plan(&partial, &manifest(), &[], &[], true);
+    golden(
+        "summary-partial.ru",
+        &render_summary(&partial, &planned, &ctx()),
+    );
+    let mut finding = partial.findings[0].clone();
+    finding.triggering_conditions = vec!["two concurrent requests".into()];
+    golden("inline.ru", &inline_body(&finding, ReviewLanguage::Ru));
+    golden("inline.en", &inline_body(&finding, ReviewLanguage::En));
 }

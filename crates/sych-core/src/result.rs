@@ -102,6 +102,35 @@ pub struct Provenance {
     pub model_adapters: Vec<String>,
 }
 
+/// The language of every human-readable text a review writes (`review.language`): model
+/// prose and the static text of published comments. Code, paths, ids and enum values stay as
+/// they are.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ReviewLanguage {
+    #[default]
+    En,
+    Ru,
+}
+
+impl ReviewLanguage {
+    /// The instruction every model prompt carries.
+    pub const fn instruction(self) -> &'static str {
+        match self {
+            Self::En => {
+                "Write every human-readable field (titles, claims, explanations, questions, \
+                 rationales, limitations and suggested actions) in English. Keep code, \
+                 identifiers, file paths, ids and enum values exactly as they are."
+            }
+            Self::Ru => {
+                "Write every human-readable field (titles, claims, explanations, questions, \
+                 rationales, limitations and suggested actions) in Russian. Keep code, \
+                 identifiers, file paths, ids and enum values exactly as they are, untranslated."
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ReviewResult {
     pub schema_version: SchemaVersion,
@@ -126,4 +155,7 @@ pub struct ReviewResult {
     pub usage_summary: UsageSummary,
     pub created_at: Timestamp,
     pub provenance: Provenance,
+    /// The language of the result's prose and of its publication.
+    #[serde(default)]
+    pub language: ReviewLanguage,
 }

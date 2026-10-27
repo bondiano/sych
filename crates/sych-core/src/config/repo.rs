@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{Problems, ServerConfig};
-use crate::{RepoPath, SchemaVersion};
+use crate::{RepoPath, ReviewLanguage, SchemaVersion};
 
 /// Policy files live here; anything else in the directory is rejected.
 pub const POLICY_DIR: &str = ".sych/";
@@ -29,7 +29,8 @@ pub enum DraftPolicy {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct ReviewSettings {
-    pub language: String,
+    /// `en` or `ru`; any other value is a config error.
+    pub language: ReviewLanguage,
     pub profiles: Vec<ReviewProfile>,
     pub draft_policy: DraftPolicy,
 }
@@ -37,7 +38,7 @@ pub struct ReviewSettings {
 impl Default for ReviewSettings {
     fn default() -> Self {
         Self {
-            language: "ru".into(),
+            language: ReviewLanguage::En,
             profiles: vec![
                 ReviewProfile::Correctness,
                 ReviewProfile::ProjectRules,

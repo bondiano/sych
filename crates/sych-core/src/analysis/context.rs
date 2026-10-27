@@ -11,8 +11,8 @@ use crate::broker::{EvidencePacket, Priority, REQUIRED_OVER_BUDGET};
 use crate::model::DataBlock;
 use crate::{
     BindingKind, CodeRef, Completeness, Evidence, EvidenceBinding, EvidenceId, EvidenceKind,
-    Producer, SchemaVersion, SnapshotReader, SourceSide, SourceSnapshot, Timestamp, TrustClass,
-    Validity, canonical_sha256, derived_uuid,
+    Producer, ReviewLanguage, SchemaVersion, SnapshotReader, SourceSide, SourceSnapshot, Timestamp,
+    TrustClass, Validity, canonical_sha256, derived_uuid,
 };
 
 /// Lines inside one handed-out span; the model never writes paths or hashes.
@@ -79,6 +79,8 @@ pub struct Context {
     evidence: Vec<(EvidenceId, String)>,
     /// Spans that could not be read back with their hash.
     pub limitations: Vec<String>,
+    /// The language the model writes its prose in.
+    pub language: ReviewLanguage,
 }
 
 fn side_name(side: SourceSide) -> &'static str {
@@ -90,6 +92,14 @@ fn side_name(side: SourceSide) -> &'static str {
 }
 
 impl Context {
+    /// An empty context whose prompts ask for prose in `language`.
+    pub fn new(language: ReviewLanguage) -> Self {
+        Self {
+            language,
+            ..Self::default()
+        }
+    }
+
     /// Every fragment of `packet` as one numbered block; `source` is its packet evidence.
     pub fn add_packet(
         &mut self,

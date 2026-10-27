@@ -1,5 +1,7 @@
 # Repository policy of Sych reviewing itself; read from the target tip, a PR cannot change its own.
 schema_version: 1
+review:
+  language: en
 ci:
   wait_seconds: 900
   expected_reports:

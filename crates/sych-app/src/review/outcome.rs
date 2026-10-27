@@ -127,6 +127,7 @@ impl Session<'_> {
                 .analysis
                 .max_parallel_calls
                 .map_or(1, |n| usize::try_from(n).unwrap_or(1)),
+            language: self.language,
         };
         let mut outcome = engine.run().await;
         for route in &mut outcome.record.routes {
@@ -248,6 +249,7 @@ impl Session<'_> {
                 model_adapters: adapters,
             },
             created_at: now,
+            language: self.language,
         };
         let result = finalize(info, plan, policy, &evidence, outcome, reduced);
         Ok((external, evidence, result, all))
