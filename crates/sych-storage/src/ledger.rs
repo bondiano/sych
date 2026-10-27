@@ -49,8 +49,7 @@ impl Storage {
         let day = utc(r.at, "%Y-%m-%d");
         let month = utc(r.at, "%Y-%m");
         let billing = tag(&r.route.billing)?;
-        // One connection serializes these transactions; a second process gets SQLITE_BUSY.
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         // Only the constant expressions above are interpolated; values are bound.
         let row = sqlx::query(AssertSqlSafe(format!(
             "SELECT

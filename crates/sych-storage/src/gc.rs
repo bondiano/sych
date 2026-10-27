@@ -104,7 +104,7 @@ impl Storage {
     ) -> Result<bool, StorageError> {
         // The DELETE is the transaction's first statement: it takes the write lock on the latest
         // snapshot, and the lock is held until the bytes are gone.
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let key: Option<String> = sqlx::query_scalar(
             "DELETE FROM artifacts AS a
              WHERE a.tenant_id = ?1 AND a.access_scope = ?2 AND a.sha256 = ?3

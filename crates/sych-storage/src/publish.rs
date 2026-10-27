@@ -57,7 +57,7 @@ impl Storage {
         now: Timestamp,
     ) -> Result<Option<PublishClaim>, StorageError> {
         let at = now.as_second();
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let id: Option<i64> = sqlx::query_scalar(
             "UPDATE publication_operations SET owner = ?, lease_epoch = lease_epoch + 1,
                  lease_until = ?
@@ -173,7 +173,7 @@ impl Storage {
         now: Timestamp,
     ) -> Result<(), StorageError> {
         let at = now.as_second();
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         sqlx::query(
             "UPDATE publication_operations SET state = 'DELIVERED', remote_id = ?, finished_at = ?
              WHERE id = ? AND state IN ('PUBLISHING', 'UNCERTAIN')",
@@ -344,7 +344,7 @@ impl Storage {
         now: Timestamp,
     ) -> Result<(), StorageError> {
         let at = now.as_second();
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let generation: i64 = sqlx::query(
             "UPDATE publication_operations SET state = 'DELIVERED', remote_id = ?, finished_at = ?
              WHERE id = ? AND state = 'UNCERTAIN' RETURNING generation",
@@ -395,7 +395,7 @@ impl Storage {
         now: Timestamp,
     ) -> Result<bool, StorageError> {
         let at = now.as_second();
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let done = sqlx::query(
             "UPDATE publication_operations SET state = 'PENDING', owner = NULL, next_action_at = ?,
                  reconcile_deadline = NULL, last_error = 'operator authorized a new CREATE'
