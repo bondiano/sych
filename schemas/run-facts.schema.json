@@ -730,6 +730,15 @@
         }
       ]
     },
+    "EvidenceStage": {
+      "description": "What the documents are evidence of, weakest first (spec §14.2): rendered YAML shows the\nstructure, a dry-run that the API server admitted it, runtime objects the live state.",
+      "type": "string",
+      "enum": [
+        "rendered",
+        "dry_run",
+        "runtime"
+      ]
+    },
     "GitObjectId": {
       "type": "string",
       "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
@@ -1230,6 +1239,11 @@
             "$ref": "#/$defs/K8sObject"
           }
         },
+        "stage": {
+          "description": "The weakest stage of any normalized document.",
+          "$ref": "#/$defs/EvidenceStage",
+          "default": "rendered"
+        },
         "unsupported_kinds": {
           "description": "Kinds seen but not normalized (CRDs and the like): a limitation, not \"no risk\".",
           "type": "array",
@@ -1299,6 +1313,14 @@
         "changed": {
           "description": "Top-level attributes whose planned value differs; names only.",
           "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "depends_on": {
+          "description": "Explicit `depends_on` of its root-module configuration, as addresses.",
+          "type": "array",
+          "default": [],
           "items": {
             "type": "string"
           }
@@ -1817,6 +1839,14 @@
         "format_version": {
           "type": "string"
         },
+        "providers": {
+          "description": "Provider → version constraint from the configuration; the lock file's hashes are not\npart of plan JSON.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
         "resource_changes": {
           "description": "Resources with an action other than `no-op` or `read`.",
           "type": "array",
@@ -1829,6 +1859,14 @@
             "string",
             "null"
           ]
+        },
+        "timestamp": {
+          "description": "When the plan was made (`timestamp`, Terraform 1.5+).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
         },
         "variables_sha256": {
           "description": "Digest of the plan's input variables; their values are never kept.",

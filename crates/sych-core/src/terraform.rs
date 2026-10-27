@@ -2,6 +2,8 @@
 //! actions, replacement order and the *names* of changed, unknown and sensitive attributes.
 //! No attribute value is kept, so nothing sensitive reaches a prompt, log or artifact.
 
+use std::collections::BTreeMap;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -33,6 +35,9 @@ pub struct ResourceChange {
     pub sensitive: Vec<String>,
     /// `previous_address` of a moved resource.
     pub moved_from: Option<String>,
+    /// Explicit `depends_on` of its root-module configuration, as addresses.
+    #[serde(default)]
+    pub depends_on: Vec<String>,
 }
 
 impl ResourceChange {
@@ -48,6 +53,13 @@ pub struct TerraformPlan {
     pub terraform_version: Option<String>,
     /// Digest of the plan's input variables; their values are never kept.
     pub variables_sha256: Option<String>,
+    /// When the plan was made (`timestamp`, Terraform 1.5+).
+    #[serde(default)]
+    pub timestamp: Option<String>,
+    /// Provider → version constraint from the configuration; the lock file's hashes are not
+    /// part of plan JSON.
+    #[serde(default)]
+    pub providers: BTreeMap<String, String>,
     /// Resources with an action other than `no-op` or `read`.
     pub resource_changes: Vec<ResourceChange>,
 }
