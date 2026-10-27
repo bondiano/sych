@@ -5,6 +5,7 @@ pub mod api;
 pub mod broker;
 mod ci;
 pub mod config;
+pub mod deploy;
 pub mod effects;
 mod evidence;
 mod finding;

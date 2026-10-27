@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TransitionMatrix",
+  "description": "The matrix and the inputs the owner has not provided; dependent obligations stay\n`UNKNOWN` on these gaps, unrelated static review does not.",
+  "type": "object",
+  "properties": {
+    "environment": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "missing_inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/MatrixRow"
+      }
+    }
+  },
+  "required": [
+    "rows",
+    "missing_inputs"
+  ],
+  "$defs": {
+    "MatrixRow": {
+      "type": "object",
+      "properties": {
+        "obligation": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/TransitionState"
+        }
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "REACHABLE"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "description": "Excluded by a confirmed deploy constraint, cited.",
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "const": "EXCLUDED"
+            }
+          },
+          "required": [
+            "status",
+            "source"
+          ]
+        }
+      ],
+      "required": [
+        "state",
+        "obligation"
+      ]
+    },
+    "TransitionState": {
+      "description": "The reachable combinations of spec §13.2.",
+      "type": "string",
+      "enum": [
+        "old_app_expanded_schema",
+        "mixed_apps",
+        "old_frontend_new_backend",
+        "partial_backfill_concurrent_writes",
+        "backfill_retry",
+        "contract_phase",
+        "recovery_after_new_writes"
+      ]
+    }
+  }
+}
