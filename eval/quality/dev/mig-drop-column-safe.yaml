@@ -45,5 +45,7 @@ head:
   migrations/0002_add_note.sql: |
     ALTER TABLE orders ADD COLUMN note TEXT NULL;
 expected:
+  obligations:
+    - { rule_id: MIG-COMPAT, expected_status: SUPPORTED }
   forbidden_claims:
     - "The old app breaks when the note column is added."

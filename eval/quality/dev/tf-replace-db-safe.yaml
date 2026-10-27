@@ -1,0 +1,37 @@
+schema_version: 1
+id: tf-replace-db-safe
+split: development
+language: terraform
+pair: tf-replace-db
+variant: safe
+profiles: [infrastructure]
+rationale: "Changing the instance class is an in-place update in the plan: nothing is deleted or replaced (spec §14.1)."
+base:
+  infra/db.tf: |
+    resource "aws_db_instance" "orders" {
+      identifier     = "orders"
+      engine         = "postgres"
+      engine_version = "15"
+      instance_class = "db.t4g.small"
+    }
+head:
+  infra/db.tf: |
+    resource "aws_db_instance" "orders" {
+      identifier     = "orders"
+      engine         = "postgres"
+      engine_version = "15"
+      instance_class = "db.t4g.medium"
+    }
+ci:
+  plan.json: |
+    {"format_version": "1.2", "terraform_version": "1.9.5",
+     "resource_changes": [{"address": "aws_db_instance.orders", "change": {
+       "actions": ["update"],
+       "before": {"instance_class": "db.t4g.small"},
+       "after": {"instance_class": "db.t4g.medium"},
+       "after_unknown": {}}}]}
+expected:
+  obligations:
+    - { rule_id: TF-CHANGE, expected_status: SUPPORTED }
+  forbidden_claims:
+    - "The database is recreated."

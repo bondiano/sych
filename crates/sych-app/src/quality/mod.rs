@@ -3,6 +3,7 @@
 //! `CodeRef` and the expected syntax shapes are present — not that any model finds them.
 //! `sych eval measure` ([`measure`]) reviews the cases with a real model profile.
 
+mod ci;
 mod measure;
 mod score;
 
@@ -133,6 +134,8 @@ struct QualityCase {
     base: Option<BTreeMap<String, String>>,
     head: Option<BTreeMap<String, Option<String>>>,
     repository_fixture: Option<RepositoryFixture>,
+    /// CI reports by file name, bound to the case head.
+    ci: Option<BTreeMap<String, String>>,
     expected: Expected,
 }
 
@@ -217,8 +220,14 @@ fn label_problems(case: &QualityCase) -> Vec<String> {
         out.push("give either inline base/head files or a repository_fixture".into());
     }
 
+    let generic = sych_core::generic_rule_ids();
+    let repository: Vec<&ExpectedObligation> = e
+        .obligations
+        .iter()
+        .filter(|o| !generic.contains(&o.rule_id))
+        .collect();
     if let Some(rules) = case.base.as_ref().and_then(|b| b.get(".sych/rules.yaml")) {
-        for o in &e.obligations {
+        for o in &repository {
             if !rules.contains(&format!("id: {}", o.rule_id)) {
                 out.push(format!(
                     "obligation {} is not a rule of the base policy",
@@ -226,7 +235,7 @@ fn label_problems(case: &QualityCase) -> Vec<String> {
                 ));
             }
         }
-    } else if !e.obligations.is_empty() && inline {
+    } else if !repository.is_empty() && inline {
         out.push("expected obligations need .sych/rules.yaml in base".into());
     }
 
@@ -335,7 +344,14 @@ fn check(case: &QualityCase, repos: &BTreeMap<String, PathBuf>) -> (&'static str
         }
     };
     match snapshot::capture(&comparison) {
-        Ok(snap) => problems.extend(anchored_problems(case, &snap)),
+        Ok(snap) => {
+            problems.extend(anchored_problems(case, &snap));
+            problems.extend(
+                ci::import(case.ci.as_ref(), &comparison, &snap)
+                    .err()
+                    .map(|e| format!("ci: {e}")),
+            );
+        }
         Err(err) => problems.push(format!("snapshot: {err}")),
     }
     (

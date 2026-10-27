@@ -125,6 +125,13 @@ every evidence location opens as a `CodeRef`, and that expected syntax facts are
 absent). Cases with `repository_fixture` without `--repo` are `SKIPPED`. This is a check of labelling and the harness, not a
 measurement of review quality: that is done with a real model in M1.8.
 
+A case may carry CI reports as `ci: {<file name>: <text>}` — a Terraform plan (`terraform show -json`), rendered
+Kubernetes manifests, test outcomes. They are imported like `sych review --ci-facts`, with a manifest bound to the case
+head, so domain rules (`TF-CHANGE`, `K8S-ROLLOUT`) see them; `validate` fails a case whose report does not import.
+`expected.obligations` may name a generic rule (`MIG-*`, `TF-CHANGE`, `K8S-ROLLOUT`, `EFFECT-*`, `TEST-INTEGRITY`)
+without a `.sych/rules.yaml`; repository rule ids must still be in it. Domain cases: `mig-*`, `old-frontend-*`,
+`tf-replace-db-*`, `k8s-selector-*`.
+
 ### Measuring with a real model
 
 ```sh

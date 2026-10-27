@@ -64,6 +64,11 @@ fn rule(id: &str, title: &str, severity: RuleSeverity, statement: &str, criteria
     }
 }
 
+/// Ids of the shipped generic rules, e.g. for labelled cases that expect their obligations.
+pub fn generic_rule_ids() -> Vec<String> {
+    pack().into_iter().map(|g| g.rule.id).collect()
+}
+
 pub(crate) fn pack() -> Vec<GenericRule> {
     use ReviewProfile::{Correctness, Infrastructure, MigrationCompatibility, SideEffects};
     use RuleSeverity::{High, Medium};
