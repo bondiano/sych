@@ -75,7 +75,11 @@ stands in for an observation.
 `ADD COLUMN`, `DROP TABLE`, `RENAME TO`) and searches both sides of the repository for the table or column name (at most
 20 hits per side, outside migration paths): the base side holds the old app's readers and writers, the head the new
 app's. Those locations become the obligation's code references, so the reviewer sees them, and a limitation states the
-count and that consumers outside the repository are not searched. The matrix itself is derived evidence
+count and that consumers outside the repository are not searched. Earlier migrations count too (they define the schema being changed); `ADD [CONSTRAINT …] CHECK (col …)` is read as a
+change of `col`. Each hit is shown with up to 12 lines around it, clamped to the file, so the assessor sees the
+function, not the matching line alone. What the owner declared (order, mixed versions, compatibility window, backfill,
+contract, recovery, with their sources) is an acceptance criterion of every migration obligation: the assessor judges
+the change against it rather than asking for it. The matrix itself is derived evidence
 (`sych-transition-matrix`, kind `contract`) that every migration obligation cites.
 
 | Rule | Rollout states it covers | Owner inputs it cannot do without |
