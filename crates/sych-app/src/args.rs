@@ -232,6 +232,13 @@ pub struct DoctorArguments {
     /// Also send one small paid structured request through this model profile
     #[arg(long, value_name = "PROFILE")]
     pub probe_model: Option<String>,
+    /// Only write, read back, update, find and delete one marked comment on `--pr` through
+    /// this GitHub connection's first repository; prints a JSON report
+    #[arg(long, value_name = "CONNECTION", requires = "pr")]
+    pub scm_smoke: Option<String>,
+    /// Pull request of the SCM smoke
+    #[arg(long)]
+    pub pr: Option<u64>,
 }
 
 #[derive(clap::Args)]

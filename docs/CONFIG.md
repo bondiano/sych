@@ -150,3 +150,8 @@ sych review --repo . --base main --head HEAD --config sych.yaml --models fake
   write access to the artifact store and parsing of the price catalog (format — [MODELS.md](MODELS.md)). It does not deploy, does not publish a comment, and
   calls a model only with `--probe-model PROFILE` (see [MODELS.md](MODELS.md)). Exit 0 on `ok/warn`,
   4 on `FAIL`, 2 on an invalid configuration.
+- `doctor --scm-smoke CONNECTION --pr N` is the one explicit write: through the connection's first repository it
+  creates a comment marked `<!-- sych:smoke:<uuid> -->`, reads it back by id, updates it, reads it again, finds it by
+  marker as the App's own and deletes it, then prints a JSON report (installation id, permissions, capabilities,
+  comment id, body hashes; no tokens). Local checks are skipped, so it runs in the server image. Exit 0 when the
+  comment was found and is gone.

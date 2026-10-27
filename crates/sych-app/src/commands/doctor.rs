@@ -1,8 +1,13 @@
-//! Read-only availability checks: no deploy, comment or model call (spec §23.4).
+//! Availability checks: no deploy, comment or model call (spec §23.4) unless asked for by
+//! `--probe-model` or `--scm-smoke`.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::{env, fs};
+
+use anyhow::Context as _;
+use sych_core::Timestamp;
+use uuid::Uuid;
 
 use sych_adapters::git::Git;
 use sych_core::config::{BillingKind, EffectiveConfig, RunMode};
@@ -12,6 +17,9 @@ use sych_core::redact;
 use crate::args::DoctorArguments;
 use crate::backend::{self, ResolveError};
 use crate::errors::EXIT_PERMISSION;
+use crate::server::build::connections;
+use crate::server::smoke::smoke;
+use crate::storage::block_on;
 use crate::{config, probe, storage};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -117,13 +125,47 @@ fn profiles(config: &Path, effective: &EffectiveConfig) -> Vec<Check> {
         .collect()
 }
 
+/// The real SCM smoke; the server image has no repository checkout, so local checks are skipped.
+fn scm(effective: &EffectiveConfig, connection: &str, pr: u64) -> anyhow::Result<ExitCode> {
+    let conns = connections(&effective.server)?;
+    let conn = conns
+        .get(connection)
+        .with_context(|| format!("no GitHub connection `{connection}`"))?;
+    let repo = conn
+        .config
+        .repositories
+        .first()
+        .with_context(|| format!("connection `{connection}` lists no repository"))?;
+    let nonce = Uuid::now_v7().to_string();
+    let report = block_on(smoke(
+        &conn.gh,
+        repo,
+        pr,
+        &conn.config.bot_login,
+        &nonce,
+        Timestamp::now().as_second(),
+    ))??;
+    println!("{}", serde_json::to_string_pretty(&report)?);
+    Ok(if report.found_by_marker && report.deleted {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    })
+}
+
 pub fn run(args: &DoctorArguments) -> anyhow::Result<ExitCode> {
     let DoctorArguments {
         config,
         repo,
         probe_model,
+        scm_smoke,
+        pr,
     } = args;
     let effective = config::effective(Some(config), Some(repo))?;
+    if let (Some(connection), Some(pr)) = (scm_smoke, pr) {
+        return scm(&effective, connection, *pr);
+    }
+
     let mut checks = vec![line(
         Check::Ok,
         "config",

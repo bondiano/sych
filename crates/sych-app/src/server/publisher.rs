@@ -2,7 +2,7 @@
 //! durably `PUBLISHING` and both gates pass; an unknown outcome is reconciled by the stored
 //! remote id or the marker of an object the App itself wrote, never by a blind CREATE.
 
-use sych_adapters::github::{CheckOutput, Comment, MAX_PR_FILES, Secret};
+use sych_adapters::github::{CheckOutput, Comment, MAX_PR_FILES, Secret, own_comment};
 use sych_core::publication::{
     InlineAnchor, Placement, SummaryContext, inline_body, plan, render_summary,
 };
@@ -412,18 +412,7 @@ impl Engine {
         } else {
             gh.comments(repo, change.number, token).await?
         };
-        let marker = format!("<!-- {} -->", u.marker);
-        let own = comments
-            .into_iter()
-            .find(|c| c.owned_by(bot) && c.body.contains(&marker));
-        match own {
-            Some(c) => Ok(Some(found(c))),
-            None if complete => Ok(None),
-            None => Err(ScmError::new(
-                ScmErrorKind::Transient,
-                "comment list was cut",
-            )),
-        }
+        Ok(own_comment(comments, complete, bot, &u.marker)?.map(found))
     }
 
     /// Restores delivered summaries whose remote body was changed by a late older write.

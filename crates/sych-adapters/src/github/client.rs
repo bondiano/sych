@@ -235,4 +235,19 @@ impl Github {
         self.send(self.request(method, path, token).json(body), call)
             .await
     }
+
+    /// A delete answers `204` with no body.
+    pub(crate) async fn delete(&self, path: &str, token: &Secret) -> Result<(), ScmError> {
+        let call = ScmCall::Write;
+        let response = self
+            .request(Method::DELETE, path, token)
+            .send()
+            .await
+            .map_err(|e| transient(&e, call))?;
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            Err(failure(response, call).await)
+        }
+    }
 }
