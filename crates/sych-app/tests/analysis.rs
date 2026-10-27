@@ -429,3 +429,27 @@ async fn parallel_calls_give_the_outcome_of_sequential_ones() {
     parallel.analysis.max_parallel_calls = Some(4);
     assert_eq!(shape(sequential).await, shape(parallel).await);
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_pass_denied_beside_an_unsettled_sibling_is_retried() {
+    // Two searches in flight together exceed the cap by their byte bounds; settled, they fit.
+    let run_with = |parallel| {
+        let mut budgets = Budgets::default();
+        budgets.analysis.max_input_tokens = Some(6_000);
+        budgets.analysis.max_parallel_calls = Some(parallel);
+        run_on(repo(true), supported_and_empty, budgets, 1, false)
+    };
+    let (sequential, mut sequential_calls) = run_with(1).await;
+    let (parallel, mut parallel_calls) = run_with(2).await;
+    // Parallel calls start in no fixed order.
+    sequential_calls.sort();
+    parallel_calls.sort();
+    assert!(sequential.gaps.is_empty(), "{:?}", sequential.gaps);
+    assert!(
+        parallel.gaps.is_empty() && !parallel.limit_reached,
+        "{:?}",
+        parallel.gaps
+    );
+    assert_eq!(parallel_calls, sequential_calls);
+    assert_eq!(parallel.record.passes.len(), sequential.record.passes.len());
+}

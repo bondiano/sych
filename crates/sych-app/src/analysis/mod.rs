@@ -15,7 +15,7 @@ use sych_core::analysis::{
 use sych_core::broker::{EvidencePacket, OpStatus, REQUIRED_OVER_BUDGET};
 use sych_core::config::{BillingKind, Enforcement, ReasoningEffort, Role};
 use sych_core::model::{
-    AttemptRecord, HopRecord, Ledger, ModelProvider, RoutePlan, Router, TaskFailure,
+    AttemptRecord, Denied, HopRecord, Ledger, ModelProvider, RoutePlan, Router, TaskFailure,
 };
 use sych_core::{
     Assessment, Candidate, CodeRef, Evidence, FeeShare, Finding, NOT_ASSESSED, ObligationId,
@@ -134,6 +134,21 @@ pub struct Engine<'a, P, L> {
     pub language: sych_core::ReviewLanguage,
 }
 
+/// The search's discovery was denied by the run's input-token cap, so it made no call.
+fn discovery_out_of_tokens(part: &Outcome) -> bool {
+    part.record.passes.iter().any(|p| {
+        p.template == prompts::DISCOVERY
+            && matches!(
+                &p.status,
+                PassStatus::Failed {
+                    failure: TaskFailure::Budget {
+                        denied: Denied::InputTokens { .. }
+                    }
+                }
+            )
+    })
+}
+
 fn needs_assessment(planned: &PlannedObligation) -> bool {
     matches!(&planned.obligation.status,
         ObligationStatus::Unknown { reason_code, .. } if reason_code == NOT_ASSESSED)
@@ -232,14 +247,14 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         }
 
         let done: Vec<&Vec<usize>> = reviewed.iter().map(|(batch, ..)| *batch).collect();
-        let mut searching: Vec<Task<'_, ()>> = Vec::new();
+        let mut searching: Vec<Task<'_, Option<&Vec<usize>>>> = Vec::new();
         for obligation in planned
             .iter()
             .filter(|o| self.risk_audit && o.obligation.risk_level >= RiskLevel::High)
         {
             if let Some(index) = self.verification_packet(obligation.obligation.id) {
                 searching.push(Box::pin(async move {
-                    (self.audit(obligation, index).await, ())
+                    (self.audit(obligation, index).await, None)
                 }));
             }
         }
@@ -247,14 +262,28 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             searching.push(Box::pin(async move {
                 let mut part = self.part();
                 self.verify(batch, &linked, context, found, &mut part).await;
-                (part, ())
+                (part, None)
             }));
         }
         for batch in batches.iter().filter(|b| !done.contains(b)) {
-            searching.push(Box::pin(async move { (self.search(batch).await, ()) }));
+            searching.push(Box::pin(
+                async move { (self.search(batch).await, Some(batch)) },
+            ));
         }
-        for (part, ()) in self.each(searching).await {
-            out.absorb(part);
+        let mut retry = Vec::new();
+        for (part, batch) in self.each(searching).await {
+            match batch {
+                Some(batch) if discovery_out_of_tokens(&part) => {
+                    out.record.attempts.extend(part.record.attempts);
+                    out.record.hops.extend(part.record.hops);
+                    retry.push(batch);
+                }
+                _ => out.absorb(part),
+            }
+        }
+        // A sibling in flight held its whole byte bound; settled, it may have left room.
+        for batch in retry {
+            out.absorb(self.search(batch).await);
         }
         out.findings = merge_overlapping(out.findings);
         out.record.candidates.clone_from(&out.candidates);

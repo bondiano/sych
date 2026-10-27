@@ -7,9 +7,9 @@ use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicI64, Ordering};
 
-use sych_core::config::{FallbackTrigger, FixedFee, Role, ServerConfig};
+use sych_core::config::{Budgets, FallbackTrigger, FixedFee, Role, ServerConfig};
 use sych_core::model::{
-    Denied, ErrorKind, Hop, HopOutcome, Purpose, Route, RoutePlan, RoutedOutcome, Router,
+    Denied, ErrorKind, Hop, HopOutcome, Limits, Purpose, Route, RoutePlan, RoutedOutcome, Router,
     TaskFailure, plan, reusable,
 };
 use sych_core::{MicroUsd, Redactor, RunId, Timestamp};
@@ -415,6 +415,18 @@ async fn a_search_pass_leaves_the_verification_reserve() {
         review(&r).await.value.is_ok(),
         "the verifier keeps its attempt"
     );
+}
+
+#[test]
+fn the_verification_reserve_keeps_a_share_of_the_tokens() {
+    let mut budgets = Budgets::default();
+    budgets.analysis.max_attempts = Some(6);
+    budgets.analysis.max_input_tokens = Some(64_000);
+    budgets.analysis.max_output_tokens = Some(24_000);
+    let search = Limits::new(&budgets, Purpose::Analysis).reserving_verification();
+    assert_eq!(search.run.max_attempts, Some(5));
+    assert_eq!(search.run.max_input_tokens, Some(53_334));
+    assert_eq!(search.run.max_output_tokens, Some(20_000));
 }
 
 #[tokio::test(flavor = "current_thread")]
