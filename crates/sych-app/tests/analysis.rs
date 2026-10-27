@@ -439,8 +439,11 @@ async fn a_pass_denied_beside_an_unsettled_sibling_is_retried() {
         budgets.analysis.max_parallel_calls = Some(parallel);
         run_on(repo(true), supported_and_empty, budgets, 1, false)
     };
-    let (sequential, sequential_calls) = run_with(1).await;
-    let (parallel, parallel_calls) = run_with(2).await;
+    let (sequential, mut sequential_calls) = run_with(1).await;
+    let (parallel, mut parallel_calls) = run_with(2).await;
+    // Parallel calls start in no fixed order.
+    sequential_calls.sort();
+    parallel_calls.sort();
     assert!(sequential.gaps.is_empty(), "{:?}", sequential.gaps);
     assert!(
         parallel.gaps.is_empty() && !parallel.limit_reached,
