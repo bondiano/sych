@@ -256,7 +256,7 @@
           "type": "string"
         },
         "runner": {
-          "description": "`profile@image` of a targeted check Sych ran itself on the pinned head.",
+          "description": "`<profile> in <image>` of a targeted check Sych ran itself on the pinned head.",
           "type": [
             "string",
             "null"
