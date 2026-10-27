@@ -116,4 +116,28 @@ fn k8s_rollout_needs_rendered_manifests_and_stays_structural() {
             .iter()
             .any(|l| l.starts_with("ServiceMonitor"))
     );
+
+    // Each stage states what it does not prove; rendered YAML is never an observed rollout.
+    for (stage, says) in [
+        (
+            EvidenceStage::Rendered,
+            "no dry-run or runtime rollout was observed",
+        ),
+        (
+            EvidenceStage::Runtime,
+            "evidence of this rollout only if taken after it",
+        ),
+    ] {
+        let mut report = CiFacts::new(snapshot(), CiFormat::KubernetesRendered, "r.yaml".into());
+        report.kubernetes = Some(RenderedManifests {
+            stage,
+            ..RenderedManifests::default()
+        });
+        let o = rollout(vec![report]);
+        assert!(
+            o.limitations.iter().any(|l| l.contains(says)),
+            "{stage:?}: {:?}",
+            o.limitations
+        );
+    }
 }
