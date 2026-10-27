@@ -1,13 +1,13 @@
 # Server: GitHub App, admission, scheduling and publication
 
-`sych serve --config sych.yaml` — один процесс personal sandbox: приём webhooks, scheduler, worker и publisher
-(M2). Webhook только принимает durable signal; модель в handler не вызывается. Production —
-только self-review `bondiano/sych` закреплённой сборкой ([ниже](#self-review-bondianosych)).
+`sych serve --config sych.yaml` is a single personal sandbox process: webhook intake, scheduler, worker and publisher
+(M2). A webhook only accepts a durable signal; the model is not called in the handler. Production is
+only the self-review of `bondiano/sych` with a pinned build ([below](#self-review-bondianosych)).
 
-## Подключение GitHub App (M2.1)
+## Connecting a GitHub App (M2.1)
 
-Trusted server config задаёт каждое подключение; URL webhook выбирает только `:connection`, но не адрес API,
-credentials или tenant:
+Trusted server config defines each connection; the webhook URL selects only the `:connection`, not the API address,
+credentials or tenant:
 
 ```yaml
 scm:
@@ -17,173 +17,173 @@ scm:
       provider_instance: github.com
       api_base_url: https://api.github.com
       app_id: 123456
-      private_key_file_env: SYCH_GITHUB_APP_KEY_FILE   # путь к PEM, не сам ключ
-      webhook_secret_env: SYCH_GITHUB_WEBHOOK_SECRET   # отличается от API credential
-      repositories: [bondiano/sych-sandbox]            # остальные — receipt без работы
-      bot_login: sych-sandbox[bot]                     # его comments никогда не планируют работу
-      checks: false                                    # Checks write только при включённых checks
-      publish: false                                   # advisory публикация; default выключена
+      private_key_file_env: SYCH_GITHUB_APP_KEY_FILE   # path to the PEM, not the key itself
+      webhook_secret_env: SYCH_GITHUB_WEBHOOK_SECRET   # differs from the API credential
+      repositories: [bondiano/sych-sandbox]            # others get a receipt without work
+      bot_login: sych-sandbox[bot]                     # its comments never schedule work
+      checks: false                                    # Checks write only with checks enabled
+      publish: false                                   # advisory publication; off by default
       max_body_bytes: 2097152                          # default 2 MiB
 ```
 
-Валидатор отвергает повтор `id`, `api_base_url` не https (http — только loopback), одинаковые env для webhook
-secret и ключа, пустой список repositories и `bot_login`. Секреты читаются при старте; отсутствующий секрет
-останавливает старт, не подменяется.
+The validator rejects a duplicate `id`, a non-https `api_base_url` (http only for loopback), the same env for the webhook
+secret and the key, an empty repositories list and an empty `bot_login`. Secrets are read at startup; a missing secret
+stops startup and is not substituted.
 
-### Permissions и capabilities
+### Permissions and capabilities
 
-| Capability | Permission App | Endpoint |
+| Capability | App permission | Endpoint |
 |---|---|---|
 | change_refs, reconciliation, own_comments | Pull requests: read | `GET /repos/{r}/pulls/{n}`, `GET /repos/{r}/pulls?state=open`, `GET /repos/{r}/issues/{n}/comments` |
-| full_diff | Pull requests + Contents: read | `GET /repos/{r}/pulls/{n}/files` (не больше 3000 файлов) |
-| blobs | Contents: read | git fetch по installation token |
+| full_diff | Pull requests + Contents: read | `GET /repos/{r}/pulls/{n}/files` (no more than 3000 files) |
+| blobs | Contents: read | git fetch with the installation token |
 | ci_runs, ci_artifacts | Actions: read | workflow runs/jobs/artifacts (M2.3) |
 | summary_write, inline_write | Pull requests: write | issue comment, review comments (M2.5–M2.6) |
 | actor_permissions | Metadata: read | `GET /repos/{r}/collaborators/{login}/permission` |
-| checks_write | Checks: write — только при `checks: true` | check runs (M2.6) |
-| events `issue_comment`, `check_suite` | Issues: read, Checks: read | без них GitHub не даёт подписаться на эти события |
+| checks_write | Checks: write — only with `checks: true` | check runs (M2.6) |
+| events `issue_comment`, `check_suite` | Issues: read, Checks: read | without them GitHub does not allow subscribing to these events |
 
-`ProviderCapabilities` вычисляется из `permissions` installation (`GET /repos/{r}/installation`) и
-сохраняется в binding; отсутствующая capability даёт limitation, не догадку. Installation token запрашивается
-на один repository (`POST /app/installations/{id}/access_tokens` с `repositories: [name]`), живёт в памяти и
-обновляется за 5 минут до истечения — отдельно от run. App JWT (RS256) подписывается ключом из PEM (PKCS#1, как
-выдаёт GitHub, или PKCS#8), действует 9 минут.
+`ProviderCapabilities` is computed from the installation `permissions` (`GET /repos/{r}/installation`) and
+stored in the binding; a missing capability yields a limitation, not a guess. The installation token is requested
+for a single repository (`POST /app/installations/{id}/access_tokens` with `repositories: [name]`), lives in memory and
+is refreshed 5 minutes before expiry — independently of the run. The App JWT (RS256) is signed with the key from the PEM (PKCS#1, as
+GitHub issues it, or PKCS#8) and is valid for 9 minutes.
 
 ### Admission
 
-`POST /hooks/github/:connection`, по порядку, до разбора JSON:
+`POST /hooks/github/:connection`, in order, before JSON parsing:
 
-| Проверка | Ответ |
+| Check | Response |
 |---|---|
-| нет такого connection | 404 |
-| body больше `max_body_bytes` | 413 |
-| `Content-Type` не `application/json` | 415 |
-| `X-Hub-Signature-256` не совпадает с HMAC-SHA256 raw body (constant-time, `ring`) | 401 |
-| нет `X-GitHub-Event`/`X-GitHub-Delivery`, event не из списка, невалидный JSON | 400 |
-| ошибка сохранения | 503 — не ACK; GitHub отмечает failed delivery, догоняет reconciliation |
-| новая delivery | 202 `{inbox_id, duplicate: false, intents}` |
-| повтор `provider_instance + connection + X-GitHub-Delivery` | 200 `{inbox_id, duplicate: true}`, ничего не меняется |
+| no such connection | 404 |
+| body larger than `max_body_bytes` | 413 |
+| `Content-Type` is not `application/json` | 415 |
+| `X-Hub-Signature-256` does not match the HMAC-SHA256 of the raw body (constant-time, `ring`) | 401 |
+| no `X-GitHub-Event`/`X-GitHub-Delivery`, event not in the list, invalid JSON | 400 |
+| storage error | 503 — no ACK; GitHub marks the delivery failed, reconciliation catches up |
+| new delivery | 202 `{inbox_id, duplicate: false, intents}` |
+| repeat of `provider_instance + connection + X-GitHub-Delivery` | 200 `{inbox_id, duplicate: true}`, nothing changes |
 
-Принимаемые events: `ping`, `pull_request`, `issue_comment`, `workflow_run`, `check_suite`, `installation`,
-`installation_repositories`. GitHub не подписывает timestamp, поэтому окна replay нет: повтор распознаёт delivery id.
-Ошибки — envelope §25.3 (`error.code/message/retryable/correlation_id/details`), без секретов и payload.
+Accepted events: `ping`, `pull_request`, `issue_comment`, `workflow_run`, `check_suite`, `installation`,
+`installation_repositories`. GitHub does not sign a timestamp, so there is no replay window: a repeat is recognized by the delivery id.
+Errors use the §25.3 envelope (`error.code/message/retryable/correlation_id/details`), without secrets or payload.
 
-Одна транзакция SQLite сохраняет receipt (`inbox_events`: delivery key, digest payload, нормализованное событие,
-significance decision), binding (`repositories`: tenant + connection + instance + external id), change и
-intent. Raw payload не хранится: текст PR недоверенный и перечитывается из API. Нормализация:
+A single SQLite transaction stores the receipt (`inbox_events`: delivery key, payload digest, normalized event,
+significance decision), the binding (`repositories`: tenant + connection + instance + external id), the change and the
+intent. The raw payload is not stored: PR text is untrusted and is re-read from the API. Normalization:
 
-| Событие | Signal | Intent |
+| Event | Signal | Intent |
 |---|---|---|
 | `pull_request` opened/reopened/ready_for_review | `OPENED` (draft → `DRAFT`) | `REFRESH`, debounce 5 s |
 | `pull_request` synchronize | `SOURCE_PUSH` | `REFRESH`, 5 s |
-| `pull_request` edited с `changes.base` | `TARGET_CHANGED` | `REFRESH`, 5 s |
+| `pull_request` edited with `changes.base` | `TARGET_CHANGED` | `REFRESH`, 5 s |
 | `pull_request` converted_to_draft | `DRAFT` | `REFRESH`, 5 s |
-| `pull_request` closed | `CLOSED {merged}` | `CLOSE`, сразу |
+| `pull_request` closed | `CLOSED {merged}` | `CLOSE`, immediately |
 | `workflow_run`/`check_suite` completed | `CI_COMPLETED` | `CI`, 10 s |
-| `issue_comment` `/sych rerun|deep|stop` | `COMMAND` | `COMMAND_*`, сразу; права проверяет scheduler |
-| comment от `bot_login` | `BOT_COMMENT` | нет |
+| `issue_comment` `/sych rerun|deep|stop` | `COMMAND` | `COMMAND_*`, immediately; the scheduler checks permissions |
+| comment from `bot_login` | `BOT_COMMENT` | none |
 
-Debounce: одно открытое intent на change и вид; каждое новое событие сдвигает срок, но не дальше
-`первое событие + 6 × debounce` (30 s для PR, 60 s для CI) — непрерывный поток не откладывает работу бесконечно.
-Это выбор Sych, не default spec. Repository вне `repositories` получает receipt `REPOSITORY_NOT_ALLOWED` без
-работы. Fork (`head.repo` ≠ base, или удалён) помечается и анализируется только read-only.
+Debounce: one open intent per change and kind; each new event moves the deadline, but no further than
+`first event + 6 × debounce` (30 s for PRs, 60 s for CI) — a continuous stream does not postpone work indefinitely.
+This is Sych's choice, not a spec default. A repository outside `repositories` gets a `REPOSITORY_NOT_ALLOWED` receipt without
+work. A fork (`head.repo` ≠ base, or deleted) is flagged and analyzed read-only.
 
-Изоляция: access scope = `provider_instance/connection/external_id`, поэтому один repository в двух tenants или
-connections имеет раздельные changes, generations, artifacts и publication state; artifact с тем же hash в чужом
-scope не читается.
+Isolation: access scope = `provider_instance/connection/external_id`, so the same repository in two tenants or
+connections has separate changes, generations, artifacts and publication state; an artifact with the same hash in a foreign
+scope is not read.
 
-### Ошибки adapter (mapping v1)
+### Adapter errors (mapping v1)
 
 | HTTP | Read | Write | Inline comment |
 |---|---|---|---|
 | 401 | `UNAUTHORIZED` | `UNAUTHORIZED` | `UNAUTHORIZED` |
-| 403 | `UNAUTHORIZED` (или `RATE_LIMITED` при `x-ratelimit-remaining: 0`/`Retry-After`) | то же | то же |
+| 403 | `UNAUTHORIZED` (or `RATE_LIMITED` with `x-ratelimit-remaining: 0`/`Retry-After`) | same | same |
 | 404, 410 | `NOT_FOUND` | `NOT_FOUND` | `NOT_FOUND` |
-| 429 | `RATE_LIMITED` + `retry_after_seconds` | то же | то же |
-| 422, 400, 409, 415 | `UNSUPPORTED_CAPABILITY`, не retryable | то же | `INVALID_ANCHOR` |
-| 5xx, обрыв | `TRANSIENT` | `PUBLICATION_UNKNOWN` (исход неизвестен) | `PUBLICATION_UNKNOWN` |
-| > 3000 файлов | `INCOMPLETE_DIFF` | | |
+| 429 | `RATE_LIMITED` + `retry_after_seconds` | same | same |
+| 422, 400, 409, 415 | `UNSUPPORTED_CAPABILITY`, not retryable | same | `INVALID_ANCHOR` |
+| 5xx, connection drop | `TRANSIENT` | `PUBLICATION_UNKNOWN` (outcome unknown) | `PUBLICATION_UNKNOWN` |
+| > 3000 files | `INCOMPLETE_DIFF` | | |
 
-Retryable только `RATE_LIMITED` и `TRANSIENT`; `PUBLICATION_UNKNOWN` уходит reconciler'у, не в повтор.
-Клиент не следует redirects и не использует proxy окружения: credentials уходят только на `api_base_url`.
+Only `RATE_LIMITED` and `TRANSIENT` are retryable; `PUBLICATION_UNKNOWN` goes to the reconciler, not to a retry.
+The client does not follow redirects and does not use environment proxies: credentials go only to `api_base_url`.
 
-### Подключение sandbox (протокол владельца)
+### Connecting the sandbox (owner protocol)
 
-1. Создать GitHub App на аккаунте владельца: webhook URL `https://HOST/hooks/github/sandbox`, secret,
-   permissions из таблицы выше (Checks — только если включены), events: Pull request, Issue comment,
-   Workflow run, Check suite. Установить только на sandbox-репозиторий.
-2. Сохранить PEM вне репозитория, задать `SYCH_GITHUB_APP_KEY_FILE` и `SYCH_GITHUB_WEBHOOK_SECRET`.
-3. `sych db migrate --config sych.yaml`, затем `sych serve --config sych.yaml`.
-4. В настройках App отправить `ping` (Redeliver): ожидается 202 и receipt `IGNORED`.
-5. Открыть PR в sandbox: receipt `SCHEDULED`, intent `REFRESH`.
+1. Create a GitHub App on the owner's account: webhook URL `https://HOST/hooks/github/sandbox`, secret,
+   permissions from the table above (Checks — only if enabled), events: Pull request, Issue comment,
+   Workflow run, Check suite. Install it only on the sandbox repository.
+2. Store the PEM outside the repository, set `SYCH_GITHUB_APP_KEY_FILE` and `SYCH_GITHUB_WEBHOOK_SECRET`.
+3. `sych db migrate --config sych.yaml`, then `sych serve --config sych.yaml`.
+4. In the App settings send a `ping` (Redeliver): expect 202 and an `IGNORED` receipt.
+5. Open a PR in the sandbox: receipt `SCHEDULED`, intent `REFRESH`.
 
-## Scheduler, jobs и freeze (M2.2)
+## Scheduler, jobs and freeze (M2.2)
 
-`sych serve --config sych.yaml [--models roles|PROFILE|fake] [--semantic on|off]` поднимает в одном процессе
-admission, scheduler (раз в секунду), reconcile (при старте и раз в 10 минут), reaper (раз в 15 s) и worker.
+`sych serve --config sych.yaml [--models roles|PROFILE|fake] [--semantic on|off]` starts in a single process
+admission, the scheduler (once per second), reconcile (at startup and every 10 minutes), the reaper (every 15 s) and the worker.
 
-**Решение по intent** — чистая функция `sych_core::schedule::decide` над состоянием change из API (webhook
-только сигнал) и последней generation:
+**Intent decision** is the pure function `sych_core::schedule::decide` over the change state from the API (the webhook
+is only a signal) and the latest generation:
 
-| Intent / состояние | Решение |
+| Intent / state | Decision |
 |---|---|
-| change закрыт или merged (по API) | `CANCEL`: active runs и их jobs отменяются, committed result остаётся |
+| change closed or merged (per the API) | `CANCEL`: active runs and their jobs are cancelled, the committed result remains |
 | `REFRESH`, draft | `SKIP:DRAFT` (`draft_policy: manual_only`) |
-| `REFRESH`, тот же `base_sha..head_sha` | `SKIP:SAME_INPUTS` — generation не растёт, inference нет |
-| `REFRESH`, новый head или сдвинутый target | новая generation; active старая — `SUPERSEDED`, её lease отозван |
-| `COMMAND_RERUN/DEEP` от actor с `write/maintain/admin` | новая generation с теми же inputs, trigger `MANUAL` (`deep` записывается в trigger; роли стартуют с `models.deep_roles.<role>`, роль без него — с `models.roles`, бюджеты те же; закреплённый `--models PROFILE` сильнее) |
-| команда без прав | `SKIP:UNAUTHORIZED_COMMAND`; бот не отвечает |
-| `COMMAND_STOP` | `CANCEL` активного run |
-| `CI` для старого head | `SKIP:CI_FOR_OLD_HEAD` |
-| `CI`, run ждёт evidence | `WAKE` |
-| `CI` после freeze, когда ожидаемый source не пришёл до deadline | successor generation с `parent_run_id` |
-| `CI` после freeze без пропуска (повтор того же artifact или report, который policy не ожидает) | `SKIP:CI_NOT_SIGNIFICANT`, generation не растёт (`tests/scheduler.rs`) |
+| `REFRESH`, same `base_sha..head_sha` | `SKIP:SAME_INPUTS` — generation does not grow, no inference |
+| `REFRESH`, new head or moved target | new generation; the active old one is `SUPERSEDED`, its lease revoked |
+| `COMMAND_RERUN/DEEP` from an actor with `write/maintain/admin` | new generation with the same inputs, trigger `MANUAL` (`deep` is recorded in the trigger; roles start with `models.deep_roles.<role>`, a role without it — with `models.roles`, budgets are the same; a pinned `--models PROFILE` takes precedence) |
+| command without permissions | `SKIP:UNAUTHORIZED_COMMAND`; the bot does not respond |
+| `COMMAND_STOP` | `CANCEL` of the active run |
+| `CI` for an old head | `SKIP:CI_FOR_OLD_HEAD` |
+| `CI`, run waiting for evidence | `WAKE` |
+| `CI` after freeze, when an expected source did not arrive before the deadline | successor generation with `parent_run_id` |
+| `CI` after freeze with nothing missing (a repeat of the same artifact or a report the policy does not expect) | `SKIP:CI_NOT_SIGNIFICANT`, generation does not grow (`tests/scheduler.rs`) |
 
-Каждое решение пишется в `change_events` (`GENERATED`, `SUPERSEDED`, `CANCELLED`, `SKIPPED:<reason>`, `WOKEN`,
-`SCM_READ_FAILED`). Ошибка чтения API: `RATE_LIMITED`/`TRANSIENT` откладывают intent (backoff, `Retry-After`),
-остальные — запись и consume, без повтора.
+Every decision is written to `change_events` (`GENERATED`, `SUPERSEDED`, `CANCELLED`, `SKIPPED:<reason>`, `WOKEN`,
+`SCM_READ_FAILED`). API read error: `RATE_LIMITED`/`TRANSIENT` postpone the intent (backoff, `Retry-After`),
+others are recorded and consumed, without retry.
 
-**Jobs и fence.** Generation, supersede старой и job (`ANALYSIS`) коммитятся одной транзакцией. Claim — одна
-транзакция: `QUEUED` и due → `CLAIMED`, `lease_epoch + 1`, lease 60 s. Worker продлевает lease каждые 15 s;
-потерянный lease (cancel, supersede, reaper) останавливает анализ. Reaper возвращает просроченные leases в очередь с
-новым epoch, после `max_attempts` (1 + 2 повтора) или deadline job и run — `FAILED`. Каждая authoritative запись run —
-pin artifact, prepare, freeze, result — несёт fence: `job_id + owner + lease_epoch`, живой lease, active state и
-`run.generation == change.desired_generation`; поздний worker не пинит artifacts и не коммитит result.
+**Jobs and fence.** The generation, the supersede of the old one and the job (`ANALYSIS`) are committed in one transaction. Claim is one
+transaction: `QUEUED` and due → `CLAIMED`, `lease_epoch + 1`, lease 60 s. The worker renews the lease every 15 s;
+a lost lease (cancel, supersede, reaper) stops analysis. The reaper returns expired leases to the queue with a
+new epoch; after `max_attempts` (1 + 2 retries) or the job deadline, the job and run are `FAILED`. Every authoritative run write —
+artifact pin, prepare, freeze, result — carries the fence: `job_id + owner + lease_epoch`, a live lease, an active state and
+`run.generation == change.desired_generation`; a late worker does not pin artifacts and does not commit a result.
 
-**Worker.** Fetch `head_sha` и `base_sha` в bare mirror (`<data>/mirrors/<connection>/<owner>__<repo>.git`) по
-installation token в `GIT_CONFIG_*` env (не argv, не URL), без tags/hooks; ничего не checkout и не исполняется —
-fork читается так же. Затем pin snapshot и trusted policy target tip: `ci.expected_reports`, чей `applies_to`
-совпал с изменёнными путями, ставят run в `WAITING_EVIDENCE` с deadline `ci.wait_seconds` (default 180 s); job
-отпускается до deadline и будится CI-событием. Freeze записывает `expected`, пришедшие CI runs и `missing`;
-дальше review идёт в отдельном потоке (без SQL-транзакции через git/модель), heartbeat каждые 15 s. Ошибка
-fetch/token — retry по классификатору (`RATE_LIMITED`, `TRANSIENT`; до двух повторов, backoff + jitter,
-`Retry-After`, не дальше deadline job), иначе run `FAILED`.
+**Worker.** Fetches `head_sha` and `base_sha` into a bare mirror (`<data>/mirrors/<connection>/<owner>__<repo>.git`) with the
+installation token in `GIT_CONFIG_*` env (not argv, not the URL), without tags/hooks; nothing is checked out or executed —
+a fork is read the same way. Then it pins the snapshot and the trusted target tip policy: `ci.expected_reports` whose `applies_to`
+matched the changed paths put the run into `WAITING_EVIDENCE` with deadline `ci.wait_seconds` (default 180 s); the job
+is released until the deadline and woken by a CI event. Freeze records `expected`, the CI runs that arrived and `missing`;
+after that, review runs in a separate thread (without an SQL transaction across git/model), with a heartbeat every 15 s. A
+fetch/token error is retried per the classifier (`RATE_LIMITED`, `TRANSIENT`; up to two retries, backoff + jitter,
+`Retry-After`, not past the job deadline), otherwise the run is `FAILED`.
 
-**Reconciliation.** При старте и периодически для каждого repository из `repositories`: installation и
-capabilities (фиксируются в binding), список открытых PR → synthetic receipt `reconcile:<n>:<head>:<base>` (повтор —
-no-op), change, считавшийся открытым, но не найденный — `reconcile-closed` → `CLOSE` после проверки API. Failed
-deliveries GitHub сам не повторяет; reconciliation закрывает этот разрыв.
+**Reconciliation.** At startup and periodically, for each repository in `repositories`: installation and
+capabilities (recorded in the binding), the list of open PRs → synthetic receipt `reconcile:<n>:<head>:<base>` (a repeat is a
+no-op); a change considered open but not found → `reconcile-closed` → `CLOSE` after an API check. GitHub does not
+retry failed deliveries itself; reconciliation closes this gap.
 
-**Checkpoints и successor (M2.2).** Каждый принятый ответ модели сразу пинится к run как artifact
-`checkpoint/<key>` под fence, поэтому работа parent'а переживает его supersede. Dependency record задачи: template,
-schema name, role, chain, sha256 отправленных messages (после redaction: все spans, evidence, gaps и ответы на
-context asks, то есть и область/completeness поиска для отрицательного вывода), sha256 output schema и digest
-`models`; `key` — digest этого record. Successor (`Trigger::Successor`) читает checkpoints parent'а только в своей
-partition и берёт ответ без model call лишь при точном совпадении record, затем заново валидирует его на своём
-context и facts. Новый CI, policy, source, model config или deep-route меняют prompt или record → вызов заново.
-Pass и hop помечаются `reused_from`/`REUSED`, attempts и расход нет; ответ снова пишется в checkpoints successor'а.
-Сбой записи checkpoint не роняет задачу (ответ остаётся), а пишется в pass как `checkpoint_error` и в лог; ошибка
-store повторяется один раз. Отказ по fence (run superseded/отменён/lease потерян) окончателен: `RunLedger` с этого
-момента отказывает в reserve, так что run больше не делает платных вызовов, чей result уже не сможет закоммитить.
-Result successor'а ссылается на result parent'а (`parent_result_id`), если тот завершён. Successor заново выводит
-derived evidence (syntax/semantic facts, `DERIVED_LOCAL`) из своего snapshot; в external input manifest оно не
-попадает, а frozen `evidence_manifest` parent'а не меняется (`tests/ci_evidence.rs`). Ручной rerun/deep
-checkpoints не берёт — это осознанный повторный inference. Ограничение: анализ одного run идёт в одном worker.
+**Checkpoints and successor (M2.2).** Each accepted model response is immediately pinned to the run as artifact
+`checkpoint/<key>` under the fence, so the parent's work survives its supersede. The task's dependency record: template,
+schema name, role, chain, sha256 of the sent messages (after redaction: all spans, evidence, gaps and answers to
+context asks, i.e. including the search scope/completeness for a negative conclusion), sha256 of the output schema and the digest of
+`models`; `key` is the digest of this record. A successor (`Trigger::Successor`) reads the parent's checkpoints only in its own
+partition and takes a response without a model call only on an exact record match, then re-validates it against its own
+context and facts. New CI, policy, source, model config or deep-route change the prompt or the record → a fresh call.
+The pass and hop are marked `reused_from`/`REUSED`, with no attempts and no spend; the response is written again to the successor's checkpoints.
+A checkpoint write failure does not fail the task (the response is kept); it is written to the pass as `checkpoint_error` and to the log; a
+store error is retried once. A fence rejection (run superseded/cancelled/lease lost) is final: from that
+point `RunLedger` refuses reserve, so the run makes no more paid calls whose result it could no longer commit.
+The successor's result references the parent's result (`parent_result_id`) if the parent completed. The successor re-derives
+derived evidence (syntax/semantic facts, `DERIVED_LOCAL`) from its own snapshot; it does not enter the external input manifest,
+and the parent's frozen `evidence_manifest` does not change (`tests/ci_evidence.rs`). A manual rerun/deep
+does not take checkpoints — it is a deliberate repeat inference. Limitation: analysis of a single run happens in a single worker.
 
 ## CI evidence (M2.3)
 
-Repository policy (`.sych/config.yaml` target tip) перечисляет ожидаемые отчёты (`ci.expected_reports`: id,
-`applies_to`, format). Откуда каждый берётся, решает только trusted server config подключения — не имя job:
+Repository policy (the `.sych/config.yaml` of the target tip) lists the expected reports (`ci.expected_reports`: id,
+`applies_to`, format). Where each one comes from is decided only by the connection's trusted server config — not by the job name:
 
 ```yaml
 scm:
@@ -192,52 +192,52 @@ scm:
       # ...
       ci_reports:
         - report: tests                       # expected_reports[].id
-          workflow: .github/workflows/ci.yml  # точный файл workflow
+          workflow: .github/workflows/ci.yml  # exact workflow file
           event: pull_request                 # default
-          job: test                           # точное имя job
-          artifact: reports                   # точное имя artifact
-          path: junit.xml                     # entry в zip
-          checkout_manifest: sych-ci.json     # CiManifest с tested_oid; без него checkout не доказан
+          job: test                           # exact job name
+          artifact: reports                   # exact artifact name
+          path: junit.xml                     # entry in the zip
+          checkout_manifest: sych-ci.json     # CiManifest with tested_oid; without it the checkout is not proven
       artifact_hosts: ["*.blob.core.windows.net", "*.actions.githubusercontent.com"]  # default
 ```
 
-Worker ищет run по точному `head_sha` (`GET /actions/runs?head_sha=`), workflow и event; job — в jobs этого
-`run_attempt`; artifact — среди artifacts этого run. Не «последний зелёный pipeline ветки». Скачивание:
-`GET /actions/artifacts/{id}/zip` отвечает redirect'ом на signed storage — туда запрос уходит **без** token, только
-по https на host из `artifact_hosts`; не больше 64 MiB.
+The worker looks up the run by the exact `head_sha` (`GET /actions/runs?head_sha=`), workflow and event; the job — among the jobs of that
+`run_attempt`; the artifact — among the artifacts of that run. Not "the latest green pipeline of the branch". Download:
+`GET /actions/artifacts/{id}/zip` responds with a redirect to signed storage — the request goes there **without** a token, only
+over https to a host from `artifact_hosts`; no more than 64 MiB.
 
-Zip читается в памяти, на диск ничего не пишется: любое имя с `..`, абсолютным путём, `\`, `:` или symlink
-отвергает весь архив; не больше 1000 entries; распаковка одного entry останавливается на 32 MiB (zip bomb);
-CRC сверяется; zip64 и шифрование не поддерживаются. Парсеры: `cargo --message-format=json`, JUnit, SARIF 2.1, GitLab Code Quality, LCOV,
-Cobertura и project JSON manifest (`{"schema_version": 1, "commands": [{"name", "exit_code"}], "tests": [...]}`);
-не больше 2000 записей, XML — глубина 64, внешние entities не разрешаются (quick-xml не читает DTD); пути вне
-repository отбрасываются.
+The zip is read in memory and nothing is written to disk: any name with `..`, an absolute path, `\`, `:` or a symlink
+rejects the whole archive; no more than 1000 entries; decompression of a single entry stops at 32 MiB (zip bomb);
+CRC is verified; zip64 and encryption are not supported. Parsers: `cargo --message-format=json`, JUnit, SARIF 2.1, GitLab Code Quality, LCOV,
+Cobertura and the project JSON manifest (`{"schema_version": 1, "commands": [{"name", "exit_code"}], "tests": [...]}`);
+no more than 2000 records, XML — depth 64, external entities are not resolved (quick-xml does not read DTDs); paths outside the
+repository are dropped.
 
-**Binding.** `tested_oid` checkout manifest: равен head — `SOURCE_HEAD`; merge-коммит, чей второй родитель —
-head (его догружают в mirror и читают родителей) — `MERGE_RESULT` с target-коммитом; иначе или без manifest —
-`UNVERIFIED` (evidence `STALE`, gap `CI_BINDING_UNVERIFIED`). `CiOrigin` хранит provider instance/repository,
-workflow, run/attempt/job, event, статус и conclusion job, `allow_failure` (GitHub его не сообщает — `null`, не
-`false`), execution/source-head/target/tested SHAs, digest checkout manifest и zip, artifact id/name, путь отчёта,
-время. Evidence — `AUTHENTICATED_CI`: это происхождение, не независимость oracle (limitation в evidence);
-coverage — исполнение, не правильность assertions; тест, изменённый в проверяемом diff, помечен `TEST_CHANGED`.
-Conclusion job и результаты тестов учитываются раздельно: failed job не прячет и не заменяет JUnit.
+**Binding.** The checkout manifest's `tested_oid`: equal to head — `SOURCE_HEAD`; a merge commit whose second parent is
+head (it is fetched into the mirror and its parents are read) — `MERGE_RESULT` with the target commit; otherwise, or without a manifest —
+`UNVERIFIED` (evidence `STALE`, gap `CI_BINDING_UNVERIFIED`). `CiOrigin` stores the provider instance/repository,
+workflow, run/attempt/job, event, the job's status and conclusion, `allow_failure` (GitHub does not report it — `null`, not
+`false`), execution/source-head/target/tested SHAs, the digests of the checkout manifest and the zip, artifact id/name, report path and
+time. Evidence is `AUTHENTICATED_CI`: this is provenance, not oracle independence (a limitation in the evidence);
+coverage is execution, not correctness of assertions; a test changed in the reviewed diff is flagged `TEST_CHANGED`.
+The job conclusion and the test results are counted separately: a failed job neither hides nor replaces JUnit.
 
-**Gaps** (каждый — task gap: coverage `PARTIAL`, текст в `unresolved_questions`): `CI_NOT_MAPPED`,
+**Gaps** (each is a task gap: coverage `PARTIAL`, text in `unresolved_questions`): `CI_NOT_MAPPED`,
 `CI_FORMAT_UNSUPPORTED`, `CI_JOB_MISSING`, `CI_JOB_INCOMPLETE`, `CI_JOB_SKIPPED`, `CI_JOB_CANCELLED`,
 `CI_ARTIFACT_MISSING`, `CI_ARTIFACT_EXPIRED`, `CI_ARCHIVE_REJECTED`, `CI_REPORT_MISSING`, `CI_REPORT_MALFORMED`,
-`CI_BINDING_UNVERIFIED`, `CI_UNAVAILABLE`. До evidence deadline `CI_JOB_MISSING`/`CI_JOB_INCOMPLETE` продолжают
-ожидание; после — freeze с gaps, а поздний отчёт даёт successor (M2.2). Freeze записывает expected, импортированные
-(run/attempt/job/artifact/binding) и gaps.
+`CI_BINDING_UNVERIFIED`, `CI_UNAVAILABLE`. Before the evidence deadline, `CI_JOB_MISSING`/`CI_JOB_INCOMPLETE` keep
+waiting; after it — freeze with gaps, and a late report yields a successor (M2.2). Freeze records the expected, the imported
+(run/attempt/job/artifact/binding) and the gaps.
 
-Ограничения: сравнение с baseline-диагностиками (исчезновение диагностики между producer/version) не делается —
-такие выводы не заявляются; `TerraformPlan`/`KubernetesRendered` — M3 (`CI_FORMAT_UNSUPPORTED`). Go-отчёты
-(`go_test_json`, `go_cover`, `go_vet_json`) идут тем же downloader/parser/binding, что и остальные форматы.
+Limitations: no comparison with baseline diagnostics (a diagnostic disappearing between producer/version) is made —
+such conclusions are not claimed; `TerraformPlan`/`KubernetesRendered` — M3 (`CI_FORMAT_UNSUPPORTED`). Go reports
+(`go_test_json`, `go_cover`, `go_vet_json`) go through the same downloader/parser/binding as the other formats.
 
-## Outbox и сверка публикаций (M2.5)
+## Outbox and publication reconciliation (M2.5)
 
-Финализация с `publish: true` кладёт в outbox одну операцию на ревизию summary (`publication_objects` — слот
-`summary` на change с marker `sych:summary:<change>`; `publication_operations` — ревизия с generation). Более новая
-ревизия того же объекта, ещё не отправленная, становится `SUPERSEDED`.
+Finalization with `publish: true` puts one operation per summary revision into the outbox (`publication_objects` — the
+`summary` slot on a change with marker `sych:summary:<change>`; `publication_operations` — a revision with a generation). A newer
+revision of the same object that has not been sent yet makes the older one `SUPERSEDED`.
 
 ```
 PENDING ──claim──▶ (gates) ──▶ PUBLISHING ──reply──▶ DELIVERED
@@ -249,217 +249,217 @@ PENDING ──claim──▶ (gates) ──▶ PUBLISHING ──reply──▶ D
                                      operator `--allow-create` (audit) ─▶ PENDING
 ```
 
-- **До сети**: операция `PUBLISHING` с телом, digest запроса, attempt id и fence (owner + `lease_epoch`) —
-  в одной записи. Для одного объекта не больше одной операции в полёте.
-- **Gates**: локально — generation операции равна `desired_generation` change и change открыт; через API — PR
-  открыт сейчас (потерянный close блокирует запись, intent `CANCELLED`), у binding есть `summary_write`.
-- **Ответ**: `DELIVERED` и observed remote id/generation/digest тела — одна транзакция. Известный id —
-  `PATCH`; первый раз — `POST`. 404 на `PATCH` (комментарий удалён) — id забывается, следующая попытка создаёт
-  заново: отсутствие известно, а не предполагается. 429 — `PENDING` с `Retry-After`, не больше 5 попыток.
-- **Неизвестный исход** (обрыв, 5xx записи, смерть процесса, потеря lease в `PUBLISHING` — reaper переводит
-  только в `UNCERTAIN`, никогда в `PENDING`): reconciler раз в 30 s ищет комментарий по сохранённому id, иначе по
-  marker на всех страницах, и только написанный самим ботом (`type: Bot`, `login == bot_login`); скопированный
-  человеком marker не даёт прав. Пустой или обрезанный список не разрешает CREATE. Найден — `DELIVERED` (если
-  тело другое — восстанавливается `PATCH` по известному id). Окно сверки 1 час; дальше операция остаётся
-  `UNCERTAIN` с `RECONCILIATION_WINDOW_EXHAUSTED` и ждёт оператора.
-- **Relevance** отдельно от delivery: новая generation помечает объекты change `STALE`; доставка текущей —
-  `CURRENT`. Закрытие change отменяет `PENDING`; `UNCERTAIN` остаётся для read-only сверки.
-- **Поздний старый UPDATE**: раз в 10 минут доставленные объекты сверяются с последним отправленным телом;
-  расхождение в комментарии бота восстанавливается и пишется в `change_events` как `PUBLICATION_REPAIRED`.
+- **Before the network**: the `PUBLISHING` operation with the body, request digest, attempt id and fence (owner + `lease_epoch`) —
+  in a single write. No more than one operation in flight per object.
+- **Gates**: locally — the operation's generation equals the change's `desired_generation` and the change is open; via the API — the PR
+  is open right now (a lost close blocks the write, intent `CANCELLED`), and the binding has `summary_write`.
+- **Reply**: `DELIVERED` and the observed remote id/generation/body digest — one transaction. A known id —
+  `PATCH`; the first time — `POST`. A 404 on `PATCH` (comment deleted) — the id is forgotten, and the next attempt creates it
+  anew: the absence is known, not assumed. 429 — `PENDING` with `Retry-After`, no more than 5 attempts.
+- **Unknown outcome** (connection drop, 5xx on write, process death, lease loss in `PUBLISHING` — the reaper moves it
+  only to `UNCERTAIN`, never to `PENDING`): every 30 s the reconciler looks up the comment by the stored id, otherwise by
+  marker across all pages, and only one written by the bot itself (`type: Bot`, `login == bot_login`); a marker copied by a
+  human grants nothing. An empty or truncated list does not permit CREATE. Found — `DELIVERED` (if the
+  body differs, it is restored with `PATCH` by the known id). The reconciliation window is 1 hour; after that the operation stays
+  `UNCERTAIN` with `RECONCILIATION_WINDOW_EXHAUSTED` and waits for the operator.
+- **Relevance** is separate from delivery: a new generation marks the change's objects `STALE`; delivery of the current one —
+  `CURRENT`. Closing the change cancels `PENDING`; `UNCERTAIN` stays for read-only reconciliation.
+- **Late old UPDATE**: every 10 minutes delivered objects are checked against the last sent body;
+  a divergence in the bot's comment is repaired and written to `change_events` as `PUBLICATION_REPAIRED`.
 
-### Runbook оператора
+### Operator runbook
 
-1. `sych reconcile --config sych.yaml [--change ID]` — список `PUBLISHING`/`UNCERTAIN`: возраст, попытки,
-   «reconciling for N s more» или «operator decision (window exhausted)», последняя ошибка. SCM не вызывается.
-2. Пока окно не истекло — ничего не делать: server сверяет сам.
-3. После окна: открыть PR и проверить, есть ли комментарий бота с marker `sych:summary:<change>`. Если есть, но
-   сверка его не нашла (например, список был обрезан) — оставить как есть и разобраться с доступом.
-4. Если комментария точно нет: `sych reconcile --allow-create OP --actor NAME --reason TEXT`. Решение
-   пишется в `audit_events` (`PUBLICATION_RECREATE_AUTHORIZED`) с риском дубля; операция возвращается в `PENDING`.
-   Для операции с известным remote id это запрещено: там сверка восстанавливает тело по id.
+1. `sych reconcile --config sych.yaml [--change ID]` — list of `PUBLISHING`/`UNCERTAIN`: age, attempts,
+   "reconciling for N s more" or "operator decision (window exhausted)", the last error. The SCM is not called.
+2. While the window has not expired — do nothing: the server reconciles on its own.
+3. After the window: open the PR and check whether there is a bot comment with marker `sych:summary:<change>`. If there is, but
+   reconciliation did not find it (for example, the list was truncated) — leave it as is and investigate access.
+4. If the comment is definitely absent: `sych reconcile --allow-create OP --actor NAME --reason TEXT`. The decision
+   is written to `audit_events` (`PUBLICATION_RECREATE_AUTHORIZED`) with the risk of a duplicate; the operation returns to `PENDING`.
+   This is forbidden for an operation with a known remote id: there reconciliation restores the body by id.
 
-Метрики outbox lag / uncertain age / repairs и alert — см. «Метрики и alerts» ниже.
+Outbox lag / uncertain age / repairs metrics and the alert — see "Metrics and alerts" below.
 
-## Summary, inline и check run (M2.6)
+## Summary, inline and check run (M2.6)
 
-Публикация advisory: Sych никогда не делает approve, request-changes, merge и не становится required check; в
-адаптере таких вызовов нет. Всё рендерится из immutable result и diff manifest run'а (`sych_core::publication`),
-не из прозы модели; в result попадают только findings, прошедшие проверку движка.
+Publication is advisory: Sych never approves, requests changes, merges or becomes a required check; the
+adapter has no such calls. Everything is rendered from the run's immutable result and diff manifest (`sych_core::publication`),
+not from model prose; only findings that passed engine verification enter the result.
 
-**Summary** — один обновляемый комментарий на change: проверенный head и target, result и revision; coverage
-(`partial` прямо говорит, что это не «проблем нет», `unavailable` — что ревью не было); recommendation и execution;
-profiles; таблица проблем (Defect/RuleViolation по severity — все HIGH/CRITICAL всегда здесь) с колонкой «где
-показано» (`inline` или `here (<причина>)`); конкретные `UNKNOWN` (required помечены) и открытые вопросы, включая
-CI gaps; свёрнутые improvements/nitpicks с правилом или «preference»; стоимость (known + unknown attempts), число
-attempts, число high/critical; ссылка на полный result, если задан `http.public_base_url`. Golden-файлы:
+**Summary** is one updatable comment per change: the reviewed head and target, result and revision; coverage
+(`partial` states plainly that this is not "no problems", `unavailable` — that there was no review); recommendation and execution;
+profiles; a table of problems (Defect/RuleViolation by severity — all HIGH/CRITICAL are always here) with a "where
+shown" column (`inline` or `here (<reason>)`); specific `UNKNOWN`s (required ones are marked) and open questions, including
+CI gaps; collapsed improvements/nitpicks with a rule or "preference"; cost (known + unknown attempts), the number of
+attempts, the number of high/critical; a link to the full result if `http.public_base_url` is set. Golden files:
 `fixtures/publication/summary-*.md`.
 
-**Inline** — только Defect и RuleViolation; не больше 8 новых за ревизию (уже опубликованные не считаются), по
-severity, затем fingerprint; остальные — в summary с причиной. Позиция — явные `commit_id` (head), `path`, `line`,
-`side` и `start_line`/`start_side` для диапазона; устаревший `position` не используется:
+**Inline** — only Defect and RuleViolation; no more than 8 new ones per revision (already published ones are not counted), by
+severity, then fingerprint; the rest go to the summary with a reason. Position — explicit `commit_id` (head), `path`, `line`,
+`side` and `start_line`/`start_side` for a range; the deprecated `position` is not used:
 
 | Anchor | Inline |
 |---|---|
-| head-сторона, тот же blob, строки в hunk ± 3 строки контекста | `RIGHT`, путь head |
-| diff-base сторона изменённого/переименованного файла | `LEFT`, путь head (как его показывает GitHub) |
-| удалённый файл | `LEFT`, старый путь |
-| другой blob, target tip, файл вне diff, строка вне показанного diff | summary с причиной; соседняя строка не подставляется |
-| provider diff > 3000 файлов | все — в summary («provider diff is incomplete») |
-| GitHub ответил 422 | операция `FAILED (INVALID_ANCHOR)`, summary перерисовывается по известному id с причиной «the provider rejected the inline position» |
+| head side, same blob, lines in a hunk ± 3 lines of context | `RIGHT`, head path |
+| diff-base side of a modified/renamed file | `LEFT`, head path (as GitHub shows it) |
+| deleted file | `LEFT`, old path |
+| different blob, target tip, file outside the diff, line outside the shown diff | summary with a reason; a neighbouring line is not substituted |
+| provider diff > 3000 files | all go to the summary ("provider diff is incomplete") |
+| GitHub responded 422 | operation `FAILED (INVALID_ANCHOR)`, the summary is re-rendered by the known id with the reason "the provider rejected the inline position" |
 
-Каждый inline — отдельный объект outbox (`inline:<fingerprint>`, marker `sych:inline:<fingerprint>`), с теми же
-`PUBLISHING`/`UNCERTAIN`/сверкой (review comments, только комментарии бота).
+Each inline is a separate outbox object (`inline:<fingerprint>`, marker `sych:inline:<fingerprint>`), with the same
+`PUBLISHING`/`UNCERTAIN`/reconciliation (review comments, bot comments only).
 
-**Check run** — выключен по умолчанию; `checks: true` (вместе с `publish: true`) требует Checks write. Один check
-`Sych (advisory)` на change, закреплённый за head SHA, `external_id` = marker; conclusion всегда `neutral` —
-и для результата (`Advisory review`), и для сбоя run (`Sych could not complete this review`), так что сбой
-отличим по заголовку, а не выдаётся за success. Сверка неизвестного исхода — по `external_id` и `app.id`.
+**Check run** — off by default; `checks: true` (together with `publish: true`) requires Checks write. One check
+`Sych (advisory)` per change, pinned to the head SHA, `external_id` = marker; the conclusion is always `neutral` —
+both for a result (`Advisory review`) and for a run failure (`Sych could not complete this review`), so a failure
+is distinguishable by the title rather than passed off as success. Reconciliation of an unknown outcome is by `external_id` and `app.id`.
 
-## Lineage, feedback и waivers (M2.7)
+## Lineage, feedback and waivers (M2.7)
 
-**Fingerprint** модельной находки — категория, путь, длина и hash содержимого закреплённых строк, без номера
-строки и формулировки: сдвиг кода выше не создаёт «новую» проблему. Rule violation — rule id, версия и
-обязательство.
+The **fingerprint** of a model finding is the category, path, length and the hash of the content of the pinned lines, without the line
+number or wording: shifting code above does not create a "new" problem. A rule violation — rule id, version and
+obligation.
 
-**Lineage** применяется после каждого committed result (в generation order, раз на run): новые findings — `OPEN`
-с событием `found`; каждая ранее открытая находка получает решение `sych_core::lineage::decide`:
+**Lineage** is applied after each committed result (in generation order, once per run): new findings are `OPEN`
+with a `found` event; each previously open finding gets a decision from `sych_core::lineage::decide`:
 
-| Ситуация | Итог |
+| Situation | Outcome |
 |---|---|
-| тот же fingerprint найден снова | остаётся `OPEN` |
-| файл удалён (не переименован) | `OBSOLETE` |
-| файл переименован/перемещён, на новом месте ровно одна находка того же вида | старая `OBSOLETE` «continued as …», у новой `predecessor_id` |
-| переименован, кандидатов нет или несколько | остаётся `OPEN` — неоднозначность ничего не закрывает |
-| новая ревизия `PARTIAL` (gaps, skipped job, parser error, лимит) | `OPEN` |
-| файл не проверялся заново | `OPEN` |
-| правило не оценивалось заново (анализатор/правило убрано) | `OPEN` |
-| правило оценено заново на новом snapshot и `SUPPORTED` везде | `RESOLVED` с obligation evidence |
-| модельная находка: код изменён, unit проверен полностью, такой находки там нет | `RESOLVED` |
-| модельная находка: код не изменился | `OPEN` — «нет диагностики» само по себе не исправление |
+| the same fingerprint found again | stays `OPEN` |
+| file deleted (not renamed) | `OBSOLETE` |
+| file renamed/moved, exactly one finding of the same kind at the new location | the old one `OBSOLETE` "continued as …", the new one has `predecessor_id` |
+| renamed, no candidates or several | stays `OPEN` — ambiguity closes nothing |
+| new revision is `PARTIAL` (gaps, skipped job, parser error, limit) | `OPEN` |
+| file not re-reviewed | `OPEN` |
+| rule not re-assessed (analyzer/rule removed) | `OPEN` |
+| rule re-assessed on the new snapshot and `SUPPORTED` everywhere | `RESOLVED` with obligation evidence |
+| model finding: code changed, unit fully reviewed, no such finding there | `RESOLVED` |
+| model finding: code unchanged | `OPEN` — "no diagnostic" by itself is not a fix |
 
-История (`finding_events`) только дополняется: состояние, причина, актор, evidence.
+History (`finding_events`) is append-only: state, reason, actor, evidence.
 
-**Feedback** (`USEFUL | NOT_USEFUL | FALSE_POSITIVE | WONT_FIX`, scope, rationale) хранит актора и policy snapshot;
-`FALSE_POSITIVE`/`WONT_FIX` делают находку `DISMISSED` с автором и причиной; повторная находка в следующей ревизии
-остаётся `DISMISSED`. Evidence и статусы обязательств не меняются.
+**Feedback** (`USEFUL | NOT_USEFUL | FALSE_POSITIVE | WONT_FIX`, scope, rationale) stores the actor and the policy snapshot;
+`FALSE_POSITIVE`/`WONT_FIX` make the finding `DISMISSED` with the author and reason; a repeat finding in the next revision
+stays `DISMISSED`. Evidence and obligation statuses do not change.
 
-**Waivers** (rule id, paths, reason, owner, author, `expires_at` или условие `until`) записываются на repository
-binding; worker передаёт действующие в review как исключения правил: они снижают решение о риске, а
-`VIOLATED`/`UNKNOWN` остаются как оценены.
+**Waivers** (rule id, paths, reason, owner, author, `expires_at` or an `until` condition) are recorded on the repository
+binding; the worker passes the active ones into the review as rule exceptions: they lower the risk decision, while
+`VIOLATED`/`UNKNOWN` stay as assessed.
 
-| Действие | Кто | Проверка |
+| Action | Who | Check |
 |---|---|---|
-| `/sych rerun`, `/sych deep`, `/sych stop` в PR | `write`, `maintain`, `admin` | permission API на момент scheduler; иначе `SKIPPED:UNAUTHORIZED_COMMAND`, без ответа |
-| комментарий самого бота | никто | `BOT_COMMENT`, работы нет |
-| feedback на finding | `triage` и выше | permission API; иначе отказ `Permission` |
-| waiver | `maintain`, `admin` | permission API; иначе отказ `Permission` |
-| свободный текст PR | — | не меняет policy, budget, credentials и модель |
+| `/sych rerun`, `/sych deep`, `/sych stop` in a PR | `write`, `maintain`, `admin` | permission API at scheduler time; otherwise `SKIPPED:UNAUTHORIZED_COMMAND`, no reply |
+| the bot's own comment | nobody | `BOT_COMMENT`, no work |
+| feedback on a finding | `triage` and above | permission API; otherwise a `Permission` refusal |
+| waiver | `maintain`, `admin` | permission API; otherwise a `Permission` refusal |
+| free PR text | — | does not change policy, budget, credentials or the model |
 
-HTTP-транспорт для feedback и waivers — M2.8.
+The HTTP transport for feedback and waivers is M2.8.
 
-Реальное подключение ещё не выполнено: нужен App владельца. Тесты — `cargo test -p sych-app --test server`
-(подпись, лимит, content/event types, дубли, health), `--test github` (JWT → scoped token, кеш, reads, mapping) на
-loopback fake, `-p sych-storage --test admission` (атомарность, coalescing, два tenants), `--test scheduler`
-(supersede/fence, reaper, cancel, ожидание evidence), `-p sych-app --test scheduler` (сквозные traces на fake GitHub,
-origin по `file://` и fake-модели), `-p sych-adapters --test git_fetch`, `--test ci_reports` (корпус `fixtures/ci`: валидные, повреждённые, XXE,
-глубина), `--lib ci::archive` (traversal, symlink, bomb, CRC), `-p sych-app --test ci_evidence` (binding и gaps), `--test outbox` (один CREATE при потерянном ответе,
-crash в `PUBLISHING`, решение оператора, пагинация и скопированный marker, потерянный close, поздний UPDATE),
-`--test publication` (inline с точными полями, 422 → summary, neutral check), `-p sych-core --test publication`
-(anchor corpus и golden summaries), `-p sych-core --test lineage` (lineage corpus), `-p sych-app --test findings`
-(feedback/waiver с правами, `DISMISSED` переживает rerun).
+The real connection has not been made yet: it needs the owner's App. Tests — `cargo test -p sych-app --test server`
+(signature, limit, content/event types, duplicates, health), `--test github` (JWT → scoped token, cache, reads, mapping) on a
+loopback fake, `-p sych-storage --test admission` (atomicity, coalescing, two tenants), `--test scheduler`
+(supersede/fence, reaper, cancel, waiting for evidence), `-p sych-app --test scheduler` (end-to-end traces on fake GitHub,
+origin via `file://` and fake models), `-p sych-adapters --test git_fetch`, `--test ci_reports` (the `fixtures/ci` corpus: valid, corrupted, XXE,
+depth), `--lib ci::archive` (traversal, symlink, bomb, CRC), `-p sych-app --test ci_evidence` (binding and gaps), `--test outbox` (a single CREATE on a lost reply,
+crash in `PUBLISHING`, operator decision, pagination and a copied marker, a lost close, a late UPDATE),
+`--test publication` (inline with exact fields, 422 → summary, neutral check), `-p sych-core --test publication`
+(anchor corpus and golden summaries), `-p sych-core --test lineage` (lineage corpus), `-p sych-app --test findings`
+(feedback/waiver with permissions, `DISMISSED` survives a rerun).
 
-## HTTP API, CLI и эксплуатация (M2.8)
+## HTTP API, CLI and operations (M2.8)
 
-Пример конфигурации — [examples/server/sych.yaml](examples/server/sych.yaml); OpenAPI — `schemas/openapi.json`,
-генерируется из тех же Rust DTO (`sych_core::api`, `just schemas`).
+Example configuration — [examples/server/sych.yaml](examples/server/sych.yaml); OpenAPI — `schemas/openapi.json`,
+generated from the same Rust DTOs (`sych_core::api`, `just schemas`).
 
-**Роли процесса.** `sych serve` — всё в одном (personal default); `sych api` — webhooks и `/v1` без claim работы;
-`sych worker` — scheduler, worker, publisher и только health/metrics. Bind по умолчанию `127.0.0.1:8080`;
-non-loopback bind без `api_clients` и `behind_tls_proxy: true` отвергается валидатором, corporate без
-`api_clients` — тоже. SQLite — только локальный файл одного процесса: `api` и `worker` на разных машинах требуют
+**Process roles.** `sych serve` — everything in one (personal default); `sych api` — webhooks and `/v1` without claiming work;
+`sych worker` — scheduler, worker, publisher and only health/metrics. The default bind is `127.0.0.1:8080`;
+a non-loopback bind without `api_clients` and `behind_tls_proxy: true` is rejected by the validator, as is corporate without
+`api_clients`. SQLite is only a local file of a single process: `api` and `worker` on different machines require
 PostgreSQL (M4).
 
-**`/v1`** требует `Authorization: Bearer <token>` настроенного клиента (сравнение constant-time) и права на
-repository (`connection/owner/name` или `*`); чужой repository — 404. Мутирующие запросы требуют
-`Idempotency-Key` (scope tenant + actor + endpoint, TTL 24 h): повтор возвращает сохранённый ответ с
-`reused: true`, тот же key с другим body — 409 `IDEMPOTENCY_CONFLICT`, незавершённый первый — 409
-`REQUEST_IN_PROGRESS`. Уникальность run/publication от TTL ключа не зависит.
+**`/v1`** requires `Authorization: Bearer <token>` of a configured client (constant-time comparison) and access to the
+repository (`connection/owner/name` or `*`); a foreign repository — 404. Mutating requests require an
+`Idempotency-Key` (scope tenant + actor + endpoint, TTL 24 h): a repeat returns the stored response with
+`reused: true`, the same key with a different body — 409 `IDEMPOTENCY_CONFLICT`, an unfinished first request — 409
+`REQUEST_IN_PROGRESS`. Run/publication uniqueness does not depend on the key TTL.
 
-| Endpoint | Роль | Ответ |
+| Endpoint | Role | Response |
 |---|---|---|
-| `POST /v1/reviews` | writer | 202 `{request_id, run_id, status_url, reused}` — durable admission; `publish` default `false` и включается только там, где публикует подключение |
-| `GET /v1/runs/:id` | reader | state, stage, coverage, usage, ссылка на result |
-| `GET /v1/runs/:id/result` | reader | immutable `ReviewResult`; до commit — 409 `NO_RESULT` |
-| `POST /v1/runs/:id/cancel` | writer | активный → `CANCELLED`; committed остаётся в своём terminal state |
-| `POST /v1/changes/:id/reruns` | writer | 202, новая generation по текущему состоянию PR |
+| `POST /v1/reviews` | writer | 202 `{request_id, run_id, status_url, reused}` — durable admission; `publish` defaults to `false` and is enabled only where the connection publishes |
+| `GET /v1/runs/:id` | reader | state, stage, coverage, usage, link to the result |
+| `GET /v1/runs/:id/result` | reader | immutable `ReviewResult`; before commit — 409 `NO_RESULT` |
+| `POST /v1/runs/:id/cancel` | writer | active → `CANCELLED`; a committed one stays in its terminal state |
+| `POST /v1/changes/:id/reruns` | writer | 202, a new generation from the current PR state |
 | `POST /v1/findings/:id/feedback` | triage | 201; `FALSE_POSITIVE`/`WONT_FIX` → `DISMISSED` |
-| `POST /v1/waivers` | maintainer | 201; scoped, с expiry или условием |
-| `GET /v1/publications/:id` | reader | delivery, relevance, remote id, ошибка |
-| `POST /hooks/github/:connection` | подпись webhook | см. M2.1 |
-| `GET /health/live` | — | процесс жив; от модели не зависит |
-| `GET /health/ready` | — | БД отвечает и artifact store пишется; без config и секретов |
-| `GET /metrics` | адрес из `metrics_allow` | Prometheus text; иначе 403 |
+| `POST /v1/waivers` | maintainer | 201; scoped, with an expiry or a condition |
+| `GET /v1/publications/:id` | reader | delivery, relevance, remote id, error |
+| `POST /hooks/github/:connection` | webhook signature | see M2.1 |
+| `GET /health/live` | — | the process is alive; does not depend on the model |
+| `GET /health/ready` | — | the DB responds and the artifact store is writable; without config or secrets |
+| `GET /metrics` | address from `metrics_allow` | Prometheus text; otherwise 403 |
 
-Ошибки — `{"error": {code, message, retryable, correlation_id, details}}`: 400 `INVALID_REQUEST`, 401
+Errors — `{"error": {code, message, retryable, correlation_id, details}}`: 400 `INVALID_REQUEST`, 401
 `UNAUTHENTICATED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`, 409 conflicts, 413, 429 `RATE_LIMITED`, 503
-`DEPENDENCY_UNAVAILABLE`; без токенов, prompts, исходников и stack traces.
+`DEPENDENCY_UNAVAILABLE`; without tokens, prompts, sources or stack traces.
 
-| CLI | Что делает |
+| CLI | What it does |
 |---|---|
-| `sych review --change github:CONN:OWNER/REPO:N --config sych.yaml` | тот же server pipeline в процессе по текущему состоянию PR; ничего не публикует; exit codes как у `review` |
-| `sych publish --run ID --as CLIENT --config …` | ставит summary committed run в outbox (writer); отправляет server |
-| `sych cancel --run ID --as CLIENT --config …` | отмена до commit — exit 130 и `CANCELLED`; committed — exit 0 и прежний state |
-| `sych rerun --change ID [--profile deep] --as CLIENT --config …` | новая generation (writer) |
-| `sych reconcile [--change ID] [--allow-create OP --actor … --reason …]` | см. M2.5 |
-| `sych serve` / `api` / `worker --config … [--models …] [--semantic …]` | роли процесса |
-| `sych db migrate`, `sych cache prune --dry-run` | миграции только явно; план удаления без удаления |
+| `sych review --change github:CONN:OWNER/REPO:N --config sych.yaml` | the same server pipeline in-process from the current PR state; publishes nothing; exit codes as for `review` |
+| `sych publish --run ID --as CLIENT --config …` | puts the summary of a committed run into the outbox (writer); the server sends it |
+| `sych cancel --run ID --as CLIENT --config …` | cancellation before commit — exit 130 and `CANCELLED`; committed — exit 0 and the previous state |
+| `sych rerun --change ID [--profile deep] --as CLIENT --config …` | a new generation (writer) |
+| `sych reconcile [--change ID] [--allow-create OP --actor … --reason …]` | see M2.5 |
+| `sych serve` / `api` / `worker --config … [--models …] [--semantic …]` | process roles |
+| `sych db migrate`, `sych cache prune --dry-run` | migrations only explicitly; a deletion plan without deleting |
 
-Локальные `publish`/`cancel`/`rerun` действуют от имени настроенного клиента с нужной ролью; неизвестный клиент
-или недостаточная роль — exit 4.
+Local `publish`/`cancel`/`rerun` act on behalf of a configured client with the required role; an unknown client
+or an insufficient role — exit 4.
 
-### Метрики и alerts
+### Metrics and alerts
 
-Метрики (только ограниченные метки — состояния, coverage, judgement, причины; никаких путей и id): runs по
-state и coverage, `UNKNOWN` обязательства, jobs по state и возраст очереди, model attempts по состоянию ledger,
-tokens, known cost, удерживаемые reservations/unknown charges, стоимость superseded runs, публикации по state,
-outbox lag, возраст `UNCERTAIN`, repairs, feedback по judgement, bytes и число artifacts, webhooks
-(`stored`/`duplicate`/`rejected` по причине). Правила — [examples/server/alerts.yaml](examples/server/alerts.yaml):
-сбой сохранения, застрявшая очередь, неизвестные записи и charges, подписи webhooks, credentials, массовое падение
-completeness, удерживаемый бюджет. Метрики tour/session добавит M5.
+Metrics (only bounded labels — states, coverage, judgement, reasons; no paths or ids): runs by
+state and coverage, `UNKNOWN` obligations, jobs by state and queue age, model attempts by ledger state,
+tokens, known cost, held reservations/unknown charges, cost of superseded runs, publications by state,
+outbox lag, `UNCERTAIN` age, repairs, feedback by judgement, bytes and number of artifacts, webhooks
+(`stored`/`duplicate`/`rejected` by reason). Rules — [examples/server/alerts.yaml](examples/server/alerts.yaml):
+storage failure, a stuck queue, unknown writes and charges, webhook signatures, credentials, a mass drop in
+completeness, held budget. Tour/session metrics will be added by M5.
 
-### Runbook personal sandbox
+### Personal sandbox runbook
 
-1. **App**: создать GitHub App на аккаунте владельца — permissions из таблицы M2.1 (Checks write — только при
-   `checks: true`), events Pull request, Issue comment, Workflow run, Check suite; установить только на sandbox.
-2. **Секреты** (вне репозитория и Nix store): `SYCH_GITHUB_APP_KEY_FILE` (путь к PEM), `SYCH_GITHUB_WEBHOOK_SECRET`,
-   `SYCH_API_TOKEN_OWNER`, `SYCH_DATABASE_URL`, ключ модели (`SYCH_OPENROUTER_API_KEY`).
-3. `sych config validate --config sych.yaml`, затем `sych db migrate --config sych.yaml` — схема меняется только
-   этой командой; `serve` на немигрированной базе не стартует (exit 3).
-4. `sych serve --config sych.yaml`. Проверка: `curl 127.0.0.1:8080/health/ready`, `curl 127.0.0.1:8080/metrics`.
-5. **Остановка** — Ctrl-C/SIGINT: прекращается приём, затем claim; работа в полёте отдаёт lease по истечении,
-   reaper следующего старта возвращает job; `PUBLISHING` без ответа становится `UNCERTAIN`, а не «доставлено».
-   **Старт** возобновляет scheduler, reconcile пропущенных webhooks и reconciler публикаций.
-6. **Credentials**: истёкший/отозванный App key или токен — `SCM_READ_FAILED` в `change_events` и `UNAUTHORIZED` в
-   логе; заменить PEM/секрет и перезапустить. Модельный ключ — run `FAILED` с причиной; бюджет не тратится повторно.
-7. **Неполный CI**: run с `CI_*` gaps — coverage `PARTIAL`, gap в summary; поздний отчёт создаёт successor сам.
-8. **Неизвестные публикации**: `sych reconcile` (см. M2.5); новый CREATE — только `--allow-create` с аудитом.
-9. **Хранилище**: `sych cache prune --dry-run`, затем без флага; бэкап — остановить процесс и скопировать
-   `.sych-data/` целиком.
+1. **App**: create a GitHub App on the owner's account — permissions from the M2.1 table (Checks write — only with
+   `checks: true`), events Pull request, Issue comment, Workflow run, Check suite; install it only on the sandbox.
+2. **Secrets** (outside the repository and the Nix store): `SYCH_GITHUB_APP_KEY_FILE` (path to the PEM), `SYCH_GITHUB_WEBHOOK_SECRET`,
+   `SYCH_API_TOKEN_OWNER`, `SYCH_DATABASE_URL`, the model key (`SYCH_OPENROUTER_API_KEY`).
+3. `sych config validate --config sych.yaml`, then `sych db migrate --config sych.yaml` — the schema changes only
+   through this command; `serve` does not start on an unmigrated database (exit 3).
+4. `sych serve --config sych.yaml`. Check: `curl 127.0.0.1:8080/health/ready`, `curl 127.0.0.1:8080/metrics`.
+5. **Shutdown** — Ctrl-C/SIGINT: intake stops, then claiming; in-flight work gives up its lease on expiry,
+   and the reaper on the next start returns the job; `PUBLISHING` without a reply becomes `UNCERTAIN`, not "delivered".
+   **Startup** resumes the scheduler, reconcile of missed webhooks and the publication reconciler.
+6. **Credentials**: an expired/revoked App key or token — `SCM_READ_FAILED` in `change_events` and `UNAUTHORIZED` in the
+   log; replace the PEM/secret and restart. Model key — run `FAILED` with a reason; the budget is not spent again.
+7. **Incomplete CI**: a run with `CI_*` gaps — coverage `PARTIAL`, the gap in the summary; a late report creates a successor on its own.
+8. **Unknown publications**: `sych reconcile` (see M2.5); a new CREATE — only `--allow-create` with an audit.
+9. **Storage**: `sych cache prune --dry-run`, then without the flag; backup — stop the process and copy the whole
+   `.sych-data/`.
 
-Реальный end-to-end на pet repository (форс-push, поздний CI, рестарт, rerun/feedback) ждёт App владельца;
-детерминированные сценарии — тесты `-p sych-app`.
+A real end-to-end run on a pet repository (force-push, late CI, restart, rerun/feedback) waits for the owner's App;
+deterministic scenarios are covered by the `-p sych-app` tests.
 
 ## Self-review Sych (M2.9)
 
-Один общий engine и publisher — второго бота нет. `bondiano/sych` (и любая connection с
-`environment: production`) принимается валидатором только с `self_review: true` и `reviewer_commit`.
+One shared engine and publisher — there is no second bot. `bondiano/sych` (and any connection with
+`environment: production`) is accepted by the validator only with `self_review: true` and `reviewer_commit`.
 
-**Доверенный reviewer.** Prompts, schemas и engine вкомпилированы в бинарник; policy берётся из target tip, а
-`.sych/` из PR только сравнивается (`policy_diff`). Connection с `self_review: true` требует `reviewer_commit` —
-полный commit доверенной сборки, принятой человеком; `sych serve` отказывается стартовать, если собран из другого
-commit (`SYCH_BUILD_COMMIT` или `git rev-parse HEAD` при сборке). Каждый result несёт
-`provenance.engine_version = <version>+<commit>`. PR не может подменить reviewer, модель, egress или бюджет:
-всё это — trusted server config.
+**Trusted reviewer.** Prompts, schemas and the engine are compiled into the binary; policy is taken from the target tip, and
+`.sych/` from the PR is only compared (`policy_diff`). A connection with `self_review: true` requires `reviewer_commit` —
+the full commit of a trusted build accepted by a human; `sych serve` refuses to start if it was built from a different
+commit (`SYCH_BUILD_COMMIT` or `git rev-parse HEAD` at build time). Every result carries
+`provenance.engine_version = <version>+<commit>`. A PR cannot substitute the reviewer, model, egress or budget:
+all of these are trusted server config.
 
 ```yaml
 scm:
@@ -482,37 +482,37 @@ scm:
           checkout_manifest: sych-ci.json
 ```
 
-Repository policy зеркала (`.sych/config.yaml` на target):
+The mirror's repository policy (`.sych/config.yaml` on the target):
 `ci: {expected_reports: [{id: rust-tests, applies_to: ["crates/**", "Cargo.lock"], format: sych_manifest}]}`.
 
-**CI** — [examples/server/sandbox-ci.yml](examples/server/sandbox-ci.yml): `pull_request`, а не
-`pull_request_target`; без секретов и write-токенов; Sych PR-код не исполняет (build scripts, proc-macros и
-изменённые workflows — только в CI зеркала). Отчёт привязывается как `MERGE_RESULT` через родителей
-merge-коммита; без checkout manifest — `UNVERIFIED`.
+**CI** — [examples/server/sandbox-ci.yml](examples/server/sandbox-ci.yml): `pull_request`, not
+`pull_request_target`; no secrets or write tokens; Sych does not execute PR code (build scripts, proc-macros and
+changed workflows run only in the mirror's CI). The report is bound as `MERGE_RESULT` via the parents of the
+merge commit; without a checkout manifest — `UNVERIFIED`.
 
-**Модели.** Server run идёт в режиме `personal_service` (corporate — `corporate`): провайдер, разрешённый только
-`personal_local` (подписка, в которую владелец вошёл на своей машине), в hosted route не попадает. Маршрут —
-role plan M1.13; бюджеты — `budgets` server config; модельные ключи — env-ссылки (`SYCH_OPENROUTER_API_KEY`).
+**Models.** A server run runs in `personal_service` mode (corporate — `corporate`): a provider allowed only for
+`personal_local` (a subscription the owner signed into on their own machine) does not enter a hosted route. The route is the
+M1.13 role plan; budgets — `budgets` in the server config; model keys — env references (`SYCH_OPENROUTER_API_KEY`).
 
-**Сценарии** (детерминированно в тестах `-p sych-app`; на зеркале — после подключения App владельца): force-push
-и поздний CI (supersede, successor), дубль webhook, собственный комментарий бота, потерянный ответ публикации и
-рестарт — без лишних inference и CREATE; устаревший summary — `STALE`; `RESOLVED` только после перепроверки; бот не
-делает approve/request-changes/merge.
+**Scenarios** (deterministic in the `-p sych-app` tests; on the mirror — after the owner's App is connected): force-push
+and late CI (supersede, successor), a duplicate webhook, the bot's own comment, a lost publication reply and
+a restart — without extra inference or CREATE; a stale summary — `STALE`; `RESOLVED` only after re-verification; the bot does not
+approve/request-changes/merge.
 
 ### Self-review bondiano/sych
 
-Владелец включил production self-review до R1 (2026-10-27), сразу после открытия исходников: каждый PR Sych, в
-том числе агентский, ревьюит сам Sych, и дефекты ревьюера видны на собственных изменениях. Бот advisory: не
-approve, не request-changes, не merge. Агенты обязаны дождаться его summary на текущий head
-(`scripts/wait-sych`, [AGENTS.md](../AGENTS.md)); `main` защищён — только PR с зелёным CI.
+The owner enabled production self-review before R1 (2026-10-27), right after open-sourcing: every Sych PR,
+including agent-authored ones, is reviewed by Sych itself, and reviewer defects show up on its own changes. The bot is advisory: it does not
+approve, request changes or merge. Agents must wait for its summary on the current head
+(`scripts/wait-sych`, [AGENTS.md](../AGENTS.md)); `main` is protected — PRs with green CI only.
 
-- **Образ.** [image.yml](../.github/workflows/image.yml) на push в `main` собирает
-  `ghcr.io/bondiano/sych:<commit>` с `SYCH_BUILD_COMMIT`; PR образ не собирает и не публикует.
-- **Pin.** Deployment в petinfra (namespace `sych`) запускает образ по digest, `reviewer_commit` — тот же
-  commit; обновление ревьюера — осознанный выпуск человеком, а не merge. Server config, ключ App, webhook
-  secret и ключ OpenRouter живут только там.
-- **Модели.** Роли по M1.13 без local-only подписок: `reviewer`/`verifier` — DeepSeek через OpenRouter,
-  `risk_auditor` и `deep_roles.verifier` — Astra с fallback на Fable; лимиты — `budgets` server config.
-- **CI evidence.** Job `check` [ci.yml](../.github/workflows/ci.yml) кладёт в artifact `sych-reports` вывод
-  `cargo clippy --message-format=json` (`clippy.json`), итог `just check` (`outcomes.json`) и checkout manifest
-  (`sych-ci.json`); [.sych/config.yaml](../.sych/config.yaml) ждёт их до 15 минут, `ci_reports` — в petinfra.
+- **Image.** [image.yml](../.github/workflows/image.yml) on push to `main` builds
+  `ghcr.io/bondiano/sych:<commit>` with `SYCH_BUILD_COMMIT`; a PR neither builds nor publishes the image.
+- **Pin.** The Deployment in petinfra (namespace `sych`) runs the image by digest, `reviewer_commit` is the same
+  commit; updating the reviewer is a deliberate release by a human, not a merge. The server config, App key, webhook
+  secret and OpenRouter key live only there.
+- **Models.** Roles per M1.13 without local-only subscriptions: `reviewer`/`verifier` — DeepSeek via OpenRouter,
+  `risk_auditor` and `deep_roles.verifier` — Astra with fallback to Fable; limits — `budgets` in the server config.
+- **CI evidence.** The `check` job in [ci.yml](../.github/workflows/ci.yml) puts into the `sych-reports` artifact the output of
+  `cargo clippy --message-format=json` (`clippy.json`), the result of `just check` (`outcomes.json`) and the checkout manifest
+  (`sych-ci.json`); [.sych/config.yaml](../.sych/config.yaml) waits for them up to 15 minutes, `ci_reports` live in petinfra.

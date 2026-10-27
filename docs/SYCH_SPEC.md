@@ -1,173 +1,173 @@
-# Sych — спецификация реализации
+# Sych — implementation specification
 
-Версия: **1.2**  
-Дата: **25 октября 2026**  
-Статус: **план реализации; решения владельца и ещё не установленные параметры окружения перечислены в разделе 30**
-Название проекта: **Sych**; русское имя бота — **Сыч**. Имя бинарника и команд CLI — `sych`. Название выбрано и используется во всех интерфейсах и материалах проекта.
+Version: **1.2**  
+Date: **October 25, 2026**  
+Status: **implementation plan; owner decisions and environment parameters not yet established are listed in section 30**
+Project name: **Sych**; the bot's Russian name is **Сыч**. The binary and CLI command name is `sych`. The name has been chosen and is used across all project interfaces and materials.
 
-## Как пользоваться документом
+## How to use this document
 
-Это спецификация Sych — собственного инструмента ревью для личных проектов и командной разработки. Она задаёт поведение системы, границы MVP, данные, состояния, интеграции и критерии приёмки. Она не утверждает, что приложение уже реализовано или что его качество измерено.
+This is the specification of Sych, an in-house review tool for personal projects and team development. It defines system behavior, MVP boundaries, data, states, integrations and acceptance criteria. It does not claim that the application is already implemented or that its quality has been measured.
 
-**MUST / должен** — обязательное требование этапа, в котором функция появляется. **SHOULD / рекомендуется** — допускает обоснованное отклонение с ADR. **MAY / можно** — расширение. Этапы перечислены в разделе 28.
+**MUST** — a mandatory requirement of the stage in which the feature appears. **SHOULD** — allows a justified deviation recorded in an ADR. **MAY** — an extension. Stages are listed in section 28.
 
-Все лимиты и ресурсные значения ниже — **начальные настройки проекта**, а не измеренные показатели, цены провайдеров или обещания производительности.
+All limits and resource values below are **initial project settings**, not measured figures, provider prices or performance promises.
 
-Приоритет источников требований: этот документ → принятые ADR → версионированные контракты API и схемы → реализация. При обнаружении противоречия агент разработки обязан явно назвать его и предложить разрешение. Самовольно ослаблять обязательные требования для прохождения тестов нельзя.
+Precedence of requirement sources: this document → accepted ADRs → versioned API contracts and schemas → implementation. When a contradiction is found, the development agent must name it explicitly and propose a resolution. Unilaterally weakening mandatory requirements to make tests pass is not allowed.
 
-### Навигация
+### Navigation
 
-1. [Цель и принятые решения](#1-цель-и-принятые-решения)
-2. [Сценарии и границы продукта](#2-сценарии-и-границы-продукта)
-3. [Инварианты](#3-инварианты)
-4. [Архитектура Rust-приложения](#4-архитектура-rust-приложения)
-5. [Модель данных](#5-модель-данных)
-6. [Snapshot и границы diff](#6-snapshot-и-границы-diff)
-7. [Pipeline и план проверки](#7-pipeline-и-план-проверки)
-8. [Состояния и восстановление](#8-состояния-и-восстановление)
-9. [Контекст и semantic providers](#9-context-broker)
-10. [Правила и обязательства](#11-правила-проекта-и-обязательства)
-11. [Модельный контур и стоимость](#16-модельный-контур)
-12. [Публикация и интеграции](#18-публикация-результатов)
-13. [Режим разбора](#21-опциональный-guided-tour)
-14. [Конфигурация, CLI и API](#23-конфигурация)
-15. [Эксплуатация, оценка и этапы](#26-эксплуатация-и-наблюдаемость)
-16. [Открытые решения и источники](#30-открытые-решения)
+1. [Goal and accepted decisions](#1-goal-and-accepted-decisions)
+2. [Scenarios and product boundaries](#2-scenarios-and-product-boundaries)
+3. [Invariants](#3-invariants)
+4. [Rust application architecture](#4-rust-application-architecture)
+5. [Data model](#5-data-model)
+6. [Snapshot and diff boundaries](#6-snapshot-and-diff-boundaries)
+7. [Pipeline and review plan](#7-pipeline-and-review-plan)
+8. [States and recovery](#8-states-and-recovery)
+9. [Context and semantic providers](#9-context-broker)
+10. [Rules and obligations](#11-project-rules-and-obligations)
+11. [Model loop and cost](#16-model-loop)
+12. [Publishing and integrations](#18-publishing-results)
+13. [Walkthrough mode](#21-optional-guided-tour)
+14. [Configuration, CLI and API](#23-configuration)
+15. [Operations, evaluation and stages](#26-operations-and-observability)
+16. [Open decisions and sources](#30-open-decisions)
 
-## 1. Цель и принятые решения
+## 1. Goal and accepted decisions
 
-### 1.1. Проблема
+### 1.1. Problem
 
-Код и тесты часто пишет другой AI-агент. Человек может просмотреть изменения поверхностно. Система должна находить значимые дефекты и нарушения правил, давать полезные nitpicks и показывать, **на каких основаниях сделан вывод и что осталось непроверенным**.
+Code and tests are often written by another AI agent. A human may review the changes only superficially. The system must find significant defects and rule violations, provide useful nitpicks and show **on what grounds a conclusion was reached and what remained unverified**.
 
-Главные риски:
+Main risks:
 
-- потеря или изменение побочных эффектов при рефакторинге;
-- несовместимость миграций, API и данных во время выкладки;
-- ложное ощущение безопасности из-за зелёного CI, уверенного текста модели или согласия двух моделей.
+- loss or alteration of side effects during refactoring;
+- incompatibility of migrations, APIs and data during rollout;
+- a false sense of safety from a green CI, confident model text or agreement between two models.
 
-### 1.2. Зафиксированные решения
+### 1.2. Fixed decisions
 
-| Область | Решение |
+| Area | Decision |
 |---|---|
-| Название | Sych; русское имя Сыч; CLI `sych` |
-| Реализация | Rust; детерминированное ядро и ограниченные модельные вызовы |
-| Пользователи | Один разработчик, затем команды |
-| Первое подключение | Личный GitHub; локальный CLI появляется раньше интеграции |
-| Корпоративный контур | GitLab, приложение в изолированном Kubernetes-окружении |
-| Модели | Единый ModelGateway: OpenRouter, GPT/ChatGPT subscription, GLM Coding Plan, OpenCode Go/Go Plus; дешёвый DeepSeek V4.1 Flash, подписочные routes и selective Astra/Fable с управляемым fallback |
-| Стоимость | Локальные факты, существующие CI artifacts, выборочный дорогой анализ, жёсткие бюджеты |
-| Проверяемый стек | Rust и JS/TS/React/CSS/HTML, затем Go, Terraform/Kubernetes/YAML и базовая поддержка Python |
-| Обратная связь | Дефекты, правила, улучшения и nitpicks; nitpicks включены по умолчанию |
-| Дополнительный режим | Guided tour по готовому результату ревью; включается по запросу |
-| Мутации проекта | Reviewer не редактирует исходники и не выполняет merge |
-| Передача исправлений | Экспорт пакета автору: сначала план и затрагиваемые файлы, затем согласие пользователя |
-| Хранение | SQLite в локальном режиме; PostgreSQL в серверном |
-| Архитектура MVP | Один workspace, один бинарник с несколькими режимами, очередь в БД |
-| Коммерциализация | Не является требованием; billing, marketplace и публичный SaaS вне начального плана |
+| Name | Sych; Russian name Сыч; CLI `sych` |
+| Implementation | Rust; deterministic core and bounded model calls |
+| Users | A single developer, then teams |
+| First connection | Personal GitHub; the local CLI arrives before the integration |
+| Corporate environment | GitLab, application in an isolated Kubernetes environment |
+| Models | A single ModelGateway: OpenRouter, GPT/ChatGPT subscription, GLM Coding Plan, OpenCode Go/Go Plus; cheap DeepSeek V4.1 Flash, subscription routes and selective Astra/Fable with managed fallback |
+| Cost | Local facts, existing CI artifacts, selective expensive analysis, hard budgets |
+| Reviewed stack | Rust and JS/TS/React/CSS/HTML, then Go, Terraform/Kubernetes/YAML and basic Python support |
+| Feedback | Defects, rules, improvements and nitpicks; nitpicks are enabled by default |
+| Additional mode | Guided tour over a completed review result; enabled on request |
+| Project mutations | The reviewer does not edit sources and does not merge |
+| Handing off fixes | Export a package to the author: first the plan and affected files, then user consent |
+| Storage | SQLite in local mode; PostgreSQL in server mode |
+| MVP architecture | One workspace, one binary with several modes, a queue in the DB |
+| Commercialization | Not a requirement; billing, marketplace and public SaaS are outside the initial plan |
 
-Первый production запрещён до полного feature scope M0–M6 и финального gate R1: промежуточные integration/shadow/dogfood проверки выполняются только в изолированном test/staging. Готовность M2 или M4 не разрешает боевое подключение бота. Локальное read-only review разрешённого кода не является выкладкой. Все коммиты оформляются по [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/).
+The first production deployment is forbidden until the full M0–M6 feature scope and the final R1 gate: intermediate integration/shadow/dogfood checks run only in an isolated test/staging environment. M2 or M4 readiness does not permit connecting the bot to live repositories. Local read-only review of permitted code is not a deployment. All commits follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/).
 
-### 1.3. Что считается полезным результатом
+### 1.3. What counts as a useful result
 
-Результат содержит:
+The result contains:
 
-1. Конкретные проверенные замечания с условиями и последствиями.
-2. Применимые требования и статус их проверки.
-3. Недостающие сведения с объяснением, какой вывод они мешают сделать.
-4. Полезные необязательные замечания, честно обозначенные как предпочтения.
-5. Scope, версии источников, стоимость и ограничения.
-6. При запросе тура — маршрут чтения по тому же snapshot.
+1. Concrete verified findings with conditions and consequences.
+2. Applicable requirements and their verification status.
+3. Missing information, with an explanation of which conclusion it prevents.
+4. Useful optional remarks, honestly labeled as preferences.
+5. Scope, source versions, cost and limitations.
+6. When a tour is requested, a reading route over the same snapshot.
 
-`COMPLETE_FOR_SCOPE` означает выполнение объявленного плана проверки. Это не доказательство отсутствия всех ошибок в программе.
+`COMPLETE_FOR_SCOPE` means the declared review plan has been executed. It is not proof that the program is free of all errors.
 
-## 2. Сценарии и границы продукта
+## 2. Scenarios and product boundaries
 
-### 2.1. Основные пользовательские сценарии
+### 2.1. Main user scenarios
 
-**UC-01. Локальное ревью.** Разработчик задаёт repository, base и head. Приложение создаёт snapshot, собирает факты и возвращает JSON и Markdown без публикации в SCM.
+**UC-01. Local review.** The developer specifies the repository, base and head. The application creates a snapshot, collects facts and returns JSON and Markdown without publishing to the SCM.
 
-**UC-02. Автономное ревью PR/MR.** Событие SCM создаёт или актуализирует запрос. Повторы события не создают дополнительные публикации. Новый push инвалидирует текущую актуальность старого результата.
+**UC-02. Autonomous PR/MR review.** An SCM event creates or refreshes a request. Repeated events do not create additional publications. A new push invalidates the current freshness of the old result.
 
-**UC-03. Повторное ревью после исправления.** Новый head создаёт новый анализ. Ранее найденные проблемы сопоставляются с новым кодом и получают новую оценку; история сохраняется.
+**UC-03. Re-review after a fix.** A new head creates a new analysis. Previously found problems are matched against the new code and re-assessed; history is preserved.
 
-**UC-04. Поздний CI.** Пригодный отчёт, поступивший после финализации, запускает successor run для того же source snapshot. Повторно используются только валидные факты и checkpoints.
+**UC-04. Late CI.** A usable report that arrives after finalization starts a successor run for the same source snapshot. Only valid facts and checkpoints are reused.
 
-**UC-05. Guided tour.** Пользователь открывает цель изменения, маршрут чтения, вопросы, findings, ограничения и nitpicks. Код берётся из snapshot.
+**UC-05. Guided tour.** The user opens the change's goal, reading route, questions, findings, limitations and nitpicks. Code is taken from the snapshot.
 
-**UC-06. Уточнение.** Вопрос по остановке тура получает ответ на ограниченном контексте. Новая гипотеза о дефекте поступает в verifier.
+**UC-06. Clarification.** A question at a tour stop is answered using a bounded context. A new defect hypothesis goes to the verifier.
 
-**UC-07. Feedback.** Пользователь отмечает полезность, ошибку, дубликат или предпочтение. Feedback не меняет глобальные правила автоматически.
+**UC-07. Feedback.** The user marks usefulness, an error, a duplicate or a preference. Feedback does not change global rules automatically.
 
-**UC-08. Передача исправления.** Пользователь экспортирует finding IDs, evidence и критерии приёмки. Применение изменений выполняет отдельный авторский агент после предусмотренного согласования.
+**UC-08. Handing off a fix.** The user exports finding IDs, evidence and acceptance criteria. Changes are applied by a separate author agent after the prescribed approval.
 
-**UC-09. Self-review Sych.** PR собственного Rust workspace проходит review доверенной принятой сборкой Sych; PR не выбирает собственный reviewer executable/policy. До R1 flow проверяется на sandbox-зеркале, после R1 подключение рабочего GitHub repo требует отдельного разрешения.
+**UC-09. Sych self-review.** A PR to Sych's own Rust workspace is reviewed by a trusted accepted build of Sych; the PR does not choose its own reviewer executable/policy. Before R1 the flow is tested on a sandbox mirror; after R1, connecting the live GitHub repo requires separate permission.
 
-### 2.2. Границы первой версии
+### 2.2. First version boundaries
 
-Первый рабочий вертикальный сценарий включает локальные Git snapshots, качественные TS/React и Rust пути, JSON/Markdown result, trusted rules, ограниченный ContextBroker, fake adapter и реальный ModelGateway. TS/React target — Vkusori `apps/pwa` и `packages/core`; Rust target — сам Sych. OpenRouter и три подписочных доступа обязательны до полного релиза с честными ограничениями разрешённого использования и enforcement. Затем добавляются автономный GitHub/self-review, Go и инфраструктурное evidence. Наличие задачи в плане не означает готовой интеграции.
+The first working vertical scenario includes local Git snapshots, high-quality TS/React and Rust paths, JSON/Markdown result, trusted rules, a bounded ContextBroker, a fake adapter and a real ModelGateway. The TS/React target is Vkusori `apps/pwa` and `packages/core`; the Rust target is Sych itself. OpenRouter and the three subscription accesses are mandatory before the full release, with honest permitted-use restrictions and enforcement. Then autonomous GitHub/self-review, Go and infrastructure evidence are added. A task being in the plan does not mean the integration is ready.
 
-MVP не требует:
+The MVP does not require:
 
-- собственной модели или обучения;
-- векторной БД, embeddings и полного knowledge graph;
-- универсального межпроцедурного доказателя поведения;
-- произвольного shell у модели;
-- генерации и выполнения исправлений;
-- исполнения Terraform apply, Kubernetes deploy или DDL в реальном окружении;
-- отдельной агентной платформы, message broker и микросервиса на каждый этап;
-- полноценной web-панели до стабильности основного результата;
-- поддержки каждого языка через отдельный экспертный анализатор.
+- its own model or training;
+- a vector DB, embeddings or a full knowledge graph;
+- a universal interprocedural behavior prover;
+- arbitrary shell access for the model;
+- generating and applying fixes;
+- executing Terraform apply, Kubernetes deploy or DDL in a real environment;
+- a separate agent platform, message broker or microservice per stage;
+- a full web panel before the core result is stable;
+- support for every language through a dedicated expert analyzer.
 
-Базовый текстовый fallback для неподдержанного языка допустим, но должен явно уменьшать заявленный охват.
+A basic text fallback for an unsupported language is acceptable but must explicitly reduce the declared coverage.
 
-## 3. Инварианты
+## 3. Invariants
 
-Эти требования проверяются до корпоративного пилота.
+These requirements are verified before the corporate pilot.
 
-| ID | Инвариант |
+| ID | Invariant |
 |---|---|
-| INV-01 | Каждый вывод относится к неизменяемому source snapshot и версии политики |
-| INV-02 | Статусы исполнения, охвата, проверки обязательств, публикации и актуальности независимы |
-| INV-03 | Отсутствие данных, результатов запроса или кандидатов модели не равно успешной проверке |
-| INV-04 | Незакрытый обязательный пункт нельзя удалить из scope для получения полного результата |
-| INV-05 | Дефект сопровождается evidence, условиями и ожидаемым последствием |
-| INV-06 | Координаты кода разрешает harness; модель не создаёт произвольные SCM-комментарии |
-| INV-07 | Повтор события, crash и timeout не должны приводить к слепой повторной публикации |
-| INV-08 | Перед записью результата worker проверяет fencing token; устаревший worker не меняет актуальные данные |
-| INV-09 | После неопределённого исхода SCM write сначала выполняется reconciliation |
-| INV-10 | Новый head или существенное изменение target/policy делают старый результат STALE |
-| INV-11 | Repository content, PR description, комментарии и CI logs являются данными, не управляющими инструкциями |
-| INV-12 | Активные правила берутся из принятой версии; PR не может сам ослабить собственную проверку |
-| INV-13 | Все запросы модели, retries и repairs учитываются в бюджете; неизвестная стоимость не записывается как ноль |
-| INV-14 | Nitpicks включены, но обязательной квоты замечаний нет |
-| INV-15 | Строки реального кода в tour совпадают с зафиксированным blob |
-| INV-16 | Пройденный tour не является approval и не повышает статус проверки |
-| INV-17 | Модель reviewer не получает credentials публикации, деплоя и изменения repository |
-| INV-18 | Secret filtering и access policy применяются до model egress и до записи диагностических payloads |
-| INV-19 | Author-written tests и описание PR сами по себе не устанавливают правильность нового требования |
-| INV-20 | Reuse учитывает все зависимости; совпадение diff недостаточно для переноса вывода |
-| INV-21 | Каждый retry/fallback/escalation сохраняет egress, license/runtime eligibility, verification reserve и общий budget; soft/unknown limits не выдаются за hard |
-| INV-22 | Self-review использует доверенную принятую сборку reviewer/policy, не executable/config из проверяемого PR |
+| INV-01 | Every conclusion refers to an immutable source snapshot and policy version |
+| INV-02 | Execution, coverage, obligation verification, publication and freshness statuses are independent |
+| INV-03 | Absence of data, query results or model candidates is not equal to a successful check |
+| INV-04 | An open mandatory item cannot be removed from scope to obtain a complete result |
+| INV-05 | A defect is accompanied by evidence, conditions and the expected consequence |
+| INV-06 | Code coordinates are resolved by the harness; the model does not create arbitrary SCM comments |
+| INV-07 | Event repetition, crash and timeout must not lead to blind re-publication |
+| INV-08 | Before writing a result, the worker checks the fencing token; a stale worker does not change current data |
+| INV-09 | After an uncertain SCM write outcome, reconciliation runs first |
+| INV-10 | A new head or a material change of target/policy makes the old result STALE |
+| INV-11 | Repository content, PR description, comments and CI logs are data, not control instructions |
+| INV-12 | Active rules are taken from the accepted version; a PR cannot weaken its own review |
+| INV-13 | All model requests, retries and repairs count against the budget; unknown cost is not recorded as zero |
+| INV-14 | Nitpicks are enabled, but there is no mandatory quota of findings |
+| INV-15 | Real code lines in a tour match the pinned blob |
+| INV-16 | A completed tour is not an approval and does not raise the verification status |
+| INV-17 | The reviewer model does not receive credentials for publishing, deploying or changing the repository |
+| INV-18 | Secret filtering and access policy are applied before model egress and before writing diagnostic payloads |
+| INV-19 | Author-written tests and the PR description do not by themselves establish the correctness of a new requirement |
+| INV-20 | Reuse accounts for all dependencies; a diff match is not enough to carry a conclusion over |
+| INV-21 | Every retry/fallback/escalation preserves egress, license/runtime eligibility, verification reserve and overall budget; soft/unknown limits are not presented as hard |
+| INV-22 | Self-review uses a trusted accepted reviewer/policy build, not the executable/config from the PR under review |
 
-## 4. Архитектура Rust-приложения
+## 4. Rust application architecture
 
-### 4.1. Режимы
+### 4.1. Modes
 
-Один бинарник `sych`:
+A single `sych` binary:
 
-- `review` — локальный анализ с завершением процесса после результата;
-- `serve` — webhook/API, scheduler и встроенные workers для личного сервера;
-- `api` — только ingress/API/scheduler;
-- `worker` — фоновые задачи; corporate workers масштабируются отдельно;
-- `tour`, `ask`, `handoff` — чтение результата и дополнительные операции;
-- `config`, `doctor`, `db`, `eval` — обслуживание.
+- `review` — local analysis; the process exits after the result;
+- `serve` — webhook/API, scheduler and built-in workers for a personal server;
+- `api` — ingress/API/scheduler only;
+- `worker` — background tasks; corporate workers scale separately;
+- `tour`, `ask`, `handoff` — reading the result and additional operations;
+- `config`, `doctor`, `db`, `eval` — maintenance.
 
-`serve` и `api + worker` используют один engine. Разница только в размещении процессов.
+`serve` and `api + worker` use the same engine. The only difference is process placement.
 
 ### 4.2. Workspace
 
-Общее имя проекта — `Sych`; в идентификаторах используется `sych`. Rust packages и контейнерные компоненты используют префикс `sych-`, Rust crate imports — `sych_`, собственные переменные окружения — `SYCH_`. Публичное отображаемое имя бота — `Sych` (в русскоязычном интерфейсе допустимо «Сыч»).
+The overall project name is `Sych`; identifiers use `sych`. Rust packages and container components use the `sych-` prefix, Rust crate imports use `sych_`, and the project's own environment variables use `SYCH_`. The bot's public display name is `Sych` (in the Russian-language interface «Сыч» is acceptable).
 
 ```text
 crates/
@@ -187,33 +187,33 @@ deploy/              Helm chart, example values, operational docs
 docs/adr/            decisions and changes to this specification
 ```
 
-Нельзя создавать циклические зависимости. `sych-core` не зависит от HTTP, SQL и конкретного LLM SDK. Внешние зависимости внедряются через небольшие интерфейсы.
+Cyclic dependencies must not be created. `sych-core` does not depend on HTTP, SQL or a specific LLM SDK. External dependencies are injected through small interfaces.
 
-Начальный набор библиотек: Tokio, Axum/Tower, Serde, Reqwest, SQLx, Clap, tracing. Конкретные совместимые стабильные версии выбираются при bootstrap, фиксируются в `Cargo.lock` и `rust-toolchain.toml`. Не использовать плавающие git dependencies. Axum и SQLx выбраны как обычные инфраструктурные библиотеки; собственный агентный framework не требуется. [S01], [S02], [S03]
+Initial library set: Tokio, Axum/Tower, Serde, Reqwest, SQLx, Clap, tracing. Concrete compatible stable versions are chosen at bootstrap and pinned in `Cargo.lock` and `rust-toolchain.toml`. Do not use floating git dependencies. Axum and SQLx are chosen as ordinary infrastructure libraries; a custom agent framework is not required. [S01], [S02], [S03]
 
-### 4.3. Границы компонентов
+### 4.3. Component boundaries
 
-| Компонент | Ответственность |
+| Component | Responsibility |
 |---|---|
-| Ingress | Проверка события, размера и подлинности; durable inbox |
-| Scheduler | Debounce, актуальный desired generation, объединение повторов |
-| SnapshotService | Git refs, merge-base, diff, blobs и source manifest |
-| PolicyResolver | Доверенная конфигурация, правила, hash и ограничения |
-| FactCollector | AST/diff/CI факты без модельной интерпретации |
-| SemanticProvider | Определения, references, реализации, diagnostics |
-| ObligationPlanner | Scope, review units, риски и обязательства |
-| ContextBroker | Контекст под вопрос, retrieval budget, provenance |
-| ModelGateway | Provider/subscription transports, role routing/fallback, structured output, usage/quota/enforcement, deadline и cost reservation |
-| CandidateFinder | Поиск гипотез и предложений |
-| Verifier | Проверка кандидатов и контрпримеров; ограниченный вывод |
-| ResultReducer | Детерминированный расчёт охвата, рекомендаций и результата |
-| Publisher | Только разрешённые SCM операции, координаты и reconciliation |
-| TourService | Маршрут и объяснение сохранённого результата |
-| Evaluation | Воспроизводимые сценарии, качество, стоимость, regression |
+| Ingress | Event, size and authenticity validation; durable inbox |
+| Scheduler | Debounce, current desired generation, coalescing repeats |
+| SnapshotService | Git refs, merge-base, diff, blobs and source manifest |
+| PolicyResolver | Trusted configuration, rules, hash and restrictions |
+| FactCollector | AST/diff/CI facts without model interpretation |
+| SemanticProvider | Definitions, references, implementations, diagnostics |
+| ObligationPlanner | Scope, review units, risks and obligations |
+| ContextBroker | Question-specific context, retrieval budget, provenance |
+| ModelGateway | Provider/subscription transports, role routing/fallback, structured output, usage/quota/enforcement, deadline and cost reservation |
+| CandidateFinder | Search for hypotheses and suggestions |
+| Verifier | Verification of candidates and counterexamples; bounded inference |
+| ResultReducer | Deterministic computation of coverage, recommendations and result |
+| Publisher | Only permitted SCM operations, coordinates and reconciliation |
+| TourService | Route and explanation of a stored result |
+| Evaluation | Reproducible scenarios, quality, cost, regression |
 
-### 4.4. Интерфейсы
+### 4.4. Interfaces
 
-Ниже логические сигнатуры. Недостающие request/response типы определяются в `sych-core`; это не готовый компилируемый фрагмент.
+Below are logical signatures. Missing request/response types are defined in `sych-core`; this is not a ready-to-compile fragment.
 
 ```rust
 pub trait SnapshotReader {
@@ -240,26 +240,26 @@ pub trait ScmProvider: Send + Sync {
 }
 ```
 
-Для динамически выбираемых async adapters использовать `async-trait` либо явный boxed future. Не предполагать dyn-совместимость произвольного native async trait. [S04]
+For dynamically selected async adapters, use `async-trait` or an explicit boxed future. Do not assume dyn compatibility of an arbitrary native async trait. [S04]
 
-## 5. Модель данных
+## 5. Data model
 
-### 5.1. Идентификаторы и форматы
+### 5.1. Identifiers and formats
 
-- Внешние IDs GitHub/GitLab хранятся как непрозрачные строки.
-- Внутренние entity IDs — UUID; для новых записей допускается UUIDv7.
-- Все timestamps — UTC RFC 3339; локальная timezone применяется только при отображении.
-- Денежные значения — целые micro-USD, не `f64`. Отображение в USD отдельно.
-- Hash артефактов и canonical manifests — SHA-256.
-- Git object ID хранится вместе с алгоритмом; не предполагать ровно 40 символов.
-- Наборы перед хешированием сортируются по определённому ключу; обычный порядок полей JSON не используется как идентичность.
-- Каждый внешний JSON содержит `schema_version`. Неизвестная major version отклоняется явно.
-- `generation` монотонно увеличивается внутри Change при принятом новом analysis intent. Повтор тех же существенных inputs не увеличивает её; разрешённый ручной rerun увеличивает. `review_revision` сохранённого результата равна generation его run; immutable result_id дополнительно идентифицирует artifact.
-- В model output неизвестные поля отклоняются. В provider API parsers неизвестные нерешающие поля могут сохраняться/игнорироваться согласно версии адаптера.
+- External GitHub/GitLab IDs are stored as opaque strings.
+- Internal entity IDs are UUIDs; UUIDv7 is allowed for new records.
+- All timestamps are UTC RFC 3339; the local timezone is applied only for display.
+- Monetary values are integer micro-USD, not `f64`. Display in USD is separate.
+- Hashes of artifacts and canonical manifests are SHA-256.
+- A Git object ID is stored together with its algorithm; do not assume exactly 40 characters.
+- Sets are sorted by a defined key before hashing; ordinary JSON field order is not used as identity.
+- Every external JSON contains `schema_version`. An unknown major version is rejected explicitly.
+- `generation` increases monotonically within a Change when a new analysis intent is accepted. Repeating the same material inputs does not increase it; a permitted manual rerun does. The `review_revision` of a stored result equals the generation of its run; the immutable result_id additionally identifies the artifact.
+- Unknown fields in model output are rejected. In provider API parsers, unknown non-decisive fields may be preserved/ignored according to the adapter version.
 
-### 5.2. Основные сущности
+### 5.2. Core entities
 
-| Entity | Обязательные поля и смысл |
+| Entity | Mandatory fields and meaning |
 |---|---|
 | Repository | tenant-scoped binding: id, tenant_id, connection_id, provider_instance_id, external_id, clone_origin, access_scope_id |
 | Change | repo_id, external_number/local_key, target_ref, desired_generation, current_source_snapshot_id |
@@ -268,8 +268,8 @@ pub trait ScmProvider: Send + Sync {
 | AnalysisRun | id, change_id, generation, source_snapshot_id, policy_snapshot_id, parent_run_id, trigger_reason |
 | ScopeManifest | units, required obligations, requested profiles, excluded paths with reasons, scope revisions |
 | Evidence | immutable producer/result/source record with provenance and completeness |
-| ExternalInputManifest | pinned внешние CI/contract/environment inputs для run; frozen перед анализом |
-| EvidenceManifest | все использованные inputs и derived evidence; frozen при finalization |
+| ExternalInputManifest | pinned external CI/contract/environment inputs for a run; frozen before analysis |
+| EvidenceManifest | all used inputs and derived evidence; frozen at finalization |
 | ReviewUnit | related changes around one contract, symbol group or behavior |
 | Obligation | concrete question, applicable rule, required flag, acceptance criterion, scope |
 | Candidate | model/static hypothesis; not yet a published finding |
@@ -280,7 +280,7 @@ pub trait ScmProvider: Send + Sync {
 | TourSession | private progress and bounded Q&A |
 | Waiver | explicit scoped decision to accept a risk; does not change evidence |
 | Feedback | actor judgement with scope and rationale |
-| ModelAttempt | request/attempt identity, role/route revision, requested/resolved provider/model/account reference, auth/billing/enforcement kind, limits, monetary reservation, tokens/quota completeness и outcome |
+| ModelAttempt | request/attempt identity, role/route revision, requested/resolved provider/model/account reference, auth/billing/enforcement kind, limits, monetary reservation, tokens/quota completeness and outcome |
 
 ### 5.3. Source coordinates
 
@@ -296,15 +296,15 @@ pub struct CodeRef {
 }
 ```
 
-`RepoPath` — путь внутри snapshot, не абсолютный путь host. Внутренние spans могут хранить byte offsets. При запросе LSP offsets конвертируются в negotiated encoding; нельзя смешивать UTF-8 bytes и UTF-16 character positions.
+`RepoPath` is a path inside the snapshot, not an absolute host path. Internal spans may store byte offsets. For LSP requests, offsets are converted to the negotiated encoding; UTF-8 bytes and UTF-16 character positions must not be mixed.
 
-Rename хранит old/new path. Удалённая строка относится к base. Если строка не является допустимой inline-позицией SCM, finding публикуется в summary с точной ссылкой. Координаты не «приближаются» к произвольной соседней строке.
+A rename stores the old/new path. A deleted line belongs to base. If a line is not a valid SCM inline position, the finding is published in the summary with an exact reference. Coordinates are not "approximated" to an arbitrary neighboring line.
 
-Файл с неподдерживаемой кодировкой пути/содержимого получает явное ограничение; он не исчезает из scope. Binary, submodule, symlink и LFS pointer отмечаются отдельными типами.
+A file with an unsupported path/content encoding gets an explicit limitation; it does not disappear from scope. Binary, submodule, symlink and LFS pointer are marked as separate types.
 
 ### 5.4. Evidence
 
-Минимальный контракт:
+Minimal contract:
 
 ```json
 {
@@ -334,56 +334,56 @@ Rename хранит old/new path. Удалённая строка относит
 }
 ```
 
-Это иллюстрация полей, не fixture с реальными SHA. `kind`: `source | semantic | static | test | coverage | contract | infrastructure | human`.
+This is an illustration of the fields, not a fixture with real SHAs. `kind`: `source | semantic | static | test | coverage | contract | infrastructure | human`.
 
 `validity`: `VALID | STALE | UNAVAILABLE | MALFORMED | FAILED`.  
 `completeness`: `COMPLETE_FOR_QUERY | PARTIAL | UNKNOWN`.  
 `trust_class`: `TRUSTED_POLICY | SOURCE_OBSERVATION | DERIVED_LOCAL | AUTHENTICATED_CI | AUTHOR_CLAIM | HUMAN_ATTESTATION`.
 
-`AUTHENTICATED_CI` означает установленное происхождение результата, а не независимость тестового oracle от автора PR.
+`AUTHENTICATED_CI` means the established provenance of a result, not that the test oracle is independent of the PR author.
 
 ### 5.5. Obligation
 
-Обязательные поля:
+Mandatory fields:
 
 - `id`, `rule_id`, `rule_version`;
 - `question`, `required`, `risk_level`;
 - `review_unit_ids`, `code_refs`;
 - `applicability: APPLIES | DOES_NOT_APPLY | UNKNOWN`;
-- `acceptance_criterion` и `acceptable_evidence_kinds`;
+- `acceptance_criterion` and `acceptable_evidence_kinds`;
 - `status`, `evidence_ids`, `limitations`;
-- для `UNKNOWN` — `reason_code` и `next_evidence_needed`;
-- для `NOT_APPLICABLE` — проверяемое основание неприменимости.
+- for `UNKNOWN` — `reason_code` and `next_evidence_needed`;
+- for `NOT_APPLICABLE` — a verifiable justification of non-applicability.
 
-Статусы: `SUPPORTED | VIOLATED | UNKNOWN | NOT_APPLICABLE`. Pending хранится как состояние задачи исполнения, не маскируется под один из финальных ответов.
+Statuses: `SUPPORTED | VIOLATED | UNKNOWN | NOT_APPLICABLE`. Pending is stored as an execution task state and is not disguised as one of the final answers.
 
-`SUPPORTED` означает достаточное основание для сформулированного критерия в указанном scope. Число уверенности, выданное моделью, не является таким основанием.
+`SUPPORTED` means sufficient grounds for the stated criterion within the specified scope. A confidence number produced by the model is not such grounds.
 
-### 5.6. Candidate и Finding
+### 5.6. Candidate and Finding
 
-Candidate содержит проверяемое утверждение, предполагаемую причинную цепочку, anchors, последствия, условия и желаемый способ опровержения.
+A Candidate contains a verifiable claim, the presumed causal chain, anchors, consequences, conditions and the desired way to refute it.
 
-`verification_status` кандидата: `PENDING | CONFIRMED | REJECTED | UNRESOLVED`.
+Candidate `verification_status`: `PENDING | CONFIRMED | REJECTED | UNRESOLVED`.
 
-Finding содержит:
+A Finding contains:
 
 - category: `DEFECT | RULE_VIOLATION | IMPROVEMENT | NIT`;
 - severity: `CRITICAL | HIGH | MEDIUM | LOW | INFO`;
 - title, explanation, triggering_conditions, consequence;
-- anchors и evidence_ids;
-- rule_id/obligation_ids, если применимо;
+- anchors and evidence_ids;
+- rule_id/obligation_ids, if applicable;
 - support: `EXECUTED_COUNTEREXAMPLE | STATIC_TRACE | SEMANTIC_ARGUMENT | EXPLICIT_RULE | PREFERENCE`;
-- suggested_action и validation_expectation;
+- suggested_action and validation_expectation;
 - fingerprint, predecessor_finding_id, lifecycle;
-- exact scope и limitations.
+- exact scope and limitations.
 
-Severity и support — разные измерения. Critical-гипотеза может остаться unresolved. Preference не становится обязательным defect из-за уверенного текста.
+Severity and support are different dimensions. A critical hypothesis may remain unresolved. A preference does not become a mandatory defect because of confident text.
 
-Lifecycle: `OPEN | RESOLVED | DISMISSED | OBSOLETE`. Статус `RESOLVED` требует новой проверки на новом snapshot. `DISMISSED` сохраняет автора и причину; это не удаление истории.
+Lifecycle: `OPEN | RESOLVED | DISMISSED | OBSOLETE`. The `RESOLVED` status requires re-verification on a new snapshot. `DISMISSED` preserves the author and the reason; it is not deletion of history.
 
 ### 5.7. ReviewResult
 
-Обязательные поля:
+Mandatory fields:
 
 ```text
 schema_version
@@ -405,148 +405,148 @@ provenance
 
 `coverage`: `COMPLETE_FOR_SCOPE | PARTIAL | UNAVAILABLE`.
 
-`recommendation`: `ATTENTION_REQUIRED | NEEDS_EVIDENCE | NO_BLOCKING_FINDINGS_IN_SCOPE`. Это вычисляемое поле, не текстовый вердикт модели и не SCM approval.
+`recommendation`: `ATTENTION_REQUIRED | NEEDS_EVIDENCE | NO_BLOCKING_FINDINGS_IN_SCOPE`. This is a computed field, not a textual model verdict and not an SCM approval.
 
-Порядок reducer:
+Reducer order:
 
-1. Если есть подтверждённый finding или проверенное VIOLATED obligation, подпадающее под настроенный порог значимости, — `ATTENTION_REQUIRED`.
-2. Иначе при обязательных UNKNOWN или недоступном содержательном анализе — `NEEDS_EVIDENCE`.
-3. Иначе — `NO_BLOCKING_FINDINGS_IN_SCOPE`.
-4. Независимо от рекомендации показывать фактический coverage и все существенные UNKNOWN.
+1. If there is a confirmed finding or a verified VIOLATED obligation that meets the configured significance threshold — `ATTENTION_REQUIRED`.
+2. Otherwise, with mandatory UNKNOWNs or unavailable substantive analysis — `NEEDS_EVIDENCE`.
+3. Otherwise — `NO_BLOCKING_FINDINGS_IN_SCOPE`.
+4. Regardless of the recommendation, show the actual coverage and all material UNKNOWNs.
 
-Если одновременно есть defect, подпадающий под порог значимости, и UNKNOWN, рекомендация остаётся `ATTENTION_REQUIRED`, а неполнота показывается рядом. Неблокирующее замечание не скрывает обязательный UNKNOWN: в этом случае результат — `NEEDS_EVIDENCE`. Порог значимости определяет содержание рекомендации; advisory publication не превращает его в SCM merge gate.
+If there is both a defect meeting the significance threshold and an UNKNOWN, the recommendation stays `ATTENTION_REQUIRED`, and the incompleteness is shown alongside. A non-blocking finding does not hide a mandatory UNKNOWN: in that case the result is `NEEDS_EVIDENCE`. The significance threshold determines the content of the recommendation; advisory publication does not turn it into an SCM merge gate.
 
-Каждый VIOLATED invariant имеет соответствующий confirmed finding либо явное нарушение внутреннего контракта финализации. ResultReducer не теряет нарушение из-за отсутствующей записи в массиве findings; при возможности он создаёт RULE_VIOLATION из проверенного assessment и его evidence.
+Every VIOLATED invariant has a corresponding confirmed finding or an explicit violation of the internal finalization contract. ResultReducer does not lose a violation because of a missing entry in the findings array; when possible, it creates a RULE_VIOLATION from the verified assessment and its evidence.
 
-## 6. Snapshot и границы diff
+## 6. Snapshot and diff boundaries
 
-### 6.1. Три обязательных Git позиции
+### 6.1. Three mandatory Git positions
 
-Хранить отдельно:
+Store separately:
 
-- `target_tip` — актуальная вершина target branch на момент фиксации;
-- `diff_base` — основание выбранного diff, обычно merge-base(target_tip, head);
-- `head` — вершина проверяемой source branch.
+- `target_tip` — the current tip of the target branch at the time of pinning;
+- `diff_base` — the base of the selected diff, usually merge-base(target_tip, head);
+- `head` — the tip of the source branch under review.
 
-Не называть одним полем `base` и target tip, и merge-base. Provider-specific diff versions хранятся рядом с нормализованным snapshot.
+Do not name both the target tip and the merge-base with a single `base` field. Provider-specific diff versions are stored next to the normalized snapshot.
 
-`source_snapshot_id` зависит от repo identity, этих позиций, способа получения diff, source manifest и политики обработки файлов. Rules, model version и CI не входят в source identity, а входят в AnalysisInput.
+`source_snapshot_id` depends on repo identity, these positions, the diff acquisition method, the source manifest and the file handling policy. Rules, model version and CI are not part of the source identity; they are part of AnalysisInput.
 
-### 6.2. Алгоритм подготовки
+### 6.2. Preparation algorithm
 
-1. Получить разрешённый repository и change через настроенный provider.
-2. Повторно прочитать актуальные refs; webhook payload считается указателем на событие.
-3. Fetch минимально нужных объектов; при недостаточной глубине ограниченно углубить историю.
-4. Вычислить merge-base или получить подтверждённую diff version провайдера.
-5. Получить diff со статусами, rename, old/new blob IDs.
-6. Убедиться, что diff не усечён provider API. При усечении использовать локальный Git либо отметить непроверенную часть.
-7. Сформировать manifest всех изменённых файлов, включая excluded/binary/generated.
-8. Прочитать доверенную policy с target tip или закреплённого policy ref.
-9. Материализовать отдельные read-only views base/head для инструментов, которым необходим workspace.
-10. Зафиксировать snapshot и проверить, не сменилось desired generation.
+1. Obtain the permitted repository and change through the configured provider.
+2. Re-read the current refs; the webhook payload is treated as a pointer to the event.
+3. Fetch the minimum required objects; if depth is insufficient, deepen history in a bounded way.
+4. Compute the merge-base or obtain the provider's confirmed diff version.
+5. Obtain the diff with statuses, renames, old/new blob IDs.
+6. Make sure the diff is not truncated by the provider API. If truncated, use local Git or mark the unverified part.
+7. Build a manifest of all changed files, including excluded/binary/generated.
+8. Read the trusted policy from the target tip or a pinned policy ref.
+9. Materialize separate read-only base/head views for tools that require a workspace.
+10. Pin the snapshot and check that the desired generation has not changed.
 
-Если merge-base не найден, использовать явно заданный режим сравнения либо выдать `UNAVAILABLE` с причиной. Молчаливое сравнение с произвольным commit запрещено.
+If no merge-base is found, use an explicitly specified comparison mode or return `UNAVAILABLE` with a reason. Silent comparison against an arbitrary commit is forbidden.
 
-### 6.3. Рабочее дерево
+### 6.3. Working tree
 
-В MVP ревью привязано к commits. `--worktree` появляется отдельным расширением:
+In the MVP, review is bound to commits. `--worktree` arrives as a separate extension:
 
-- содержимое tracked изменений фиксируется в собственном content snapshot;
-- untracked включаются только по явной настройке;
-- результат маркируется `WORKTREE`, а не commit;
-- файлы не изменяются;
-- кэш использует hashes содержимого;
-- утверждение «весь код из git commit» для такого режима недопустимо.
+- the content of tracked changes is pinned in its own content snapshot;
+- untracked files are included only by explicit setting;
+- the result is labeled `WORKTREE`, not commit;
+- files are not modified;
+- the cache uses content hashes;
+- the claim "all code is from a git commit" is not allowed for this mode.
 
-### 6.4. Безопасное чтение
+### 6.4. Safe reading
 
-Git операции выполняются без checkout hooks, автоматического запуска submodules, внешних diff/textconv helpers и произвольных filters из repository. Рабочая директория не должна влиять на глобальную конфигурацию Git.
+Git operations run without checkout hooks, automatic submodule handling, external diff/textconv helpers or arbitrary filters from the repository. The working directory must not affect the global Git configuration.
 
-Не следовать symlink за пределы snapshot. Не передавать raw user input как shell command. Model URL, artifact URL и clone origin разрешаются политикой endpoint, а не текстом PR.
+Do not follow symlinks outside the snapshot. Do not pass raw user input as a shell command. Model URL, artifact URL and clone origin are resolved by endpoint policy, not by PR text.
 
-### 6.5. Актуальность
+### 6.5. Freshness
 
-- Изменился head — новый source snapshot.
-- Изменился target tip — новая оценка integration context, даже при прежнем head.
-- Изменилась принятая policy/config — новый analysis generation.
-- Поступил новый существенный внешний input после input freeze — successor run; derived facts из pinned inputs остаются в текущем run.
-- Повтор тех же данных с тем же digest не создаёт новую ревизию.
+- Head changed — a new source snapshot.
+- Target tip changed — a new assessment of the integration context, even with the same head.
+- Accepted policy/config changed — a new analysis generation.
+- A new material external input arrived after the input freeze — a successor run; derived facts from pinned inputs stay in the current run.
+- Repeating the same data with the same digest does not create a new revision.
 
-Исторический результат остаётся неизменяемым. Его `relevance` меняется на `STALE` во внешней записи актуальности, а не путём переписывания доказательств.
+A historical result remains immutable. Its `relevance` changes to `STALE` in an external freshness record, not by rewriting the evidence.
 
-## 7. Pipeline и план проверки
+## 7. Pipeline and review plan
 
-### 7.1. Основной поток
+### 7.1. Main flow
 
 ```mermaid
 flowchart TD
-    E["Событие или CLI"] --> I["Durable inbox и debounce"]
-    I --> S["Snapshot и доверенная policy"]
-    S --> F["Diff, факты и CI"]
-    F --> P["Scope, obligations и review units"]
-    P --> G{"Минимальное evidence доступно?"}
-    G -->|"Ожидается CI"| W["WAITING_EVIDENCE"]
-    W -->|"Результат или deadline"| F
-    G -->|"Да"| B["Бюджет и замороженные inputs"]
-    G -->|"Недоступно"| U["Явные UNKNOWN"]
-    B --> D["Поиск кандидатов"]
-    B -->|"Высокий риск"| A["Дополнительный независимый поиск"]
-    D --> V["Проверка и контрпримеры"]
+    E["Event or CLI"] --> I["Durable inbox and debounce"]
+    I --> S["Snapshot and trusted policy"]
+    S --> F["Diff, facts and CI"]
+    F --> P["Scope, obligations and review units"]
+    P --> G{"Minimal evidence available?"}
+    G -->|"CI expected"| W["WAITING_EVIDENCE"]
+    W -->|"Result or deadline"| F
+    G -->|"Yes"| B["Budget and frozen inputs"]
+    G -->|"Unavailable"| U["Explicit UNKNOWNs"]
+    B --> D["Candidate search"]
+    B -->|"High risk"| A["Additional independent search"]
+    D --> V["Verification and counterexamples"]
     A --> V
-    V -->|"Точечный запрос"| C["ContextBroker"]
+    V -->|"Targeted request"| C["ContextBroker"]
     C --> V
-    V --> R["Детерминированный ResultReducer"]
+    V --> R["Deterministic ResultReducer"]
     U --> R
-    R --> X{"Generation актуален?"}
-    X -->|"Нет"| Z["SUPERSEDED"]
-    X -->|"Да"| T["Result и outbox в транзакции"]
-    T --> O["Публикация и reconciliation"]
+    R --> X{"Generation current?"}
+    X -->|"No"| Z["SUPERSEDED"]
+    X -->|"Yes"| T["Result and outbox in a transaction"]
+    T --> O["Publication and reconciliation"]
 ```
 
-Deadline ожидания задаётся один раз. Повторный проход через collector не продлевает его. Если CI уже известен как недоступный, переход к UNKNOWN происходит без бессмысленного ожидания.
+The wait deadline is set once. Another pass through the collector does not extend it. If CI is already known to be unavailable, the transition to UNKNOWN happens without pointless waiting.
 
-### 7.2. Обязанности planner
+### 7.2. Planner responsibilities
 
-Planner должен до модельного поиска:
+Before model search, the planner must:
 
-- классифицировать типы изменений;
-- определить применимые правила;
-- создать обязательства для важных рисков;
-- объединить связанные изменения в review units;
-- определить минимальное evidence;
-- зарезервировать бюджет проверки;
-- записать отложенные/невыполнимые проверки.
+- classify change types;
+- determine applicable rules;
+- create obligations for important risks;
+- group related changes into review units;
+- determine the minimal evidence;
+- reserve the verification budget;
+- record deferred/infeasible checks.
 
-Обязательные проверки не зависят от того, нашла ли дешёвая модель подозрительный код.
+Mandatory checks do not depend on whether the cheap model found suspicious code.
 
-Review unit может включать несколько файлов: handler, repository wrapper, schema и frontend consumer. Разбиение строго по файлам не является обязательным.
+A review unit may span several files: handler, repository wrapper, schema and frontend consumer. Strict per-file partitioning is not mandatory.
 
 ### 7.3. Risk routing
 
-Стартовые признаки риска:
+Initial risk signals:
 
-- DDL, migrations, backfill, сериализация и versioned API;
-- изменение writes, транзакций, outbox, acknowledgements;
-- изменение ошибок, retry, cancellation и lifetime;
+- DDL, migrations, backfill, serialization and versioned API;
+- changes to writes, transactions, outbox, acknowledgements;
+- changes to errors, retry, cancellation and lifetime;
 - auth/tenant checks;
 - dependency/build/deploy configuration;
-- удаление assertions, увеличение skips, ослабление lint/CI;
-- широкое перемещение логики между слоями;
-- replacement/deletion инфраструктурных ресурсов.
+- removal of assertions, more skips, weakened lint/CI;
+- broad movement of logic between layers;
+- replacement/deletion of infrastructure resources.
 
-Признаки — routing hints, не доказательства дефекта.
+Signals are routing hints, not proof of a defect.
 
-Высокий риск назначает дополнительный независимый поиск по соответствующим obligations, даже если общий проход вернул пустой список. При нехватке бюджета такой проход остаётся явно невыполненным; система не выдаёт полный охват.
+High risk assigns an additional independent search over the corresponding obligations, even if the general pass returned an empty list. When the budget is insufficient, such a pass stays explicitly unexecuted; the system does not report full coverage.
 
 ### 7.4. Scope
 
-Scope фиксируется перед модельным анализом. Допускается только явное расширение с новой scope revision. Сужение обязательного scope внутри run запрещено.
+Scope is pinned before model analysis. Only explicit expansion with a new scope revision is allowed. Narrowing the mandatory scope within a run is forbidden.
 
-Excluded paths включаются в manifest с причиной. Если generated file содержит значимую смену публичного контракта, исключение из чтения не отменяет обязательство проверки этого контракта.
+Excluded paths are included in the manifest with a reason. If a generated file contains a significant change of a public contract, excluding it from reading does not cancel the obligation to verify that contract.
 
-Если большой PR не помещается в лимит, нужно выполнить доступную часть и перечислить остальное, либо предложить разбиение. Нельзя молча анализировать первые N файлов и маркировать весь PR проверенным.
+If a large PR does not fit the limit, the available part must be executed and the rest listed, or a split proposed. Silently analyzing the first N files and marking the whole PR as reviewed is not allowed.
 
-## 8. Состояния и восстановление
+## 8. States and recovery
 
 ### 8.1. Execution state
 
@@ -555,13 +555,13 @@ stateDiagram-v2
     direction TB
     [*] --> QUEUED
     QUEUED --> RUNNING
-    RUNNING --> WAITING_EVIDENCE: нужен конкретный источник
-    WAITING_EVIDENCE --> RUNNING: evidence или deadline
-    RUNNING --> RETRY_WAIT: временный сбой
-    RETRY_WAIT --> RUNNING: повтор разрешён
-    RETRY_WAIT --> FINALIZING: повторы исчерпаны
-    RUNNING --> FINALIZING: план завершён или лимит
-    FINALIZING --> COMPLETED: result сохранён
+    RUNNING --> WAITING_EVIDENCE: specific source needed
+    WAITING_EVIDENCE --> RUNNING: evidence or deadline
+    RUNNING --> RETRY_WAIT: transient failure
+    RETRY_WAIT --> RUNNING: retry permitted
+    RETRY_WAIT --> FINALIZING: retries exhausted
+    RUNNING --> FINALIZING: plan finished or limit
+    FINALIZING --> COMPLETED: result saved
     QUEUED --> CANCELLED
     RUNNING --> CANCELLED
     WAITING_EVIDENCE --> CANCELLED
@@ -571,73 +571,73 @@ stateDiagram-v2
     RETRY_WAIT --> SUPERSEDED
     QUEUED --> SUPERSEDED
     FINALIZING --> SUPERSEDED
-    FINALIZING --> FAILED: результат нельзя сохранить
-    RUNNING --> FAILED: невосстановимая ошибка
+    FINALIZING --> FAILED: result cannot be saved
+    RUNNING --> FAILED: unrecoverable error
 ```
 
-Для всех активных состояний разрешены отмена, supersede и невосстановимый сбой, если результат ещё не committed. Diagram показывает основные переходы; таблица ниже задаёт обязательные условия.
+Cancellation, supersede and unrecoverable failure are allowed from all active states as long as the result is not yet committed. The diagram shows the main transitions; the table below defines the mandatory conditions.
 
-| Переход | Условие |
+| Transition | Condition |
 |---|---|
-| QUEUED → RUNNING | Атомарно получены lease и fencing token |
-| RUNNING → WAITING_EVIDENCE | Есть конкретные expected sources и фиксированный deadline |
-| WAITING_EVIDENCE → RUNNING | Источник поступил либо deadline исчерпан; во втором случае создаются gaps |
-| RUNNING → RETRY_WAIT | Ошибка классифицирована retryable и остаётся общий бюджет |
-| RETRY_WAIT → FINALIZING | Повтор невозможен, но можно сохранить честный partial result |
-| RUNNING → FINALIZING | План исполнен либо достигнут лимит; задачи и gaps перечислены |
-| FINALIZING → COMPLETED | Result, usage и publication intents сохранены атомарно |
-| Active → SUPERSEDED | Desired generation изменился |
-| Active → CANCELLED | Принята явная отмена; новые внешние операции не запускаются |
-| Active → FAILED | Не удалось получить/сохранить даже корректный результат исполнения |
+| QUEUED → RUNNING | Lease and fencing token acquired atomically |
+| RUNNING → WAITING_EVIDENCE | There are specific expected sources and a fixed deadline |
+| WAITING_EVIDENCE → RUNNING | The source arrived or the deadline expired; in the latter case gaps are created |
+| RUNNING → RETRY_WAIT | The error is classified as retryable and overall budget remains |
+| RETRY_WAIT → FINALIZING | Retry is impossible, but an honest partial result can be saved |
+| RUNNING → FINALIZING | The plan is executed or a limit is reached; tasks and gaps are listed |
+| FINALIZING → COMPLETED | Result, usage and publication intents saved atomically |
+| Active → SUPERSEDED | Desired generation changed |
+| Active → CANCELLED | Explicit cancellation accepted; no new external operations are started |
+| Active → FAILED | Could not obtain/save even a correct execution result |
 
-`stage` хранится отдельно: `SNAPSHOT | COLLECT | PLAN | DISCOVER | VERIFY | REDUCE`. Финальная публикация имеет собственную очередь и не держит analysis lease.
+`stage` is stored separately: `SNAPSHOT | COLLECT | PLAN | DISCOVER | VERIFY | REDUCE`. Final publication has its own queue and does not hold the analysis lease.
 
-### 8.2. Частичное выполнение
+### 8.2. Partial execution
 
-Если LSP недоступен, можно закончить часть проверки с `PARTIAL`. Если diff не получен, содержательное ревью не выполнено: допускается сохранённый result с `UNAVAILABLE`.
+If LSP is unavailable, part of the review can finish with `PARTIAL`. If the diff was not obtained, no substantive review was performed: a saved result with `UNAVAILABLE` is allowed.
 
-Если БД недоступна и результат нельзя надёжно сохранить, run не получает `COMPLETED`. Наличие текста в памяти не считается завершением.
+If the DB is unavailable and the result cannot be reliably saved, the run does not get `COMPLETED`. Having text in memory does not count as completion.
 
-### 8.3. Freeze и поздние события
+### 8.3. Freeze and late events
 
-До freeze AnalysisInput runner может принять ожидаемое внешнее CI evidence для того же source snapshot и конфигурации. При input freeze сохраняются SourceSnapshot, PolicySnapshot и неизменяемый ExternalInputManifest.
+Before the AnalysisInput freeze, the runner may accept expected external CI evidence for the same source snapshot and configuration. At input freeze, SourceSnapshot, PolicySnapshot and an immutable ExternalInputManifest are saved.
 
-После input freeze новые существенные внешние inputs — CI artifact, policy, deployment observation — планируют successor generation. Старый активный анализ может быть superseded; завершённый не открывается заново. Новый run ссылается на parent и повторно использует только checkpoints с совпавшими зависимостями.
+After input freeze, new material external inputs — CI artifact, policy, deployment observation — schedule a successor generation. An old active analysis may be superseded; a completed one is not reopened. The new run references its parent and reuses only checkpoints whose dependencies match.
 
-Чтение нового definition из pinned Git snapshot, semantic query и предусмотренный планом инструментальный output на закреплённых inputs — derived evidence текущего run. Оно не меняет frozen external inputs и не запускает successor само по себе. Полный EvidenceManifest с inputs и derived outputs замораживается при finalization.
+Reading a new definition from the pinned Git snapshot, a semantic query and plan-provided tool output on pinned inputs are derived evidence of the current run. They do not change the frozen external inputs and do not by themselves start a successor. The full EvidenceManifest with inputs and derived outputs is frozen at finalization.
 
-Простой progress update CI, дубликат artifact digest или изменение нерелевантного job не создают successor run. Решение о значимости записывается в event log.
+A simple CI progress update, a duplicate artifact digest or a change to an irrelevant job does not create a successor run. The significance decision is recorded in the event log.
 
-### 8.4. Lease и fencing
+### 8.4. Lease and fencing
 
-Стартовые настройки: lease 60 s, heartbeat 15 s, reaper каждые 15 s. Они конфигурируемы.
+Initial settings: lease 60 s, heartbeat 15 s, reaper every 15 s. They are configurable.
 
-Каждая выдача задачи увеличивает `lease_epoch`. Запись checkpoint/result допускается только при совпадении `job_id + owner + lease_epoch`, действующей lease, допустимом active state и `run.generation == change.desired_generation`. Cancel/supersede отзывает lease/fence.
+Each task assignment increments `lease_epoch`. Writing a checkpoint/result is allowed only when `job_id + owner + lease_epoch` match, the lease is valid, the active state is allowed and `run.generation == change.desired_generation`. Cancel/supersede revokes the lease/fence.
 
-Finalization повторяет проверку generation, fence, active state и версии frozen inputs внутри той же транзакции, которая сохраняет result и outbox. Предварительная проверка перед транзакцией недостаточна.
+Finalization repeats the check of generation, fence, active state and frozen input versions inside the same transaction that saves the result and outbox. A preliminary check before the transaction is not sufficient.
 
-- PostgreSQL: короткая транзакция claim, row locking и `SKIP LOCKED`. [S29]
-- SQLite: один worker по умолчанию, короткая транзакция claim и compare-and-swap.
-- Внешний HTTP/LSP/model вызов выполняется вне SQL transaction.
-- Истёкшая lease делает прежнего worker неспособным сохранить результат.
-- Отмена передаётся через cancellation token, но уже отправленный внешний запрос может завершиться позже.
-- Fencing БД не предотвращает доставку уже отправленного SCM запроса: это задача publication reconciliation.
+- PostgreSQL: a short claim transaction, row locking and `SKIP LOCKED`. [S29]
+- SQLite: one worker by default, a short claim transaction and compare-and-swap.
+- External HTTP/LSP/model calls run outside the SQL transaction.
+- An expired lease makes the previous worker unable to save a result.
+- Cancellation is propagated through a cancellation token, but an already sent external request may complete later.
+- DB fencing does not prevent delivery of an already sent SCM request: that is the job of publication reconciliation.
 
 ### 8.5. Retry
 
-По умолчанию до двух повторов retryable read/analysis operations с exponential backoff и jitter. Максимальное ожидание ограничивается deadline задачи.
+By default, up to two retries of retryable read/analysis operations with exponential backoff and jitter. The maximum wait is bounded by the task deadline.
 
-Retryable: временная сеть, 429 с учётом Retry-After, временные 5xx, crash локального provider при разрешённом рестарте.
+Retryable: transient network errors, 429 honoring Retry-After, transient 5xx, a local provider crash when restart is permitted.
 
-Не retryable без изменения входа: 401/403, некорректная policy, неподдерживаемая схема, превышенный бюджет, неверные refs, запрещённый endpoint.
+Not retryable without changing the input: 401/403, invalid policy, unsupported schema, exceeded budget, wrong refs, forbidden endpoint.
 
-Model retry учитывается как новая потенциально оплаченная попытка. SCM write с неопределённым исходом не идёт по общему retry: сначала reconciliation.
+A model retry counts as a new potentially paid attempt. An SCM write with an uncertain outcome does not go through general retry: reconciliation first.
 
 ## 9. Context Broker
 
-### 9.1. Контракт запроса
+### 9.1. Request contract
 
-Каждый запрос контекста содержит:
+Each context request contains:
 
 ```text
 run_id, snapshot_id, policy_snapshot_id
@@ -650,47 +650,47 @@ remaining_budget
 access_scope_id
 ```
 
-Ответ содержит `evidence_ids`, фрагменты, связи, полноту каждого запроса, gaps, причины выбора и usage. Он не возвращает просто «строку контекста».
+The response contains `evidence_ids`, fragments, relations, the completeness of each request, gaps, selection reasons and usage. It does not just return a "context string".
 
-`packet_resolution: SATISFIED | PARTIAL | UNAVAILABLE` описывает достаточность запрошенного набора источников, а не истинность obligation. Ограничение provider делает UNKNOWN только те обязательства, которым не хватает значимого факта; несвязанная unsupported capability не обязана ухудшать весь result.
+`packet_resolution: SATISFIED | PARTIAL | UNAVAILABLE` describes the sufficiency of the requested set of sources, not the truth of the obligation. A provider limitation makes UNKNOWN only those obligations that lack a significant fact; an unrelated unsupported capability need not degrade the whole result.
 
-### 9.2. Алгоритм
+### 9.2. Algorithm
 
-1. Начать с diff и enclosing construct до/после: функция, компонент, schema declaration, resource.
-2. Добавить относящееся правило и независимый контракт.
-3. Добавить imports, определения нужных типов и вызываемых wrappers.
-4. Выбрать ограниченный набор callers/callees/readers/writers, влияющих на вопрос.
-5. Найти релевантные тесты и нормализованные CI facts.
-6. Объединить перекрывающиеся spans одного blob.
-7. Приоритизировать обязательное evidence, затем опровергающее гипотезу, затем вспомогательное.
-8. Проверить доступ и secret policy.
-9. Посчитать токены и вернуть пакет с перечнем исключённого.
-10. При конкретном новом вопросе расширить нужную ветку графа в пределах лимита.
+1. Start with the diff and the enclosing construct before/after: function, component, schema declaration, resource.
+2. Add the relevant rule and the independent contract.
+3. Add imports, definitions of the needed types and called wrappers.
+4. Select a bounded set of callers/callees/readers/writers that affect the question.
+5. Find relevant tests and normalized CI facts.
+6. Merge overlapping spans of the same blob.
+7. Prioritize mandatory evidence, then evidence refuting the hypothesis, then supporting evidence.
+8. Check access and secret policy.
+9. Count tokens and return the packet with a list of what was excluded.
+10. For a specific new question, expand the needed branch of the graph within the limit.
 
-На старте использовать Git, path/symbol search, AST и semantic provider. Embeddings не являются зависимостью. Семантические связи могут храниться в памяти/БД как небольшие records без отдельного graph database.
+At the start, use Git, path/symbol search, AST and the semantic provider. Embeddings are not a dependency. Semantic relations may be stored in memory/DB as small records without a separate graph database.
 
-### 9.3. Начальные лимиты
+### 9.3. Initial limits
 
-| Параметр | Default |
+| Parameter | Default |
 |---|---:|
-| Initial context на unit | 6 000 input tokens |
-| Максимальный context одного model request | 14 000 input tokens, включая инструкции и схему |
-| Начальная глубина связей | 1 |
-| Предельная глубина по обоснованному запросу | 3 |
-| Semantic requests на unit / run | 24 / 160 |
-| Дополнительные retrieval rounds на unit | 2 |
-| Различных читаемых source files на run | 80 |
-| Стандартный span | До 160 строк; расширение до целой небольшой конструкции допустимо |
-| Максимальный отдельный source blob для текстового чтения | 512 KiB |
-| Общий model input budget на run | 64 000 tokens с учётом повторно отправленного контекста |
+| Initial context per unit | 6 000 input tokens |
+| Maximum context of a single model request | 14 000 input tokens, including instructions and schema |
+| Initial relation depth | 1 |
+| Maximum depth on a justified request | 3 |
+| Semantic requests per unit / run | 24 / 160 |
+| Additional retrieval rounds per unit | 2 |
+| Distinct source files read per run | 80 |
+| Standard span | Up to 160 lines; expanding to a whole small construct is allowed |
+| Maximum single source blob for text reading | 512 KiB |
+| Total model input budget per run | 64 000 tokens including re-sent context |
 
-Общие лимиты раздела 17 имеют приоритет. Источник, необходимый для вывода, нельзя без уведомления обрезать до произвольных первых строк. Если обязательный пакет не помещается, нужно разделить работу с сохранением связей либо создать UNKNOWN.
+The overall limits of section 17 take precedence. A source required for a conclusion must not be truncated without notice to arbitrary first lines. If a mandatory packet does not fit, the work must be split while preserving relations, or an UNKNOWN created.
 
-`max_files` ограничивает чтение содержимого, а не инвентаризацию diff: список всех затронутых файлов остаётся полным.
+`max_files` limits content reading, not the diff inventory: the list of all affected files stays complete.
 
-### 9.4. Инструменты, доступные модели
+### 9.4. Tools available to the model
 
-Модель запрашивает типизированные операции:
+The model requests typed operations:
 
 - `read_span(code_ref)`;
 - `read_symbol(symbol_ref, side)`;
@@ -701,136 +701,136 @@ access_scope_id
 - `search_source(query, paths, side, limit)`;
 - `read_evidence(evidence_id)`.
 
-Модель не задаёт shell, произвольный URL, database query к инфраструктуре или новые credentials. Arguments проверяются схемой и access policy. Поиск имеет timeout и ограниченный синтаксис; regex не должен давать неограниченную CPU-нагрузку.
+The model does not specify a shell, an arbitrary URL, a database query against infrastructure or new credentials. Arguments are validated by schema and access policy. Search has a timeout and a restricted syntax; regex must not cause unbounded CPU load.
 
-Каждая операция возвращает `COMPLETE_FOR_QUERY | PARTIAL | UNSUPPORTED | FAILED` и конкретные ограничения. Успешный пустой ответ не означает отсутствия динамических или внешних зависимостей.
+Each operation returns `COMPLETE_FOR_QUERY | PARTIAL | UNSUPPORTED | FAILED` and concrete limitations. A successful empty response does not mean there are no dynamic or external dependencies.
 
-### 9.5. Представление контекста
+### 9.5. Context representation
 
-Каждый фрагмент имеет:
+Each fragment has:
 
 - ID, snapshot/side/blob/path/range;
-- hash оригинального содержимого;
+- hash of the original content;
 - source kind, producer/config;
 - `reason_selected`;
-- полноту и ограничения;
-- политику преобразований/redactions.
+- completeness and limitations;
+- transformation/redaction policy.
 
-Raw source и summaries — разные типы evidence. Саммари помогает ориентироваться, но finding о конкретном поведении должен иметь доступный исходный фрагмент либо подходящее инструментальное evidence.
+Raw source and summaries are different evidence types. A summary helps with orientation, but a finding about specific behavior must have an available source fragment or suitable tool evidence.
 
-### 9.6. Cache и invalidation
+### 9.6. Cache and invalidation
 
-Разделить:
+Separate:
 
 1. **Blob cache:** content address + tenant/access partition.
 2. **Syntax cache:** blob + parser/version/config.
 3. **Semantic cache:** workspace snapshot + toolchain + lockfiles + build tags/target + provider version.
-4. **CI cache:** точный run/job/attempt/artifact digest.
-5. **Model response cache:** opt-in после MVP; весь prompt/input digest, model/settings, policy, scope и access partition.
+4. **CI cache:** exact run/job/attempt/artifact digest.
+5. **Model response cache:** opt-in after MVP; the whole prompt/input digest, model/settings, policy, scope and access partition.
 6. **Tour cache:** result revision + planner/prompt/renderer + language + access partition.
 
-При чтении cache заново проверять право доступа. Один hash контента не разрешает cross-tenant reuse. Удаление доступа делает cached content недоступным даже при прежнем ключе.
+When reading the cache, re-check access rights. A content hash alone does not permit cross-tenant reuse. Revoking access makes cached content unavailable even under the same key.
 
-Reuse обязательства требует совпадения его dependencies. Для отрицательного утверждения вроде «других callers нет» dependency включает область поиска и её completeness, а не только найденные файлы.
+Reusing an obligation requires its dependencies to match. For a negative claim such as "there are no other callers", the dependency includes the search scope and its completeness, not just the files found.
 
-## 10. Semantic providers и локальные факты
+## 10. Semantic providers and local facts
 
-### 10.1. Общий контракт
+### 10.1. Common contract
 
-`SemanticResponse` содержит results, query scope, source snapshot, tool version, build configuration, completeness и unresolved edges.
+`SemanticResponse` contains results, query scope, source snapshot, tool version, build configuration, completeness and unresolved edges.
 
-Capabilities обнаруживаются при подключении. Адаптер не должен возвращать пустой список вместо `UNSUPPORTED`.
+Capabilities are discovered on connection. An adapter must not return an empty list instead of `UNSUPPORTED`.
 
-Language servers base и head используют разные состояния workspace. Нельзя открыть head поверх base и применить старые locations к новому blob.
+Base and head language servers use different workspace states. Head must not be opened over base, nor old locations applied to a new blob.
 
-LSP — источник навигации, типов и diagnostics. Для call hierarchy используются предусмотренные prepare/incoming/outgoing операции. Возможности зависят от server capabilities и синхронизации документов. [S05]
+LSP is the source of navigation, types and diagnostics. Call hierarchy uses the designated prepare/incoming/outgoing operations. Capabilities depend on server capabilities and document synchronization. [S05]
 
 ### 10.2. JS/TS/React
 
-Первая качественно поддерживаемая область.
+The first area with high-quality support.
 
-Обязательно:
+Mandatory:
 
-- определить tsconfig/project references и реальные package/lockfile boundaries;
-- выбрать semantic backend по версии TypeScript проекта;
-- разрешать imports, aliases, definitions и references;
-- различать production/test/generated paths;
-- извлекать enclosing functions, JSX components, hooks и call sites;
-- учитывать changes в dependency/config;
-- импортировать typecheck, lint и component/integration reports.
+- determine tsconfig/project references and the real package/lockfile boundaries;
+- select the semantic backend according to the project's TypeScript version;
+- resolve imports, aliases, definitions and references;
+- distinguish production/test/generated paths;
+- extract enclosing functions, JSX components, hooks and call sites;
+- account for changes in dependencies/config;
+- import typecheck, lint and component/integration reports.
 
-TypeScript backend может использовать совместимый legacy semantic service или LSP native compiler; не навязывать обновление проекта ради reviewer. [S06]
+The TypeScript backend may use a compatible legacy semantic service or the LSP native compiler; do not force a project upgrade for the sake of the reviewer. [S06]
 
-Начальные effect detectors:
+Initial effect detectors:
 
-- mutation и последующая invalidation/refetch;
+- mutation and subsequent invalidation/refetch;
 - effect setup/cleanup;
 - subscriptions/listeners/timers;
-- запрос и запись состояния после асинхронного ответа;
+- request and state write after an asynchronous response;
 - error/loading/optimistic state;
-- изменения controlled/uncontrolled/form submit поведения.
+- changes in controlled/uncontrolled/form submit behavior.
 
-Название функции само по себе не доказывает эффект. Проектные wrappers описываются registry и проверяются по реализации.
+A function name alone does not prove an effect. Project wrappers are described in a registry and verified against their implementation.
 
-CSS/HTML анализ использует AST/структуру связанных компонентов и существующие browser/accessibility/visual reports. TS types не являются доказательством визуального поведения.
+CSS/HTML analysis uses the AST/structure of related components and existing browser/accessibility/visual reports. TS types are not proof of visual behavior.
 
 ### 10.3. Go
 
-Обязательно:
+Mandatory:
 
-- учитывать go.mod/go.work, module replacements, GOOS/GOARCH и build tags;
-- получать definitions, references, implementations и доступную call hierarchy;
-- извлекать receiver, параметры context, return errors, defer, goroutine, channel и transaction boundaries;
-- импортировать go test/vet/race/coverage;
-- различать sql.DB, sql.Tx и проектные wrappers;
-- отмечать неоднозначные interface dispatch и reflection.
+- account for go.mod/go.work, module replacements, GOOS/GOARCH and build tags;
+- obtain definitions, references, implementations and the available call hierarchy;
+- extract receiver, context parameters, return errors, defer, goroutine, channel and transaction boundaries;
+- import go test/vet/race/coverage;
+- distinguish sql.DB, sql.Tx and project wrappers;
+- flag ambiguous interface dispatch and reflection.
 
-gopls call hierarchy не охватывает все динамические вызовы; references относятся к активной build configuration. Эти ограничения должны попадать в query completeness. [S07]
+gopls call hierarchy does not cover all dynamic calls; references relate to the active build configuration. These limitations must be reflected in query completeness. [S07]
 
 ### 10.4. Python
 
-Первый этап:
+First stage:
 
-- AST, imports и enclosing functions/classes;
-- существующие typecheck/lint/test reports;
-- targeted definitions и project wrappers;
-- with/finally, async tasks, writes и exception paths.
+- AST, imports and enclosing functions/classes;
+- existing typecheck/lint/test reports;
+- targeted definitions and project wrappers;
+- with/finally, async tasks, writes and exception paths.
 
-Dynamic dispatch, monkey patching, runtime registration и неизвестный import side effect дают gaps. Полноценный Python language server — расширение после измерения необходимости.
+Dynamic dispatch, monkey patching, runtime registration and unknown import side effects produce gaps. A full Python language server is an extension after the need has been measured.
 
-### 10.5. Terraform и Kubernetes
+### 10.5. Terraform and Kubernetes
 
-Semantic provider здесь — нормализатор структуры и отчётов. Он не обязан работать через LSP.
+The semantic provider here is a normalizer of structure and reports. It does not have to work through LSP.
 
 Terraform: HCL diff + plan JSON + workspace/environment/provider locks.  
 Kubernetes: rendered manifests + values/config digests + inventory + controller/deploy metadata.
 
-Без соответствующего environment evidence анализ может находить локальные изменения и задавать вопросы, но не подтверждать применимость или безопасность rollout.
+Without the corresponding environment evidence, analysis may find local changes and ask questions, but cannot confirm applicability or rollout safety.
 
-### 10.6. Запуск анализаторов
+### 10.6. Running analyzers
 
-Default: использовать уже установленные pinned tools и готовые CI artifacts.
+Default: use already installed pinned tools and ready CI artifacts.
 
-Если анализатор способен выполнять plugins, build scripts, dependency hooks или код проекта, он запускается в отдельном sandbox без SCM write/model secrets. Установка dependencies не выполняется произвольной командой из repository; используется разрешённый runner profile.
+If an analyzer can execute plugins, build scripts, dependency hooks or project code, it runs in a separate sandbox without SCM write/model secrets. Dependencies are not installed via an arbitrary command from the repository; a permitted runner profile is used.
 
-Недоступные dependencies, отключённые plugins и неполный build environment уменьшают completeness. Система не скрывает такой режим.
+Unavailable dependencies, disabled plugins and an incomplete build environment reduce completeness. The system does not hide such a mode.
 
 ### 10.7. Rust
 
-Rust — обязательный качественный путь M1, а не текстовый fallback. Первый target — собственный Cargo workspace Sych; одновременная поддержка TS/React сохраняется.
+Rust is a mandatory high-quality M1 path, not a text fallback. The first target is Sych's own Cargo workspace; simultaneous TS/React support is retained.
 
-- Обнаруживать Cargo workspace/packages, lockfile/toolchain/edition, target, features и `cfg`; base/head состояния AST/rust-analyzer изолированы.
-- Получать доступные definitions/references/implementations/trait links, enclosing constructs и diagnostics с query scope, build configuration, provenance и completeness. Неизвестные dynamic dispatch/macro expansion не являются доказанным отсутствием связей.
-- Проверять Result/error propagation, RAII/drop/resource/transaction boundaries, async cancellation/select/task lifetime, blocking/locks across await, public API/trait/serialization и feature-dependent contracts. Компиляция/ownership checks не доказывают runtime correctness.
-- Импортировать существующие Cargo check/test/Clippy outcomes с точными target/features/toolchain/checkout. Stable toolchain не требует unstable JSON test runner: используется фактически доступный report либо project outcomes manifest.
-- Build scripts, proc-macros и plugins подчиняются §10.6/§22.4; default execution off, разрешённое исполнение только в отдельном admin sandbox. Невозможная expansion отражается конкретным gap.
-- Качество доказывается paired unsafe/safe/UNKNOWN Rust cases и реальным model review Sych snapshots: error propagation, async/lifetime, lock/blocking, API/trait и cfg/macro boundaries. Fake, успешная сборка или точное совпадение текста не заменяют quality evaluation.
+- Discover Cargo workspace/packages, lockfile/toolchain/edition, target, features and `cfg`; base/head AST/rust-analyzer states are isolated.
+- Obtain the available definitions/references/implementations/trait links, enclosing constructs and diagnostics with query scope, build configuration, provenance and completeness. Unknown dynamic dispatch/macro expansion is not proven absence of relations.
+- Check Result/error propagation, RAII/drop/resource/transaction boundaries, async cancellation/select/task lifetime, blocking/locks across await, public API/trait/serialization and feature-dependent contracts. Compilation/ownership checks do not prove runtime correctness.
+- Import existing Cargo check/test/Clippy outcomes with exact target/features/toolchain/checkout. A stable toolchain does not require the unstable JSON test runner: the actually available report or a project outcomes manifest is used.
+- Build scripts, proc-macros and plugins are subject to §10.6/§22.4; execution is off by default, and permitted execution happens only in a separate admin sandbox. An impossible expansion is reflected as a specific gap.
+- Quality is demonstrated by paired unsafe/safe/UNKNOWN Rust cases and real model review of Sych snapshots: error propagation, async/lifetime, lock/blocking, API/trait and cfg/macro boundaries. A fake, a successful build or an exact text match does not replace quality evaluation.
 
-## 11. Правила проекта и обязательства
+## 11. Project rules and obligations
 
-### 11.1. Структура
+### 11.1. Structure
 
-Принятая структура repository:
+Accepted repository structure:
 
 ```text
 .sych/
@@ -838,33 +838,33 @@ Rust — обязательный качественный путь M1, а не 
   rules.yaml
   effects.yaml
   deploy.yaml
-  contracts/           # небольшие принятые требования и сценарии
+  contracts/           # small accepted requirements and scenarios
 ```
 
-Это проектный формат нашего инструмента. Папка не получает автоматического доверия только из-за имени.
+This is our tool's project format. The folder does not receive automatic trust just because of its name.
 
-Server policy хранит верхние ограничения доступа, бюджета, моделей и runners. Repository policy может ужесточать ограничения и выбирать разрешённые профили. Ослабление server policy через PR запрещено.
+Server policy holds the upper limits on access, budget, models and runners. Repository policy may tighten limits and select permitted profiles. Weakening server policy via a PR is forbidden.
 
-### 11.2. Приоритет правил
+### 11.2. Rule precedence
 
-1. Неизменяемые требования engine: isolation, provenance, budgets, status semantics.
+1. Immutable engine requirements: isolation, provenance, budgets, status semantics.
 2. Server/organization policy.
-3. Принятая repository policy из доверенного ref.
-4. Правила конкретных path/domain.
-5. Личные предпочтения, разрешённые для personal mode.
+3. Accepted repository policy from a trusted ref.
+4. Rules for specific paths/domains.
+5. Personal preferences permitted in personal mode.
 
-Неоднозначный конфликт обязательных правил — configuration error либо UNKNOWN соответствующего обязательства с объяснением; модель не выбирает молча удобное правило.
+An ambiguous conflict between mandatory rules is a configuration error or an UNKNOWN of the corresponding obligation with an explanation; the model does not silently pick a convenient rule.
 
-Документы AGENTS.md/CLAUDE.md и подобные могут быть импортированы как контекст. Управляющей policy они становятся только после явного подключения доверенной версии и нормализации.
+AGENTS.md/CLAUDE.md and similar documents may be imported as context. They become controlling policy only after a trusted version is explicitly connected and normalized.
 
-### 11.3. Контракт правила
+### 11.3. Rule contract
 
 ```yaml
 schema_version: 1
 rules:
   - id: EFFECT-01
     version: 1
-    title: Сохранение обязательных эффектов операции
+    title: Preservation of mandatory operation effects
     kind: invariant
     required: true
     severity_on_violation: high
@@ -873,57 +873,57 @@ rules:
       paths: ["backend/orders/**"]
       change_kinds: ["call_change", "control_flow_change", "move"]
     statement: >
-      Успешная запись заказа сохраняет обязательную публикацию события
-      согласно принятому контракту операции.
-    rationale: "Потребители должны получить событие о сохранённом заказе."
+      A successful order write preserves the mandatory event publication
+      according to the accepted operation contract.
+    rationale: "Consumers must receive an event about the saved order."
     contract_refs: [".sych/contracts/order-created.md"]
     acceptance:
       evidence_kinds: ["source", "semantic", "test"]
       criteria:
-        - "Определены граница commit и механизм доставки."
-        - "Проверены ошибка, повтор и остановка между записью и доставкой."
+        - "The commit boundary and delivery mechanism are identified."
+        - "Failure, retry and a stop between write and delivery are checked."
     exceptions: []
 ```
 
-`owner` — команда/роль из конфигурации, а не произвольный упомянутый человек. Rule ID стабилен; изменение смысла повышает version.
+`owner` is a team/role from the configuration, not an arbitrary mentioned person. The rule ID is stable; a change of meaning bumps the version.
 
-Применимость определяется по diff, семантическим связям и перемещению логики. Перенос функции за пределы исходного path не должен автоматически отменять связанный инвариант.
+Applicability is determined from the diff, semantic relations and movement of logic. Moving a function outside its original path must not automatically cancel the associated invariant.
 
-### 11.4. Начальный набор
+### 11.4. Initial set
 
-| ID | Активация | Обязательство |
+| ID | Activation | Obligation |
 |---|---|---|
-| EFFECT-01 | Изменение пути с обязательными эффектами | Сохраняются адресат, условие, кратность и требуемый порядок |
-| EFFECT-02 | Ошибки/cancellation/lifetime | Сохраняется договорённое поведение при сбое и завершении |
-| MIG-COMPAT | Schema/API/event migration | Совместимы достижимые состояния rollout |
-| MIG-RESTART | Backfill/batch | Повтор и продолжение не теряют данные |
-| MIG-CONTRACT | Удаление старого контракта | Подтверждено прекращение требуемого использования |
-| MIG-RECOVERY | Новая форма persistent data | Известен работоспособный recovery path |
-| TF-CHANGE | Infrastructure resource change | Replacement/deletion соответствует принятому намерению |
-| K8S-ROLLOUT | Workload/deploy change | Порядок rollout и доступность dependencies согласованы |
-| TEST-INTEGRITY | Изменение assertions/skips/CI gates | Важная проверка не была незаметно ослаблена |
+| EFFECT-01 | Change to a path with mandatory effects | Target, condition, multiplicity and required order are preserved |
+| EFFECT-02 | Errors/cancellation/lifetime | The agreed behavior on failure and shutdown is preserved |
+| MIG-COMPAT | Schema/API/event migration | Reachable rollout states are compatible |
+| MIG-RESTART | Backfill/batch | Retry and resumption do not lose data |
+| MIG-CONTRACT | Removal of an old contract | Cessation of required usage is confirmed |
+| MIG-RECOVERY | New form of persistent data | A working recovery path is known |
+| TF-CHANGE | Infrastructure resource change | Replacement/deletion matches the accepted intent |
+| K8S-ROLLOUT | Workload/deploy change | Rollout order and dependency availability are consistent |
+| TEST-INTEGRITY | Change to assertions/skips/CI gates | An important check was not silently weakened |
 
-Наличие generic rule в поставке не означает обязательное выполнение для каждого PR. Применимость трёхзначная: APPLIES, DOES_NOT_APPLY, UNKNOWN. Для required rule в потенциально затронутой области UNKNOWN создаёт обязательство с конкретным gap; недоступный provider не позволяет исключить правило. Обоснованный DOES_NOT_APPLY сохраняется как NOT_APPLICABLE.
+A generic rule being shipped does not mean it is mandatory for every PR. Applicability is three-valued: APPLIES, DOES_NOT_APPLY, UNKNOWN. For a required rule in a potentially affected area, UNKNOWN creates an obligation with a specific gap; an unavailable provider does not allow the rule to be excluded. A justified DOES_NOT_APPLY is stored as NOT_APPLICABLE.
 
-### 11.5. Предпочтения и nitpicks
+### 11.5. Preferences and nitpicks
 
-Правила `kind: preference` используются для naming, readability, локальных упрощений и принятых conventions.
+Rules with `kind: preference` are used for naming, readability, local simplifications and accepted conventions.
 
-Nitpick должен указывать конкретное место и пользу. Если есть linter finding той же причины, модель не создаёт его дубликат. Предложение упрощения проверяется на очевидное изменение поведения.
+A nitpick must point to a specific place and benefit. If there is a linter finding with the same cause, the model does not create a duplicate. A simplification suggestion is checked for an obvious change in behavior.
 
-Система может вернуть ноль nitpicks. Она не должна придумывать советы для заполнения секции.
+The system may return zero nitpicks. It must not invent advice to fill the section.
 
-### 11.6. Исключения и изменения политики
+### 11.6. Exceptions and policy changes
 
-Исключение имеет rule ID, scope, причину, owner, author, expiry/условие завершения. Отдельный waiver влияет на решение о риске, но сохраняет исходные `VIOLATED/UNKNOWN`.
+An exception has a rule ID, scope, reason, owner, author, expiry/termination condition. A separate waiver affects the risk decision but preserves the original `VIOLATED/UNKNOWN`.
 
-Предложенное в PR правило показывается как policy diff. Для текущего run применяется принятая версия. Доверенный administrator может явно запустить review с новой policy revision; это отдельный run с provenance.
+A rule proposed in a PR is shown as a policy diff. The accepted version applies to the current run. A trusted administrator may explicitly start a review with a new policy revision; this is a separate run with provenance.
 
-## 12. Сохранение побочных эффектов
+## 12. Side-effect preservation
 
 ### 12.1. Effect ledger
 
-Для выбранного изменённого пути строится таблица эффектов base/head:
+For a selected changed path, a base/head effect table is built:
 
 ```text
 effect_id
@@ -941,23 +941,23 @@ match: preserved | moved | changed | removed | added | unresolved
 contract_refs[]
 ```
 
-Это ограниченная модель поведения, не полный dataflow всей программы.
+This is a bounded behavior model, not a full dataflow of the whole program.
 
-### 12.2. Алгоритм
+### 12.2. Algorithm
 
-1. Извлечь изменённые calls/control flow/receivers/guards.
-2. Разрешить прямые определения и ближайшие wrappers.
-3. Применить registry известных project effects.
-4. Сопоставить эффекты по семантической роли, объекту и контракту.
-5. Сравнить условия, кратность, порядок и failure semantics.
-6. Для исчезнувшего эффекта проверить перенос и альтернативный механизм.
-7. Сформировать candidates или concrete UNKNOWN.
-8. Найти evidence для подтверждения/опровержения.
-9. Сохранить ledger и зависимости как artifact.
+1. Extract changed calls/control flow/receivers/guards.
+2. Resolve direct definitions and the nearest wrappers.
+3. Apply the registry of known project effects.
+4. Match effects by semantic role, object and contract.
+5. Compare conditions, multiplicity, order and failure semantics.
+6. For a vanished effect, check for relocation and an alternative mechanism.
+7. Produce candidates or a concrete UNKNOWN.
+8. Find evidence for confirmation/refutation.
+9. Save the ledger and dependencies as an artifact.
 
-Сравнивается контракт наблюдаемого поведения. Буквальное равенство всех execution traces не требуется. Нормализация случайных IDs/timestamps допустима только там, где они несущественны; tenant key, multiplicity и ordering constraints нельзя стирать ради равенства.
+The observable behavior contract is compared. Literal equality of all execution traces is not required. Normalizing random IDs/timestamps is allowed only where they are immaterial; tenant key, multiplicity and ordering constraints must not be erased for the sake of equality.
 
-### 12.3. Registry wrappers
+### 12.3. Wrapper registry
 
 ```yaml
 schema_version: 1
@@ -973,142 +973,142 @@ effects:
     contract_refs: [".sych/contracts/order-created.md"]
 ```
 
-Это утверждение принятой конфигурации, которое должно быть связано с текущей реализацией. Если implementation hash изменился, registry не подтверждает гарантию автоматически: обязательство исследуется заново.
+This is a claim of the accepted configuration that must be tied to the current implementation. If the implementation hash changed, the registry does not confirm the guarantee automatically: the obligation is investigated anew.
 
-### 12.4. Обязательные сценарии
+### 12.4. Mandatory scenarios
 
-**Go transaction extraction.** SQL остался тем же, но helper использует `sql.DB` вместо `sql.Tx`. Проверить receiver и границы операций. Документация Go предупреждает о вызовах DB вне Tx; сам факт сохранения SQL недостаточен. [S08]
+**Go transaction extraction.** The SQL stayed the same, but a helper uses `sql.DB` instead of `sql.Tx`. Check the receiver and operation boundaries. The Go documentation warns about DB calls outside a Tx; the mere fact that the SQL is preserved is not sufficient. [S08]
 
-**Outbox → goroutine.** Проверить доставку при остановке после commit. До исследования альтернативного recovery path не объявлять событие гарантированно потерянным.
+**Outbox → goroutine.** Check delivery when stopping after commit. Do not declare the event guaranteed lost before investigating an alternative recovery path.
 
-**React cleanup.** Проверить смену зависимостей и unmount; cleanup и защита от устаревших async results являются отдельными сценариями. [S09]
+**React cleanup.** Check dependency changes and unmount; cleanup and protection from stale async results are separate scenarios. [S09]
 
-**Cache invalidation.** Mutation сохранилась, invalidation исчезла. Проверить, не перенесена ли она в mutation wrapper, transport middleware или subscription.
+**Cache invalidation.** The mutation remained, the invalidation disappeared. Check whether it was moved into a mutation wrapper, transport middleware or subscription.
 
-**Python resource lifetime.** Перенос кода за пределы with/finally не должен автоматически считаться эквивалентным.
+**Python resource lifetime.** Moving code outside with/finally must not automatically be considered equivalent.
 
-### 12.5. Проверки поведения
+### 12.5. Behavior checks
 
-При наличии разрешённого execution profile можно запросить целевой тест на failure/retry/cancel/unmount. Генерация и выполнение нового теста не обязательны для MVP и не выполняются в tour reader.
+With a permitted execution profile, a targeted failure/retry/cancel/unmount test may be requested. Generating and executing a new test is not mandatory for the MVP and is not performed in the tour reader.
 
-Тесты обеих версий, controlled scheduling и event assertions могут дать сильное evidence. Одного сравнения return value часто недостаточно.
+Tests of both versions, controlled scheduling and event assertions can provide strong evidence. A single return value comparison is often insufficient.
 
-Если runtime verification недоступен, verifier может сохранить ограниченный static/semantic argument либо UNKNOWN. Категория основания отображается пользователю.
+If runtime verification is unavailable, the verifier may keep a bounded static/semantic argument or UNKNOWN. The support category is shown to the user.
 
-## 13. Совместимость миграций и recovery
+## 13. Migration compatibility and recovery
 
-### 13.1. Модель deployment
+### 13.1. Deployment model
 
-`DeploymentModel` содержит:
+`DeploymentModel` contains:
 
-- environment и owner;
-- `initial_versions`: pinned app image/build/source refs, schema/data phase и поддерживаемые клиентские версии с provenance;
-- порядок schema/app/frontend/jobs;
-- допустимость mixed versions и downtime;
-- compatibility window клиентов и consumers;
+- environment and owner;
+- `initial_versions`: pinned app image/build/source refs, schema/data phase and supported client versions with provenance;
+- schema/app/frontend/jobs order;
+- whether mixed versions and downtime are acceptable;
+- the compatibility window for clients and consumers;
 - backfill/retry strategy;
 - contract/removal conditions;
 - recovery strategy;
-- источник каждого утверждения.
+- the source of each claim.
 
-Неизвестные DB/framework/controller не заполняются предположениями. До настройки DB-specific provider выполняются общие проверки контракта, а DDL locks/transaction semantics остаются вне подтверждённого scope.
+Unknown DBs/frameworks/controllers are not filled in with assumptions. Until a DB-specific provider is configured, general contract checks run, and DDL locks/transaction semantics remain outside the confirmed scope.
 
-`diff_base` и `target_tip` не считаются автоматически развёрнутой версией. DeploymentModel обязан явно задать исходную версию и связь build/image → source. Если она неизвестна, зависимые compatibility obligations остаются UNKNOWN.
+`diff_base` and `target_tip` are not automatically considered the deployed version. DeploymentModel must explicitly specify the initial version and the build/image → source link. If it is unknown, the dependent compatibility obligations stay UNKNOWN.
 
 ### 13.2. Transition matrix
 
-| Состояние | Обязательство |
+| State | Obligation |
 |---|---|
-| Старый app + expanded schema | Старые readers/writers остаются работоспособны |
-| Старый и новый app вместе | Совместимы данные, API и события |
-| Новый backend + старая открытая вкладка | Поддерживается заявленный контракт старого клиента |
-| Частичный backfill + текущие writes | Не теряются более свежие данные; обе формы обрабатываются |
-| Повтор backfill | Идемпотентность или корректное продолжение |
-| Contract phase | Старый путь больше не нужен в принятом compatibility window |
-| Recovery после новых writes | Восстановленная версия обрабатывает фактическое состояние данных |
+| Old app + expanded schema | Old readers/writers keep working |
+| Old and new app together | Data, API and events are compatible |
+| New backend + old open tab | The declared contract of the old client is supported |
+| Partial backfill + concurrent writes | Fresher data is not lost; both forms are handled |
+| Backfill retry | Idempotency or correct resumption |
+| Contract phase | The old path is no longer needed within the accepted compatibility window |
+| Recovery after new writes | The restored version handles the actual data state |
 
-Не нужно поддерживать недостижимые сочетания. Исключение состояния требует подтверждённого deploy constraint; отсутствие описания не считается основанием `NOT_APPLICABLE`.
+Unreachable combinations need not be supported. Excluding a state requires a confirmed deploy constraint; the absence of a description is not grounds for `NOT_APPLICABLE`.
 
-### 13.3. Сбор контекста
+### 13.3. Context collection
 
-Связать migration/schema diff с:
+Link the migration/schema diff to:
 
-- Go serializers, readers/writers и background workers;
+- Go serializers, readers/writers and background workers;
 - TS/JS consumers;
-- событиями и внешними consumers;
+- events and external consumers;
 - API schemas;
 - deployment configuration;
-- backfill code и checkpoint strategy;
-- доступными migration/compatibility tests.
+- backfill code and checkpoint strategy;
+- available migration/compatibility tests.
 
-Если внешние consumers неизвестны, reviewer должен назвать именно этот пробел. Он не может доказать безопасность удаления поля только поиском по текущему monorepo.
+If external consumers are unknown, the reviewer must name exactly that gap. It cannot prove that removing a field is safe merely by searching the current monorepo.
 
 ### 13.4. Recovery
 
-Каждое migration obligation содержит `evaluation_mode: PLAN_REVIEW | OBSERVED_TRANSITION`.
+Each migration obligation contains `evaluation_mode: PLAN_REVIEW | OBSERVED_TRANSITION`.
 
-В `PLAN_REVIEW` проверяется предложенный порядок и механизмы обеспечения предусловий. Например, удаление столбца допускается только после enforced gate завершения backfill. `SUPPORTED` означает условную обоснованность плана, а не факт выполненного backfill.
+In `PLAN_REVIEW`, the proposed order and the mechanisms enforcing preconditions are checked. For example, dropping a column is allowed only after an enforced gate on backfill completion. `SUPPORTED` means the plan is conditionally sound, not that the backfill has been executed.
 
-В `OBSERVED_TRANSITION` требуется evidence фактического состояния соответствующего environment. План не подтверждает выполненный drain, а будущий rollout report не требуется для проверки одного лишь плана. Исходное deployed состояние может отличаться от Git diff base и хранится отдельно.
+In `OBSERVED_TRANSITION`, evidence of the actual state of the corresponding environment is required. A plan does not confirm a completed drain, and a future rollout report is not required to review the plan alone. The initial deployed state may differ from the Git diff base and is stored separately.
 
-Наличие reverse migration или старого image не подтверждает восстановимость данных. Kubernetes Deployment rollback относится к Pod template; восстановление состояния данных требует отдельного плана. [S10]
+The presence of a reverse migration or an old image does not confirm that data is recoverable. Kubernetes Deployment rollback applies to the Pod template; restoring the data state requires a separate plan. [S10]
 
-Поддерживаются варианты: compatible rollback, roll-forward repair, restore/replay или другой принятый процесс. Rule требует работоспособности выбранного пути для конкретного состояния, а не обязательного наличия down migration.
+Supported options: compatible rollback, roll-forward repair, restore/replay or another accepted process. The rule requires the chosen path to work for the specific state, not the mandatory presence of a down migration.
 
-## 14. Инфраструктурные проверки
+## 14. Infrastructure checks
 
 ### 14.1. Terraform
 
-Input: существующий plan нужного environment/workspace и source revision; versions/config/variables digest; provider lock; timing.
+Input: an existing plan for the required environment/workspace and source revision; versions/config/variables digest; provider lock; timing.
 
-Локальный parser извлекает:
+The local parser extracts:
 
 - resource address, action list, replacement order;
-- before/after для разрешённых важных полей;
+- before/after for permitted important fields;
 - after_unknown;
 - sensitive masks;
-- replace_paths, dependencies и move metadata при поддержке формата;
-- непроверенные или неизвестные конструкции.
+- replace_paths, dependencies and move metadata where the format supports it;
+- unverified or unknown constructs.
 
-Terraform JSON различает delete/create и create/delete; unknown и sensitive — самостоятельные данные. [S11]
+Terraform JSON distinguishes delete/create and create/delete; unknown and sensitive are data in their own right. [S11]
 
-Raw state/plan не отправляется модели. `terraform show -json` может содержать sensitive values открытым текстом, поэтому до egress применяются локальная фильтрация и allowlist полей. [S12]
+Raw state/plan is not sent to the model. `terraform show -json` may contain sensitive values in plain text, so local filtering and a field allowlist are applied before egress. [S12]
 
-Неизвестный generated ID сам по себе не делает все obligations UNKNOWN. UNKNOWN относится к конкретному критерию, которому значение необходимо.
+An unknown generated ID alone does not make all obligations UNKNOWN. UNKNOWN applies to the specific criterion that needs the value.
 
-Неподдерживаемая major version JSON format отклоняется. Частично разобранный plan не обозначается полным.
+An unsupported major version of the JSON format is rejected. A partially parsed plan is not labeled complete.
 
 ### 14.2. Kubernetes
 
-Input: rendered manifests, environment values/config digest, known inventory, deploy controller/order и отчёты.
+Input: rendered manifests, environment values/config digest, known inventory, deploy controller/order and reports.
 
-Приоритет:
+Priority:
 
-- selectors и labels;
+- selectors and labels;
 - readiness/startup/liveness;
-- replicas/strategy и termination behavior;
-- volumes, persistent state и deletion/prune;
-- secrets/config references без раскрытия values;
-- migrations/jobs/hooks и их порядок.
+- replicas/strategy and termination behavior;
+- volumes, persistent state and deletion/prune;
+- secrets/config references without revealing values;
+- migrations/jobs/hooks and their order.
 
-Schema/admission/dry-run — отдельные виды evidence. Dry-run не подтверждает успешный runtime rollout. [S13]
+Schema/admission/dry-run are separate kinds of evidence. A dry-run does not confirm a successful runtime rollout. [S13]
 
-Reviewer не запускает deploy и не получает production credentials. CRD conversion, StatefulSet и controller-specific поведение добавляются отдельными профилями по реальной необходимости.
+The reviewer does not run deploys and does not receive production credentials. CRD conversion, StatefulSet and controller-specific behavior are added as separate profiles when actually needed.
 
 ## 15. CI evidence
 
-### 15.1. Поддерживаемые форматы
+### 15.1. Supported formats
 
-Первые parsers:
+First parsers:
 
 1. JUnit XML.
-2. SARIF и GitLab Code Quality.
+2. SARIF and GitLab Code Quality.
 3. LCOV/Cobertura coverage.
-4. Небольшой проектный JSON manifest для command/test outcomes.
+4. A small project JSON manifest for command/test outcomes.
 5. Terraform plan JSON.
-6. Rendered Kubernetes YAML + manifest происхождения.
+6. Rendered Kubernetes YAML + provenance manifest.
 
-Парсеры работают с ограничением размера, числа записей и глубины. XML external entities отключены. Архивы не могут писать вне своего staging directory; лимитируются decompressed size и число entries.
+Parsers operate with limits on size, record count and depth. XML external entities are disabled. Archives cannot write outside their staging directory; decompressed size and entry count are limited.
 
 ### 15.2. Binding
 
@@ -1128,49 +1128,49 @@ artifact_id/digest
 started_at, completed_at
 ```
 
-`SOURCE_HEAD` допустим, когда установлено, что анализировался нужный head. `MERGE_RESULT` хранит tested commit и подтверждённую пару source/target. Один Git SHA из случайного поля webhook не заменяет binding.
+`SOURCE_HEAD` is acceptable when it is established that the required head was analyzed. `MERGE_RESULT` stores the tested commit and the confirmed source/target pair. A single Git SHA from an arbitrary webhook field does not replace the binding.
 
-Если job script checkout делает другой ref, metadata pipeline недостаточно: нужен доверенный manifest фактически проверенного дерева. Для строгого обязательства непроверенный checkout остаётся `UNVERIFIED`.
+If the job script checks out a different ref, pipeline metadata is not sufficient: a trusted manifest of the tree actually tested is required. For a strict obligation, an unverified checkout stays `UNVERIFIED`.
 
-GitLab MR и merged-results pipelines проверяют разные состояния. Отчёты получать по конкретным job/artifact IDs, не через «последний успешный pipeline ветки». [S14], [S15]
+GitLab MR and merged-results pipelines test different states. Reports are fetched by specific job/artifact IDs, not via "the latest successful pipeline of the branch". [S14], [S15]
 
-### 15.3. Интерпретация
+### 15.3. Interpretation
 
-- Skipped/cancelled/missing обязательный job не считается passed.
-- Report parser failure не превращается в пустой список findings.
-- `allow_failure` сохраняется как metadata и не скрывает test failure.
-- JUnit и job exit status проверяются отдельно: GitLab JUnit report сам по себе не меняет статус job. [S16]
-- Coverage подтверждает исполнение, не корректность assertion.
-- Race detector проверяет только исполненные пути. [S17]
-- Отчёт старого snapshot может использоваться как baseline, но не как head proof.
+- A skipped/cancelled/missing mandatory job is not considered passed.
+- A report parser failure does not turn into an empty list of findings.
+- `allow_failure` is kept as metadata and does not hide a test failure.
+- JUnit and job exit status are checked separately: a GitLab JUnit report by itself does not change the job status. [S16]
+- Coverage confirms execution, not assertion correctness.
+- The race detector checks only executed paths. [S17]
+- A report from an old snapshot may be used as a baseline, but not as head proof.
 
-### 15.4. Baseline и изменённые тесты
+### 15.4. Baseline and changed tests
 
-Static diagnostics сравниваются base/head по rule, semantic location и message category. Existing finding не публикуется как новый без основания, что PR изменил его достижимость/значимость.
+Static diagnostics are compared base/head by rule, semantic location and message category. An existing finding is not published as new without grounds that the PR changed its reachability/significance.
 
-До сравнения проверяется сопоставимость producer/version, rule set, configuration, build target и completeness. Результат сравнения — `COMPARABLE | UNDETERMINED`. Неизвестная сопоставимость, отключённое правило или неполный head report не означают исчезновения дефекта.
+Before comparison, comparability of producer/version, rule set, configuration, build target and completeness is checked. The comparison result is `COMPARABLE | UNDETERMINED`. Unknown comparability, a disabled rule or an incomplete head report does not mean the defect has disappeared.
 
-`RESOLVED` требует повторной проверки соответствующего критерия сопоставимым методом либо отдельной полноценной revalidation. Отсутствие diagnostic, skipped job или parser error не закрывают finding.
+`RESOLVED` requires re-checking the corresponding criterion with a comparable method or a separate full revalidation. A missing diagnostic, a skipped job or a parser error does not close a finding.
 
-Изменения tests/assertions/skips/fixtures/CI conditions исследуются как часть PR. Новые тесты полезны, но source of expected behavior указывается отдельно: accepted contract, прежний regression scenario, author claim или другое.
+Changes to tests/assertions/skips/fixtures/CI conditions are investigated as part of the PR. New tests are useful, but the source of expected behavior is stated separately: accepted contract, a prior regression scenario, author claim or other.
 
-Истёкший artifact и недоступный child pipeline создают конкретный gap. Система может завершить остальные проверки.
+An expired artifact or an unavailable child pipeline creates a specific gap. The system may complete the remaining checks.
 
-## 16. Модельный контур
+## 16. Model loop
 
-### 16.1. Роли
+### 16.1. Roles
 
-| Роль | Input | Output |
+| Role | Input | Output |
 |---|---|---|
-| reviewer | Review units, obligations, source/evidence | Candidates и context requests |
-| verifier | Candidates и/или obligations, evidence, acceptance criteria | Candidate verdicts и ObligationAssessments |
-| risk_auditor | Выбранные high-risk obligations | Дополнительные candidates или конкретные gaps |
-| explainer | Сохранённый ReviewResult и TourPlan | Текст остановок и вопросов |
-| followup | Текущая остановка, вопрос и разрешённый контекст | Ответ или новая candidate hypothesis |
+| reviewer | Review units, obligations, source/evidence | Candidates and context requests |
+| verifier | Candidates and/or obligations, evidence, acceptance criteria | Candidate verdicts and ObligationAssessments |
+| risk_auditor | Selected high-risk obligations | Additional candidates or specific gaps |
+| explainer | Stored ReviewResult and TourPlan | Text of stops and questions |
+| followup | Current stop, question and permitted context | An answer or a new candidate hypothesis |
 
-Одна и та же модель может выполнять разные роли. Дополнительный поиск независим по постановке и контексту: ему не нужно сначала показывать вывод первого прохода. Это не обещает статистической независимости ошибок.
+The same model may perform different roles. The additional search is independent in framing and context: it need not first be shown the first pass's conclusion. This does not promise statistical independence of errors.
 
-Для обычного небольшого PR целевой дешёвый путь: один discovery request и один batch verification/assessment. Детерминированно закрытые проверки могут не требовать модели. Даже при пустом discovery каждое required obligation должно получить assessment; отсутствие кандидатов не закрывает его. Фактическое число вызовов определяется scope и бюджетом.
+For a typical small PR, the target cheap path is one discovery request and one batch verification/assessment. Deterministically closed checks may not require a model. Even with an empty discovery, every required obligation must receive an assessment; the absence of candidates does not close it. The actual number of calls is determined by scope and budget.
 
 ### 16.2. Discovery output
 
@@ -1181,14 +1181,14 @@ Static diagnostics сравниваются base/head по rule, semantic locati
     {
       "local_id": "candidate-1",
       "category": "DEFECT",
-      "claim": "Краткое проверяемое утверждение",
-      "conditions": ["Условие возникновения"],
-      "consequence": "Наблюдаемое последствие",
+      "claim": "A short verifiable claim",
+      "conditions": ["Triggering condition"],
+      "consequence": "Observable consequence",
       "evidence_ids": ["ev-1"],
       "code_ref_ids": ["ref-1"],
       "obligation_ids": ["ob-1"],
       "proposed_severity": "HIGH",
-      "disproof_question": "Какой механизм мог сохранить требуемое поведение?"
+      "disproof_question": "What mechanism could have preserved the required behavior?"
     }
   ],
   "context_requests": [],
@@ -1196,336 +1196,336 @@ Static diagnostics сравниваются base/head по rule, semantic locati
 }
 ```
 
-Модель использует только выданные IDs. Она не может объявлять произвольный тест выполненным, менять required, создавать trusted evidence или выбирать SCM action.
+The model uses only the IDs it was given. It cannot declare an arbitrary test executed, change `required`, create trusted evidence or choose an SCM action.
 
 ### 16.3. Verifier
 
-У verifier есть две задачи: проверка кандидата и оценка обязательства. `ObligationAssessment` содержит obligation_id, applicability, proposed_status, criterion_results, evidence_ids, rationale, limitations и missing_inputs. Каждый criterion_result содержит criterion_id, `MET | NOT_MET | UNKNOWN` и evidence refs.
+The verifier has two tasks: verifying a candidate and assessing an obligation. `ObligationAssessment` contains obligation_id, applicability, proposed_status, criterion_results, evidence_ids, rationale, limitations and missing_inputs. Each criterion_result contains criterion_id, `MET | NOT_MET | UNKNOWN` and evidence refs.
 
-Модель может предложить assessment; engine проверяет допустимые evidence kinds, anchors, полноту критериев и противоречия. Детерминированный checker также может выдать assessment. SUPPORTED допускается только при выполненных критериях; VIOLATED — при проверенном нарушении. Если assessment не получен, обязательство финализируется UNKNOWN.
+The model may propose an assessment; the engine checks permitted evidence kinds, anchors, criteria completeness and contradictions. A deterministic checker may also produce an assessment. SUPPORTED is allowed only when the criteria are met; VIOLATED only with a verified violation. If no assessment is obtained, the obligation is finalized as UNKNOWN.
 
-Batch verifier может одновременно оценить несколько кандидатов и обязательств. Связь obligation → candidate не обязательна; поэтому безопасное изменение с пустым списком candidates всё равно может получить обоснованный SUPPORTED.
+A batch verifier may assess several candidates and obligations at once. An obligation → candidate link is not mandatory; therefore a safe change with an empty candidate list can still receive a justified SUPPORTED.
 
-Для каждого candidate:
+For each candidate:
 
-1. Проверить schema, anchors, existence и соответствие snapshot.
-2. Проверить причинную цепочку и условия возникновения.
-3. Найти альтернативное объяснение: wrapper, policy, guard, recovery path, intentional change.
-4. Сопоставить с accepted requirement и baseline.
-5. Проверить достаточность evidence для заявленного последствия и severity.
-6. Проверить новизну и дедупликацию.
-7. Вернуть `CONFIRMED | REJECTED | UNRESOLVED`.
+1. Check schema, anchors, existence and correspondence to the snapshot.
+2. Check the causal chain and triggering conditions.
+3. Look for an alternative explanation: wrapper, policy, guard, recovery path, intentional change.
+4. Compare against the accepted requirement and baseline.
+5. Check that the evidence is sufficient for the claimed consequence and severity.
+6. Check novelty and deduplication.
+7. Return `CONFIRMED | REJECTED | UNRESOLVED`.
 
-Для высоких рисков запрашивается воспроизводимый сценарий либо конкретная проверяемая static/semantic trace. Согласие моделей без evidence недостаточно.
+For high risks, a reproducible scenario or a concrete verifiable static/semantic trace is requested. Agreement between models without evidence is not sufficient.
 
-`CONFIRMED` означает прохождение принятой политики верификации с указанным видом основания; это не формальное доказательство. Текст finding должен сохранять эту границу.
+`CONFIRMED` means passing the accepted verification policy with the stated kind of support; it is not a formal proof. The finding text must preserve this boundary.
 
-Улучшения и preferences могут проходить более дешёвую проверку конкретности, соответствия rules и сохранения поведения. Необоснованный nit удаляется, а не эскалируется в defect.
+Improvements and preferences may go through a cheaper check of specificity, rule compliance and behavior preservation. An unjustified nit is removed, not escalated into a defect.
 
-### 16.4. Structured output и repair
+### 16.4. Structured output and repair
 
-- Предпочитать поддерживаемый provider structured-output API.
-- При отсутствии — strict JSON parse + schema validation.
-- Максимум одна schema-repair попытка на ответ внутри общего call budget.
-- Repair получает ошибки схемы и исходный ответ; не получает новый неограниченный scope.
-- Ошибка schema после repair завершает соответствующую задачу как failed/unresolved.
-- Новые выводы repair проходят обычную проверку evidence.
-- Не извлекать комментарии регулярным выражением из произвольной прозы.
+- Prefer the provider's supported structured-output API.
+- Without one — strict JSON parse + schema validation.
+- At most one schema-repair attempt per response within the overall call budget.
+- Repair receives the schema errors and the original response; it does not receive a new unbounded scope.
+- A schema error after repair ends the corresponding task as failed/unresolved.
+- New conclusions from repair go through the normal evidence check.
+- Do not extract comments with a regular expression from arbitrary prose.
 
 ### 16.5. Prompt composition
 
-Слои: доверенный role prompt → output contract → applicable trusted rules → task → явно размеченные repository/evidence data.
+Layers: trusted role prompt → output contract → applicable trusted rules → task → explicitly delimited repository/evidence data.
 
-Запрос должен требовать короткое объяснение причинной связи и проверяемые основания. Сохранять скрытые рассуждения модели или требовать полный chain-of-thought не нужно.
+The request must demand a short explanation of the causal link and verifiable grounds. There is no need to store the model's hidden reasoning or demand a full chain-of-thought.
 
-Prompt templates, schemas, model parameters и reasoning settings версионируются. Фактический model ID и доступные provider fingerprints сохраняются.
+Prompt templates, schemas, model parameters and reasoning settings are versioned. The actual model ID and available provider fingerprints are stored.
 
-### 16.6. Capabilities и ошибки провайдера
+### 16.6. Capabilities and provider errors
 
-Обязательные способы доступа до R1: OpenRouter API, GPT/ChatGPT subscription, GLM Coding Plan и OpenCode Go/Go Plus. Они используют один typed ModelProvider/ModelGateway, schemas и ledger; поддержка подписки не подменяется обычным API key или fake adapter.
+Mandatory access methods before R1: OpenRouter API, GPT/ChatGPT subscription, GLM Coding Plan and OpenCode Go/Go Plus. They use one typed ModelProvider/ModelGateway, schemas and ledger; subscription support is not substituted by an ordinary API key or a fake adapter.
 
-Adapter объявляет transport/auth/billing kind, allowed runtime modes и account entitlement, supported tools/structured output, context/output limits, usage completeness, quota/rate/reset и cancellation semantics, доступные runtime/provider/model versions. Requested alias и фактическая модель различаются; неизвестные upstream/version/usage не выдумываются.
+An adapter declares transport/auth/billing kind, allowed runtime modes and account entitlement, supported tools/structured output, context/output limits, usage completeness, quota/rate/reset and cancellation semantics, and available runtime/provider/model versions. The requested alias and the actual model are distinguished; unknown upstream/version/usage is not invented.
 
-| Доступ | Минимальный допустимый путь | Существенная граница |
+| Access | Minimal permitted path | Material boundary |
 |---|---|---|
-| OpenRouter | HTTP API через общий gateway; выбранные model/upstream/data policy и наблюдаемый cost | Неявные provider/model fallback и latest routers по умолчанию выключены; каждый разрешённый переход учитывается отдельно |
-| GPT/ChatGPT subscription | Один официальный допущенный text-only transport, предпочтительно SIWC Responses; официальная авторизация, tools off | Local acceptance не разрешает hosted/commercial use. Admission/license и реальные capabilities подтверждаются; API billing — другой route |
-| GLM Coding Plan | Реальный supported-tool owner-only local workflow, например pinned Pi CLI, с tools/execution выключенными | Собственный HTTP/bot/proxy без отдельного письменного соглашения Z.ai не разрешён; wrapper не отменяет personal-use restriction |
-| OpenCode Go/Go Plus | Документированный HTTP coding-agent contract, свой User-Agent и stable `x-opencode-session` | Go quota, Console/Zen PAYG и fixed fee различаются; Extra Usage по умолчанию off, single-member entitlement не означает shared-service право |
+| OpenRouter | HTTP API through the common gateway; selected model/upstream/data policy and observed cost | Implicit provider/model fallback and latest routers are off by default; each permitted transition is accounted for separately |
+| GPT/ChatGPT subscription | A single official approved text-only transport, preferably SIWC Responses; official authorization, tools off | Local acceptance does not permit hosted/commercial use. Admission/license and real capabilities are confirmed; API billing is a different route |
+| GLM Coding Plan | A real supported-tool owner-only local workflow, e.g. pinned Pi CLI, with tools/execution disabled | A custom HTTP/bot/proxy is not permitted without a separate written agreement with Z.ai; a wrapper does not lift the personal-use restriction |
+| OpenCode Go/Go Plus | Documented HTTP coding-agent contract, own User-Agent and a stable `x-opencode-session` | Go quota, Console/Zen PAYG and the fixed fee are distinct; Extra Usage is off by default, a single-member entitlement does not imply a shared-service right |
 
-Источники: [OpenRouter](https://openrouter.ai/docs/quickstart), [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection), [GPT subscription auth](https://developers.openai.com/codex/auth), [SIWC inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference), [SIWC limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations), [GLM usage restrictions](https://docs.z.ai/legal-agreement/subscription-terms), [supported Pi](https://docs.z.ai/devpack/tool/pi), [OpenCode Go](https://opencode.ai/v2/docs/console/go/), [Go billing fields](https://opencode.ai/v2/docs/console/api/inference/). Provider terms/capabilities проверяются заново для выбранного account/version до real smoke.
+Sources: [OpenRouter](https://openrouter.ai/docs/quickstart), [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection), [GPT subscription auth](https://developers.openai.com/codex/auth), [SIWC inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference), [SIWC limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations), [GLM usage restrictions](https://docs.z.ai/legal-agreement/subscription-terms), [supported Pi](https://docs.z.ai/devpack/tool/pi), [OpenCode Go](https://opencode.ai/v2/docs/console/go/), [Go billing fields](https://opencode.ai/v2/docs/console/api/inference/). Provider terms/capabilities are re-checked for the selected account/version before a real smoke.
 
-Coding-agent backend — изолированный процесс без repository/host credentials, plugins/MCP/tools и произвольного execution. Read-only sandbox не является запретом shell. Предпочитается text-only transport без agent loop; иначе превентивный no-exec/no-tools boundary обязан быть доказан документированными средствами pinned runtime. Неизвестная safety guarantee блокирует профиль; её нельзя заменить prompt-инструкцией.
+The coding-agent backend is an isolated process without repository/host credentials, plugins/MCP/tools or arbitrary execution. A read-only sandbox is not a shell ban. A text-only transport without an agent loop is preferred; otherwise a preventive no-exec/no-tools boundary must be proven with the documented means of the pinned runtime. An unknown safety guarantee blocks the profile; it cannot be replaced by a prompt instruction.
 
-Для подписок владелец явно разрешил `subscription_observable` enforcement: hard остаются применимые денежные reservations, Sych-initiated requests и локальные deadlines; неподдержанные upstream output/internal-call/quota bounds обозначаются soft/unknown. Ненаблюдаемые вызовы/usage не равны нулю. Обычный metered API сохраняет `api_hard` профиль с консервативной денежной верхней оценкой. Secret/access/egress, лицензии и запрет скрытого overage не смягчаются ни одним enforcement profile.
+For subscriptions, the owner has explicitly permitted `subscription_observable` enforcement: applicable monetary reservations, Sych-initiated requests and local deadlines remain hard; unsupported upstream output/internal-call/quota bounds are marked soft/unknown. Unobservable calls/usage are not equal to zero. Ordinary metered API keeps the `api_hard` profile with a conservative monetary upper bound. Secret/access/egress, licenses and the ban on hidden overage are not relaxed by any enforcement profile.
 
-Ошибка unsupported не маскируется под успешный ответ. Auth/account mismatch, quota exhaustion, rate limit, transient network, schema failure и billing mismatch различаются. SDK/provider retries, compaction и hidden fallback отключаются либо их наблюдаемость и ограничения честно включаются в enforcement report. Недопущенный обязательный local subscription path остаётся блокером своей задачи/R1, не «готовым через API».
+An unsupported error is not disguised as a successful response. Auth/account mismatch, quota exhaustion, rate limit, transient network, schema failure and billing mismatch are distinguished. SDK/provider retries, compaction and hidden fallback are disabled, or their observability and limits are honestly included in the enforcement report. A mandatory local subscription path that is not admitted remains a blocker of its task/R1, not "ready via API".
 
-### 16.7. Маршрутизация, fallback и эскалация
+### 16.7. Routing, fallback and escalation
 
-Trusted config задаёт named provider/model/account profiles, role assignments и конечные ordered fallback chains. Образец структуры — пользовательские OMP `modelRoles`/`retry.fallbackChains`, не автоматический импорт его credentials или всех defaults. Приоритет chain: точный profile → роль → provider default. Выбранный порядок фиксируется на logical task; fallback не запускает новую рекурсивную цепочку с обнулёнными счётчиками.
+Trusted config defines named provider/model/account profiles, role assignments and finite ordered fallback chains. The structural template is the user's OMP `modelRoles`/`retry.fallbackChains`, not an automatic import of its credentials or all defaults. Chain precedence: exact profile → role → provider default. The chosen order is pinned on the logical task; a fallback does not start a new recursive chain with reset counters.
 
-Дешёвый путь discovery/explainer/follow-up — **DeepSeek V4.1 Flash** через допустимый OpenCode Go либо OpenRouter profile. GPT/GLM/OpenCode subscriptions используются там, где подходят роль, quota, license и runtime mode. High-risk obligations и обоснованная дополнительная верификация могут использовать **Astra/Fable**, даже если дешёвый discovery пуст. Дорогая модель не заменяет отсутствующее source/environment evidence; такой критерий остаётся UNKNOWN.
+The cheap discovery/explainer/follow-up path is **DeepSeek V4.1 Flash** through a permitted OpenCode Go or OpenRouter profile. GPT/GLM/OpenCode subscriptions are used where role, quota, license and runtime mode fit. High-risk obligations and justified additional verification may use **Astra/Fable**, even if the cheap discovery is empty. An expensive model does not replace missing source/environment evidence; such a criterion stays UNKNOWN.
 
-Перед каждым hop gateway повторно проверяет capabilities/role requirements, auth/license/runtime eligibility, egress/access/retention, quota и оставшиеся limits. Corporate profiles используют только approved VPC endpoint; локальный proxy к внешнему SaaS не создаёт исключение. Наличие personal subscription login не разрешает его использование в hosted self-review.
+Before each hop, the gateway re-checks capabilities/role requirements, auth/license/runtime eligibility, egress/access/retention, quota and remaining limits. Corporate profiles use only an approved VPC endpoint; a local proxy to an external SaaS does not create an exception. Having a personal subscription login does not permit its use in hosted self-review.
 
-Loop ограничивает retry count, route visits и общий deadline, соблюдает Retry-After/reset/cooldown и возвращается к primary после cooldown согласно policy. Циклическая/неразрешимая конфигурация отклоняется. Ожидание reset не удерживает job бесконечно. Каждый реально инициированный Sych retry/repair/fallback — отдельный attempt в одном budget; неизвестный расход прежнего route не освобождается при переключении.
+The loop bounds retry count, route visits and the overall deadline, honors Retry-After/reset/cooldown and returns to the primary after cooldown according to policy. A cyclic/unresolvable configuration is rejected. Waiting for a reset does not hold a job indefinitely. Each actually initiated Sych retry/repair/fallback is a separate attempt in one budget; the unknown spend of a previous route is not released on switching.
 
-Premium escalation не повышает budget автоматически и не расходует verification reserve на discovery. Исчерпан cap/нет eligible route — честный PARTIAL/UNKNOWN с причиной. Config/schema/egress failures не обходятся fallback. Для иных auth/entitlement failures переход допустим только по явно принятой error policy, без credential scraping, account rotation для обхода quota, скрытого paid overage или смены privacy region.
+Premium escalation does not raise the budget automatically and does not spend the verification reserve on discovery. Cap exhausted/no eligible route — an honest PARTIAL/UNKNOWN with a reason. Config/schema/egress failures are not bypassed by fallback. For other auth/entitlement failures, a transition is allowed only under an explicitly accepted error policy, without credential scraping, account rotation to bypass quota, hidden paid overage or a change of privacy region.
 
-## 17. Бюджеты и модель стоимости
+## 17. Budgets and cost model
 
-### 17.1. Начальный профиль economical
+### 17.1. Initial economical profile
 
-| Лимит | Default |
+| Limit | Default |
 |---|---:|
-| Sych-initiated model attempts на analysis run, включая retry/repair/fallback | 6 |
-| Общие input / output tokens (`api_hard`; для subscription см. enforcement report) | 64 000 / 12 000 |
-| Output на один request (`api_hard`; subscription upstream cap может быть soft/unknown) | 2 000 tokens |
-| Одновременно model requests на run | 2 |
+| Sych-initiated model attempts per analysis run, including retry/repair/fallback | 6 |
+| Total input / output tokens (`api_hard`; for subscription see the enforcement report) | 64 000 / 12 000 |
+| Output per request (`api_hard`; the subscription upstream cap may be soft/unknown) | 2 000 tokens |
+| Concurrent model requests per run | 2 |
 | Model request timeout | 90 s |
-| Active analysis deadline | 300 s без времени очереди и ожидания CI |
+| Active analysis deadline | 300 s excluding queue time and CI wait |
 | CI wait deadline | 180 s |
-| Денежный лимит analysis run | 300 000 micro-USD = $0.30 |
-| Денежный лимит personal tenant за сутки | 3 000 000 micro-USD = $3 |
-| Модельные расходы personal tenant за календарный месяц UTC | 60 000 000 micro-USD = $60; compute/storage отдельно |
-| Candidate buffer | 50; overflow означает неполноту обнаружения |
-| Tour generation attempts | 2, включая максимум один repair |
-| Tour budget | $0.10, отдельно от analysis run |
-| Follow-up budget на личную session | $0.15, отдельно от tour generation |
+| Monetary limit per analysis run | 300 000 micro-USD = $0.30 |
+| Monetary limit per personal tenant per day | 3 000 000 micro-USD = $3 |
+| Personal tenant model spend per UTC calendar month | 60 000 000 micro-USD = $60; compute/storage separate |
+| Candidate buffer | 50; overflow means incomplete discovery |
+| Tour generation attempts | 2, including at most one repair |
+| Tour budget | $0.10, separate from the analysis run |
+| Follow-up budget per personal session | $0.15, separate from tour generation |
 
-Это защитные caps выбранной конфигурации. Они не означают, что любой PR будет качественно проверен за эти суммы. Corporate values задаёт owner. При невозможности выполнить обязательный план в cap система возвращает PARTIAL.
+These are protective caps of the chosen configuration. They do not mean that any PR will be reviewed well for these amounts. Corporate values are set by the owner. If the mandatory plan cannot be completed within the cap, the system returns PARTIAL.
 
-Внутри analysis cap planner резервирует место для проверки findings. Discovery не должен расходовать весь бюджет, оставляя candidates автоматически «подтверждёнными».
+Within the analysis cap the planner reserves room for verifying findings. Discovery must not spend the whole budget and leave candidates automatically "confirmed".
 
-### 17.2. Учёт
+### 17.2. Accounting
 
-До каждого запроса:
+Before each request:
 
-1. Посчитать фактический input payload; доступные token categories и полноту оценки зафиксировать явно.
-2. Для api_hard определить поддержанный billable output/reasoning bound; для subscription_observable отметить неподдержанные upstream limits soft/unknown и не отправлять запрещённые поля.
-3. Принять применимую monetary upper bound и billing kind; included quota/list estimate не конвертировать в реальный charge.
-4. Атомарно зарезервировать применимые monetary charges в run/day/month accounts и учесть subscription quota отдельно с её реальной completeness.
-5. Проверить hard Sych dispatch/deadline limits, verification reserve, account/runtime/license/data eligibility и наблюдаемые provider quota/reset.
-6. Только затем отправить запрос.
+1. Compute the actual input payload; record the available token categories and the completeness of the estimate explicitly.
+2. For api_hard, determine a supported billable output/reasoning bound; for subscription_observable, mark unsupported upstream limits as soft/unknown and do not send forbidden fields.
+3. Accept the applicable monetary upper bound and billing kind; do not convert included quota/list estimate into a real charge.
+4. Atomically reserve the applicable monetary charges in the run/day/month accounts and account for subscription quota separately with its real completeness.
+5. Check hard Sych dispatch/deadline limits, the verification reserve, account/runtime/license/data eligibility and observed provider quota/reset.
+6. Only then send the request.
 
-После ответа записать actual usage, provider cost при наличии и расхождение с estimate. Не закладывать скидку prompt cache, пока она не подтверждена используемым API/тарифом.
+After the response, record actual usage, provider cost if available, and the deviation from the estimate. Do not assume a prompt cache discount until it is confirmed by the API/pricing plan in use.
 
-Budget invariant: spent + active reservations + unknown charges не превышает разрешённый cap при используемой модели верхней оценки. Settlement выполняется идемпотентно по attempt ID; переход reservation → spent/unknown не удваивает сумму.
+Budget invariant: spent + active reservations + unknown charges does not exceed the allowed cap under the upper-bound model in use. Settlement is idempotent by attempt ID; the reservation → spent/unknown transition does not double the amount.
 
-При timeout/потере ответа reservation не возвращается автоматически: сохраняются применимый UNKNOWN_CHARGE и отдельно UNKNOWN_USAGE для tokens/quota. Отмена не гарантирует прекращение upstream compute, refund или возврат allowance.
+On timeout/lost response, the reservation is not released automatically: the applicable UNKNOWN_CHARGE is kept, and separately UNKNOWN_USAGE for tokens/quota. Cancellation does not guarantee that upstream compute stops, nor a refund or return of allowance.
 
-Без надёжной денежной верхней границы hard USD cap не заявляется; выбранные personal/corporate metered profiles не допускаются до настройки billing semantics. Subscription soft token/internal-call limits допустимы только в явно принятом profile при подтверждённых fee/overage semantics и неизменных hard денежных/Sych-dispatch ограничениях.
+Without a reliable monetary upper bound, a hard USD cap is not claimed; the chosen personal/corporate metered profiles are not allowed until billing semantics are configured. Subscription soft token/internal-call limits are allowed only in an explicitly accepted profile with confirmed fee/overage semantics and unchanged hard monetary/Sych-dispatch limits.
 
-Fixed subscription fee учитывается один раз за принятый billing period; actual money, quota/credits/allowance, reference API/list cost и tokens — разные поля ledger. В $60 personal monthly model budget входят разрешённые API charges и согласованная владельцем доля fixed subscription expenses; до paid runs фиксируются amount/period/allocation, неизвестная доля не равна нулю. Per-run/day caps ограничивают переменные charges, fixed fee не списывается на каждый run/day. Compute/storage требуют отдельного согласия.
+A fixed subscription fee is counted once per accepted billing period; actual money, quota/credits/allowance, reference API/list cost and tokens are separate ledger fields. The $60 personal monthly model budget includes permitted API charges and the owner-agreed share of fixed subscription expenses; before paid runs, the amount/period/allocation is recorded, and an unknown share is not equal to zero. Per-run/day caps limit variable charges; the fixed fee is not charged to each run/day. Compute/storage require separate consent.
 
-Для subscription-only профиля overage/top-up/auto-recharge выключены до явного разрешения. Reported zero incremental charge внутри плана допустим как наблюдённый факт, но не означает бесплатную подписку. Номинальная dollar-denominated allowance не является USD debt. Неизвестные internal calls/tokens/quota явно маркируются в `subscription_observable`; hard token/call bounds для них не заявляются. Soft token quota не разрешает soft monetary cap или неограниченные Sych dispatches.
+For a subscription-only profile, overage/top-up/auto-recharge are disabled until explicitly allowed. A reported zero incremental charge within the plan is acceptable as an observed fact, but does not mean the subscription is free. A nominal dollar-denominated allowance is not USD debt. Unknown internal calls/tokens/quota are explicitly marked in `subscription_observable`; hard token/call bounds are not claimed for them. A soft token quota does not permit a soft monetary cap or unlimited Sych dispatches.
 
-При обрыве отдельно сохраняются `UNKNOWN_USAGE` и, где возможен денежный charge, `UNKNOWN_CHARGE`/reservation. No-usage ответ не равен refund. Reasoning tokens, уже включённые provider в output total, не суммируются второй раз.
+On a dropped connection, `UNKNOWN_USAGE` and, where a monetary charge is possible, `UNKNOWN_CHARGE`/reservation are stored separately. A no-usage response is not a refund. Reasoning tokens already included by the provider in the output total are not added a second time.
 
-### 17.3. Цена полного результата
+### 17.3. Cost of a complete result
 
-Отчёт различает:
+The report distinguishes:
 
-- фактический model API charge, fixed subscription fee/period/allocation и reference estimate раздельно;
-- input/output/cached/reasoning tokens, quota consumption/remaining/reset и их completeness, когда доступны;
-- число Sych attempts/retries/repairs/fallbacks, внутренние ненаблюдаемые calls и hard/soft/unknown enforcement;
-- CPU/wall time collectors;
-- объём скачанных artifacts;
-- analysis, tour и follow-ups.
+- the actual model API charge, the fixed subscription fee/period/allocation and the reference estimate, separately;
+- input/output/cached/reasoning tokens, quota consumption/remaining/reset and their completeness, when available;
+- the number of Sych attempts/retries/repairs/fallbacks, internal unobservable calls and hard/soft/unknown enforcement;
+- CPU/wall time of collectors;
+- volume of downloaded artifacts;
+- analysis, tour and follow-ups.
 
-Экономия оценивается по полному run, включая случаи, где дешёвый discovery не нашёл известный дефект. Считать только стоимость успешных опубликованных comments недостаточно.
+Savings are evaluated over the full run, including cases where cheap discovery missed a known defect. Counting only the cost of successfully published comments is not sufficient.
 
-## 18. Публикация результатов
+## 18. Publishing results
 
-### 18.1. Политика MVP
+### 18.1. MVP policy
 
-Публикация advisory:
+Publication is advisory:
 
-- один обновляемый summary на change request;
-- inline comments для конкретных verified findings;
-- nitpicks включены и обозначены отдельно;
-- отсутствуют автоматические `APPROVE`, `REQUEST_CHANGES` и merge;
-- commit status/check integration опциональна и не становится required gate автоматически.
+- one updatable summary per change request;
+- inline comments for specific verified findings;
+- nitpicks are enabled and labeled separately;
+- no automatic `APPROVE`, `REQUEST_CHANGES` or merge;
+- commit status/check integration is optional and does not automatically become a required gate.
 
-По умолчанию до 8 новых inline comments за ревизию. Остальные findings остаются в summary/полном artifact. Все HIGH/CRITICAL и обязательные UNKNOWN видны в summary независимо от inline limit. Nitpicks можно сворачивать, но они остаются доступными.
+By default, up to 8 new inline comments per revision. Remaining findings stay in the summary/full artifact. All HIGH/CRITICAL and mandatory UNKNOWN items are visible in the summary regardless of the inline limit. Nitpicks may be collapsed, but they remain accessible.
 
-### 18.2. Формат summary
+### 18.2. Summary format
 
-1. Точный source snapshot и актуальность.
-2. Coverage и выполненные/невыполненные профили.
-3. Подтверждённые проблемы.
-4. Конкретные UNKNOWN и недостающие проверки.
-5. Улучшения и nitpicks.
-6. Стоимость и длительность.
-7. Ссылки на полный результат и tour, если он создан.
+1. Exact source snapshot and freshness.
+2. Coverage and completed/uncompleted profiles.
+3. Confirmed problems.
+4. Specific UNKNOWN items and missing checks.
+5. Improvements and nitpicks.
+6. Cost and duration.
+7. Links to the full result and to the tour, if one was created.
 
-Фраза «ошибок нет» не используется для partial result. Допустимо: «В проверенном scope не найдено блокирующих замечаний; X осталось непроверенным».
+The phrase "no errors" is not used for a partial result. Acceptable: "No blocking issues were found in the checked scope; X remained unchecked".
 
 ### 18.3. Outbox
 
 ```mermaid
 flowchart TD
-    A["Сохранённый result"] --> P["PENDING intent"]
-    P --> G{"Snapshot ещё актуален?"}
-    G -->|"Нет, ничего не отправлено"| S["SUPERSEDED"]
-    G -->|"Да"| W["PUBLISHING"]
-    W -->|"Доставка подтверждена"| C["CONFIRMED"]
-    W -->|"Исход неизвестен"| U["UNCERTAIN"]
-    W -->|"Достоверный отказ"| F["FAILED или разрешённый retry"]
-    U --> R["Reconciliation по remote ID и marker"]
-    R -->|"Объект найден"| C
-    R -->|"Исход остаётся неизвестным"| U
-    R -->|"Неотправка установлена"| P
-    C --> V["Проверка актуальности и remote revision"]
-    V -->|"Новая версия"| X["STALE и исправление summary"]
+    A["Saved result"] --> P["PENDING intent"]
+    P --> G{"Snapshot still current?"}
+    G -->|"No, nothing sent"| S["SUPERSEDED"]
+    G -->|"Yes"| W["PUBLISHING"]
+    W -->|"Delivery confirmed"| C["CONFIRMED"]
+    W -->|"Outcome unknown"| U["UNCERTAIN"]
+    W -->|"Definite rejection"| F["FAILED or permitted retry"]
+    U --> R["Reconciliation by remote ID and marker"]
+    R -->|"Object found"| C
+    R -->|"Outcome remains unknown"| U
+    R -->|"Non-delivery established"| P
+    C --> V["Freshness and remote revision check"]
+    V -->|"New version"| X["STALE and summary correction"]
 ```
 
-`PublicationOperation` включает:
+`PublicationOperation` includes:
 
 - operation ID, connection/change/object slot;
 - kind: create/update summary, create/update inline, update check;
 - result revision, desired generation, body digest;
-- exact anchors и finding IDs;
+- exact anchors and finding IDs;
 - stable marker;
 - state, attempt, remote IDs;
 - lease/fencing token;
-- last response/error, reconciliation deadline и next action.
+- last response/error, reconciliation deadline and next action.
 
-### 18.4. Идентичность и дедупликация
+### 18.4. Identity and deduplication
 
-До каждого сетевого SCM write транзакционно сохраняются PUBLISHING, attempt_id, immutable request digest и fence. Если worker потерял lease или завершился при PUBLISHING, recovery переводит операцию в UNCERTAIN. Общий job reaper не возвращает такую операцию в PENDING без установленной неотправки. Отсутствие ACK не доказывает, что write не состоялся.
+Before each network SCM write, PUBLISHING, attempt_id, an immutable request digest and the fence are stored transactionally. If a worker lost its lease or terminated while in PUBLISHING, recovery moves the operation to UNCERTAIN. The general job reaper does not return such an operation to PENDING without established non-delivery. The absence of an ACK does not prove that the write did not happen.
 
-Publication eligibility проверяет через актуальное SCM state: change открыт, операция не отменена/superseded, desired generation совпадает и право записи сохраняется. Совпадения head недостаточно для закрытого PR/MR. После close отменяются ещё не отправленные intents; UNCERTAIN сохраняются для read-only reconciliation без новых CREATE. Новые системные пометки закрытого change допустимы только как отдельная разрешённая политика.
+Publication eligibility is checked against the current SCM state: the change is open, the operation is not cancelled/superseded, the desired generation matches and write permission is still held. A matching head is not sufficient for a closed PR/MR. After close, intents not yet sent are cancelled; UNCERTAIN ones are kept for read-only reconciliation without new CREATEs. New system annotations on a closed change are allowed only as a separate permitted policy.
 
-Три уровня:
+Three levels:
 
-1. Delivery identity — повтор webhook.
-2. Analysis generation — повтор анализа тех же inputs.
-3. Publication object identity — summary или finding thread.
+1. Delivery identity — webhook repeat.
+2. Analysis generation — repeated analysis of the same inputs.
+3. Publication object identity — summary or finding thread.
 
-Fingerprint finding не строится только из текста модели или line number. Используются rule/category, semantic target, тип нарушения и устойчивый structural anchor. Сопоставление после rename/move допускает неопределённость; сомнительное совпадение не закрывает проблему автоматически.
+A finding fingerprint is not built only from model text or a line number. It uses rule/category, semantic target, violation type and a stable structural anchor. Matching after rename/move allows for uncertainty; a doubtful match does not close the problem automatically.
 
-Marker, например `<!-- sych:object=<opaque-id>;revision=<n> -->`, должен находиться в сообщении нашего authenticated bot. Marker, скопированный другим пользователем, не даёт права редактировать чужое сообщение.
+A marker, for example `<!-- sych:object=<opaque-id>;revision=<n> -->`, must be in a message from our authenticated bot. A marker copied by another user does not grant the right to edit someone else's message.
 
-### 18.5. Неопределённая доставка
+### 18.5. Uncertain delivery
 
-После timeout POST мог выполниться. Обязательный default:
+After a timeout, the POST may have been executed. Mandatory default:
 
-1. Записать `UNCERTAIN`.
-2. Искать объект по сохранённому remote ID либо bot marker с полной нужной пагинацией.
-3. При нахождении сохранить remote ID и delivery fact.
-4. При неизвестном исходе продолжать bounded reconciliation.
-5. Не отправлять повторный CREATE только потому, что первый GET ничего не нашёл.
+1. Record `UNCERTAIN`.
+2. Search for the object by the stored remote ID or bot marker, with all the required pagination.
+3. If found, store the remote ID and the delivery fact.
+4. If the outcome is unknown, continue bounded reconciliation.
+5. Do not send a repeat CREATE merely because the first GET found nothing.
 
-После исчерпания окна неопределённость сохраняется и становится операционным сигналом. Разрешение оператором на новый CREATE — отдельное аудируемое действие с известным риском дубля. Если транспорт достоверно установил, что запрос не был отправлен, допустим обычный ограниченный retry.
+After the window is exhausted, the uncertainty remains and becomes an operational signal. Operator authorization of a new CREATE is a separate audited action with a known risk of a duplicate. If the transport has reliably established that the request was not sent, an ordinary bounded retry is allowed.
 
-Для известного remote object ID можно сверять desired body/revision и восстанавливать актуальную версию с учётом API semantics.
+For a known remote object ID, the desired body/revision may be reconciled and the current version restored, taking API semantics into account.
 
-### 18.6. Гонка с push и старым worker
+### 18.6. Race with a push and a stale worker
 
-API read current head и publish не атомарны. После записи перепроверять актуальность. Старый завершённый комментарий остаётся историческим фактом доставки и получает STALE.
+The API read of the current head and the publish are not atomic. Recheck freshness after writing. An old completed comment remains a historical delivery fact and is marked STALE.
 
-Lease/fencing защищают локальные записи, но не отменяют уже отправленный HTTP request. Поэтому reconciliation должен уметь обнаружить, что поздний update старого worker перезаписал summary, и восстановить последнюю desired revision.
+Lease/fencing protect local writes but do not cancel an HTTP request already sent. Therefore reconciliation must be able to detect that a late update from an old worker has overwritten the summary, and restore the latest desired revision.
 
-Все операции одного summary/object slot сериализуются локально. Внешнее exactly-once не является обещанием системы.
+All operations on a single summary/object slot are serialized locally. External exactly-once is not a promise of the system.
 
 ### 18.7. Mapping checks/statuses
 
-Default — summary и comments без required check.
+Default: summary and comments without a required check.
 
-Если GitHub Check Run включён, он привязан к явному head SHA. Завершённый advisory analysis отображается с neutral conclusion и понятным собственным результатом; service failure обозначается отдельно. Ни nitpicks, ни завершение tour не дают approve.
+If a GitHub Check Run is enabled, it is bound to an explicit head SHA. A completed advisory analysis is shown with a neutral conclusion and a clear result of its own; a service failure is indicated separately. Neither nitpicks nor tour completion grant an approve.
 
-Для GitLab adapter проверяет доступные status APIs и явно описывает mapping. При отсутствии подходящего нейтрального статуса использовать summary-only. Не отправлять success с текстом, который можно принять за доказанную корректность PR.
+For GitLab, the adapter checks the available status APIs and describes the mapping explicitly. If there is no suitable neutral status, use summary-only. Do not send success with text that could be taken as proven correctness of the PR.
 
-Blocking policy можно проектировать после пилота; это отдельное ADR с критериями качества, обработкой UNKNOWN и bypass-процессом.
+A blocking policy may be designed after the pilot; it is a separate ADR with quality criteria, UNKNOWN handling and a bypass process.
 
-## 19. GitHub и GitLab adapters
+## 19. GitHub and GitLab adapters
 
-### 19.1. Общий контракт
+### 19.1. Common contract
 
-Нормализованные операции:
+Normalized operations:
 
-- resolve change и текущие refs;
-- получить полную metadata diff;
-- прочитать blobs;
-- обнаружить CI runs/jobs/artifacts;
-- прочитать собственные comments/discussions;
-- создать/обновить summary и допустимые anchors;
-- проверить права автора команды;
-- сверить публикацию.
+- resolve the change and current refs;
+- obtain full diff metadata;
+- read blobs;
+- discover CI runs/jobs/artifacts;
+- read its own comments/discussions;
+- create/update the summary and permitted anchors;
+- check the permissions of the command author;
+- reconcile publication.
 
-Ошибки: `UNAUTHORIZED | UNSUPPORTED_CAPABILITY | NOT_FOUND | RATE_LIMITED | TRANSIENT | INCOMPLETE_DIFF | INVALID_ANCHOR | PUBLICATION_UNKNOWN`.
+Errors: `UNAUTHORIZED | UNSUPPORTED_CAPABILITY | NOT_FOUND | RATE_LIMITED | TRANSIENT | INCOMPLETE_DIFF | INVALID_ANCHOR | PUBLICATION_UNKNOWN`.
 
-ProviderCapabilities фиксируется при подключении и обновлении. Наличие нового поля не предполагается по названию продукта. 403 не считается unsupported, а 422 не считается автоматически retryable.
+ProviderCapabilities is recorded at connection time and on update. The presence of a new field is not assumed from the product name. 403 is not treated as unsupported, and 422 is not automatically treated as retryable.
 
 ### 19.2. Webhook admission
 
-**GitHub:** проверять `X-Hub-Signature-256` по raw body до обработки. Сравнение constant-time. `X-GitHub-Delivery` используется как delivery identity. [S18], [S19]
+**GitHub:** verify `X-Hub-Signature-256` against the raw body before processing. Constant-time comparison. `X-GitHub-Delivery` is used as the delivery identity. [S18], [S19]
 
-**GitLab:** поддержать явно выбранный режим подписанных webhooks, если instance его предоставляет, либо legacy `X-Gitlab-Token` поверх TLS. При signed mode проверять требуемые ID/timestamp/signature и raw body согласно формату версии. Отсутствие подписи не включает legacy fallback автоматически. [S20]
+**GitLab:** support an explicitly chosen signed-webhooks mode if the instance provides it, or legacy `X-Gitlab-Token` over TLS. In signed mode, verify the required ID/timestamp/signature and the raw body according to the version's format. A missing signature does not automatically enable the legacy fallback. [S20]
 
-Общее:
+Common:
 
-- лимит body по умолчанию 2 MiB;
-- разрешённые content types и event types;
-- timestamp/replay policy там, где timestamp подписан;
-- 2xx только после durable inbox либо распознавания сохранённого повтора;
-- никакой модели в webhook handler;
-- target latency admission <1 s в нормальном состоянии, это цель реализации;
-- secrets webhook и API разделены.
+- body limit 2 MiB by default;
+- allowed content types and event types;
+- timestamp/replay policy where the timestamp is signed;
+- 2xx only after a durable inbox write or recognition of a stored repeat;
+- no model in the webhook handler;
+- target admission latency <1 s under normal conditions; this is an implementation goal;
+- webhook and API secrets are separate.
 
-Delivery key: `provider_instance + connection_id + stable_delivery_id`. Если legacy event не имеет подходящего ID, использовать документированный bounded compatibility key по типу события, объекту и payload digest; run dedup остаётся отдельным.
+Delivery key: `provider_instance + connection_id + stable_delivery_id`. If a legacy event has no suitable ID, use a documented bounded compatibility key by event type, object and payload digest; run dedup remains separate.
 
-### 19.3. События
+### 19.3. Events
 
-| Normalized event | Реакция |
+| Normalized event | Reaction |
 |---|---|
-| Open/reopen/ready | Получить change state и запланировать review |
-| Source push | Новый snapshot, supersede прежний активный run |
-| Target/base change | Пересчитать integration context |
-| Draft | По default не запускать дорогой анализ; ручной запуск разрешён |
-| Close/merge | Прекратить новые analysis/model calls и pending publication |
-| CI completion | Проверить binding, значимость и необходимость successor |
-| Разрешённая команда | Проверить actor/project permission, затем выполнить действие |
-| Bot comment | Не запускать цикл самореакции |
+| Open/reopen/ready | Obtain change state and schedule a review |
+| Source push | New snapshot, supersede the previous active run |
+| Target/base change | Recompute integration context |
+| Draft | By default do not start expensive analysis; manual start is allowed |
+| Close/merge | Stop new analysis/model calls and pending publication |
+| CI completion | Check binding, significance and the need for a successor |
+| Permitted command | Check actor/project permission, then perform the action |
+| Bot comment | Do not start a self-reaction loop |
 
-Webhook служит сигналом; актуальные refs устанавливаются API. Повторные события coalesce за 5 s, CI completions за 10 s. Debounce ограничен максимальной задержкой и не продлевается бесконечным потоком.
+A webhook serves as a signal; current refs are established via the API. Repeated events coalesce within 5 s, CI completions within 10 s. Debounce is bounded by a maximum delay and is not extended indefinitely by a continuous stream.
 
-После downtime и периодически сверять зарегистрированные открытые PR/MR с provider. GitHub не выполняет автоматическую redelivery failed deliveries; durable receipt не заменяет эту сверку. [S18], [S30]
+After downtime, and periodically, reconcile registered open PRs/MRs with the provider. GitHub does not automatically redeliver failed deliveries; a durable receipt does not replace this reconciliation. [S18], [S30]
 
-### 19.4. Diff и anchors
+### 19.4. Diff and anchors
 
-Provider API может ограничивать diff. GitHub Files API имеет лимит 3000 файлов; GitLab имеет instance-specific diff limits и асинхронное заполнение diff refs. Система проверяет полноту и применяет local Git fallback либо фиксирует gap. [S21], [S22]
+The provider API may limit the diff. The GitHub Files API has a limit of 3000 files; GitLab has instance-specific diff limits and asynchronous population of diff refs. The system checks completeness and applies a local Git fallback or records a gap. [S21], [S22]
 
 | Provider | Anchor |
 |---|---|
-| GitHub | Явные commit_id, path, line, side; start fields для диапазона |
-| GitLab | SHAs соответствующей diff version и old/new paths/lines |
+| GitHub | Explicit commit_id, path, line, side; start fields for a range |
+| GitLab | SHAs of the corresponding diff version and old/new paths/lines |
 
-Для GitHub не строить новую реализацию на устаревающей позиции `position`. Для GitLab не подставлять абстрактный merge-base в поля без проверки semantics конкретной diff version. [S23], [S24]
+For GitHub, do not build a new implementation on the deprecated `position` field. For GitLab, do not substitute an abstract merge-base into fields without checking the semantics of the specific diff version. [S23], [S24]
 
 ### 19.5. Credentials
 
-GitHub personal server: GitHub App на выбранных repositories. Достаточные минимальные permissions проверяются для используемых endpoints: Contents read, Pull requests write, Actions read для CI; Checks write только при включённых checks. Срок действия installation token учитывается отдельно от run. [S25]
+GitHub personal server: a GitHub App on selected repositories. Sufficient minimal permissions are verified for the endpoints in use: Contents read, Pull requests write, Actions read for CI; Checks write only when checks are enabled. The installation token's lifetime is tracked separately from the run. [S25]
 
-GitLab: выделенный bot/project principal с разрешёнными scopes и минимальной рабочей ролью. `read_api` не даёт произвольных write operations. Runtime credential не сохраняет права bootstrap administrator. [S26] `CI_JOB_TOKEN` не является долговременным токеном сервиса.
+GitLab: a dedicated bot/project principal with permitted scopes and the minimal working role. `read_api` does not grant arbitrary write operations. The runtime credential does not retain bootstrap administrator rights. [S26] `CI_JOB_TOKEN` is not a long-lived service token.
 
-Корпоративные API base URL, CA, proxy и credentials задаются trusted config. URL из webhook не определяет, куда отправить секрет.
+Corporate API base URLs, CA, proxy and credentials are set by trusted config. A URL from a webhook does not determine where a secret is sent.
 
 ### 19.6. Forks
 
-Разрешается read-only анализ pinned source commit при наличии доступа. Отсутствие доступа даёт ограничение, а не анализ default branch вместо requested head.
+Read-only analysis of the pinned source commit is allowed when access is available. Lack of access results in a limitation, not in analysis of the default branch instead of the requested head.
 
-Код fork, dependency scripts и plugins не выполняются с publisher credentials. Для privileged CI contexts нельзя смешивать чтение внешнего кода, его выполнение и write secrets.
+Fork code, dependency scripts and plugins are not executed with publisher credentials. In privileged CI contexts, reading external code, executing it and write secrets must not be mixed.
 
-## 20. Хранение и транзакции
+## 20. Storage and transactions
 
-### 20.1. Минимальная схема
+### 20.1. Minimal schema
 
-Ниже логические таблицы. На MVP nested domain objects хранятся в versioned JSON artifacts; отдельная таблица на каждую сущность не нужна.
+Below are logical tables. In the MVP, nested domain objects are stored in versioned JSON artifacts; a separate table per entity is not needed.
 
-| Таблица | Ключевые поля и ограничения |
+| Table | Key fields and constraints |
 |---|---|
 | repositories | tenant-scoped binding; unique tenant_id + connection_id + provider_instance_id + external_id |
 | changes | repo + external change key, desired_generation, current snapshot; unique repo + change key |
@@ -1540,63 +1540,63 @@ GitLab: выделенный bot/project principal с разрешёнными s
 | publication_operations | object/revision/action key unique, state, request digest, attempts, fence |
 | audit_events | actor/action/target/time/correlation, sanitized metadata |
 
-Позже: `tour_sessions`, `feedback`, `waivers`. TourArtifact, ReviewResult, SourceSnapshot, PolicySnapshot и EvidenceManifest могут храниться как typed artifacts с pointers из runs.
+Later: `tour_sessions`, `feedback`, `waivers`. TourArtifact, ReviewResult, SourceSnapshot, PolicySnapshot and EvidenceManifest may be stored as typed artifacts with pointers from runs.
 
-Каждый запрос серверного хранилища выполняется в tenant/access context. Глобальный поиск artifacts без авторизации не предоставляется API.
+Every server storage request runs in a tenant/access context. The API does not provide a global artifact search without authorization.
 
-Change → Run → Publication ссылаются на tenant-scoped Repository binding. Один физический SCM repository, подключённый двумя tenants/connections, не разделяет generations, правила, credentials и mutable publication state. Общий read cache возможен только при отдельно доказанной access partition; default — раздельный.
+Change → Run → Publication reference a tenant-scoped Repository binding. A single physical SCM repository connected by two tenants/connections does not share generations, rules, credentials or mutable publication state. A shared read cache is possible only with a separately proven access partition; the default is separate.
 
 ### 20.2. Atomic boundaries
 
-- Inbox insert + scheduling request — одна транзакция.
-- Claim job + новый fencing token — одна транзакция.
-- Budget reservation в run и tenant accounts — одна транзакция.
-- Result pointer + final run state + outbox intents — одна транзакция.
-- Remote delivery acknowledgement + observed IDs/revision — одна транзакция после ответа/сверки.
+- Inbox insert + scheduling request — one transaction.
+- Claim job + new fencing token — one transaction.
+- Budget reservation in run and tenant accounts — one transaction.
+- Result pointer + final run state + outbox intents — one transaction.
+- Remote delivery acknowledgement + observed IDs/revision — one transaction after the response/reconciliation.
 
-Artifact bytes записываются до транзакции pointer commit. Если commit не состоялся, orphan artifact удаляется GC после grace period. Result не может ссылаться на ещё не сохранённые bytes.
+Artifact bytes are written before the pointer commit transaction. If the commit did not happen, the orphan artifact is removed by GC after a grace period. A result cannot reference bytes that are not yet stored.
 
 ### 20.3. Storage adapters
 
-SQLite: local file, WAL, ограниченное число writers; один worker по умолчанию. Не использовать SQLite на общем сетевом volume для многорепличного режима. [S28]
+SQLite: local file, WAL, a limited number of writers; one worker by default. Do not use SQLite on a shared network volume for multi-replica mode. [S28]
 
-PostgreSQL: отдельные migrations и реализация claim/CAS. Одинаковое доменное поведение подтверждается контрактными сценариями storage adapters; SQL не обязан быть идентичен.
+PostgreSQL: separate migrations and claim/CAS implementation. Identical domain behavior is confirmed by storage adapter contract scenarios; the SQL does not have to be identical.
 
-ArtifactStore: local directory для personal; корпоративное совместимое object storage при наличии. Если object storage отсутствует, pilot допускает явно спроектированный single-writer persistent volume, но не незаявленную общую FS между replicas.
+ArtifactStore: a local directory for personal; corporate compatible object storage when available. If object storage is absent, the pilot allows an explicitly designed single-writer persistent volume, but not an undeclared shared FS between replicas.
 
-### 20.4. Retention и GC
+### 20.4. Retention and GC
 
-Стартовые defaults:
+Starting defaults:
 
-- raw скачанные CI artifacts: 7 дней;
-- source cache: 7 дней с последнего использования;
-- normalized evidence/results/tours: 30 дней;
-- audit/usage metadata: 90 дней;
-- неизвестные publication/model charges не удаляются до разрешения либо отдельной retention policy.
+- raw downloaded CI artifacts: 7 days;
+- source cache: 7 days since last use;
+- normalized evidence/results/tours: 30 days;
+- audit/usage metadata: 90 days;
+- unknown publication/model charges are not deleted until resolved or until a separate retention policy applies.
 
-Pinned active runs и открытые publication reconciliation защищены от GC. После удаления source blob исторический tour показывает «исходник недоступен» и не восстанавливает код генерацией модели.
+Pinned active runs and open publication reconciliation are protected from GC. After a source blob is deleted, a historical tour shows "source unavailable" and does not restore the code through model generation.
 
-## 21. Опциональный guided tour
+## 21. Optional guided tour
 
-### 21.1. Назначение
+### 21.1. Purpose
 
-Tour объясняет сохранённую ревизию review. Он использует тот же snapshot, findings, obligations и evidence; полное повторное ревью по умолчанию не запускается.
+A tour explains a saved review revision. It uses the same snapshot, findings, obligations and evidence; a full repeat review is not started by default.
 
-Референс diff-tour полезен структурированным маршрутом и отображением кода из Git. В нашем контракте truth/support labels наследуются от ReviewResult; проверка ссылок не приравнивается к проверке смысла объяснения. [S27]
+The diff-tour reference is useful for its structured route and for displaying code from Git. In our contract, truth/support labels are inherited from ReviewResult; checking references is not equated with checking the meaning of the explanation. [S27]
 
 ### 21.2. TourPlan
 
-План строится детерминированно:
+The plan is built deterministically:
 
-1. Цель и источник требования.
-2. Наиболее важные изменения поведения.
-3. Связанные изменённые и неизменённые файлы.
-4. 3–6 остановок для обычного PR.
-5. Все серьёзные findings и важные UNKNOWN на overview.
-6. Отдельная секция improvements/nitpicks.
-7. Выбранные отклонённые гипотезы, полезные для объяснения «почему здесь допустимо».
+1. Goal and source of the requirement.
+2. The most important behavior changes.
+3. Related changed and unchanged files.
+4. 3–6 stops for an ordinary PR.
+5. All serious findings and important UNKNOWN items in the overview.
+6. A separate improvements/nitpicks section.
+7. Selected rejected hypotheses that are useful for explaining "why this is acceptable here".
 
-Длина маршрута — UX-настройка, не лимит хранения серьёзных findings.
+Route length is a UX setting, not a limit on storing serious findings.
 
 ### 21.3. TourArtifact
 
@@ -1622,140 +1622,140 @@ steps[]:
     kind: COMPREHENSION | FACT_REQUEST | RISK_DECISION
     text
     reveal
-  example_snippets[]     // всегда помечены Example
+  example_snippets[]     // always labeled Example
 limitations[]
 ```
 
-### 21.4. Проверка и отображение
+### 21.4. Validation and display
 
-- Все IDs существуют и относятся к разрешённому result.
-- CodeRef разрешается в точный blob/range.
-- Реальный код извлекает renderer.
-- Сгенерированный illustrative snippet маркируется как пример.
-- Текст не может повышать severity/support или превращать UNKNOWN в supported.
-- Ключевые статусы и findings рендерятся из typed result, а не повторно сочиняются.
-- Новое существенное утверждение генератора отправляется в verifier либо удаляется/обозначается гипотезой.
-- Свободное объяснение может ошибаться; structural validation не называется semantic proof.
-- Markdown/HTML и terminal controls из repository безопасно экранируются.
+- All IDs exist and belong to the permitted result.
+- A CodeRef resolves to an exact blob/range.
+- The renderer extracts the real code.
+- A generated illustrative snippet is marked as an example.
+- Text cannot raise severity/support or turn UNKNOWN into supported.
+- Key statuses and findings are rendered from the typed result, not re-composed.
+- A new substantive claim by the generator is sent to the verifier or removed/labeled as a hypothesis.
+- Free-form explanation can be wrong; structural validation is not called semantic proof.
+- Markdown/HTML and terminal controls from the repository are safely escaped.
 
-### 21.5. Состояния
+### 21.5. States
 
 ```mermaid
 flowchart TD
     N["NOT_REQUESTED"] --> G["GENERATING"]
     G --> V["VALIDATING"]
-    V -->|"Один repair в бюджете"| G
-    V -->|"Валиден"| R["READY"]
-    V -->|"Лимит исчерпан"| F["FAILED"]
-    G -->|"Ошибка"| F
-    R --> S["Личная session"]
+    V -->|"One repair within budget"| G
+    V -->|"Valid"| R["READY"]
+    V -->|"Limit exhausted"| F["FAILED"]
+    G -->|"Error"| F
+    R --> S["Personal session"]
     S --> I["IN_PROGRESS"]
-    I --> C["COMPLETED или DISMISSED"]
-    R -->|"Новая ревизия"| X["relevance STALE"]
-    X -->|"Новый запрос"| G
+    I --> C["COMPLETED or DISMISSED"]
+    R -->|"New revision"| X["relevance STALE"]
+    X -->|"New request"| G
 ```
 
-При STALE старый artifact не мутирует; GENERATING создаёт новый artifact ID. Current reader может дочитать старый материал с явной пометкой.
+On STALE, the old artifact is not mutated; GENERATING creates a new artifact ID. A current reader may finish reading the old material with an explicit label.
 
-Session completion не меняет review recommendation, obligations и merge approval.
+Session completion does not change the review recommendation, obligations or merge approval.
 
-### 21.6. Вопросы и Q&A
+### 21.6. Questions and Q&A
 
-COMPREHENSION: прогноз поведения; ответ пользователя не является техническим evidence.
+COMPREHENSION: a behavior prediction; the user's answer is not technical evidence.
 
-FACT_REQUEST: запрашивает недостающий факт. Ответ сохраняется как human statement с автором и временем. Для изменения принятого требования нужен соответствующий workflow policy.
+FACT_REQUEST: requests a missing fact. The answer is stored as a human statement with author and time. Changing an accepted requirement requires the corresponding workflow policy.
 
-RISK_DECISION: ведёт к отдельному scoped waiver при достаточных правах; UNKNOWN/VIOLATED сохраняется.
+RISK_DECISION: leads to a separate scoped waiver given sufficient permissions; UNKNOWN/VIOLATED is preserved.
 
-Follow-up использует текущую остановку, краткий общий контекст и адресные ContextBroker requests. Весь repository и полный transcript всех пользователей не прикладываются автоматически.
+A follow-up uses the current stop, a brief shared context and targeted ContextBroker requests. The whole repository and the full transcript of all users are not attached automatically.
 
-Общий TourArtifact неизменяем. Личная переписка и progress не публикуются в MR без отдельного действия.
+The shared TourArtifact is immutable. Personal conversation and progress are not published to the MR without a separate action.
 
 ### 21.7. Fix handoff
 
-Экспорт содержит:
+The export contains:
 
-- snapshot и selected finding IDs;
-- нарушенные требования;
-- условия воспроизведения и evidence;
-- ожидаемые критерии исправления;
-- gaps и ограничения;
-- требование сначала предложить план и файлы, дождаться согласия, затем внести изменения и проверить.
+- snapshot and selected finding IDs;
+- violated requirements;
+- reproduction conditions and evidence;
+- expected fix criteria;
+- gaps and limitations;
+- a requirement to first propose a plan and files, wait for consent, then make the changes and verify them.
 
-Команда handoff не запускает авторского агента автоматически. Конкретная модель автора выбирается отдельно. После исправлений новый head проходит повтор зависимых проверок.
+The handoff command does not start the author's agent automatically. The author's specific model is chosen separately. After the fixes, the new head goes through a repeat of the dependent checks.
 
-### 21.8. Первый интерфейс
+### 21.8. First interface
 
-На первом этапе: CLI-команды просмотра шагов, reveal и ask поверх TourArtifact. Сложный TUI и внутренний web reader допускаются позже. API/renderer должны переиспользовать один контракт.
+In the first stage: CLI commands for viewing steps, reveal and ask on top of TourArtifact. A complex TUI and an internal web reader are allowed later. The API/renderer must reuse a single contract.
 
-Внутренний web reader корпоративного этапа требует той же repository authorization, что и результат review; знание URL не даёт доступа.
+The internal web reader of the corporate stage requires the same repository authorization as the review result; knowing the URL does not grant access.
 
-## 22. Границы доверия и доступа
+## 22. Trust and access boundaries
 
-### 22.1. Доверенные и недоверенные входы
+### 22.1. Trusted and untrusted inputs
 
-Доверенное управление: server config, авторизованные команды, accepted policy, pinned tool profiles.
+Trusted control: server config, authorized commands, accepted policy, pinned tool profiles.
 
-Недоверенные данные: исходники, комментарии, PR description, branch/file names, artifacts, tool stdout, model output.
+Untrusted data: sources, comments, PR description, branch/file names, artifacts, tool stdout, model output.
 
-Текст «игнорируй правила», даже находящийся в repository, не меняет инструкции. Модель не может повысить budget, подключить tool или разрешить секретный path.
+Text such as "ignore the rules", even if located in the repository, does not change instructions. The model cannot raise the budget, attach a tool or permit a secret path.
 
-### 22.2. Роли
+### 22.2. Roles
 
-| Роль | Разрешения |
+| Role | Permissions |
 |---|---|
-| Reader | Читать разрешённые результаты и свой tour |
-| Contributor | Запрашивать review/tour в разрешённом repo, давать feedback |
-| Repository owner | Настраивать допустимые правила/профили, принимать scoped waivers |
-| Operator | Управлять connections, service budgets, retries/reconciliation |
-| Policy administrator | Изменять организационные trust/egress/execution ограничения |
+| Reader | Read permitted results and their own tour |
+| Contributor | Request review/tour in a permitted repo, give feedback |
+| Repository owner | Configure permissible rules/profiles, accept scoped waivers |
+| Operator | Manage connections, service budgets, retries/reconciliation |
+| Policy administrator | Change organizational trust/egress/execution restrictions |
 
-В personal local mode роли принадлежат владельцу процесса. В корпоративном режиме identity привязывается к принятому SSO/SCM mapping; shared anonymous API key не подходит для user actions.
+In personal local mode, the roles belong to the process owner. In corporate mode, identity is bound to the accepted SSO/SCM mapping; a shared anonymous API key is not suitable for user actions.
 
-### 22.3. Secrets и egress
+### 22.3. Secrets and egress
 
-Перед отправкой модели применяются path policy, value redaction и allowlist. Default deny включает private keys, реальные env/secrets files, state, credentials и sensitive artifact fields. Разрешение примера конфигурации не снимает проверку его содержимого.
+Before sending to the model, path policy, value redaction and an allowlist are applied. Default deny covers private keys, real env/secrets files, state, credentials and sensitive artifact fields. Permitting an example configuration does not waive inspection of its contents.
 
-Секреты не пишутся в обычные logs и traces. Raw prompts/responses по умолчанию не логируются. Debug capture — отдельная opt-in policy с ограниченной retention и доступом.
+Secrets are not written to ordinary logs and traces. Raw prompts/responses are not logged by default. Debug capture is a separate opt-in policy with limited retention and access.
 
-Фильтрация не считается математической гарантией отсутствия секретов; корпоративный owner выбирает допустимые классы кода и model endpoints.
+Filtering is not considered a mathematical guarantee that secrets are absent; the corporate owner chooses permissible code classes and model endpoints.
 
 ### 22.4. Execution boundary
 
-Процессы модели и publisher не выполняют repository code. Tooling worker имеет отдельные environment, filesystem, network и resource limits.
+The model and publisher processes do not execute repository code. The tooling worker has separate environment, filesystem, network and resource limits.
 
-Default execution off: импорт существующего CI. Разрешённые commands задаются admin profile как executable + validated arguments; model не пишет shell.
+Default execution off: import existing CI. Permitted commands are defined by the admin profile as executable + validated arguments; the model does not write shell.
 
-Для corporate sandbox:
+For the corporate sandbox:
 
-- без privileged/host namespaces и Docker socket;
-- без production/deploy/publisher secrets;
-- ограниченные CPU/RAM/disk/time;
-- сеть deny-by-default с нужными исключениями;
-- временный workspace и контролируемые dependency caches.
+- no privileged/host namespaces and no Docker socket;
+- no production/deploy/publisher secrets;
+- limited CPU/RAM/disk/time;
+- network deny-by-default with the necessary exceptions;
+- a temporary workspace and controlled dependency caches.
 
-Это относится и к анализатору, если он способен запускать plugins/imports/build scripts.
+This also applies to an analyzer if it is able to run plugins/imports/build scripts.
 
-### 22.5. Авторизация artifacts и команд
+### 22.5. Authorization of artifacts and commands
 
-Любое чтение result/evidence/tour проверяет tenant, repository и access scope. Проверка делается и при cache hit.
+Every read of result/evidence/tour checks tenant, repository and access scope. The check is performed on a cache hit as well.
 
-Rerun/deep/stop-команды в SCM comments принимаются только от разрешённых пользователей. Редактирование policy, budget и credentials через свободный текст PR запрещено.
+Rerun/deep/stop commands in SCM comments are accepted only from permitted users. Editing policy, budget and credentials via free-form PR text is forbidden.
 
-## 23. Конфигурация
+## 23. Configuration
 
-### 23.1. Разделение
+### 23.1. Separation
 
-- Server config `sych.yaml`: storage, credentials references, endpoint allowlist, budgets, runners и auth.
-- Repository config `.sych/config.yaml`: profiles, paths, rules и допустимые preferences; связанные файлы правил находятся в `.sych/` по структуре раздела 11.1.
-- Secrets: environment/secret store; значения не попадают в repository config.
-- Effective config нормализуется, валидируется и получает hash.
+- Server config `sych.yaml`: storage, credentials references, endpoint allowlist, budgets, runners and auth.
+- Repository config `.sych/config.yaml`: profiles, paths, rules and permissible preferences; related rule files are located in `.sych/` following the structure of section 11.1.
+- Secrets: environment/secret store; values do not end up in the repository config.
+- The effective config is normalized, validated and given a hash.
 
-Unknown keys в наших конфигурациях — error с точным path. Enum values в YAML — lowercase snake_case; domain/JSON enums — значения, указанные в контрактах. Преобразование выполняется типизированно.
+Unknown keys in our configurations are an error with the exact path. Enum values in YAML are lowercase snake_case; domain/JSON enums use the values specified in the contracts. Conversion is typed.
 
-### 23.2. Server config — пример
+### 23.2. Server config — example
 
-Пример определяет ожидаемую форму конфигурации. Значения env/model/prices должны быть заполнены при подключении; файл не является готовой production-конфигурацией.
+The example defines the expected shape of the configuration. The env/model/prices values must be filled in at connection time; the file is not a ready-to-use production configuration.
 
 ```yaml
 schema_version: 1
@@ -1885,13 +1885,13 @@ logging:
   raw_responses: false
 ```
 
-`openai_compatible` — имя нашего adapter, а не обещание одинаковых capabilities у всех endpoints. Его wire contract и поддержанные особенности проверяются adapter tests. Если выбранный provider не совместим, реализуется отдельный adapter.
+`openai_compatible` is the name of our adapter, not a promise of identical capabilities across all endpoints. Its wire contract and supported features are verified by adapter tests. If the chosen provider is not compatible, a separate adapter is implemented.
 
-`prices.json` содержит version, effective_at, currency, provider/model/tariff key, ставки для всех оплачиваемых категорий и billing semantics. Конкретные тарифы берутся из разрешённого источника при настройке. При отсутствующей цене server не начинает calls с заявленным hard monetary cap.
+`prices.json` contains version, effective_at, currency, provider/model/tariff key, rates for all billable categories and billing semantics. Specific tariffs are taken from a permitted source during setup. If a price is missing, the server does not start calls with a declared hard monetary cap.
 
-Пример models задаёт форму personal routing, не готовую авторизацию и не обещание доступности всех моделей. Exact model IDs, account entitlements, official client admission/license, Go Global-region/privacy approval, fixed fees и выключенный overage проверяются до inference. Отсутствующие или недопущенные profiles исключаются из eligibility с причиной, не подменяются оплатой. Cooldown 30 s — начальное значение; provider Retry-After/reset имеет приоритет. Native hidden fallback по умолчанию off. Corporate configuration отдельно содержит только approved VPC providers и не наследует этот внешний personal pool.
+The models example defines the shape of personal routing, not ready-made authorization and not a promise that all models are available. Exact model IDs, account entitlements, official client admission/license, Go Global-region/privacy approval, fixed fees and disabled overage are verified before inference. Missing or non-admitted profiles are excluded from eligibility with a reason and are not substituted by paid usage. The 30 s cooldown is an initial value; provider Retry-After/reset takes precedence. Native hidden fallback is off by default. The corporate configuration separately contains only approved VPC providers and does not inherit this external personal pool.
 
-### 23.3. Repository config — пример
+### 23.3. Repository config — example
 
 ```yaml
 schema_version: 1
@@ -1942,23 +1942,23 @@ tour:
   target_steps: 5
 ```
 
-`expected_reports` не выбирает произвольный job по имени: server mapping связывает report ID с конкретными provider job selectors, trusted runner/checkout policy и artifact path.
+`expected_reports` does not select an arbitrary job by name: the server mapping binds a report ID to specific provider job selectors, a trusted runner/checkout policy and an artifact path.
 
-Budget/context overrides из repository не могут превышать server ceilings. Defaults применяются единообразно из typed config; нельзя дублировать разные значения в нескольких модулях.
+Budget/context overrides from the repository cannot exceed server ceilings. Defaults are applied uniformly from the typed config; different values must not be duplicated across several modules.
 
-### 23.4. Validation и doctor
+### 23.4. Validation and doctor
 
-`config validate` проверяет локальную схему, paths, role references и совместимость лимитов.
+`config validate` checks the local schema, paths, role references and limit compatibility.
 
-`doctor` дополнительно проверяет доступные capabilities, Git, database, artifact store, providers и SCM permissions. Он не делает deploy, не публикует тестовый comment и не запускает платный model request без явного флага `--probe-model`.
+`doctor` additionally checks available capabilities, Git, the database, the artifact store, providers and SCM permissions. It does not deploy, does not publish a test comment and does not start a paid model request without the explicit `--probe-model` flag.
 
-Если corporate config не содержит auth или включает внешнее bind без допустимого способа защиты, запуск API отклоняется. Personal API по умолчанию доступен только через loopback.
+If a corporate config contains no auth or enables an external bind without a permissible protection method, API startup is rejected. The personal API is available only via loopback by default.
 
 ## 24. CLI
 
-Команды ниже — контракт реализуемого CLI, не утверждение о наличии готового бинарника.
+The commands below are the contract of the CLI to be implemented, not a claim that a ready-made binary exists.
 
-### 24.1. Команды MVP
+### 24.1. MVP commands
 
 ```bash
 sych config init --personal
@@ -1983,11 +1983,11 @@ sych show --run RUN_ID --format markdown
 sych explain --run RUN_ID --obligation OBLIGATION_ID
 ```
 
-`config init` не перезаписывает существующие файлы без отдельного явного действия. `review` не публикует в SCM.
+`config init` does not overwrite existing files without a separate explicit action. `review` does not publish to the SCM.
 
-`--base` обозначает target ref, из которого вычисляется diff_base. Для точного двухточечного сравнения отдельный `--diff-base`; одновременная несовместимая комбинация flags отклоняется.
+`--base` denotes the target ref from which diff_base is computed. For an exact two-dot comparison there is a separate `--diff-base`; a simultaneous incompatible combination of flags is rejected.
 
-### 24.2. Server и integrations
+### 24.2. Server and integrations
 
 ```bash
 sych serve --config sych.yaml
@@ -2002,22 +2002,22 @@ sych cancel --run RUN_ID
 sych reconcile --change CHANGE_ID
 ```
 
-Локальные commands `publish/rerun/cancel` требуют разрешённой configured identity. Автономная server publication включается доверенной repository policy после подключения.
+The local `publish/rerun/cancel` commands require a permitted configured identity. Autonomous server publication is enabled by a trusted repository policy after connection.
 
-### 24.3. Tour и handoff
+### 24.3. Tour and handoff
 
 ```bash
 sych tour --run RUN_ID
 sych tour --run RUN_ID --brief
 sych tour show --tour TOUR_ID --step STEP_ID
 sych tour reveal --tour TOUR_ID --step STEP_ID
-sych ask --tour TOUR_ID --step STEP_ID --question "Что произойдёт при повторе?"
+sych ask --tour TOUR_ID --step STEP_ID --question "What happens on a retry?"
 sych handoff --run RUN_ID --finding FINDING_ID --output fix-handoff.md
 ```
 
-`ask` с новым inference требует доступного отдельного session budget. Простое чтение сохранённого tour не обращается к модели.
+`ask` with new inference requires an available separate session budget. Simply reading a saved tour does not call the model.
 
-### 24.4. Maintenance и evaluation
+### 24.4. Maintenance and evaluation
 
 ```bash
 sych db migrate --config sych.yaml
@@ -2027,52 +2027,52 @@ sych eval run --suite eval/holdout.yaml --profile economical
 sych eval compare --baseline REPORT_A --candidate REPORT_B
 ```
 
-DB migration запускается контролируемо при deploy; каждый worker не пытается независимо менять схему при старте.
+DB migration is run in a controlled way at deploy; each worker does not independently try to change the schema at startup.
 
 ### 24.5. Exit codes
 
-| Code | Смысл |
+| Code | Meaning |
 |---:|---|
-| 0 | Операция выполнена; для review результат надёжно сохранён |
-| 2 | Неверные arguments/config/schema |
-| 3 | Ошибка исполнения без пригодного сохранённого результата |
-| 4 | Отсутствуют необходимые права/credentials |
-| 10 | При `--exit-policy strict` есть значимое подтверждённое нарушение |
-| 11 | При `--exit-policy strict` обязательный scope неполон/недоступен |
-| 130 | Явная отмена пользователем |
+| 0 | Operation completed; for review, the result is durably stored |
+| 2 | Invalid arguments/config/schema |
+| 3 | Execution error without a usable stored result |
+| 4 | Required permissions/credentials are missing |
+| 10 | With `--exit-policy strict`, there is a significant confirmed violation |
+| 11 | With `--exit-policy strict`, the mandatory scope is incomplete/unavailable |
+| 130 | Explicit cancellation by the user |
 
-Default `--exit-policy operational` не превращает advisory findings в failed CLI. JSON всегда содержит recommendation и coverage. В strict mode нарушение имеет приоритет кода 10, но partial coverage остаётся видимым в result.
+The default `--exit-policy operational` does not turn advisory findings into a failed CLI. The JSON always contains recommendation and coverage. In strict mode, a violation takes precedence with code 10, but partial coverage remains visible in the result.
 
-`review --models fake` использует детерминированный adapter и отключает внешние model calls. Для acceptance fixtures он принимает `--fake-responses PATH` с заданными responses; без fixture выдаёт явные непроверенные assessments, а не выдуманные подтверждения. `--models configured` — default после настройки ModelGateway.
+`review --models fake` uses a deterministic adapter and disables external model calls. For acceptance fixtures it accepts `--fake-responses PATH` with predefined responses; without a fixture it produces explicit unverified assessments rather than invented confirmations. `--models configured` is the default after ModelGateway is configured.
 
 ## 25. HTTP API
 
 ### 25.1. Endpoints
 
-| Method / path | Назначение |
+| Method / path | Purpose |
 |---|---|
-| POST /hooks/github/:connection | Приём authenticated GitHub event |
-| POST /hooks/gitlab/:connection | Приём authenticated GitLab event |
-| GET /health/live | Жив ли процесс |
-| GET /health/ready | Может ли экземпляр обслуживать свою роль |
-| GET /metrics | Метрики для разрешённой monitoring сети |
-| POST /v1/reviews | Создать запрос анализа |
-| GET /v1/runs/:id | State, stage, usage и ссылки |
-| GET /v1/runs/:id/result | Неизменяемый ReviewResult |
-| POST /v1/runs/:id/cancel | Отмена active run |
-| POST /v1/changes/:id/reruns | Явная новая generation |
-| POST /v1/runs/:id/tours | Создать tour по сохранённому result |
+| POST /hooks/github/:connection | Receive an authenticated GitHub event |
+| POST /hooks/gitlab/:connection | Receive an authenticated GitLab event |
+| GET /health/live | Whether the process is alive |
+| GET /health/ready | Whether the instance can serve its role |
+| GET /metrics | Metrics for the permitted monitoring network |
+| POST /v1/reviews | Create an analysis request |
+| GET /v1/runs/:id | State, stage, usage and links |
+| GET /v1/runs/:id/result | Immutable ReviewResult |
+| POST /v1/runs/:id/cancel | Cancel an active run |
+| POST /v1/changes/:id/reruns | Explicit new generation |
+| POST /v1/runs/:id/tours | Create a tour from a saved result |
 | GET /v1/tours/:id | TourArtifact |
-| POST /v1/tours/:id/sessions | Личная session |
-| POST /v1/tour-sessions/:id/questions | Ограниченный follow-up |
+| POST /v1/tours/:id/sessions | Personal session |
+| POST /v1/tour-sessions/:id/questions | Bounded follow-up |
 | POST /v1/findings/:id/feedback | Structured feedback |
-| POST /v1/waivers | Scoped risk decision по правам |
-| POST /v1/runs/:id/handoff | Экспорт выбранных findings |
+| POST /v1/waivers | Scoped risk decision subject to permissions |
+| POST /v1/runs/:id/handoff | Export selected findings |
 | GET /v1/publications/:id | Delivery/relevance/reconciliation state |
 
-`/v1/*` требует identity и repository authorization. Webhooks имеют собственную authentication; health не раскрывает secrets/config.
+`/v1/*` requires identity and repository authorization. Webhooks have their own authentication; health does not disclose secrets/config.
 
-### 25.2. Создание review
+### 25.2. Creating a review
 
 ```json
 {
@@ -2087,21 +2087,21 @@ Default `--exit-policy operational` не превращает advisory findings 
 }
 ```
 
-Response `202 Accepted`: request_id, run_id при назначении, status_url и reused flag. Получение 202 означает durable admission, не завершённое ревью.
+Response `202 Accepted`: request_id, run_id when assigned, status_url and a reused flag. Receiving 202 means durable admission, not a completed review.
 
-Idempotency-Key обязателен для mutating API requests, кроме webhook со своим delivery ID. Ключ scoped по tenant + actor + endpoint; повтор того же key с другим body digest возвращает 409.
+An Idempotency-Key is mandatory for mutating API requests, except for webhooks with their own delivery ID. The key is scoped by tenant + actor + endpoint; repeating the same key with a different body digest returns 409.
 
-По умолчанию request key хранится 24 h, после чего не используется как гарантия повторной операции. Durable run/publication uniqueness сохраняется независимо от TTL API key.
+By default, the request key is stored for 24 h, after which it is not used as a guarantee for a repeated operation. Durable run/publication uniqueness is preserved independently of the API key TTL.
 
-### 25.3. Ошибки
+### 25.3. Errors
 
-Структура:
+Structure:
 
 ```json
 {
   "error": {
     "code": "BUDGET_EXHAUSTED",
-    "message": "Недостаточно бюджета для новой model attempt.",
+    "message": "Insufficient budget for a new model attempt.",
     "retryable": false,
     "correlation_id": "opaque-id",
     "details": {
@@ -2111,133 +2111,133 @@ Idempotency-Key обязателен для mutating API requests, кроме we
 }
 ```
 
-Не включать токены доступа, raw prompts, произвольные source fragments и внутренние stack traces в публичный error.
+Do not include access tokens, raw prompts, arbitrary source fragments or internal stack traces in a public error.
 
-Контракт terminal cancellation: CLI 130 и persisted CANCELLED, если отмена принята до commit. Если result уже committed, API возвращает его terminal state и не переписывает COMPLETED.
+Terminal cancellation contract: CLI 130 and persisted CANCELLED if the cancellation was accepted before commit. If the result is already committed, the API returns its terminal state and does not overwrite COMPLETED.
 
-Основные HTTP codes: 400 invalid input, 401/403 auth, 404 не найдено/нет доступа согласно policy, 409 idempotency/generation conflict, 413 слишком большой input, 429 quota/rate limit, 503 временно недоступный service dependency.
+Main HTTP codes: 400 invalid input, 401/403 auth, 404 not found/no access according to policy, 409 idempotency/generation conflict, 413 input too large, 429 quota/rate limit, 503 temporarily unavailable service dependency.
 
-Polling поддерживает ETag/условные запросы после MVP, если нужен. SSE/WebSocket не является обязательной зависимостью первого релиза.
+Polling supports ETag/conditional requests after the MVP, if needed. SSE/WebSocket is not a mandatory dependency of the first release.
 
 ### 25.4. Schema ownership
 
-Rust DTO и serializer definitions — единственный source of truth для JSON schemas и OpenAPI. Генерация должна воспроизводиться в CI. Изменение enum/status требует схемы миграции/совместимости и теста старого fixture.
+Rust DTO and serializer definitions are the single source of truth for JSON schemas and OpenAPI. Generation must be reproducible in CI. An enum/status change requires a migration/compatibility scheme and a test of an old fixture.
 
-Примеры этого документа задают смысл; при реализации нельзя молча менять его из-за удобства generator. Согласованное изменение фиксируется в ADR и новой версии spec.
+The examples in this document define the meaning; the implementation must not silently change it for the convenience of a generator. An agreed change is recorded in an ADR and a new spec version.
 
-## 26. Эксплуатация и наблюдаемость
+## 26. Operations and observability
 
 ### 26.1. Personal
 
-Один процесс `serve`, SQLite, локальный artifact directory, GitHub App и configured model API. Kubernetes не требуется для pet mode.
+A single `serve` process, SQLite, a local artifact directory, a GitHub App and a configured model API. Kubernetes is not required for pet mode.
 
-Внутренние indices, analyzer state и caches ограничены disk/RAM budgets. Rust уменьшает накладные расходы orchestration, но стоимость моделей и language tooling измеряется отдельно; выбор языка не является доказательством низкой общей цены.
+Internal indices, analyzer state and caches are bounded by disk/RAM budgets. Rust reduces orchestration overhead, but the cost of models and language tooling is measured separately; the choice of language is not proof of a low overall cost.
 
 ### 26.2. Corporate Kubernetes
 
-Обязательные deliverables этапа:
+Mandatory deliverables of the stage:
 
-- container image с pinned dependencies и non-root runtime;
+- container image with pinned dependencies and a non-root runtime;
 - Helm chart;
-- API deployment, worker deployment и migration job;
+- API deployment, worker deployment and migration job;
 - PostgreSQL configuration;
 - artifact store configuration;
-- secret references, corporate CA и proxy;
+- secret references, corporate CA and proxy;
 - readiness/liveness, requests/limits;
 - network policies;
 - graceful shutdown;
-- backup/restore и upgrade/rollback procedure.
+- backup/restore and upgrade/rollback procedure.
 
-Начальная топология: один API replica и один worker; масштабирование добавляется через те же leases. PostgreSQL обеспечивает durability независимо от числа replicas.
+Initial topology: one API replica and one worker; scaling is added through the same leases. PostgreSQL provides durability regardless of the number of replicas.
 
-Начальные ресурсы для замера: API request 100m/128 MiB, limit 1 CPU/512 MiB; worker request 500m/512 MiB, limit 2 CPU/4 GiB. Worker limit включает запущенные рядом semantic tools. Это стартовый профиль, который корректируется по реальным repositories; универсальная вместимость не заявляется.
+Initial resources for measurement: API request 100m/128 MiB, limit 1 CPU/512 MiB; worker request 500m/512 MiB, limit 2 CPU/4 GiB. The worker limit includes semantic tools running alongside. This is a starting profile that is adjusted against real repositories; no universal capacity is claimed.
 
-При тяжёлых analyzers допускается отдельный tooling worker pool с заранее заданными execution profiles. Orchestrator не получает право создавать произвольные privileged jobs.
+For heavy analyzers, a separate tooling worker pool with predefined execution profiles is allowed. The orchestrator does not get the right to create arbitrary privileged jobs.
 
-### 26.3. Health и shutdown
+### 26.3. Health and shutdown
 
-Liveness проверяет процесс/event loop и не падает только потому, что model provider недоступен.
+Liveness checks the process/event loop and does not fail merely because a model provider is unavailable.
 
-Readiness учитывает DB/artifact/config для роли экземпляра. Временный отказ внешней модели приводит к degradation/retry и метрике, а не бесконечным рестартам pod.
+Readiness takes into account DB/artifact/config for the instance's role. A temporary failure of an external model leads to degradation/retry and a metric, not to endless pod restarts.
 
-При shutdown: прекратить admission/claim в соответствующей роли, завершить короткие операции, сохранить checkpoints, отозвать/дать истечь leases, не выдавать неподтверждённые writes за завершённые. После рестарта scheduler/reconciler восстанавливают работу.
+On shutdown: stop admission/claim in the corresponding role, finish short operations, save checkpoints, release leases or let them expire, and do not present unconfirmed writes as completed. After a restart, the scheduler/reconciler resume the work.
 
-### 26.4. Метрики
+### 26.4. Metrics
 
-Обязательные:
+Mandatory:
 
 - runs by outcome, stage duration, queue age;
-- coverage distribution и UNKNOWN reasons;
+- coverage distribution and UNKNOWN reasons;
 - required obligations by status/profile;
 - model attempts/tokens/cost/reservations/unknown charges;
-- cache hit/miss и retrieved tokens/files;
+- cache hit/miss and retrieved tokens/files;
 - provider timeout/unsupported/incomplete;
 - webhook duplicates/rejections;
 - outbox lag, uncertain publication age, repairs;
-- stale result rate и superseded work cost;
+- stale result rate and superseded work cost;
 - feedback by category/severity;
 - artifact storage/GC;
-- tour requests/read completion и follow-up cost.
+- tour requests/read completion and follow-up cost.
 
-Не использовать path/finding_id/source text как неограниченные metric labels. Подробности относятся к structured audit records.
+Do not use path/finding_id/source text as unbounded metric labels. Details belong in structured audit records.
 
-### 26.5. SLO и алерты
+### 26.5. SLOs and alerts
 
-Первичные цели пилота, а не обещания:
+Initial pilot goals, not promises:
 
-- durable webhook admission p95 <1 s при доступной БД;
-- первый результат небольшого PR p95 <5 min active analysis time;
-- публикация после сохранения результата обычно <30 s при доступном SCM;
-- зависшая UNCERTAIN publication видна оператору;
-- бюджет не превышается из-за параллельных резервирований;
-- ни один mandatory UNKNOWN не скрывается итоговым renderer.
+- durable webhook admission p95 <1 s when the DB is available;
+- first result for a small PR p95 <5 min of active analysis time;
+- publication after the result is saved usually <30 s when the SCM is available;
+- a stuck UNCERTAIN publication is visible to the operator;
+- the budget is not exceeded due to concurrent reservations;
+- no mandatory UNKNOWN is hidden by the final renderer.
 
-Алерты: рост queue age, невозможность сохранить result, длительные unknown writes/charges, credential failures, массовая деградация completeness, нарушения isolation/budget invariants.
+Alerts: growing queue age, inability to save a result, long-running unknown writes/charges, credential failures, mass completeness degradation, violations of isolation/budget invariants.
 
-### 26.6. Обновления и rollback самого reviewer
+### 26.6. Updates and rollback of the reviewer itself
 
-Схема БД меняется совместимыми этапами, позволяющими завершить старые jobs или явно остановить их. Нельзя выкатывать новую версию, которая не читает сохранённый queued payload, без миграции/дренирования очереди.
+The DB schema changes in compatible stages that allow old jobs to finish or be stopped explicitly. A new version that cannot read a stored queued payload must not be rolled out without a migration/queue drain.
 
-Engine/config/model updates меняют provenance и при необходимости generation. Обновление модели не переписывает исторические outputs.
+Engine/config/model updates change provenance and, if necessary, the generation. A model update does not rewrite historical outputs.
 
-В пилоте обязательно проверить restore БД вместе с artifact references. Не начинать корпоративный rollout с непроверенного предположения, что backups пригодны.
+In the pilot, restoring the DB together with artifact references must be verified. Do not start a corporate rollout on the unverified assumption that backups are usable.
 
-## 27. Evaluation и тестовая стратегия
+## 27. Evaluation and testing strategy
 
-### 27.1. Два независимых уровня
+### 27.1. Two independent levels
 
-**Корректность harness:** детерминированные fixtures и fake providers. Проверяются статусы, атомарность, retries, anchors, budgets, isolation и degradation.
+**Harness correctness:** deterministic fixtures and fake providers. Statuses, atomicity, retries, anchors, budgets, isolation and degradation are verified.
 
-**Качество review:** размеченные реальные изменения и искусственно внесённые дефекты, реальные model profiles, полный учёт затрат. Здесь измеряется способность находить полезные проблемы.
+**Review quality:** labeled real changes and artificially injected defects, real model profiles, full cost accounting. This measures the ability to find useful problems.
 
-Не использовать живую модель для проверки детерминированного reducer. Не считать соответствие ответа snapshot fixture доказательством качества обнаружения дефектов.
+Do not use a live model to test a deterministic reducer. Do not treat a response matching a snapshot fixture as proof of defect detection quality.
 
-### 27.2. Набор случаев
+### 27.2. Case set
 
-Для начала собрать development suite минимум из 24 небольших случаев, включая:
+To start, assemble a development suite of at least 24 small cases, including:
 
-- потерю effect и безопасный перенос effect в wrapper;
-- изменение Tx → DB;
-- outbox → недолговечную публикацию;
-- React cleanup, stale async response и сохранённую защиту;
-- API removal со старым frontend;
-- безопасный expand/contract и пропущенный contract gate;
-- повтор backfill и concurrent write;
-- Terraform replacement и существенный unknown;
-- изменение Kubernetes rollout/order;
-- ослабление tests/CI;
-- корректные изменения без дефектов;
-- полезные nitpicks без искусственных correctness findings;
-- неподдерживаемую семантику с честным UNKNOWN.
-- Rust Result/RAII, async cancellation/task lifetime, lock/blocking, trait/API и cfg/macro safe/unsafe/UNKNOWN pairs;
-- DeepSeek/subscription/premium routing, unknown quota/charge, bounded fallback и запрещённый egress/runtime hop;
-- Sych self-review с подменой reviewer/policy, force-push и недоверенным CI checkout.
+- loss of an effect and a safe move of an effect into a wrapper;
+- a Tx → DB change;
+- outbox → non-durable publication;
+- React cleanup, a stale async response and a preserved guard;
+- API removal with an old frontend;
+- a safe expand/contract and a skipped contract gate;
+- a backfill repeat and a concurrent write;
+- a Terraform replacement and a significant unknown;
+- a Kubernetes rollout/order change;
+- weakening of tests/CI;
+- correct changes without defects;
+- useful nitpicks without artificial correctness findings;
+- unsupported semantics with an honest UNKNOWN.
+- Rust Result/RAII, async cancellation/task lifetime, lock/blocking, trait/API and cfg/macro safe/unsafe/UNKNOWN pairs;
+- DeepSeek/subscription/premium routing, unknown quota/charge, bounded fallback and a forbidden egress/runtime hop;
+- Sych self-review with a substituted reviewer/policy, force-push and an untrusted CI checkout.
 
-Отдельный holdout не используется для настройки prompts/rules. Разделять по PR/сценарию, а не случайным фрагментам одного diff.
+A separate holdout is not used for tuning prompts/rules. Split by PR/scenario, not by random fragments of one diff.
 
-### 27.3. Разметка
+### 27.3. Labeling
 
-Manifest случая:
+Case manifest:
 
 ```yaml
 schema_version: 1
@@ -2258,243 +2258,243 @@ expected:
     - "All behavior is preserved."
 ```
 
-Реальная разметка должна содержать accepted requirement, существенные evidence locations и rationale, а не требовать дословного совпадения текста комментария.
+Real labeling must contain the accepted requirement, significant evidence locations and a rationale, rather than requiring a verbatim match of the comment text.
 
-### 27.4. Метрики качества
+### 27.4. Quality metrics
 
-Считать отдельно:
+Count separately:
 
-- precision полезных correctness findings;
-- recall известных размеченных дефектов;
-- false-positive rate на clean cases;
+- precision of useful correctness findings;
+- recall of known labeled defects;
+- false-positive rate on clean cases;
 - rule violation quality;
-- nitpick usefulness и повторяемость;
-- корректность UNKNOWN/coverage;
-- context sufficiency и причины пропусков;
+- nitpick usefulness and repeatability;
+- correctness of UNKNOWN/coverage;
+- context sufficiency and causes of misses;
 - verifier false rejection/false confirmation;
-- стоимость полного review и стоимость на полезный finding;
-- активное время человека на разбор;
-- точность anchors и полноту delivery.
+- cost of a full review and cost per useful finding;
+- active human time spent on review;
+- anchor accuracy and delivery completeness.
 
-Resolved thread, изменение строки после comment и просмотр tour не считаются автоматически принятием совета или исправлением дефекта.
+A resolved thread, a line change after a comment and viewing a tour are not automatically counted as acceptance of the advice or as a defect fix.
 
-### 27.5. Сравнение конфигураций
+### 27.5. Comparing configurations
 
-Baseline A: diff + минимальный контекст + один reviewer.  
-Baseline B: основной context broker + обязательства + verifier.  
-Variant C: B + риск-зависимый дополнительный поиск.
+Baseline A: diff + minimal context + one reviewer.  
+Baseline B: main context broker + obligations + verifier.  
+Variant C: B + risk-dependent additional search.
 
-Сравнивать на одинаковых целых PR и бюджетах; включать PR, на которых дешёвый reviewer ничего не нашёл. Для nondeterministic моделей сохранять несколько запусков выбранных спорных случаев и variation.
+Compare on the same whole PRs and budgets; include PRs on which the cheap reviewer found nothing. For nondeterministic models, keep several runs of selected contested cases and the variation.
 
-Не требуется доказать превосходство над всем рынком. Нужно установить полезность на собственных repositories.
+Proving superiority over the entire market is not required. Usefulness must be established on our own repositories.
 
-### 27.6. Условия расширения пилота
+### 27.6. Conditions for expanding the pilot
 
-До запуска пилота owner фиксирует `eval/pilot-policy.yaml`: список repos, максимально допустимый расход, минимальный объём размеченных случаев и критерии полезности.
+Before the pilot starts, the owner records `eval/pilot-policy.yaml`: the list of repos, the maximum permissible spend, the minimum volume of labeled cases and the usefulness criteria.
 
-Для согласованного пилота принято минимум 30 вручную разобранных изменений и раздельный учёт correctness/nitpicks. Конкретные labels, acceptance criteria и owner decision фиксируются до оценки; малая выборка не выдаётся за надёжный процент качества.
+For the agreed pilot, a minimum of 30 manually reviewed changes and separate accounting of correctness/nitpicks has been accepted. Specific labels, acceptance criteria and the owner decision are recorded before evaluation; a small sample is not presented as a reliable quality percentage.
 
-Безусловные gates: нет нарушения critical harness invariants, контролируется бюджет, partial честно отображается, публикация восстанавливается, существующие авторские комментарии не повреждаются.
+Unconditional gates: no violation of critical harness invariants, the budget is controlled, partial is displayed honestly, publication recovers, existing author comments are not damaged.
 
-Автоматический merge gate и autofix не включаются по одному хорошему пилотному показателю.
+An automatic merge gate and autofix are not enabled on the basis of a single good pilot metric.
 
-## 28. Этапы реализации
+## 28. Implementation stages
 
-### M0. Детерминированный local core
+### M0. Deterministic local core
 
-**Результат:** workspace, DTO/schemas, SQLite, snapshots, diff, trusted policy, scope/obligations, reducer, JSON/Markdown, fake providers.
+**Result:** workspace, DTO/schemas, SQLite, snapshots, diff, trusted policy, scope/obligations, reducer, JSON/Markdown, fake providers.
 
-**Готово, когда:**
+**Done when:**
 
-- CLI сравнивает два commits и воспроизводимо сохраняет result;
-- base/head/target не смешиваются;
-- SAFE fixture и VIOLATED fixture дают разные корректные состояния;
-- отсутствие evidence даёт UNKNOWN;
-- все mandatory obligations присутствуют при пустом discovery;
-- no-op diff имеет явный пустой scope, не тратит model budget;
-- ноль обращений к внешним API в fake eval.
+- the CLI compares two commits and reproducibly stores the result;
+- base/head/target are not mixed up;
+- a SAFE fixture and a VIOLATED fixture produce different correct states;
+- missing evidence yields UNKNOWN;
+- all mandatory obligations are present with empty discovery;
+- a no-op diff has an explicit empty scope and spends no model budget;
+- zero calls to external APIs in fake eval.
 
-### M1. Первый полезный AI review для TS/React и Rust
+### M1. First useful AI review for TS/React and Rust
 
-**Результат:** TS/React и Rust semantic backends, ContextBroker, ModelGateway с OpenRouter/GPT/GLM/OpenCode доступами, bounded role-based fallback и selective Astra/Fable, discovery/assessment/verifier, monetary/quota/enforcement ledger, rules и nitpicks.
+**Result:** TS/React and Rust semantic backends, ContextBroker, ModelGateway with OpenRouter/GPT/GLM/OpenCode access, bounded role-based fallback and selective Astra/Fable, discovery/assessment/verifier, monetary/quota/enforcement ledger, rules and nitpicks.
 
-**Готово, когда:**
+**Done when:**
 
-- есть реальный end-to-end local review Vkusori TS/React и Sych Rust snapshots;
-- найденные snippets и evidence можно открыть по snapshot;
-- лимит, invalid JSON, timeout и unsupported capability дают корректный результат;
-- пустой discovery не закрывает обязательства без assessment;
-- полезность Rust/TS путей и cheap/subscription/premium routes проверена размеченным development/holdout suite;
-- все Sych attempts учтены; внутренние calls/usage и upstream caps честно отмечены hard/soft/unknown;
-- каждый обязательный local subscription adapter прошёл разрешённый real smoke; API/fake не заменяет subscription, license/no-tools ограничения выполнены.
+- there is a real end-to-end local review of Vkusori TS/React and Sych Rust snapshots;
+- found snippets and evidence can be opened by snapshot;
+- limit, invalid JSON, timeout and unsupported capability produce a correct result;
+- empty discovery does not close obligations without assessment;
+- the usefulness of the Rust/TS paths and of the cheap/subscription/premium routes is verified with a labeled development/holdout suite;
+- all Sych attempts are accounted for; internal calls/usage and upstream caps are honestly marked hard/soft/unknown;
+- each mandatory local subscription adapter has passed a permitted real smoke; API/fake does not substitute for a subscription, license/no-tools restrictions are met.
 
-### M2. Автономный GitHub
+### M2. Autonomous GitHub
 
-**Результат:** App adapter, webhook inbox, scheduler, CI ingestion, durable jobs/outbox, summary/inline comments, rerun/feedback и GitHub self-review Sych на доверенной сборке reviewer.
+**Result:** App adapter, webhook inbox, scheduler, CI ingestion, durable jobs/outbox, summary/inline comments, rerun/feedback and GitHub self-review of Sych on a trusted reviewer build.
 
-**Готово, когда:**
+**Done when:**
 
-- duplicate delivery не запускает дублирующий оплаченный review;
-- force-push во время analysis и publication обработан;
-- lost POST response проходит reconciliation;
-- crash после result commit не требует повторной оплаты analysis;
-- bot не отвечает сам на себя;
-- sandbox-зеркало Sych проходит реальный Rust PR → review → advisory publication → new-head revalidation; боевое подключение `bondiano/sych` до R1 запрещено.
+- a duplicate delivery does not start a duplicate paid review;
+- a force-push during analysis and publication is handled;
+- a lost POST response goes through reconciliation;
+- a crash after result commit does not require paying for the analysis again;
+- the bot does not reply to itself;
+- a sandbox mirror of Sych passes a real Rust PR → review → advisory publication → new-head revalidation; a live connection of `bondiano/sych` before R1 is forbidden.
 
-### M3. Go, эффекты, миграции, infra evidence
+### M3. Go, effects, migrations, infra evidence
 
-**Результат:** gopls/AST, effect ledger, deployment model, Terraform/Kubernetes parsers, targeted checks.
+**Result:** gopls/AST, effect ledger, deployment model, Terraform/Kubernetes parsers, targeted checks.
 
-**Готово, когда:**
+**Done when:**
 
-- Tx/DB и outbox scenarios различаются;
-- перенос effect в wrapper не даёт ложной потери;
-- старый frontend учтён при изменении API;
-- PLAN_REVIEW не выдаётся за OBSERVED_TRANSITION;
-- critical unknown из plan/context остаётся видимым;
-- unresolved DB/deploy specifics не блокируют несвязанные проверки.
+- Tx/DB and outbox scenarios are distinguished;
+- moving an effect into a wrapper does not produce a false loss;
+- the old frontend is taken into account when the API changes;
+- PLAN_REVIEW is not presented as OBSERVED_TRANSITION;
+- a critical unknown from plan/context remains visible;
+- unresolved DB/deploy specifics do not block unrelated checks.
 
-### M4. GitLab и корпоративный Kubernetes
+### M4. GitLab and corporate Kubernetes
 
-**Результат:** capability-aware GitLab adapter, PostgreSQL, corporate auth/egress/secrets, Helm, operational runbooks.
+**Result:** capability-aware GitLab adapter, PostgreSQL, corporate auth/egress/secrets, Helm, operational runbooks.
 
-**Готово, когда:**
+**Done when:**
 
-- проверены capabilities/permissions двух конкретных версий GitLab — текущей и следующей планируемой;
-- merged CI results правильно привязаны;
-- несколько workers не создают конкурирующих authoritative результатов; budget reservations атомарны, повторные calls учтены, публикации восстанавливаются через reconciliation без слепых CREATE;
-- восстановление после pod restart и DB restore проверено;
-- developer/reader/operator права разделены;
-- shadow mode проверен только на выбранных non-production repos в изолированном test/staging; это не разрешение боевого подключения;
+- the capabilities/permissions of two specific GitLab versions are verified: the current one and the next planned one;
+- merged CI results are bound correctly;
+- multiple workers do not create competing authoritative results; budget reservations are atomic, repeated calls are accounted for, publications are recovered through reconciliation without blind CREATEs;
+- recovery after a pod restart and a DB restore is verified;
+- developer/reader/operator permissions are separated;
+- shadow mode is verified only on selected non-production repos in an isolated test/staging environment; this is not permission for a live connection;
 
-### M5. Guided tour и проверка полезности
+### M5. Guided tour and usefulness validation
 
-**Результат:** immutable TourArtifact, CLI reader/reveal/ask, handoff, pilot metrics; внутренний web reader при необходимости.
+**Result:** immutable TourArtifact, CLI reader/reveal/ask, handoff, pilot metrics; an internal web reader if needed.
 
-**Готово, когда:**
+**Done when:**
 
-- код соответствует blob;
-- UNKNOWN и severity не повышаются генератором;
-- новая гипотеза возвращается в verifier;
-- private Q&A не меняет общий artifact;
-- completed tour не означает approval;
-- измеряется дополнительная цена и время чтения.
+- the code matches the blob;
+- UNKNOWN and severity are not raised by the generator;
+- a new hypothesis is returned to the verifier;
+- private Q&A does not change the shared artifact;
+- a completed tour does not mean approval;
+- the additional cost and reading time are measured.
 
-Локальный tour можно реализовать после M1/M2 раньше корпоративного M4, если ReviewResult уже стабилен. Он не должен задерживать основное ревью.
+A local tour may be implemented after M1/M2, ahead of corporate M4, if ReviewResult is already stable. It must not delay the main review.
 
-### M6. Расширение по измеренным пропускам
+### M6. Expansion based on measured misses
 
-Python semantic adapter, дополнительные contract checkers, SCIP/imported indexes, более точный dependency invalidation, сложные migration profiles, web UX. Каждая функция должна решать наблюдаемый класс пропусков или эксплуатационный bottleneck.
+Python semantic adapter, additional contract checkers, SCIP/imported indexes, more precise dependency invalidation, complex migration profiles, web UX. Each feature must address an observed class of misses or an operational bottleneck.
 
 ### R1. Full-feature release gate
 
-До production завершены обязательные M0–M6, включая Rust review, четыре способа model access, bounded fallback/premium routing и GitHub self-review в sandbox. Условный состав M6 явно утверждён владельцем; разработчик не выносит незавершённое за release gate самостоятельно. Пройдены acceptance/invariant, real provider/quality и restore/upgrade/rollback gates; есть owner sign-off. Personal subscription доступ не считается разрешением hosted/corporate use. Прохождение gate не выполняет deploy автоматически: нужен отдельный явный запуск владельца.
+Before production, the mandatory M0–M6 are complete, including Rust review, four ways of model access, bounded fallback/premium routing and GitHub self-review in a sandbox. The conditional composition of M6 is explicitly approved by the owner; the developer does not move unfinished work past the release gate on their own. The acceptance/invariant, real provider/quality and restore/upgrade/rollback gates are passed; there is owner sign-off. Personal subscription access is not considered permission for hosted/corporate use. Passing the gate does not deploy automatically: a separate explicit launch by the owner is required.
 
-## 29. Обязательные acceptance cases
+## 29. Mandatory acceptance cases
 
-Это критерии реализации, а не список уже выполненных тестов.
+These are implementation criteria, not a list of tests already performed.
 
-| ID | Сценарий | Ожидаемое поведение |
+| ID | Scenario | Expected behavior |
 |---|---|---|
-| AC-01 | Пустой diff | Явный пустой scope; нет бессмысленного model call |
-| AC-02 | Rename + Unicode + удалённые строки | Anchors относятся к правильной стороне/blob |
-| AC-03 | Provider вернул усечённый diff | Local fallback либо PARTIAL/UNAVAILABLE с omissions |
-| AC-04 | LSP пустой ответ, dynamic calls неизвестны | Нет вывода о глобальном отсутствии callers |
-| AC-05 | Required rule applicability неизвестна | Обязательство сохранено как UNKNOWN |
-| AC-06 | Discovery пуст, required obligation существует | Assessment выполняется отдельно либо UNKNOWN |
-| AC-07 | Из контекста исключён обязательный guard | Нельзя заявить COMPLETE_FOR_SCOPE |
-| AC-08 | После input freeze найден definition pinned blob | Derived evidence добавлено в текущий run |
-| AC-09 | Поздний релевантный внешний CI | Successor generation; исторический result неизменён |
-| AC-10 | Job зелёный, report malformed/skipped | Обязательная проверка не считается passed |
-| AC-11 | Merge-result test SHA отличается от head | Проверяется source/target binding, не ложный mismatch |
-| AC-12 | Новый test закрепил неверное ожидание | Requirement не заменяется author assertion |
-| AC-13 | Анализатор/правила отключены в head | Отсутствие diagnostic не закрывает finding |
-| AC-14 | Effect исчез из diff, но перенесён в wrapper | Нет ложного confirmed loss |
-| AC-15 | SQL сохранён, receiver Tx → DB | Проверяется потеря атомарности |
-| AC-16 | Outbox заменён goroutine | Проверяется crash/recovery gap; нет голословного вывода |
-| AC-17 | React responses пришли B, затем A | Проверяется защита от stale state |
-| AC-18 | Старый frontend + новый backend | Проверяется compatibility window |
-| AC-19 | Production version отличается от merge-base | Используется pinned initial deployment version |
-| AC-20 | Есть план backfill, исполнения ещё нет | PLAN_REVIEW не становится OBSERVED_TRANSITION |
-| AC-21 | Terraform plan содержит secret/unknown | Secret не уходит модели; relevant unknown сохраняется |
-| AC-22 | Повтор webhook | Durable dedup, без нового inference для той же generation |
-| AC-23 | Lease истекла, старый worker вернулся | Fence/generation/state запрещают authoritative commit |
-| AC-24 | Push между проверкой и finalization | Транзакционная проверка не публикует старый current result |
-| AC-25 | Crash после result/outbox commit | Analysis не запускается заново; publisher продолжает |
-| AC-26 | POST доставлен, response потерян | Reconcile находит bot-owned объект; нового CREATE нет |
-| AC-27 | CREATE исход не установлен после timeout | UNCERTAIN сохраняется; нет слепого retry |
-| AC-28 | Старый UPDATE пришёл после нового | Сверка восстанавливает desired remote revision |
-| AC-29 | Marker скопирован чужим пользователем | Чужое сообщение не редактируется |
-| AC-30 | Два model calls одновременно резервируют cap | Общий лимит проверен атомарно |
-| AC-31 | Timeout model без usage | Unknown charge учтён консервативно, не нулём |
-| AC-32 | Invalid JSON и failed repair | Corresponding tasks unresolved; prose не публикуется как validated |
-| AC-33 | Model output говорит «ignore rules» | Не меняются policy/tools/budget |
-| AC-34 | Tour с выдуманным CodeRef | Validation reject/repair; код не генерируется renderer |
-| AC-35 | Пользователь прошёл tour | Не меняются obligation status и approval |
-| AC-36 | Новый head во время tour | Artifact STALE; новая версия создаётся отдельно |
-| AC-37 | Один tenant запрашивает чужой cached artifact | Access denied независимо от совпавшего content hash |
-| AC-38 | GitLab signed mode без signature | Отказ, без автоматического legacy fallback |
-| AC-39 | Нитpick без rule_id, но полезное preference | Сохраняется как необязательный NIT; нет REQUEST_CHANGES |
-| AC-40 | Невозможно сохранить result | Нет ложного COMPLETED |
-| AC-41 | Не найден старый finding из-за неполного scope | Не выставляется RESOLVED |
-| AC-42 | GitLab/GitHub API capability отсутствует | Явный поддержанный fallback или ограничение |
-| AC-43 | CI artifact с path traversal/zip bomb | Import отклонён, host FS не изменена |
-| AC-44 | Превышен бюджет/число candidates | Объявлен PARTIAL, scope и существенные gaps не скрыты |
-| AC-45 | Crash после SCM dispatch до ACK/UNCERTAIN | Recovery PUBLISHING → UNCERTAIN, без повторного CREATE |
-| AC-46 | Close event потерян, head прежний | Publication API gate обнаруживает закрытый change |
-| AC-47 | Один SCM repo подключён двумя tenants | State/generations/credentials изолированы |
-| AC-48 | OpenRouter выбрал неподходящий upstream/parameter | Route/data/capability policy не ослабляется; fallback и цена наблюдаемы |
-| AC-49 | GPT subscription без output cap/с неизвестными internal calls | Только принятый subscription_observable; soft/unknown не объявлены hard или zero |
-| AC-50 | GLM Standard key либо неподтверждённый bot use | Не считается Coding Plan; запрещённый billing/runtime path отклонён |
-| AC-51 | Go quota исчерпана, доступен Extra Usage | Нет скрытого balance charge/смены billing route; quota, fee и invoice разделены |
-| AC-52 | Fallback chain цикл/deadline/attempt exhaustion | Конечное исполнение, единые counters и честный PARTIAL |
-| AC-53 | Corporate fallback ведёт во внешний provider | До dispatch отказ; model/region/credentials не обходят VPC policy |
-| AC-54 | Cheap DeepSeek discovery пуст, obligation high-risk | Дополнительный Astra/Fable route назначен в разрешённом budget либо gap явно сохранён |
-| AC-55 | После timeout route сменился | UNKNOWN_USAGE/CHARGE не обнулены; новая попытка учитывается отдельно |
-| AC-56 | Rust build.rs/proc-macro требует исполнения | Только разрешённый sandbox либо конкретный semantic gap, не host execution |
-| AC-57 | Rust error/async/trait/cfg unsafe и safe pairs | Есть real model quality evidence, правильные anchors и отсутствие fake proof от build |
-| AC-58 | PR Sych меняет reviewer/policy/workflow | Выполняется trusted pinned reviewer, не executable/config head |
-| AC-59 | Self-review duplicate/push/lost ACK/bot comment | Общий dedup/fencing/outbox сохраняет историю без циклов и слепого CREATE |
-| AC-60 | Self-review до R1 либо CI другого checkout | Production activation запрещён; CI mismatch не превращается в proof текущего head |
+| AC-01 | Empty diff | Explicit empty scope; no pointless model call |
+| AC-02 | Rename + Unicode + deleted lines | Anchors refer to the correct side/blob |
+| AC-03 | Provider returned a truncated diff | Local fallback or PARTIAL/UNAVAILABLE with omissions |
+| AC-04 | LSP empty response, dynamic calls unknown | No conclusion about the global absence of callers |
+| AC-05 | Required rule applicability is unknown | Obligation kept as UNKNOWN |
+| AC-06 | Discovery empty, required obligation exists | Assessment is performed separately, or UNKNOWN |
+| AC-07 | A mandatory guard is excluded from context | COMPLETE_FOR_SCOPE cannot be claimed |
+| AC-08 | After input freeze, a definition is found in a pinned blob | Derived evidence is added to the current run |
+| AC-09 | Late relevant external CI | Successor generation; historical result unchanged |
+| AC-10 | Job green, report malformed/skipped | Mandatory check is not counted as passed |
+| AC-11 | Merge-result test SHA differs from head | Source/target binding is checked, not a false mismatch |
+| AC-12 | A new test locked in a wrong expectation | Requirement is not replaced by the author's assertion |
+| AC-13 | Analyzer/rules disabled in head | Absence of a diagnostic does not close the finding |
+| AC-14 | Effect disappeared from the diff but moved into a wrapper | No false confirmed loss |
+| AC-15 | SQL preserved, receiver Tx → DB | Loss of atomicity is checked |
+| AC-16 | Outbox replaced by a goroutine | Crash/recovery gap is checked; no unfounded conclusion |
+| AC-17 | React responses arrived B, then A | Protection against stale state is checked |
+| AC-18 | Old frontend + new backend | Compatibility window is checked |
+| AC-19 | Production version differs from merge-base | Pinned initial deployment version is used |
+| AC-20 | Backfill plan exists, not yet executed | PLAN_REVIEW does not become OBSERVED_TRANSITION |
+| AC-21 | Terraform plan contains secret/unknown | Secret is not sent to the model; relevant unknown is kept |
+| AC-22 | Webhook repeat | Durable dedup, no new inference for the same generation |
+| AC-23 | Lease expired, old worker came back | Fence/generation/state forbid an authoritative commit |
+| AC-24 | Push between check and finalization | Transactional check does not publish the old current result |
+| AC-25 | Crash after result/outbox commit | Analysis is not restarted; the publisher continues |
+| AC-26 | POST delivered, response lost | Reconcile finds the bot-owned object; no new CREATE |
+| AC-27 | CREATE outcome not established after timeout | UNCERTAIN is kept; no blind retry |
+| AC-28 | Old UPDATE arrived after the new one | Reconciliation restores the desired remote revision |
+| AC-29 | Marker copied by another user | The other user's message is not edited |
+| AC-30 | Two model calls reserve the cap simultaneously | Shared limit checked atomically |
+| AC-31 | Model timeout without usage | Unknown charge accounted conservatively, not as zero |
+| AC-32 | Invalid JSON and failed repair | Corresponding tasks unresolved; prose is not published as validated |
+| AC-33 | Model output says "ignore rules" | Policy/tools/budget do not change |
+| AC-34 | Tour with an invented CodeRef | Validation reject/repair; code is not generated by the renderer |
+| AC-35 | User completed the tour | Obligation status and approval do not change |
+| AC-36 | New head during a tour | Artifact STALE; a new version is created separately |
+| AC-37 | One tenant requests another tenant's cached artifact | Access denied regardless of a matching content hash |
+| AC-38 | GitLab signed mode without signature | Rejected, no automatic legacy fallback |
+| AC-39 | Nitpick without rule_id, but a useful preference | Kept as an optional NIT; no REQUEST_CHANGES |
+| AC-40 | Result cannot be saved | No false COMPLETED |
+| AC-41 | Old finding not found due to incomplete scope | RESOLVED is not set |
+| AC-42 | GitLab/GitHub API capability is missing | Explicit supported fallback or limitation |
+| AC-43 | CI artifact with path traversal/zip bomb | Import rejected, host FS unchanged |
+| AC-44 | Budget/candidate count exceeded | PARTIAL declared, scope and significant gaps not hidden |
+| AC-45 | Crash after SCM dispatch before ACK/UNCERTAIN | Recovery PUBLISHING → UNCERTAIN, no repeat CREATE |
+| AC-46 | Close event lost, head unchanged | Publication API gate detects the closed change |
+| AC-47 | One SCM repo connected by two tenants | State/generations/credentials are isolated |
+| AC-48 | OpenRouter chose an unsuitable upstream/parameter | Route/data/capability policy is not weakened; fallback and price are observable |
+| AC-49 | GPT subscription without output cap/with unknown internal calls | Only accepted subscription_observable; soft/unknown not declared hard or zero |
+| AC-50 | GLM Standard key or unconfirmed bot use | Not treated as Coding Plan; forbidden billing/runtime path rejected |
+| AC-51 | Go quota exhausted, Extra Usage available | No hidden balance charge/billing route change; quota, fee and invoice kept separate |
+| AC-52 | Fallback chain cycle/deadline/attempt exhaustion | Finite execution, unified counters and honest PARTIAL |
+| AC-53 | Corporate fallback leads to an external provider | Rejected before dispatch; model/region/credentials do not bypass VPC policy |
+| AC-54 | Cheap DeepSeek discovery empty, obligation high-risk | Additional Astra/Fable route assigned within the permitted budget, or the gap is explicitly kept |
+| AC-55 | Route changed after timeout | UNKNOWN_USAGE/CHARGE not zeroed; the new attempt is accounted separately |
+| AC-56 | Rust build.rs/proc-macro requires execution | Only a permitted sandbox or a specific semantic gap, not host execution |
+| AC-57 | Rust error/async/trait/cfg unsafe and safe pairs | Real model quality evidence, correct anchors and no fake proof from the build |
+| AC-58 | Sych PR changes reviewer/policy/workflow | The trusted pinned reviewer runs, not the head executable/config |
+| AC-59 | Self-review duplicate/push/lost ACK/bot comment | Shared dedup/fencing/outbox preserves history without loops or blind CREATE |
+| AC-60 | Self-review before R1 or CI of a different checkout | Production activation forbidden; CI mismatch does not become proof for the current head |
 
-Критичные cases AC-05/06/23–31/33–38/40/48–56/58–60 проходят детерминированно до корпоративного подключения. Runtime/model quality, включая Rust AC-57 и subscription entitlement, дополнительно подтверждается real разрешёнными сценариями; fake не заменяет такое evidence.
+Critical cases AC-05/06/23–31/33–38/40/48–56/58–60 pass deterministically before the corporate connection. Runtime/model quality, including Rust AC-57 and subscription entitlement, is additionally confirmed by real permitted scenarios; fake does not substitute for such evidence.
 
-## 30. Открытые решения
+## 30. Open decisions
 
-Стратегические варианты ниже приняты владельцем при обсуждении roadmap. Неизвестными остаются конкретные account/environment/version/permission данные; они не подставляются из удобных примеров. Fake/core можно развивать без них, но соответствующий real path не принимается без evidence.
+The strategic options below were accepted by the owner during the roadmap discussion. What remains unknown is specific account/environment/version/permission data; it is not filled in from convenient examples. Fake/core can be developed without it, but the corresponding real path is not accepted without evidence.
 
-| Решение | Принятый вариант | Что ещё установить | Когда нужно |
+| Decision | Accepted option | What remains to be established | When needed |
 |---|---|---|---|
-| Первые repositories | Vkusori `apps/pwa` + `packages/core` для TS/React; Sych для качественного Rust и dogfooding | Pinned revisions/cases и разрешённые data/access scopes; Go/infra fixtures | До M1 tuning/eval |
-| DB и migration framework | Первый DB-specific профиль PostgreSQL + Drizzle на BatSchool fixtures | Реальные версии и SQL/transaction semantics; корпоративный стек не меняется этим выбором | До DB-specific M3 |
-| Deployment controller | Один фактический CI/deploy flow выбранного приложения, без внедрения нового GitOps ради Sych | Pinned CI/Ansible/controller/order/mixed-version constraints; исходные petinfra docs не являются live-state observation | До M3 DeploymentModel |
-| Initial deployed versions | Trusted deploy manifest + read-only environment inventory | Image/build/source/schema/client mapping и время observation, не merge-base | До environment compatibility |
-| GitLab version/capabilities | Проверять текущую и конкретную следующую планируемую версию | Названия двух версий, capability/permissions/diff/CI/webhook matrix | До M4 real adapter gate |
-| CI reports | Текущие jobs + machine-readable report export, без полного повторного CI | Exact run/job/attempt/artifact selectors и trusted checkout provenance | До M2/M4 real ingestion |
-| Model access/routing | OpenRouter + GPT/GLM/OpenCode subscriptions; дешёвый DeepSeek V4.1 Flash, роль/риск-зависимые chains и Astra/Fable; subscription_observable явно разрешён | Exact provider/model/account/price/fee/quota/enforcement/license/privacy inputs; hosted eligibility не наследуется от local login | До соответствующего real smoke |
-| Personal model budget | $60 за календарный месяц UTC; analysis/tour/Q&A совместно, compute/storage отдельно с явным согласием; исходные run/day caps сохранены | Fixed subscription fee/period/allocation и approved paid routes; минимум 30 вручную разобранных pilot changes и owner quality decision | До model spend/pilot |
-| Corporate identity | Существующий SSO + SCM repository membership mapping | Конкретный IdP/issuer/role mapping/offboarding/access-revocation evidence | До corporate API/web |
-| Data/egress | Personal: allowlisted внешние APIs; corporate: только approved VPC endpoint; secrets deny, raw prompts off, retention §20 | Endpoint/privacy/region/retention revisions, особенно DeepSeek Go Global и изменяемые ZDR terms | До реального кода/egress |
-| Merge policy | Только advisory | Никаких автоматических approve/request-changes/required merge gate; новое решение только отдельным ADR после quality evidence | На всех этапах и при R1 |
+| First repositories | Vkusori `apps/pwa` + `packages/core` for TS/React; Sych for high-quality Rust and dogfooding | Pinned revisions/cases and permitted data/access scopes; Go/infra fixtures | Before M1 tuning/eval |
+| DB and migration framework | First DB-specific profile: PostgreSQL + Drizzle on BatSchool fixtures | Real versions and SQL/transaction semantics; the corporate stack is not changed by this choice | Before DB-specific M3 |
+| Deployment controller | One actual CI/deploy flow of the chosen application, without introducing new GitOps for the sake of Sych | Pinned CI/Ansible/controller/order/mixed-version constraints; the original petinfra docs are not a live-state observation | Before M3 DeploymentModel |
+| Initial deployed versions | Trusted deploy manifest + read-only environment inventory | Image/build/source/schema/client mapping and observation time, not merge-base | Before environment compatibility |
+| GitLab version/capabilities | Verify the current and a specific next planned version | Names of the two versions, capability/permissions/diff/CI/webhook matrix | Before the M4 real adapter gate |
+| CI reports | Existing jobs + machine-readable report export, without a full CI rerun | Exact run/job/attempt/artifact selectors and trusted checkout provenance | Before M2/M4 real ingestion |
+| Model access/routing | OpenRouter + GPT/GLM/OpenCode subscriptions; cheap DeepSeek V4.1 Flash, role/risk-dependent chains and Astra/Fable; subscription_observable explicitly permitted | Exact provider/model/account/price/fee/quota/enforcement/license/privacy inputs; hosted eligibility is not inherited from a local login | Before the corresponding real smoke |
+| Personal model budget | $60 per UTC calendar month; analysis/tour/Q&A combined, compute/storage separately with explicit consent; the original run/day caps are kept | Fixed subscription fee/period/allocation and approved paid routes; at least 30 manually reviewed pilot changes and an owner quality decision | Before model spend/pilot |
+| Corporate identity | Existing SSO + SCM repository membership mapping | Specific IdP/issuer/role mapping/offboarding/access-revocation evidence | Before corporate API/web |
+| Data/egress | Personal: allowlisted external APIs; corporate: only an approved VPC endpoint; secrets deny, raw prompts off, retention §20 | Endpoint/privacy/region/retention revisions, especially DeepSeek Go Global and changeable ZDR terms | Before real code/egress |
+| Merge policy | Advisory only | No automatic approve/request-changes/required merge gate; a new decision only via a separate ADR after quality evidence | At all stages and at R1 |
 
-## 31. Архитектурные референсы и первичные источники
+## 31. Architectural references and primary sources
 
-### 31.1. Что адаптируется
+### 31.1. What is adapted
 
-- **Claude Code Review:** несколько поисковых проходов и проверка findings. В нашем решении дополнительный поиск ограничивается риском и бюджетом. Публичное описание сервиса не считается исходным кодом его внутреннего harness. [S31]
-- **BitsAI-CR:** подготовка контекста, RuleChecker, ReviewFilter и агрегация. Наша версия использует API-модели и собственные правила; результаты статьи не переносятся на неё автоматически. Fine-tuning и воспроизведение training pipeline вне MVP. [S32]
-- **diff-tour:** маршрут чтения, вопросы и извлечение отображаемого кода из Git. В нашем решении добавлена привязка к проверенному ReviewResult и отдельное состояние читателя. [S27]
+- **Claude Code Review:** several search passes and verification of findings. In our design, additional search is bounded by risk and budget. The public description of the service is not considered the source code of its internal harness. [S31]
+- **BitsAI-CR:** context preparation, RuleChecker, ReviewFilter and aggregation. Our version uses API models and our own rules; the paper's results do not automatically carry over to it. Fine-tuning and reproducing the training pipeline are outside the MVP. [S32]
+- **diff-tour:** reading route, questions and extraction of displayed code from Git. Our design adds binding to a verified ReviewResult and a separate reader state. [S27]
 
-Это собственная архитектура. Она не требует покупки managed review service или наличия исходников исследовательской системы.
+This is our own architecture. It does not require purchasing a managed review service or having the sources of the research system.
 
-### 31.2. Источники
+### 31.2. Sources
 
-Ссылки подтверждают внешние API и ограничения. Собственные лимиты, состояния и решения проекта нормативно заданы выше. Совместимость проверяется на фактически используемых версиях.
+The links confirm external APIs and limitations. The project's own limits, states and decisions are normatively defined above. Compatibility is verified against the versions actually in use.
 
 - **S01:** [Axum](https://docs.rs/axum/latest/axum/).
 - **S02:** [SQLx](https://docs.rs/sqlx/latest/sqlx/).
-- **S03:** [Cargo.toml и Cargo.lock](https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html).
-- **S04:** [async-trait и dyn-compatible async interfaces](https://docs.rs/async-trait/latest/async_trait/).
+- **S03:** [Cargo.toml and Cargo.lock](https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html).
+- **S04:** [async-trait and dyn-compatible async interfaces](https://docs.rs/async-trait/latest/async_trait/).
 - **S05:** [Language Server Protocol 3.17](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/).
 - **S06:** [TypeScript 7.0 / native compiler](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/).
 - **S07:** [gopls navigation](https://go.dev/gopls/features/navigation).
@@ -2524,23 +2524,23 @@ Python semantic adapter, дополнительные contract checkers, SCIP/im
 - **S31:** [Claude Code Review](https://code.claude.com/docs/en/code-review).
 - **S32:** [BitsAI-CR paper](https://arxiv.org/html/2501.15134v1).
 
-## 32. Порядок работы агента реализации
+## 32. Implementation agent workflow
 
-Начать с M0 и одного вертикального сценария, затем последовательно расширять возможности.
+Start with M0 and one vertical scenario, then expand capabilities step by step.
 
-Для каждого изменения:
+For each change:
 
-1. Указать реализуемые требования и затрагиваемые invariants.
-2. Изменить минимально необходимый набор модулей.
-3. Добавить содержательные tests для нового поведения, failure path и обязательных gates.
-4. Проверить отсутствие противоречий между schemas, config и runtime.
-5. Запустить относящиеся к изменению проверки.
-6. Зафиксировать ограничения и следующую зависимость.
-7. Не заявлять завершение этапа, если реальный provider path заменён fake adapter без явной пометки.
+1. State the requirements being implemented and the invariants affected.
+2. Change the minimal necessary set of modules.
+3. Add meaningful tests for the new behavior, the failure path and the mandatory gates.
+4. Check that there are no contradictions between schemas, config and runtime.
+5. Run the checks relevant to the change.
+6. Record limitations and the next dependency.
+7. Do not claim a stage is complete if a real provider path has been replaced by a fake adapter without an explicit note.
 
-В первом PR реализации M0 ожидаются core DTO, schema generation, snapshot fixtures, SQLite storage и работающий `sych review --models fake` поверх уже существующего workspace/toolchain/CLI bootstrap. Сложные semantic providers, Kubernetes и web UI не входят в этот PR; исходный bootstrap не считается выполненным M0.
+The first M0 implementation PR is expected to contain core DTOs, schema generation, snapshot fixtures, SQLite storage and a working `sych review --models fake` on top of the already existing workspace/toolchain/CLI bootstrap. Complex semantic providers, Kubernetes and web UI are not part of this PR; the initial bootstrap is not considered a completed M0.
 
-В каждом этапе сохранять возможность локального запуска без корпоративных credentials. Это позволит развивать проект на pet repositories и использовать проверенный engine в командном окружении без отдельного переписывания.
+At every stage, preserve the ability to run locally without corporate credentials. This allows the project to be developed on pet repositories and the verified engine to be used in a team environment without a separate rewrite.
 
 
 

@@ -1,52 +1,52 @@
 # sych-app
 
-Командная строка `sych`. Библиотека с командами и сервисами плюс тонкий бинарь `bin/sych.rs`, который
-только разбирает аргументы и вызывает команду.
+The `sych` command line. A library with commands and services plus a thin `bin/sych.rs` binary that
+only parses arguments and calls a command.
 
-## Устройство
+## Layout
 
-- `args` — clap: `Cli`, `Commands` и по структуре `*Arguments` на подкоманду; общий `Comparison`
-  (`--repo/--base/--head/--diff-base`) и `Output` (`--format/--output`).
-- `command` — trait `Command { name(), run() -> anyhow::Result<ExitCode> }` и `run_command`, который
-  печатает цепочку ошибки (`sych <команда>: контекст: причина`) и возвращает её exit code.
+- `args` — clap: `Cli`, `Commands` and one `*Arguments` struct per subcommand; a shared `Comparison`
+  (`--repo/--base/--head/--diff-base`) and `Output` (`--format/--output`).
+- `command` — the trait `Command { name(), run() -> anyhow::Result<ExitCode> }` and `run_command`, which
+  prints the error chain (`sych <command>: context: cause`) and returns its exit code.
 - `errors` — exit codes (§24.1): 2 invalid, 3 no result, 4 permission, 10/11 strict policy, 130
-  cancelled, 1 failed eval. Ошибки по схеме thiserror + anyhow: библиотеки возвращают типизированные
-  ошибки (`SnapshotError`, `StorageError`, `ToolError`, `SandboxError`, `DepsError`, `CiError`), app —
-  `anyhow::Result` с `.context()` на каждом шаге. Код решает `Failure` (thiserror: `Invalid`, `NoResult`,
-  `Permission`, `Cancelled`), иначе первая типизированная причина в цепочке (`SnapshotError::InvalidInput`,
-  `StorageError::UnknownRun` → 2), иначе 3.
-- Логи — `tracing`, подписчик `tracing-subscriber` ставится в `bin/sych.rs`: stderr, без времени, цвет
-  только в терминале. Уровень — `SYCH_LOG` в синтаксисе `EnvFilter` (по умолчанию `info` для crates Sych,
-  `warn` для зависимостей; `SYCH_LOG=debug`, `SYCH_LOG=sych_adapters=trace`). Секреты, prompts и ответы
-  моделей не логируются.
-- `commands/` — по файлу на подкоманду (`review`, `semantic`, `show`, `explain`, `doctor`, `config_init`,
+  cancelled, 1 failed eval. Errors follow the thiserror + anyhow scheme: libraries return typed
+  errors (`SnapshotError`, `StorageError`, `ToolError`, `SandboxError`, `DepsError`, `CiError`), the app returns
+  `anyhow::Result` with `.context()` at every step. The code is decided by `Failure` (thiserror: `Invalid`, `NoResult`,
+  `Permission`, `Cancelled`), otherwise by the first typed cause in the chain (`SnapshotError::InvalidInput`,
+  `StorageError::UnknownRun` → 2), otherwise 3.
+- Logs — `tracing`; the `tracing-subscriber` subscriber is installed in `bin/sych.rs`: stderr, no timestamps, color
+  only in a terminal. The level is `SYCH_LOG` in `EnvFilter` syntax (by default `info` for Sych crates,
+  `warn` for dependencies; `SYCH_LOG=debug`, `SYCH_LOG=sych_adapters=trace`). Secrets, prompts and model
+  responses are not logged.
+- `commands/` — one file per subcommand (`review`, `semantic`, `show`, `explain`, `doctor`, `config_init`,
   `config_validate`, `eval_run`, `eval_validate`, `eval_measure`, `db_migrate`, `auth_chatgpt`, `cache_prune`).
-  В каждом `run(&XArguments) -> anyhow::Result<ExitCode>` собирает результат из сервисов.
-- Сервисы, по предметной области:
+  In each, `run(&XArguments) -> anyhow::Result<ExitCode>` assembles the result from the services.
+- Services, by subject area:
 
-| Сервис | Назначение |
+| Service | Purpose |
 |---|---|
-| `review` | конвейер review: snapshot → trusted policy → facts → plan → fake assessments → context packets → reduce → сохранение |
-| `semantic` | semantic facts через pinned language servers с кешем |
-| `ci` | чтение `--ci-facts`/`--ci-manifest` для импорта |
-| `snapshot` | захват сравнения (`Comparison` → `LocalSnapshot`) |
-| `config` | server config, рабочий `.sych/`, effective config, пример `config init` |
-| `storage` | пути БД и artifacts, `block_on`, чтение сохранённого run |
-| `output` | запись JSON/Markdown в файл или stdout |
-| `render` | JSON и Markdown рендереры с экранированием текста репозитория |
-| `fake` | fake model adapter для `--fake-responses` |
-| `probe` | opt-in model probe для `doctor --probe-model` |
-| `eval`, `quality` | harness suite `eval run` и проверка размеченного quality suite `eval validate` |
+| `review` | the review pipeline: snapshot → trusted policy → facts → plan → fake assessments → context packets → reduce → save |
+| `semantic` | semantic facts via pinned language servers with a cache |
+| `ci` | reading `--ci-facts`/`--ci-manifest` for import |
+| `snapshot` | capturing the comparison (`Comparison` → `LocalSnapshot`) |
+| `config` | server config, working `.sych/`, effective config, the `config init` example |
+| `storage` | DB and artifact paths, `block_on`, reading a saved run |
+| `output` | writing JSON/Markdown to a file or stdout |
+| `render` | JSON and Markdown renderers with escaping of repository text |
+| `fake` | fake model adapter for `--fake-responses` |
+| `probe` | opt-in model probe for `doctor --probe-model` |
+| `eval`, `quality` | the `eval run` suite harness and validation of the labelled quality suite `eval validate` |
 
-## Как добавить команду
+## How to add a command
 
-1. Структура `XArguments` в `args.rs` и вариант в `Commands`.
-2. `commands/x.rs` с `pub fn run(args: &XArguments)`; переиспользуемая логика — в сервис.
-3. Ветка в `bin/sych.rs`: `Commands::X(args) => run_command("x", || x::run(&args))`.
+1. An `XArguments` struct in `args.rs` and a variant in `Commands`.
+2. `commands/x.rs` with `pub fn run(args: &XArguments)`; reusable logic goes into a service.
+3. A branch in `bin/sych.rs`: `Commands::X(args) => run_command("x", || x::run(&args))`.
 
-## Проверки
+## Checks
 
 ```sh
-cargo test -p sych-app      # CLI тесты запускают собранный бинарь на временных репозиториях
+cargo test -p sych-app      # CLI tests run the built binary on temporary repositories
 just run --help
 ```

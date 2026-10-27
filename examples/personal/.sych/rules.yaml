@@ -2,7 +2,7 @@ schema_version: 1
 rules:
   - id: EFFECT-01
     version: 1
-    title: Сохранение обязательных эффектов операции
+    title: Preserve the required effects of an operation
     kind: invariant
     required: true
     severity_on_violation: high
@@ -11,27 +11,27 @@ rules:
       paths: ["backend/orders/**"]
       change_kinds: ["call_change", "control_flow_change", "move"]
     statement: >
-      Успешная запись заказа сохраняет обязательную публикацию события
-      согласно принятому контракту операции.
-    rationale: "Потребители должны получить событие о сохранённом заказе."
+      A successful order write keeps the required event publication
+      according to the accepted operation contract.
+    rationale: "Consumers must receive an event about a saved order."
     contract_refs: [".sych/contracts/order-created.md"]
     acceptance:
       evidence_kinds: ["source", "semantic", "test"]
       criteria:
-        - "Определены граница commit и механизм доставки."
-        - "Проверены ошибка, повтор и остановка между записью и доставкой."
+        - "The commit boundary and the delivery mechanism are defined."
+        - "Failure, retry and a stop between the write and the delivery are checked."
     # Scoped waiver: the status stays VIOLATED/UNKNOWN, only the risk decision changes.
     exceptions:
       - paths: ["backend/orders/legacy_import/**"]
-        reason: "Старый импорт заказов не публикует событие; его удаляют после миграции клиентов."
+        reason: "The old order import does not publish the event; it is removed after clients migrate."
         owner: backend
         author: orders-team
         expires_at: null
-        until: "legacy_import удалён"
+        until: "legacy_import is removed"
   - id: NAMING-01
     version: 1
-    title: Имена отражают предметную область
+    title: Names reflect the domain
     kind: preference
     required: false
     owner: backend
-    statement: Новые публичные имена используют термины из глоссария проекта.
+    statement: New public names use terms from the project glossary.

@@ -1,12 +1,12 @@
 # sych-style
 
-Проверка стиля, которую не умеют rustfmt и clippy. Читает синтаксическое дерево (`syn`), поэтому не
-путает `if` в выражении с оператором.
+A style check that rustfmt and clippy cannot do. It reads the syntax tree (`syn`), so it does not
+confuse an `if` expression with an `if` statement.
 
-## Правило `blank-line-after-if`
+## The `blank-line-after-if` rule
 
-`if`-оператор (вместе с цепочкой `else`), за которым в том же блоке идёт ещё один оператор, отделяется от
-него пустой строкой:
+An `if` statement (together with its `else` chain) that is followed by another statement in the same block is separated from
+it by a blank line:
 
 ```rust
 if missing {
@@ -16,12 +16,12 @@ if missing {
 let value = read()?;
 ```
 
-Не требуется перед закрывающей `}`, внутри `else`-цепочки и для `if` в выражении (`let x = if … else …`).
+It is not required before a closing `}`, inside an `else` chain, or for an `if` expression (`let x = if … else …`).
 
-## Запуск
+## Running
 
 ```sh
-just lint          # входит в lint
-just style-fix     # вставить пустые строки и отформатировать
+just lint          # part of lint
+just style-fix     # insert blank lines and format
 cargo run -p sych-style -- crates [--fix]
 ```

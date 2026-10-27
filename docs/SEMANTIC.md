@@ -1,333 +1,333 @@
 # Semantic backends
 
-`sych semantic --base REF [--head REF] [--diff-base REF] [--repo DIR] [--output FILE]` печатает JSON-массив
-документов `SemanticFacts` ([schema](../schemas/semantic-facts.schema.json)): по одному на каждую сторону
-(`DIFF_BASE`, `HEAD`) и язык с изменёнными файлами. Команда только читает Git-объекты. `sych review` собирает те
-же факты (`--semantic off` отключает) и передаёт их ContextBroker.
+`sych semantic --base REF [--head REF] [--diff-base REF] [--repo DIR] [--output FILE]` prints a JSON array of
+`SemanticFacts` documents ([schema](../schemas/semantic-facts.schema.json)): one per side
+(`DIFF_BASE`, `HEAD`) and language with changed files. The command only reads Git objects. `sych review` collects the
+same facts (`--semantic off` disables this) and passes them to the ContextBroker.
 
 ## Pinned language servers
 
-Версии, URL и SHA-256 серверов поддерживает Sych: [`pinned.json`](../crates/sych-adapters/src/tools/pinned.json).
-`PATH` и установленные в системе серверы не используются. При первом запросе сервер скачивается по HTTPS,
-сверяется с закреплённым SHA-256, распаковывается во временный каталог и атомарно переименовывается в
-`$SYCH_TOOLS_DIR`, иначе `$XDG_CACHE_HOME/sych/tools`, иначе `~/.cache/sych/tools`
-(`<tool>/<version>/<arch>-<os>/`). Несовпадение checksum ничего не устанавливает.
+Server versions, URLs and SHA-256 are maintained by Sych: [`pinned.json`](../crates/sych-adapters/src/tools/pinned.json).
+`PATH` and system-installed servers are not used. On first request a server is downloaded over HTTPS,
+verified against the pinned SHA-256, unpacked into a temporary directory and atomically renamed into
+`$SYCH_TOOLS_DIR`, otherwise `$XDG_CACHE_HOME/sych/tools`, otherwise `~/.cache/sych/tools`
+(`<tool>/<version>/<arch>-<os>/`). A checksum mismatch installs nothing.
 
-| Язык | Сервер | Выбор версии | Платформы |
+| Language | Server | Version selection | Platforms |
 |---|---|---|---|
-| Rust | rust-analyzer `2026-10-19` (GitHub release) | единственная закреплённая | linux, macos × x86_64, aarch64 |
-| TS/JS/React | TypeScript 7 native `tsc --lsp --stdio` (npm `@typescript/typescript-<platform>`) | точная версия `typescript` из `pnpm-lock.yaml` (все importers, multi-document pnpm 11+) или `package-lock.json` | те же |
-| Go | gopls `v0.24.0`, собранный закреплённым Go `1.27.3` (go.dev/dl, SHA-256) | единственная закреплённая | те же |
-| Python | нет: базовый fallback M3 — syntax facts без language server | — | — |
+| Rust | rust-analyzer `2026-10-19` (GitHub release) | the single pinned one | linux, macos × x86_64, aarch64 |
+| TS/JS/React | TypeScript 7 native `tsc --lsp --stdio` (npm `@typescript/typescript-<platform>`) | exact `typescript` version from `pnpm-lock.yaml` (all importers, multi-document pnpm 11+) or `package-lock.json` | same |
+| Go | gopls `v0.24.0`, built with the pinned Go `1.27.3` (go.dev/dl, SHA-256) | the single pinned one | same |
+| Python | none: basic M3 fallback — syntax facts without a language server | — | — |
 
-Линтеры закреплены так же (GitHub release, SHA-256 из digest релиза): ruff `0.17.2`, oxlint `1.89.0`,
-actionlint `1.7.12`, zizmor `1.31.1`; см. [Pinned linters](#pinned-linters).
+Linters are pinned the same way (GitHub release, SHA-256 from the release digest): ruff `0.17.2`, oxlint `1.89.0`,
+actionlint `1.7.12`, zizmor `1.31.1`; see [Pinned linters](#pinned-linters).
 
-gopls не публикуется бинарями, поэтому `archive: go-module`: Sych скачивает закреплённый Go, проверяет `h1:`
-hash модуля `golang.org/x/tools/gopls@v0.24.0` (`sha256` в манифесте — его hex) через `go mod download -json`,
-затем `go install -trimpath` с `GOPROXY=proxy.golang.org`, `GOSUMDB=sum.golang.org`, `GOTOOLCHAIN=local`,
-`GOENV=off`, `CGO_ENABLED=0`; зависимости gopls проверяет его `go.sum`. Хостовый Go, `GOFLAGS` и credentials не
-используются. Сборка занимает около минуты один раз на версию.
+gopls is not published as binaries, hence `archive: go-module`: Sych downloads the pinned Go, verifies the `h1:`
+hash of the `golang.org/x/tools/gopls@v0.24.0` module (`sha256` in the manifest is its hex) via `go mod download -json`,
+then runs `go install -trimpath` with `GOPROXY=proxy.golang.org`, `GOSUMDB=sum.golang.org`, `GOTOOLCHAIN=local`,
+`GOENV=off`, `CGO_ENABLED=0`; gopls dependencies are verified by its `go.sum`. The host Go, `GOFLAGS` and credentials are not
+used. The build takes about a minute, once per version.
 
-Версия TypeScript, которой нет в манифесте, несколько версий в importers или TypeScript < 7 (только tsserver
-protocol) дают `UNSUPPORTED` с причиной, без подстановки другой версии. Новая версия добавляется записью в
-манифест с checksum, проверенным против upstream (`integrity` npm, `digest` GitHub release).
+A TypeScript version missing from the manifest, several versions across importers, or TypeScript < 7 (tsserver
+protocol only) yield `UNSUPPORTED` with a reason, without substituting another version. A new version is added as a manifest
+entry with a checksum verified against upstream (npm `integrity`, GitHub release `digest`).
 
-## Что делает backend
+## What the backend does
 
-1. Каждая сторона записывается во временный каталог побайтно из object database (`ls-tree` + `cat-file
-   --batch`): без checkout, filters, `export-subst` и hooks. Secret paths, symlinks, submodules и blob > 4 MiB
-   не пишутся. Base и head не делят workspace state.
-2. Сервер запускается с очищенным окружением (`PATH`, `HOME`, `CARGO_HOME`, `RUSTUP_HOME`, `TMPDIR`, `LANG`),
-   поэтому SCM/model credentials до него не доходят.
-3. `documentSymbol` изменённых файлов → самые внутренние именованные конструкции (function, method,
-   constructor, class, interface, struct, enum; module-level `const`/`let` — это React-компоненты и hooks),
-   пересекающие изменённые строки. Анонимные callbacks и import bindings пропускаются, изменение относится к
-   ближайшей именованной конструкции. Не больше 60 символов на документ, остальные перечислены в limitations.
-4. Для каждого символа: `references`, `implementation` и call hierarchy (`prepare` → `incomingCalls`, call
-   sites из `fromRanges`, а вызывающая конструкция целиком из `from.range` — `calling_constructs`; `outgoingCalls`
-   → вызываемые конструкции целиком из `to.range` — `callees`, вызовы в зависимости — `external`;
-   `definition` для первых 6 имён типов в тексте конструкции (идентификаторы с заглавной буквы, кроме
-   `Self/Some/None/Ok/Err` и собственного имени) — `type_definitions`, определение целиком из `targetRange`) — только при
-   объявленной capability, иначе `UNSUPPORTED`; callers не-callable символов — `NOT_APPLICABLE`.
-5. Pull diagnostics (`textDocument/diagnostic`) изменённых файлов → `diagnostics[]` с `CodeRef`, severity,
-   code и source (не больше 50 на файл). Это наблюдения сервера, не CI facts.
-6. Locations → `CodeRef` с blob oid стороны и SHA-256 строк. Locations вне snapshot (registry, toolchain)
-   попадают в `external` (home → `~`), несопоставимые — в `unresolved` с причиной. `CodeRef` построчные,
-   поэтому negotiated position encoding (записан в `position_encoding`) на них не влияет.
+1. Each side is written byte-for-byte into a temporary directory from the object database (`ls-tree` + `cat-file
+   --batch`): no checkout, filters, `export-subst` or hooks. Secret paths, symlinks, submodules and blobs > 4 MiB
+   are not written. Base and head do not share workspace state.
+2. The server is started with a cleared environment (`PATH`, `HOME`, `CARGO_HOME`, `RUSTUP_HOME`, `TMPDIR`, `LANG`),
+   so SCM/model credentials never reach it.
+3. `documentSymbol` of changed files → the innermost named constructs (function, method,
+   constructor, class, interface, struct, enum; module-level `const`/`let` — these are React components and hooks)
+   that intersect changed lines. Anonymous callbacks and import bindings are skipped; the change is attributed to the
+   nearest named construct. At most 60 symbols per document; the rest are listed in limitations.
+4. For each symbol: `references`, `implementation` and call hierarchy (`prepare` → `incomingCalls`, call
+   sites from `fromRanges`, and the whole calling construct from `from.range` — `calling_constructs`; `outgoingCalls`
+   → whole callee constructs from `to.range` — `callees`, calls into dependencies — `external`;
+   `definition` for the first 6 type names in the construct's text (capitalized identifiers, except
+   `Self/Some/None/Ok/Err` and its own name) — `type_definitions`, the whole definition from `targetRange`) — only when
+   the capability is declared, otherwise `UNSUPPORTED`; callers of non-callable symbols are `NOT_APPLICABLE`.
+5. Pull diagnostics (`textDocument/diagnostic`) of changed files → `diagnostics[]` with `CodeRef`, severity,
+   code and source (at most 50 per file). These are server observations, not CI facts.
+6. Locations → `CodeRef` with the side's blob oid and SHA-256 of the lines. Locations outside the snapshot (registry, toolchain)
+   go into `external` (home → `~`), unmappable ones into `unresolved` with a reason. `CodeRef`s are line-based,
+   so the negotiated position encoding (recorded in `position_encoding`) does not affect them.
 
-У каждого символа есть `path_class` (`PRODUCTION | TEST | GENERATED | CONFIG | BUILD`) по имени пути и
-флагу generated из diff manifest. Rust `build_configuration` перечисляет editions и объявленные features
-каждого пакета (`features:<package>`); анализируются только default features и host cfg. TS
-`build_configuration` перечисляет каждый `tsconfig*.json` стороны (`tsconfig:<path>`: `extends`, project
-`references`, aliases из `paths`, `composite`; JSONC с комментариями и trailing commas), пакеты
-(`package:<dir>` → имя из `package.json`) и globs `pnpm-workspace.yaml` (`workspace`). `extends` из npm-пакета
-без установленных зависимостей и неразбираемые файлы перечислены в limitations.
+Every symbol has a `path_class` (`PRODUCTION | TEST | GENERATED | CONFIG | BUILD`) derived from the path name and
+the generated flag from the diff manifest. Rust `build_configuration` lists the editions and declared features
+of each package (`features:<package>`); only default features and host cfg are analyzed. TS
+`build_configuration` lists each `tsconfig*.json` of the side (`tsconfig:<path>`: `extends`, project
+`references`, aliases from `paths`, `composite`; JSONC with comments and trailing commas), packages
+(`package:<dir>` → name from `package.json`) and `pnpm-workspace.yaml` globs (`workspace`). `extends` from an npm package
+without installed dependencies and unparsable files are listed in limitations.
 
-Пример: [run facts](examples/semantic/run-facts.json), [semantic evidence](examples/semantic/evidence-semantic-head.json)
-и [evidence manifest](examples/semantic/evidence-manifest.json) локального review двух commits TS-проекта.
-Поведение на настоящих snapshots без настоящего сервера проверяет scripted LSP
-([`tests/semantic.rs`](../crates/sych-adapters/tests/semantic.rs)): раздельные base/head workspaces, rename
-Unicode-файла, удалённая конструкция, пустой ответ как `PARTIAL`, отсутствующие capabilities как `UNSUPPORTED`.
+Example: [run facts](examples/semantic/run-facts.json), [semantic evidence](examples/semantic/evidence-semantic-head.json)
+and [evidence manifest](examples/semantic/evidence-manifest.json) of a local review of two commits of a TS project.
+Behavior on real snapshots without a real server is tested by a scripted LSP
+([`tests/semantic.rs`](../crates/sych-adapters/tests/semantic.rs)): separate base/head workspaces, rename of a
+Unicode file, a deleted construct, an empty response as `PARTIAL`, missing capabilities as `UNSUPPORTED`.
 
 ## Go build configuration
 
-Go backend ищет `go.work` и все `go.mod` стороны (без `vendor`, `testdata`, скрытых каталогов, глубина 6) и
-записывает в `build_configuration`: `toolchain` (pinned Go, `GOTOOLCHAIN=local`), `goos`/`goarch` (host),
-`build_tags: none`, `cgo: disabled`, `go.work` (`use`), `module:<path>` (module, `go`, число requirements,
-`toolchain`), `replace:<file>:<module>` и `vendor`. Limitations называют модуль с `go` новее pinned, `replace` на
-путь вне snapshot или без `go.mod`, и то, что references/call hierarchy покрывают только активную конфигурацию
-(GOOS/GOARCH без дополнительных tags) и не проходят через interface dispatch, reflection и function values.
-gopls работает с `GOPROXY=off` и Sych-owned `GOMODCACHE`/`GOCACHE`/`GOPATH` в `~/.cache/sych`; без установки
-зависимостей пакеты внешних модулей не разрешаются (limitation `dependencies are not installed`). Producer —
-версия gopls (`v0.24.0`), а не его build info.
+The Go backend looks for `go.work` and all `go.mod` files of the side (excluding `vendor`, `testdata`, hidden directories; depth 6) and
+records in `build_configuration`: `toolchain` (pinned Go, `GOTOOLCHAIN=local`), `goos`/`goarch` (host),
+`build_tags: none`, `cgo: disabled`, `go.work` (`use`), `module:<path>` (module, `go`, number of requirements,
+`toolchain`), `replace:<file>:<module>` and `vendor`. Limitations name a module with a `go` newer than the pinned one, a `replace` pointing to
+a path outside the snapshot or without `go.mod`, and the fact that references/call hierarchy cover only the active configuration
+(GOOS/GOARCH without additional tags) and do not go through interface dispatch, reflection or function values.
+gopls runs with `GOPROXY=off` and a Sych-owned `GOMODCACHE`/`GOCACHE`/`GOPATH` in `~/.cache/sych`; without dependency
+installation, packages of external modules are not resolved (limitation `dependencies are not installed`). The producer is
+the gopls version (`v0.24.0`), not its build info.
 
-Поддержанный профиль один: host GOOS/GOARCH, без tags, cgo off. Код под другими build constraints попадает в
-syntax facts (`cfg_gate` с `//go:build`), но не в semantic answers.
+There is one supported profile: host GOOS/GOARCH, no tags, cgo off. Code under other build constraints appears in
+syntax facts (`cfg_gate` with `//go:build`), but not in semantic answers.
 
 ## Dependencies and sandbox
 
-Без зависимостей imports npm/workspace пакетов не разрешаются, а rust-analyzer offline не видит std и
-crates, которых нет в кеше. `tooling.dependency_install` в `sych.yaml` ([CONFIG.md](CONFIG.md)) включает
-установку для каждой стороны отдельно, до старта сервера:
+Without dependencies, imports of npm/workspace packages are not resolved, and offline rust-analyzer cannot see std or
+crates that are not in the cache. `tooling.dependency_install` in `sych.yaml` ([CONFIG.md](CONFIG.md)) enables
+installation for each side separately, before the server starts:
 
-- TS: pinned pnpm (версия из `packageManager` в `package.json`, манифест [`pinned.json`](../crates/sych-adapters/src/tools/pinned.json))
-  выполняет `install --frozen-lockfile --ignore-scripts --ignore-pnpmfile` с registry `registry.npmjs.org`,
-  без user `.npmrc`, store в `~/.cache/sych/pnpm-store`. Только pnpm lockfile.
-- Go: `go mod download` закреплённым Go в каждом модуле (или в корне `go.work`) через `proxy.golang.org` и
-  `sum.golang.org` в `~/.cache/sych/go-mod`; код репозитория не исполняется. Rust-style docker не используется.
-- Rust: `cargo fetch` workspace и std toolchain (`RUSTC_BOOTSTRAP=1` только для std manifest) в
-  `~/.cache/sych/cargo-home`; rust-analyzer затем работает offline с этим `CARGO_HOME`, хостовый `~/.cargo`
-  с credentials не используется.
-- bwrap: корень хоста read-only; `$HOME`, `/tmp`, `/root`, `/run/user`, `/run/secrets` заменены пустым tmpfs;
-  обратно монтируются только workspace (rw), store/`CARGO_HOME` (rw), бинарь инструмента и `RUSTUP_HOME`
-  (ro); окружение очищено до `PATH`, `LANG`, `NIX_LD*`, `HOME=/tmp`. Сеть общая — для registry.
-- docker: `--rm --cap-drop ALL --read-only --security-opt no-new-privileges`, тот же набор mounts, uid
-  владельца workspace. Rust через docker не ставится (host toolchain в образе не работает) — следующий
-  backend или политика.
-- `build_configuration.dependencies` показывает итог (`installed (bwrap, pnpm 12.14.0, scripts off)`,
-  `fetched (bwrap, sych CARGO_HOME)` или `not installed`). Деградировавший результат не кешируется.
+- TS: pinned pnpm (version from `packageManager` in `package.json`, manifest [`pinned.json`](../crates/sych-adapters/src/tools/pinned.json))
+  runs `install --frozen-lockfile --ignore-scripts --ignore-pnpmfile` against the `registry.npmjs.org` registry,
+  without the user's `.npmrc`, with the store in `~/.cache/sych/pnpm-store`. pnpm lockfile only.
+- Go: `go mod download` with the pinned Go in each module (or in the `go.work` root) via `proxy.golang.org` and
+  `sum.golang.org` into `~/.cache/sych/go-mod`; repository code is not executed. Rust-style docker is not used.
+- Rust: `cargo fetch` of the workspace and the std toolchain (`RUSTC_BOOTSTRAP=1` only for the std manifest) into
+  `~/.cache/sych/cargo-home`; rust-analyzer then runs offline with this `CARGO_HOME`; the host `~/.cargo`
+  with credentials is not used.
+- bwrap: the host root is read-only; `$HOME`, `/tmp`, `/root`, `/run/user`, `/run/secrets` are replaced with an empty tmpfs;
+  only the workspace (rw), the store/`CARGO_HOME` (rw), the tool binary and `RUSTUP_HOME`
+  (ro) are mounted back; the environment is cleared down to `PATH`, `LANG`, `NIX_LD*`, `HOME=/tmp`. The network is shared, for the registry.
+- docker: `--rm --cap-drop ALL --read-only --security-opt no-new-privileges`, the same set of mounts, the uid
+  of the workspace owner. Rust is not installed via docker (the host toolchain does not work in the image) — the next
+  backend or the policy applies.
+- `build_configuration.dependencies` shows the outcome (`installed (bwrap, pnpm 12.14.0, scripts off)`,
+  `fetched (bwrap, sych CARGO_HOME)` or `not installed`). A degraded result is not cached.
 
-Независимо от установки в workspace не пишутся `.cargo/config*` и `rust-analyzer.toml` (они могут задать
-команды для cargo/rust-analyzer), а `rust-toolchain` с `path` даёт `UNSUPPORTED`: иначе инструменты хоста
-исполнили бы код из repository.
+Regardless of installation, `.cargo/config*` and `rust-analyzer.toml` are not written to the workspace (they can define
+commands for cargo/rust-analyzer), and a `rust-toolchain` with `path` yields `UNSUPPORTED`: otherwise host tools
+would execute code from the repository.
 
 ## Syntax facts
 
-`sych review` всегда разбирает изменённые `.rs` (syn 2), `.ts/.tsx/.js/.jsx` (oxc 0.139, последняя версия с
-MSRV ≤ 1.94), `.go` и `.py/.pyi` (tree-sitter) файлы обеих сторон в процессе, без исполнения кода, и сохраняет `SyntaxFacts`
-([schema](../schemas/run-facts.schema.json), вместе с semantic facts — артефакт `facts`) как derived static
-evidence. Факт — это форма кода с `CodeRef`, `in_change` и деталью, а не finding: макросы не раскрываются, типы
-не разрешаются, отсутствие факта ничего не доказывает.
+`sych review` always parses changed `.rs` (syn 2), `.ts/.tsx/.js/.jsx` (oxc 0.139, the latest version with
+MSRV ≤ 1.94), `.go` and `.py/.pyi` (tree-sitter) files of both sides in-process, without executing code, and stores `SyntaxFacts`
+([schema](../schemas/run-facts.schema.json), together with semantic facts — the `facts` artifact) as derived static
+evidence. A fact is a code shape with a `CodeRef`, `in_change` and a detail, not a finding: macros are not expanded, types
+are not resolved, and the absence of a fact proves nothing.
 
-- Rust: `async_fn`, `guard_across_await` (guard от `lock/read/write/borrow(_mut)` жив на `.await` того же блока,
-  `drop(g)` его снимает; замыкания и `async`-блоки не считаются), `select_macro`, `detached_spawn` (handle
-  выброшен), `blocking_in_async` (`thread::sleep`, `std::fs::*`, `block_on`), `discarded_result` (`let _ =` вызова,
-  `.ok();`), `unwrap`, `drop_impl`, `public_item` (сигнатура), `cfg_gate`, `inactive_cfg` (item или statement под
-  `#[cfg]`, который анализируемая сборка не компилирует: не host Linux, не `test`/`debug_assertions`, не default
-  feature из ближайшего `Cargo.toml`; неизвестный предикат тоже неактивен), `serde_attribute`, `unexpanded_macro`
-  (логирующие макросы `tracing`/`log` считаются известными: их аргументы видны), `debug_formatted` (`?value`,
-  `{value:?}` или `{:?}` в логирующем макросе; тип берётся из параметра функции, `related` — его определения в
-  snapshot, стандартные типы не отмечаются), `test_module`, `lint_suppressed` (`#[allow]`/`#[expect]`),
+- Rust: `async_fn`, `guard_across_await` (a guard from `lock/read/write/borrow(_mut)` is alive across an `.await` of the same block;
+  `drop(g)` releases it; closures and `async` blocks are not counted), `select_macro`, `detached_spawn` (handle
+  discarded), `blocking_in_async` (`thread::sleep`, `std::fs::*`, `block_on`), `discarded_result` (`let _ =` of a call,
+  `.ok();`), `unwrap`, `drop_impl`, `public_item` (signature), `cfg_gate`, `inactive_cfg` (an item or statement under
+  a `#[cfg]` that the analyzed build does not compile: not host Linux, not `test`/`debug_assertions`, not a default
+  feature from the nearest `Cargo.toml`; an unknown predicate is also inactive), `serde_attribute`, `unexpanded_macro`
+  (`tracing`/`log` logging macros are considered known: their arguments are visible), `debug_formatted` (`?value`,
+  `{value:?}` or `{:?}` in a logging macro; the type is taken from the function parameter, `related` are its definitions in
+  the snapshot, standard types are not flagged), `test_module`, `lint_suppressed` (`#[allow]`/`#[expect]`),
   `test_skipped` (`#[ignore]`).
 - React: `effect_with_cleanup` / `effect_without_cleanup`, `unpaired_listener`, `unpaired_timer`,
-  `unpaired_subscription`, `async_effect_guarded` / `async_effect_unguarded` (AbortController, `signal` или
-  stale-флаг `ignore/cancelled/…`), `mutation_call`, `invalidation_call`, `controlled_input`,
+  `unpaired_subscription`, `async_effect_guarded` / `async_effect_unguarded` (AbortController, `signal` or
+  a stale flag `ignore/cancelled/…`), `mutation_call`, `invalidation_call`, `controlled_input`,
   `uncontrolled_input`, `controlled_without_handler`, `form_submit`, `async_state_flag`, `custom_hook_call`,
   `test_skipped` (`it/test/describe.skip|only|todo`).
-  Для custom hook literal search по pinned tree находит его определение (`related`), чтобы ревьюировалась
-  текущая реализация обёртки, а не её имя.
+  For a custom hook, a literal search over the pinned tree finds its definition (`related`), so that the current
+  implementation of the wrapper is reviewed, not its name.
 
-В packet рискованные формы на изменённых строках идут как `REFUTING`; `select_macro`, `serde_attribute`,
-`cfg_gate` и `unexpanded_macro` подписываются на своём span; определения project hooks и типов `debug_formatted`
-идут как `SUPPORTING`. Изменённый код, поведение которого snapshot не показывает, — gap пакета: `CFG_INACTIVE`
-(`inactive_cfg`), `MACRO_UNEXPANDED` (`unexpanded_macro`) и `DEBUG_UNSEEN_TYPE` (`debug_formatted` без
-определения типа). С таким gap обязательство не может быть `SUPPORTED`: `context_limited` переводит его в
-`UNKNOWN/SEMANTIC_GAP`; `VIOLATED` тоже, если все HEAD-якоря его NOT_MET-критериев лежат в таком коде, а
-нарушение, показанное в другом месте изменения, остаётся. У discovery-пакетов gap делает coverage `PARTIAL`. Макросы
-`anyhow` (`bail!`, `ensure!`, `anyhow!`, `format_err!`), `serde_json::json!` и `tokio::join!`/`try_join!`/`pin!`
-считаются известными. Ссылки внутри `#[cfg(test)]`-модулей считаются тестами (`tested_by`). Diagnostics попадают в packet
-только как `SUPPORTING` (не больше 5 на файл) с пометкой, что они могут быть артефактом анализа.
+In the packet, risky shapes on changed lines go as `REFUTING`; `select_macro`, `serde_attribute`,
+`cfg_gate` and `unexpanded_macro` are labeled on their span; definitions of project hooks and `debug_formatted` types
+go as `SUPPORTING`. Changed code whose behavior the snapshot does not show is a packet gap: `CFG_INACTIVE`
+(`inactive_cfg`), `MACRO_UNEXPANDED` (`unexpanded_macro`) and `DEBUG_UNSEEN_TYPE` (`debug_formatted` without
+a type definition). With such a gap an obligation cannot be `SUPPORTED`: `context_limited` turns it into
+`UNKNOWN/SEMANTIC_GAP`; so does `VIOLATED` if all HEAD anchors of its NOT_MET criteria lie in such code, while a
+violation shown elsewhere in the change remains. For discovery packets the gap makes coverage `PARTIAL`. The
+`anyhow` macros (`bail!`, `ensure!`, `anyhow!`, `format_err!`), `serde_json::json!` and `tokio::join!`/`try_join!`/`pin!`
+are considered known. References inside `#[cfg(test)]` modules count as tests (`tested_by`). Diagnostics enter the packet
+only as `SUPPORTING` (at most 5 per file), marked as possibly being analysis artifacts.
 
 - Go (tree-sitter-go 0.25): `import`, `cfg_gate` (`//go:build`), `context_param`, `returns_error`, `defer`,
   `detached_spawn` (`go` statement), `channel_op` (send, receive, `close`, `select`), `tx_boundary`
   (`Begin/BeginTx/Commit/Rollback`), `db_call` (`Exec/Query/QueryRow/Prepare[Context]`, sqlx `NamedExec`),
   `write_call` (`os.WriteFile/Create/Remove/…`), `network_call` (`http.Get/Post/…`, `*http.Client`),
-  `discarded_result` (`_ = call()`), `dynamic_dispatch` (`reflect.*`), `interface_call` (вызов через interface,
-  объявленный в пакете), `test_skipped` (`t.Skip*`), `registered_effect_call`. Тип receiver SQL-вызова (`subject`)
-  берётся из параметров, локальных `x := db.BeginTx(..)`/`sql.Open` и полей struct всех `.go` файлов того же
-  каталога на той же стороне, а не из текста SQL: `tx.ExecContext` → `*sql.Tx`, `s.db.ExecContext` → `*sql.DB`;
-  неизвестный receiver остаётся без типа. `guard` — условие ближайшего `if` в функции.
-- Python (tree-sitter-python 0.25) — fallback M3: `import` (`related` — файл модуля в snapshot: `a/b.py`,
-  `a/b/__init__.py`, `src/`-layout, относительный импорт, namespace-каталог; модуль вне snapshot и не из stdlib
-  получает `subject: unresolved`), `resource_scope` (`with`/`async with`, `try/finally`), `detached_spawn` /
-  `async_task` (`create_task`/`ensure_future` выброшен / сохранён, `Thread(..).start()`), `write_call`
+  `discarded_result` (`_ = call()`), `dynamic_dispatch` (`reflect.*`), `interface_call` (a call through an interface
+  declared in the package), `test_skipped` (`t.Skip*`), `registered_effect_call`. The receiver type of an SQL call (`subject`)
+  is taken from parameters, locals `x := db.BeginTx(..)`/`sql.Open` and struct fields of all `.go` files of the same
+  directory on the same side, not from the SQL text: `tx.ExecContext` → `*sql.Tx`, `s.db.ExecContext` → `*sql.DB`;
+  an unknown receiver stays untyped. `guard` is the condition of the nearest `if` in the function.
+- Python (tree-sitter-python 0.25) — M3 fallback: `import` (`related` is the module file in the snapshot: `a/b.py`,
+  `a/b/__init__.py`, `src/` layout, relative import, namespace directory; a module outside the snapshot and not from stdlib
+  gets `subject: unresolved`), `resource_scope` (`with`/`async with`, `try/finally`), `detached_spawn` /
+  `async_task` (`create_task`/`ensure_future` discarded / stored, `Thread(..).start()`), `write_call`
   (`open(.., "w"|"a"|"x"|"+")`, `.write`, `.unlink`, …), `db_call` (`execute*`, `session.add/delete/merge/flush`,
   `.objects.`, `save`), `tx_boundary` (`commit/rollback/begin/atomic`), `network_call` (`requests/httpx/aiohttp/urllib`,
-  `*client`/`*session`), `swallowed_exception` (`except` только с `pass/continue/break/return`),
+  `*client`/`*session`), `swallowed_exception` (`except` with only `pass/continue/break/return`),
   `dynamic_dispatch` (`getattr/setattr/eval/exec/import_module/__import__/globals`), `monkey_patch`
-  (`module.attr = ..`, `setattr(module, ..)`), `runtime_registration` (декоратор не из списка обёрток, например
-  `@app.route`, и `register/connect/subscribe` на уровне модуля), `test_skipped` (`pytest.skip`, `@skip*`, `xfail`),
-  `registered_effect_call`. Receivers не типизированы: совпадение — по имени, это форма, а не разрешённый callee.
-- Вызовы wrappers из effect registry (`match.language` = `go|python|typescript`, имя — последний сегмент
-  `match.symbol`) — `registered_effect_call` с `detail` = registry symbol; `related` — их определения в snapshot,
-  чтобы читалась текущая реализация. В Go wrapper сверяется и с типом receiver, `subject` — тип переданной
-  транзакции.
+  (`module.attr = ..`, `setattr(module, ..)`), `runtime_registration` (a decorator not on the wrapper list, for example
+  `@app.route`, and module-level `register/connect/subscribe`), `test_skipped` (`pytest.skip`, `@skip*`, `xfail`),
+  `registered_effect_call`. Receivers are untyped: matching is by name; this is a shape, not a resolved callee.
+- Calls to wrappers from the effect registry (`match.language` = `go|python|typescript`, the name is the last segment of
+  `match.symbol`) are `registered_effect_call` with `detail` = registry symbol; `related` are their definitions in the snapshot,
+  so that the current implementation is read. In Go the wrapper is also checked against the receiver type; `subject` is the type of the passed
+  transaction.
 
-Изменённые `dynamic_dispatch`, `monkey_patch`, `runtime_registration` дают gap `DYNAMIC_UNRESOLVED`, изменённый
-Python import с `subject: unresolved` — `IMPORT_UNRESOLVED`; оба, как `CFG_INACTIVE`, не дают обязательству быть
-`SUPPORTED`. Пустой AST или search result не доказывает отсутствия динамических зависимостей.
+Changed `dynamic_dispatch`, `monkey_patch`, `runtime_registration` yield the `DYNAMIC_UNRESOLVED` gap, a changed
+Python import with `subject: unresolved` yields `IMPORT_UNRESOLVED`; both, like `CFG_INACTIVE`, prevent an obligation from being
+`SUPPORTED`. An empty AST or search result does not prove the absence of dynamic dependencies.
 
-### Python: базовый fallback M3 и что отложено до M6
+### Python: basic M3 fallback and what is deferred to M6
 
-Сейчас для Python есть только syntax facts выше, literal search определений wrappers и импорт готовых
-typecheck/lint/test reports через общий CI-контракт (JUnit, SARIF, Cobertura, LCOV). Semantic backend для Python —
-`UNSUPPORTED` с причиной «no language server before roadmap M6», и в packet это gap `semantic backend Unsupported`.
-Не включены до отдельного решения M6 по измеренной необходимости: language server (pyright/basedpyright/pylsp),
-references/callers/implementations, вывод типов receivers, разрешение импортов зависимостей, установка Python
-dependencies и любой запуск project code или analyzer plugins.
+Currently Python has only the syntax facts above, a literal search for wrapper definitions, and import of ready-made
+typecheck/lint/test reports through the common CI contract (JUnit, SARIF, Cobertura, LCOV). The semantic backend for Python is
+`UNSUPPORTED` with the reason «no language server before roadmap M6», and in the packet this is the gap `semantic backend Unsupported`.
+Not included until a separate M6 decision based on measured need: a language server (pyright/basedpyright/pylsp),
+references/callers/implementations, receiver type inference, resolution of dependency imports, installation of Python
+dependencies, and any execution of project code or analyzer plugins.
 
 ## Effect ledger
 
-`sych_core::effects` строит один `EffectLedger` на run из syntax facts всех языков и effect registry
-([schema](../schemas/run-facts.schema.json), поле `ledger` артефакта `facts`; в отчёте — `effect_ledger`;
-derived static evidence `sych-effect-ledger`, completeness `PARTIAL`). Это ограниченная base/head модель
-наблюдаемых эффектов изменённых файлов, не full-program dataflow.
+`sych_core::effects` builds one `EffectLedger` per run from the syntax facts of all languages and the effect registry
+([schema](../schemas/run-facts.schema.json), field `ledger` of the `facts` artifact; in the report — `effect_ledger`;
+derived static evidence `sych-effect-ledger`, completeness `PARTIAL`). It is a bounded base/head model of
+observable effects of changed files, not full-program dataflow.
 
-- Эффекты: `db_call`/`tx_boundary` → `db_write`, `write_call` → `filesystem`, `network_call`/`mutation_call` →
-  `network`, `invalidation_call` → `cache`, React effects и unpaired listeners/timers/subscriptions →
-  `subscription`, async effects → `ui`, `registered_effect_call` → `effect_kind` registry. Ключ — файл (имя на
-  head), конструкция, kind и target (операция, hook или registry symbol).
-- Occurrence на каждой стороне: `CodeRef`, `payload` (вызов, как его показывают факты), guard, `transaction_scope` (`transaction (*sql.Tx)`, `none: *sql.DB
-  outside any transaction`, `none (no transaction passed)`, `unknown (receiver type unresolved)`, Python —
-  enclosing `atomic/begin` или последующий `commit`), `lifetime_scope` (`caller`, `detached: go …`, `task: …`,
-  `with …`, `try/finally`, для React — cleanup и stale results), `failure_behavior` (ошибка возвращается,
-  deferred rollback, detached, swallowed except). Cardinality — число occurrences стороны.
-- Match: ключ только на base сначала ищется только на head в другой конструкции (`moved`; scope сравнивается
-  только транзакционный и lifetime, guard и обработка ошибок остаются у старой конструкции). Без semantic call
-  edge (head callers новой конструкции из старого файла) перенос `partial`. Иначе `removed` с пометкой, что
-  альтернативный механизм вне изменённых файлов не исключён. Ключ на обеих сторонах — `preserved` или `changed`
-  с notes: transaction scope, lifetime, failure behaviour, guard, multiplicity, порядок относительно других
-  эффектов конструкции. Совпадение SQL или имени ничего не доказывает: сравниваются receiver, scope и контракт.
-- Resolution: `resolved`; `partial` (перенос без call edge, removed/added, Python, registry без гарантии);
-  `dynamic_unknown` (неразрешённый receiver, `dynamic_dispatch`/`monkey_patch` в той же изменённой конструкции) —
-  тогда `preserved` становится `unresolved`.
-- Registry binding: каждая запись `effects.yaml` связывается со своими `implementation_refs` в этом diff (oid
-  base/head). `CURRENT` переносит `durable_with_transaction` в записи ledger; `IMPLEMENTATION_CHANGED` или
-  `UNBOUND` — нет, запись получает note «not carried», а packet — gap `REGISTRY_RECHECK`. Для гарантии
-  `durable_with_transaction` вызов вне транзакции или в detached goroutine после транзакции на base — `changed` с
-  note о том, что recovery path (relay, retry, reconciliation) ещё не установлен: потеря не утверждается.
-- `dependencies` — `(side, path, blob_oid)` всех occurrences и implementation refs: ledger переиспользуется, пока
-  они совпадают.
+- Effects: `db_call`/`tx_boundary` → `db_write`, `write_call` → `filesystem`, `network_call`/`mutation_call` →
+  `network`, `invalidation_call` → `cache`, React effects and unpaired listeners/timers/subscriptions →
+  `subscription`, async effects → `ui`, `registered_effect_call` → registry `effect_kind`. The key is the file (name on
+  head), construct, kind and target (operation, hook or registry symbol).
+- An occurrence on each side: `CodeRef`, `payload` (the call as the facts show it), guard, `transaction_scope` (`transaction (*sql.Tx)`, `none: *sql.DB
+  outside any transaction`, `none (no transaction passed)`, `unknown (receiver type unresolved)`, for Python —
+  the enclosing `atomic/begin` or a subsequent `commit`), `lifetime_scope` (`caller`, `detached: go …`, `task: …`,
+  `with …`, `try/finally`, for React — cleanup and stale results), `failure_behavior` (error returned,
+  deferred rollback, detached, swallowed except). Cardinality is the number of occurrences on the side.
+- Match: a key present only on base is first looked up on head only in another construct (`moved`; only the transaction
+  and lifetime scopes are compared; guard and error handling stay with the old construct). Without a semantic call
+  edge (head callers of the new construct from the old file) the move is `partial`. Otherwise `removed`, with a note that an
+  alternative mechanism outside the changed files is not ruled out. A key on both sides is `preserved` or `changed`
+  with notes: transaction scope, lifetime, failure behaviour, guard, multiplicity, order relative to other
+  effects of the construct. Matching SQL or names proves nothing: receiver, scope and contract are compared.
+- Resolution: `resolved`; `partial` (move without a call edge, removed/added, Python, registry without a guarantee);
+  `dynamic_unknown` (unresolved receiver, `dynamic_dispatch`/`monkey_patch` in the same changed construct) —
+  then `preserved` becomes `unresolved`.
+- Registry binding: each `effects.yaml` entry is bound to its `implementation_refs` in this diff (oids
+  base/head). `CURRENT` carries `durable_with_transaction` into the ledger entries; `IMPLEMENTATION_CHANGED` or
+  `UNBOUND` does not: the entry gets the note «not carried», and the packet gets the gap `REGISTRY_RECHECK`. For the
+  `durable_with_transaction` guarantee, a call outside a transaction or in a detached goroutine after the transaction on base is `changed` with
+  a note that a recovery path (relay, retry, reconciliation) has not been established yet: loss is not asserted.
+- `dependencies` — `(side, path, blob_oid)` of all occurrences and implementation refs: the ledger is reused while
+  they match.
 
-Ledger связан с обязательствами: EFFECT-01 активируется изменённым `implementation_refs` или записью не
-`preserved`, EFFECT-02 — ещё и записью с изменённым lifetime/failure. В packet unit'а записи не `preserved`/`added`
-идут `REFUTING` с notes в причине, остальные `SUPPORTING`; `dynamic_unknown` — gap `EFFECT_UNRESOLVED`. Оба gap
-ledger, как `UNSEEN_GAPS`, переводят `SUPPORTED` в `UNKNOWN/SEMANTIC_GAP`; `VIOLATED` остаётся. Посмотреть ledger:
-`sych review --format json` (`effect_ledger`), `sych show RUN --format json` или evidence `sych-effect-ledger`.
-Пары unsafe/safe §12.4 (Tx→DB и helper с `*sql.Tx`, outbox → goroutine и сохранённый вызов, изменённая
-реализация wrapper, React cleanup/stale results, invalidation removed/перенесена в hook, Python write за `with`,
-`getattr`) проверяются в [`tests/effect_ledger.rs`](../crates/sych-adapters/tests/effect_ledger.rs). Генерация
-runtime-тестов и full-program analysis не требуются.
+The ledger is linked to obligations: EFFECT-01 is activated by changed `implementation_refs` or by an entry that is not
+`preserved`, EFFECT-02 additionally by an entry with changed lifetime/failure. In a unit's packet, entries that are not `preserved`/`added`
+go as `REFUTING` with notes in the reason, the rest as `SUPPORTING`; `dynamic_unknown` is the gap `EFFECT_UNRESOLVED`. Both ledger
+gaps, like `UNSEEN_GAPS`, turn `SUPPORTED` into `UNKNOWN/SEMANTIC_GAP`; `VIOLATED` remains. To view the ledger:
+`sych review --format json` (`effect_ledger`), `sych show RUN --format json` or the `sych-effect-ledger` evidence.
+The unsafe/safe pairs of §12.4 (Tx→DB and a helper with `*sql.Tx`, outbox → goroutine and a preserved call, changed
+wrapper implementation, React cleanup/stale results, invalidation removed/moved into a hook, Python write outside `with`,
+`getattr`) are tested in [`tests/effect_ledger.rs`](../crates/sych-adapters/tests/effect_ledger.rs). Generating
+runtime tests and full-program analysis are not required.
 
 ## Pinned linters
 
-При `--semantic on` Sych сам запускает закреплённые линтеры на изменённых файлах head — только те, что не
-исполняют код репозитория и работают без настройки проекта:
+With `--semantic on`, Sych itself runs pinned linters on the changed head files — only those that do not
+execute repository code and work without project setup:
 
-| Линтер | Файлы | Вызов | Конфигурация проекта |
+| Linter | Files | Invocation | Project configuration |
 |---|---|---|---|
-| ruff | `.py`, `.pyi` | `check --output-format sarif --no-cache --exit-zero --force-exclude` | `pyproject.toml`, `ruff.toml`, `.ruff.toml`; без них — правила ruff по умолчанию |
-| oxlint | `.js/.jsx/.mjs/.cjs/.ts/.tsx/.mts/.cts` — и в JS-проекте без TypeScript backend | `--format sarif` | `.oxlintrc.json`; если где-то в дереве есть `jsPlugins` или `oxlint.config.*` (JS/TS), проектный конфиг не читается (`--disable-nested-config -c {}`), это limitation |
+| ruff | `.py`, `.pyi` | `check --output-format sarif --no-cache --exit-zero --force-exclude` | `pyproject.toml`, `ruff.toml`, `.ruff.toml`; without them — ruff default rules |
+| oxlint | `.js/.jsx/.mjs/.cjs/.ts/.tsx/.mts/.cts` — also in a JS project without a TypeScript backend | `--format sarif` | `.oxlintrc.json`; if `jsPlugins` or `oxlint.config.*` (JS/TS) appear anywhere in the tree, the project config is not read (`--disable-nested-config -c {}`); this is a limitation |
 | actionlint | `.github/workflows/*.y(a)ml` | `-shellcheck= -pyflakes= -format '{{json .}}'` | `.github/actionlint.y(a)ml` |
 | zizmor | workflows, `action.y(a)ml`, `.github/dependabot.yml` | `--offline --format sarif` | `zizmor.yml`, `.github/zizmor.yml` |
 
-Head материализуется из Git objects (как для language servers), линтер запускается в нём с очищенным окружением:
-пустой `PATH` (actionlint не найдёт shellcheck, oxlint — node), `HOME` — пустой временный каталог (нет
-пользовательских конфигов и credentials), без сети, не дольше 120 s. Абсолютные пути вывода приводятся к путям
-repository; находка получает `CodeRef`, если её строка есть на head. Результат — `LintFacts` в артефакте `facts` и
-в отчёте (`lint_facts`), derived static evidence `PARTIAL` с producer `<linter> <version>`. Если файл
-конфигурации линтера изменён в этом diff, limitation говорит, что набор правил — выбор автора изменения.
+Head is materialized from Git objects (as for language servers), and the linter runs in it with a cleared environment:
+empty `PATH` (actionlint will not find shellcheck, oxlint will not find node), `HOME` is an empty temporary directory (no
+user configs or credentials), no network, at most 120 s. Absolute output paths are mapped to
+repository paths; a finding gets a `CodeRef` if its line exists on head. The result is `LintFacts` in the `facts` artifact and
+in the report (`lint_facts`), derived static evidence `PARTIAL` with producer `<linter> <version>`. If the linter
+configuration file is changed in this diff, a limitation states that the rule set is the change author's choice.
 
-В packet unit'а находки на изменённых строках head — `REFUTING` (`lint <linter> <level> <rule>: …`); находки на
-неизменённых строках не попадают в packet. Линтер, который не удалось скачать или запустить, — gap
-`LINT_UNAVAILABLE`: его молчание не читается как чистый результат. Workflow-находки (actionlint, zizmor) идут
-в packet любого языка и дополняют TEST-INTEGRITY. ESLint, clippy, golangci-lint, mypy/pyright не запускаются:
-они исполняют конфиг/плагины проекта или требуют сборки; их отчёты принимаются из CI (SARIF, cargo JSON и др.).
+In a unit's packet, findings on changed head lines are `REFUTING` (`lint <linter> <level> <rule>: …`); findings on
+unchanged lines do not enter the packet. A linter that could not be downloaded or run is the gap
+`LINT_UNAVAILABLE`: its silence is not read as a clean result. Workflow findings (actionlint, zizmor) go
+into the packet of any language and supplement TEST-INTEGRITY. ESLint, clippy, golangci-lint, mypy/pyright are not run:
+they execute the project's config/plugins or require a build; their reports are accepted from CI (SARIF, cargo JSON, etc.).
 
 ## Semantic cache
 
-Факты стороны кешируются в `$SYCH_TOOLS_DIR/../semantic` (по умолчанию `~/.cache/sych/semantic`). Ключ — версия
-Sych, ревизия алгоритма, snapshot id (он фиксирует оба дерева и diff, а значит и запрошенные файлы), сторона, язык, сервер с версией,
-аргументы, initialization options и build configuration. Вместе с записью хранится access partition (repository
-identity); при hit она сверяется заново, другой repository с тем же ключом получит промах. Кешируются только
-`READY`-ответы. Ошибка записи кеша стоит только повторного вычисления.
+Side facts are cached in `$SYCH_TOOLS_DIR/../semantic` (default `~/.cache/sych/semantic`). The key is the
+Sych version, algorithm revision, snapshot id (it pins both trees and the diff, and hence the requested files), side, language, server with version,
+arguments, initialization options and build configuration. An access partition (repository
+identity) is stored with the entry; on a hit it is re-checked, so another repository with the same key gets a miss. Only
+`READY` responses are cached. A cache write error costs only a recomputation.
 
-Ревизия алгоритма отделена от версии crate: результаты до канонизации корней workspace вычисляются
-заново, а старые файлы кеша не удаляются.
+The algorithm revision is separate from the crate version: results from before workspace root canonicalization are
+recomputed, and old cache files are not deleted.
 
 ## ContextBroker
 
-`sych_core::broker` строит по одному discovery packet на review unit и по verification packet на обязательство
-(§9). Packet не содержит исходного текста: только `CodeRef` с hash, причины выбора, приоритет
-(`REQUIRED → REFUTING → SUPPORTING`), completeness, связи (`called_by`, `calls`, `uses_type`, `implemented_by`, `tested_by`,
-`read_by`, `written_by`, `referenced_by`), записи semantic-запросов, исключённое с причиной и gaps. Текст читается обратно через
-`SnapshotReader`, который сверяет hash. Пакеты сохраняются артефактом `context_packets` run. Пример с исключёнными
-источниками — [packets-with-exclusions.json](examples/context/packets-with-exclusions.json): Rust crate с
-`initial_tokens_per_unit: 450`, construct `save` обеих сторон обязателен и показан, его caller `handle` ушёл в
-`excluded` с причиной `BUDGET`.
+`sych_core::broker` builds one discovery packet per review unit and one verification packet per obligation
+(§9). A packet contains no source text: only `CodeRef`s with hash, selection reasons, priority
+(`REQUIRED → REFUTING → SUPPORTING`), completeness, relations (`called_by`, `calls`, `uses_type`, `implemented_by`, `tested_by`,
+`read_by`, `written_by`, `referenced_by`), records of semantic queries, excluded items with reasons, and gaps. Text is read back via
+`SnapshotReader`, which verifies the hash. Packets are stored as the run's `context_packets` artifact. An example with excluded
+sources is [packets-with-exclusions.json](examples/context/packets-with-exclusions.json): a Rust crate with
+`initial_tokens_per_unit: 450`; the `save` construct of both sides is required and shown, its caller `handle` went into
+`excluded` with reason `BUDGET`.
 
-Порядок сборки: изменённые строки обеих сторон и их enclosing constructs (обязательные) → contracts правил
-обязательства из доверенной policy (текстом в prompt под обязательством, с path и hash) → CI diagnostics на
-изменённых строках head (`REFUTING`) → error/warning diagnostics rust-analyzer/tsserver (вспомогательные: без
-proc-macros и зависимостей часть из них — артефакты анализа) → callers, callees (wrappers и helpers целиком),
-определения используемых типов,
-implementations, tests и references глубины 1 и блоки imports изменённого файла по syntax facts (Rust `use`,
-TS `import`; вспомогательные). Перекрывающиеся и соседние spans одного файла и стороны сливаются с сохранением
-всех причин.
+Assembly order: changed lines of both sides and their enclosing constructs (required) → contracts of the obligation's rules
+from the trusted policy (as text in the prompt under the obligation, with path and hash) → CI diagnostics on
+changed head lines (`REFUTING`) → rust-analyzer/tsserver error/warning diagnostics (auxiliary: without
+proc-macros and dependencies, some of them are analysis artifacts) → callers, callees (wrappers and helpers in full),
+definitions of used types,
+implementations, tests and depth-1 references, and import blocks of the changed file from syntax facts (Rust `use`,
+TS `import`; auxiliary). Overlapping and adjacent spans of the same file and side are merged, keeping
+all reasons.
 
-Лимиты §9.3: бюджет unit — `context.initial_tokens_per_unit` (6000), verification packet — сумма по units, но не
-больше `context.max_tokens_per_request` (14000); токены считаются как байты текста (верхняя граница). Файлов на
-run — `context.max_source_files` (80, не касается обязательных spans). Semantic-запросов 24 на unit и 160 на run,
-span до 160 строк, текстовый blob до 512 KiB — пока константы §9.3. Обязательный span, который не помещается,
-не обрезается: он попадает в `excluded` как `REQUIRED_OVER_BUDGET`, и обязательство получает `UNKNOWN /
-CONTEXT_LIMIT` независимо от ответа модели. Syntax risk shapes и CI diagnostics (`REFUTING`) берутся только на
-изменённых строках и сливаются с обязательным hunk. Writers изменённого символа вне изменения тоже `REFUTING`:
-такой span за бюджетом исключается как `BUDGET`, оставляет gap `REFUTING_OVER_BUDGET`, и packet становится `PARTIAL`.
+§9.3 limits: the unit budget is `context.initial_tokens_per_unit` (6000), a verification packet gets the sum over units, but no
+more than `context.max_tokens_per_request` (14000); tokens are counted as bytes of text (an upper bound). Files per
+run: `context.max_source_files` (80, does not apply to required spans). 24 semantic queries per unit and 160 per run,
+spans up to 160 lines, text blobs up to 512 KiB — constants of §9.3 for now. A required span that does not fit
+is not truncated: it goes into `excluded` as `REQUIRED_OVER_BUDGET`, and the obligation gets `UNKNOWN /
+CONTEXT_LIMIT` regardless of the model's answer. Syntax risk shapes and CI diagnostics (`REFUTING`) are taken only on
+changed lines and are merged with the required hunk. Writers of a changed symbol outside the change are also `REFUTING`:
+such a span over budget is excluded as `BUDGET`, leaves the gap `REFUTING_OVER_BUDGET`, and the packet becomes `PARTIAL`.
 
-`packet resolution`: `UNAVAILABLE` — ничего не прочитано; `PARTIAL` — есть gaps (нет фактов для Rust/TS файла,
-backend `UNSUPPORTED/FAILED`, неразрешённые locations, лимит запросов, обязательное за бюджетом, исходники языков
-без backend — Java, Kotlin, Ruby, C/C++ и др.; Python — `UNSUPPORTED` до M6; изменённые CSS/HTML без browser/accessibility/visual reports — `NO_VISUAL_EVIDENCE`); иначе `SATISFIED`. Это достаточность собранного, а не истинность обязательства.
+`packet resolution`: `UNAVAILABLE` — nothing was read; `PARTIAL` — there are gaps (no facts for a Rust/TS file,
+backend `UNSUPPORTED/FAILED`, unresolved locations, query limit, required content over budget, sources in languages
+without a backend — Java, Kotlin, Ruby, C/C++, etc.; Python — `UNSUPPORTED` until M6; changed CSS/HTML without browser/accessibility/visual reports — `NO_VISUAL_EVIDENCE`); otherwise `SATISFIED`. This is the sufficiency of what was collected, not the truth of the obligation.
 
-Typed operations §9.4 (`sych_core::broker::Operation`, закрытый enum без лишних полей): `read_span`, `read_symbol`,
+§9.4 typed operations (`sych_core::broker::Operation`, a closed enum without extra fields): `read_span`, `read_symbol`,
 `find_definition`, `find_references`, `find_implementations`, `find_callers`, `find_callees`,
-`search_source` (только fixed string, одна строка до 200 символов, `git grep -F` по pinned tree, не дольше 5 s —
-иначе `FAILED` с причиной) и
-`read_evidence`. Отвеченные semantic-запросы — `PARTIAL`; символ вне изменённых конструкций — `UNSUPPORTED`
-(живые запросы к серверу ещё не подключены). Secret paths не читаются и не попадают в результаты поиска.
+`search_source` (fixed string only, one line of up to 200 characters, `git grep -F` over the pinned tree, at most 5 s —
+otherwise `FAILED` with a reason) and
+`read_evidence`. Answered semantic queries are `PARTIAL`; a symbol outside the changed constructs is `UNSUPPORTED`
+(live server queries are not connected yet). Secret paths are not read and do not appear in search results.
 
-## Ограничения
+## Limitations
 
-- Отвеченный запрос — всегда `PARTIAL`: пустой ответ не доказывает отсутствие callers.
-- Rust: build scripts, proc-macros и `cargo check` выключены, cargo работает offline. Generated и
-  macro-expanded items отсутствуют; health warning rust-analyzer (например, sysroot metadata offline)
-  записывается в limitations. Features — default, target — host.
-- Без `tooling.dependency_install` зависимости не устанавливаются: imports npm- и workspace-пакетов не
-  разрешаются, их callers отсутствуют. yarn/npm lockfiles пока не устанавливаются.
-- rust-analyzer с health `error` (например, нет toolchain для cargo) даёт `FAILED`, а не пустые ответы.
-- Call site — одна строка; вызывающая конструкция длиннее лимита span попадает в packet только call site.
-  Callee длиннее лимита span в packet не попадает, это записано в gaps.
-- Имена типов выбираются по соглашению о заглавной букве (Rust, TS), не по семантике: константы в верхнем регистре
-  тоже попадают в запросы, а типы с маленькой буквы — нет.
-- Readers и writers: для невызываемого символа `documentHighlight` в позиции каждой из первых 12 references даёт
-  kind `Read`/`Write`; остальные и ссылки без kind — в `unresolved` обоих наборов. Сервер без
-  `documentHighlightProvider` — `UNSUPPORTED`. Это доступ по имени в коде, не effect ledger (M3).
-- Rust offline без установки: sysroot std разрешается, только если его зависимости уже в кеше cargo, иначе
-  rust-analyzer даёт health warning, а diagnostics — ложные ошибки типов.
-- Go: только host GOOS/GOARCH без tags и с cgo off; gopls без установки зависимостей не видит внешние модули;
-  diagnostics — pull (`pullDiagnostics: true`): ошибки компилятора, vet и встроенный в gopls поднабор staticcheck
-  (`staticcheck: true` с ST-стилем не включается); при неустановленных зависимостях это ошибки импорта. Interface dispatch и reflection — `interface_call` и
-  `dynamic_dispatch`, call hierarchy их не проходит.
-- CI facts только импортируются (см. [LOCAL_REVIEW.md](LOCAL_REVIEW.md)); `cargo test` JSON (нестабильный
-  libtest формат) не поддерживается — test outcomes берутся из JUnit.
-- `rustup` по `rust-toolchain.toml` проверяемого репозитория может скачать указанный toolchain.
+- An answered query is always `PARTIAL`: an empty response does not prove the absence of callers.
+- Rust: build scripts, proc-macros and `cargo check` are disabled; cargo runs offline. Generated and
+  macro-expanded items are absent; a rust-analyzer health warning (for example, sysroot metadata offline)
+  is recorded in limitations. Features are default, target is host.
+- Without `tooling.dependency_install`, dependencies are not installed: imports of npm and workspace packages are not
+  resolved, and their callers are absent. yarn/npm lockfiles are not installed yet.
+- rust-analyzer with health `error` (for example, no toolchain for cargo) yields `FAILED`, not empty responses.
+- A call site is one line; for a calling construct longer than the span limit, only the call site enters the packet.
+  A callee longer than the span limit does not enter the packet; this is recorded in gaps.
+- Type names are selected by the capitalization convention (Rust, TS), not by semantics: uppercase constants
+  also end up in queries, and lowercase types do not.
+- Readers and writers: for a non-callable symbol, `documentHighlight` at the position of each of the first 12 references yields
+  kind `Read`/`Write`; the rest and references without a kind go into `unresolved` of both sets. A server without
+  `documentHighlightProvider` is `UNSUPPORTED`. This is name-based access in code, not the effect ledger (M3).
+- Rust offline without installation: sysroot std is resolved only if its dependencies are already in the cargo cache; otherwise
+  rust-analyzer emits a health warning, and diagnostics show false type errors.
+- Go: only host GOOS/GOARCH without tags and with cgo off; without dependency installation gopls cannot see external modules;
+  diagnostics are pull (`pullDiagnostics: true`): compiler errors, vet and the staticcheck subset built into gopls
+  (`staticcheck: true` with ST style is not enabled); with uninstalled dependencies these are import errors. Interface dispatch and reflection are `interface_call` and
+  `dynamic_dispatch`; call hierarchy does not go through them.
+- CI facts are only imported (see [LOCAL_REVIEW.md](LOCAL_REVIEW.md)); `cargo test` JSON (unstable
+  libtest format) is not supported — test outcomes are taken from JUnit.
+- `rustup` may download the toolchain specified by the reviewed repository's `rust-toolchain.toml`.

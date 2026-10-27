@@ -1,31 +1,31 @@
 # sych-storage
 
-Долговременное локальное хранилище: SQLite (WAL, одно соединение) для runs, указателей результатов и
-model ledger, и content-addressed artifact store для неизменяемых документов run.
+Durable local storage: SQLite (WAL, a single connection) for runs, result pointers and the
+model ledger, and a content-addressed artifact store for immutable run documents.
 
-## Что внутри
+## What's inside
 
-| Модуль | Назначение |
+| Module | Purpose |
 |---|---|
-| `lib` | `Storage`: `migrate` (единственная операция, меняющая схему), `open` (отказывает непромигрированной или более новой БД), жизненный цикл run (`begin_run` → `complete_run`/`fail_run`/`cancel_run`), `put_artifact`/`load_artifact` |
-| `artifacts` | `ArtifactStore`: файлы по SHA-256 с атомарной записью |
-| `ledger` | cost ledger ModelGateway: атомарные reservations, идемпотентный settlement, `UNKNOWN_CHARGE` |
-| `gc` | `prune`: orphaned и просроченные artifacts; активные runs и retention защищены |
+| `lib` | `Storage`: `migrate` (the only operation that changes the schema), `open` (refuses an unmigrated or newer DB), the run lifecycle (`begin_run` → `complete_run`/`fail_run`/`cancel_run`), `put_artifact`/`load_artifact` |
+| `artifacts` | `ArtifactStore`: files keyed by SHA-256 with atomic writes |
+| `ledger` | ModelGateway cost ledger: atomic reservations, idempotent settlement, `UNKNOWN_CHARGE` |
+| `gc` | `prune`: orphaned and expired artifacts; active runs and retention are protected |
 
-## Инварианты
+## Invariants
 
-- Неудачный или отменённый run никогда не становится `COMPLETED`.
-- Artifact неизменяем: одинаковое содержимое — тот же адрес; документ читается через `decode` с проверкой
-  `schema_version`.
-- Доступ разделён по tenant и access scope (`Partition`); один hash не даёт доступа из другой partition.
-- Retention: исходные данные (snapshot, diff) — 7 дней, результаты и evidence — 30 дней.
+- A failed or cancelled run never becomes `COMPLETED`.
+- An artifact is immutable: identical content has the same address; a document is read via `decode` with a
+  `schema_version` check.
+- Access is partitioned by tenant and access scope (`Partition`); the same hash does not grant access from another partition.
+- Retention: source data (snapshot, diff) — 7 days, results and evidence — 30 days.
 
-Ошибки — `StorageError` (`thiserror`); `tracing` пишет миграции и жизненный цикл run (started, completed,
+Errors are `StorageError` (`thiserror`); `tracing` records migrations and the run lifecycle (started, completed,
 failed).
 
-Миграции лежат в `migrations/sqlite/` в корне репозитория.
+Migrations live in `migrations/sqlite/` at the repository root.
 
-## Проверки
+## Checks
 
 ```sh
 cargo test -p sych-storage

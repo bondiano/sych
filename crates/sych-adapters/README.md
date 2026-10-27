@@ -1,46 +1,46 @@
 # sych-adapters
 
-Всё, что Sych делает с внешним миром ради анализа: Git, language servers, парсеры, sandbox, модели и
-CI-отчёты. Адаптеры возвращают типы `sych-core` и никогда не исполняют код проверяемого репозитория
-привилегированно.
+Everything Sych does with the outside world for the sake of analysis: Git, language servers, parsers, sandbox, models and
+CI reports. Adapters return `sych-core` types and never execute code of the repository under review
+with privileges.
 
-## Что внутри
+## What's inside
 
-| Модуль | Назначение |
+| Module | Purpose |
 |---|---|
-| `git` | захардененный `git` (очищенное окружение, без hooks/filters/textconv), `LocalSnapshot` (три pinned позиции, diff manifest, `SnapshotReader`: чтение любого файла стороны и `git grep -F`), выгрузка стороны в каталог побайтно из object database |
-| `tools` | закреплённые версии language servers и pnpm (`tools/pinned.json`: версия, URL, SHA-256 на платформу), скачивание, проверка и атомарный кеш |
-| `semantic` | LSP-клиент, профили rust-analyzer и TypeScript 7 (`tsc --lsp`), изменённые конструкции, references/callers/implementations, pull diagnostics, semantic cache, установка зависимостей через `sandbox` |
-| `syntax` | syntax facts из `syn` (Rust) и `oxc` (TS/React) в процессе, без исполнения |
-| `sandbox` | запуск установщиков в bwrap (корень read-only, `$HOME`/`/tmp`/секреты скрыты) или docker (pinned digest) |
-| `ci` | нормализация `cargo --message-format=json` и JUnit в `CiFacts` с привязкой к tested commit |
-| `openrouter` | OpenRouter transport для ModelGateway: pinned model и upstreams, без hidden fallback |
+| `git` | hardened `git` (cleared environment, no hooks/filters/textconv), `LocalSnapshot` (three pinned positions, diff manifest, `SnapshotReader`: reading any file of a side and `git grep -F`), byte-for-byte export of a side into a directory from the object database |
+| `tools` | pinned versions of language servers and pnpm (`tools/pinned.json`: version, URL, SHA-256 per platform), download, verification and an atomic cache |
+| `semantic` | LSP client, rust-analyzer and TypeScript 7 (`tsc --lsp`) profiles, changed constructs, references/callers/implementations, pull diagnostics, semantic cache, dependency installation via `sandbox` |
+| `syntax` | syntax facts from `syn` (Rust) and `oxc` (TS/React) in-process, without execution |
+| `sandbox` | running installers in bwrap (read-only root, `$HOME`/`/tmp`/secrets hidden) or docker (pinned digest) |
+| `ci` | normalization of `cargo --message-format=json` and JUnit into `CiFacts` bound to the tested commit |
+| `openrouter` | OpenRouter transport for ModelGateway: pinned model and upstreams, no hidden fallback |
 
-## Ошибки и логи
+## Errors and logs
 
-Ошибки типизированы через `thiserror` (`SnapshotError`, `ToolError`, `LspError`, `SandboxError`, `DepsError`,
-`CiError`); причина сохраняется в `source()`. События и спаны — `tracing`: закрепление сравнения, скачивание
-инструментов, анализ каждой стороны и языка, установка зависимостей и sandbox jobs, импорт CI, пропущенные
-при разборе файлы. Подписчика ставит приложение.
+Errors are typed via `thiserror` (`SnapshotError`, `ToolError`, `LspError`, `SandboxError`, `DepsError`,
+`CiError`); the cause is kept in `source()`. Events and spans use `tracing`: pinning the comparison, downloading
+tools, analysis of each side and language, dependency installation and sandbox jobs, CI import, files skipped
+during parsing. The application installs the subscriber.
 
-## Границы безопасности
+## Security boundaries
 
-- `.cargo/config*` и `rust-analyzer.toml` не выгружаются, а `rust-toolchain` с `path` отклоняется: они могут
-  назначить команды инструментам хоста.
-- Language servers и установщики получают только переменные окружения, нужные toolchain; credentials
-  модели и SCM до них не доходят.
-- Pinned артефакт без совпавшего SHA-256 не устанавливается; версия, которой нет в манифесте, даёт
-  `UNSUPPORTED`, а не подстановку.
+- `.cargo/config*` and `rust-analyzer.toml` are not exported, and a `rust-toolchain` with `path` is rejected: they can
+  assign commands to host tools.
+- Language servers and installers receive only the environment variables the toolchain needs; model and SCM
+  credentials do not reach them.
+- A pinned artifact without a matching SHA-256 is not installed; a version that is not in the manifest gives
+  `UNSUPPORTED`, not a substitution.
 
-## Проверки
+## Checks
 
-Git-fixture добавляет не-UTF-8 имя через object database и index, без создания такого пути в файловой
-системе macOS. Корни workspace для LSP и линтеров канонизируются до запуска, чтобы абсолютные пути из
-`getcwd()` (в macOS `/private/var/...`) сопоставлялись с repository paths.
+The Git fixture adds a non-UTF-8 name through the object database and index, without creating such a path on the macOS
+file system. Workspace roots for LSP and linters are canonicalized before launch so that absolute paths from
+`getcwd()` (on macOS `/private/var/...`) map to repository paths.
 
-Для semantic smoke ниже нужен проверяемый репозиторий как минимум с двумя коммитами (`HEAD~1` и `HEAD`).
+The semantic smoke below needs a repository under review with at least two commits (`HEAD~1` and `HEAD`).
 
 ```sh
 cargo test -p sych-adapters
-sych semantic --base HEAD~1     # реальный smoke; первый запуск скачивает серверы
+sych semantic --base HEAD~1     # real smoke; the first run downloads the servers
 ```

@@ -1,33 +1,34 @@
-# Правила для агентов
+# Rules for agents
 
-Sych ревьюит собственные pull requests: каждый агентский PR — проверка самого Sych. Правила ниже обязательны.
+Sych reviews its own pull requests: every agent PR is a test of Sych itself. These rules are mandatory.
 
-## Поток изменений
+## Change flow
 
-1. Работай только в своей ветке от свежего `origin/main`. Прямой push в `main` запрещён (защищён на GitHub).
-2. Перед push: `just check`.
-3. Открой PR: `gh pr create --base main --fill` (или с осмысленным описанием через `/pr`).
-4. После **каждого** push жди ревью Sych на текущий head:
+1. Work only on your own branch from a fresh `origin/main`. Direct pushes to `main` are blocked (protected on GitHub).
+2. Before pushing: `just check`.
+3. Open a PR: `gh pr create --base main --fill` (or with a meaningful description via `/pr`).
+4. After **every** push, wait for the Sych review of the current head:
 
    ```sh
-   scripts/wait-sych            # PR текущей ветки; печатает summary и inline-комментарии
+   scripts/wait-sych            # PR of the current branch; prints the summary and inline comments
    ```
 
-   Ревью приходит за несколько минут; скрипт ждёт до 30 минут (`SYCH_WAIT_SECONDS`). Без ревью
-   текущего head работа не считается законченной и PR не мержится.
-5. Разбери каждый finding и UNKNOWN из summary:
-   - настоящая проблема — исправь, запушь, снова `scripts/wait-sych`;
-   - false positive или шум — не подгоняй код под ревьюера; ответь в PR коротким комментарием, почему, и
-     опиши случай в отчёте пользователю: это дефект Sych, ради которого и включён self-review;
-   - `coverage: partial` или gaps — перечисли их в отчёте, не выдавай за «проблем нет».
-6. Если ревью не пришло (exit 1) — не обходи его: сообщи пользователю, приложи PR и head SHA.
+   The review arrives within a few minutes; the script waits up to 30 minutes (`SYCH_WAIT_SECONDS`). Without
+   a review of the current head the work is not done and the PR is not merged.
+5. Go through every finding and UNKNOWN in the summary:
+   - a real problem — fix it, push, run `scripts/wait-sych` again;
+   - a false positive or noise — do not bend the code to the reviewer; reply in the PR with a short comment
+     explaining why, and describe the case in your report to the user: it is a Sych defect, which is exactly
+     what self-review is for;
+   - `coverage: partial` or gaps — list them in your report, never present them as "no problems".
+6. If no review arrives (exit 1), do not work around it: tell the user, with the PR and the head SHA.
 
-## Чего не делать
+## Never
 
-- Не мержить PR без ревью Sych текущего head и зелёного CI.
-- Не менять в PR ревьюера, его модели, бюджеты или правила, чтобы получить «чистое» ревью: production
-  ревьюер собирается из `main` и закрепляется по digest вне этого репозитория, так что это всё равно не
-  повлияет на ревью этого же PR.
-- Не писать `/sych rerun|deep` без причины: каждый запуск платный.
+- Merge a PR without a Sych review of the current head and green CI.
+- Change the reviewer, its models, budgets or rules in a PR to get a "clean" review: the production reviewer
+  is built from `main` and pinned by digest outside this repository, so it would not affect the review of
+  that PR anyway.
+- Comment `/sych rerun|deep` without a reason: every run costs money.
 
-Устройство бота и runbook — [docs/SERVER.md](docs/SERVER.md#self-review-bondianosych).
+How the bot works and its runbook: [docs/SERVER.md](docs/SERVER.md#self-review-bondianosych).
