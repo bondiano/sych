@@ -111,7 +111,7 @@ pub struct QueryRecord {
 pub struct Excluded {
     pub code_ref: CodeRef,
     pub priority: Priority,
-    /// `REQUIRED_OVER_BUDGET`, `BUDGET` or `LIMIT_MAX_SOURCE_FILES`.
+    /// `REQUIRED_OVER_BUDGET`, `BUDGET`, `SIGNATURE_ONLY` or `LIMIT_MAX_SOURCE_FILES`.
     pub reason: String,
 }
 
@@ -154,6 +154,9 @@ pub struct ContextPackets {
 
 /// The reason code that forces an obligation to stay `UNKNOWN` (spec §9.3).
 pub const REQUIRED_OVER_BUDGET: &str = "REQUIRED_OVER_BUDGET";
+
+/// A supporting span over budget that the packet shows by its first line only.
+pub const SIGNATURE_ONLY: &str = "SIGNATURE_ONLY";
 
 /// Gaps of changed code whose behaviour the snapshot does not show: code under a cfg the
 /// analysed build skips, a macro that is not expanded, a `Debug` impl defined elsewhere,

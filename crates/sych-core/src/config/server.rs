@@ -146,12 +146,12 @@ impl Default for Budgets {
     fn default() -> Self {
         Self {
             analysis: Budget {
-                max_attempts: Some(6),
-                max_input_tokens: Some(64_000),
-                max_output_tokens: Some(12_000),
+                max_attempts: Some(12),
+                max_input_tokens: Some(128_000),
+                max_output_tokens: Some(24_000),
                 max_parallel_calls: Some(2),
                 active_deadline_seconds: Some(300),
-                ..cost(300_000)
+                ..cost(600_000)
             },
             tour: Budget {
                 max_attempts: Some(2),

@@ -39,6 +39,33 @@ impl Limits {
             max_span_lines: 160,
         }
     }
+
+    /// Smaller request budgets when the packets would send more than the run's input cap:
+    /// each shown span goes out about twice (search, then verification of what it found).
+    /// What no longer fits is cut by priority with the usual gaps. Down to a quarter; past
+    /// that the run cap itself refuses the rest.
+    #[must_use]
+    pub fn fit_run(self, packets: &[EvidencePacket], run_input_tokens: u32) -> Option<Self> {
+        let demand = 2 * packets
+            .iter()
+            .map(|p| u64::from(p.usage.tokens))
+            .sum::<u64>();
+        let cap = u64::from(run_input_tokens);
+        if demand <= cap {
+            return None;
+        }
+
+        let scale = |t: u32| {
+            u32::try_from(u64::from(t) * cap / demand)
+                .unwrap_or(t)
+                .max(t / 4)
+        };
+        Some(Self {
+            unit_tokens: scale(self.unit_tokens),
+            request_tokens: scale(self.request_tokens),
+            ..self
+        })
+    }
 }
 
 pub struct BrokerInput<'a> {

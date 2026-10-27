@@ -682,7 +682,7 @@ At the start, use Git, path/symbol search, AST and the semantic provider. Embedd
 | Distinct source files read per run | 80 |
 | Standard span | Up to 160 lines; expanding to a whole small construct is allowed |
 | Maximum single source blob for text reading | 512 KiB |
-| Total model input budget per run | 64 000 tokens including re-sent context |
+| Total model input budget per run | 128 000 tokens including re-sent context |
 
 The overall limits of section 17 take precedence. A source required for a conclusion must not be truncated without notice to arbitrary first lines. If a mandatory packet does not fit, the work must be split while preserving relations, or an UNKNOWN created.
 
@@ -1279,14 +1279,14 @@ Premium escalation does not raise the budget automatically and does not spend th
 
 | Limit | Default |
 |---|---:|
-| Sych-initiated model attempts per analysis run, including retry/repair/fallback | 6 |
-| Total input / output tokens (`api_hard`; for subscription see the enforcement report) | 64 000 / 12 000 |
+| Sych-initiated model attempts per analysis run, including retry/repair/fallback | 12 |
+| Total input / output tokens (`api_hard`; for subscription see the enforcement report) | 128 000 / 24 000 |
 | Output per request (`api_hard`; the subscription upstream cap may be soft/unknown) | 2 000 tokens |
 | Concurrent model requests per run | 2 |
 | Model request timeout | 90 s |
 | Active analysis deadline | 300 s excluding queue time and CI wait |
 | CI wait deadline | 180 s |
-| Monetary limit per analysis run | 300 000 micro-USD = $0.30 |
+| Monetary limit per analysis run | 600 000 micro-USD = $0.60 |
 | Monetary limit per personal tenant per day | 3 000 000 micro-USD = $3 |
 | Personal tenant model spend per UTC calendar month | 60 000 000 micro-USD = $60; compute/storage separate |
 | Candidate buffer | 50; overflow means incomplete discovery |
@@ -1855,10 +1855,10 @@ models:
 
 budgets:
   analysis:
-    max_cost_micro_usd: 300000
-    max_attempts: 6
-    max_input_tokens: 64000
-    max_output_tokens: 12000
+    max_cost_micro_usd: 600000
+    max_attempts: 12
+    max_input_tokens: 128000
+    max_output_tokens: 24000
     max_parallel_calls: 2
     active_deadline_seconds: 300
   tour:
