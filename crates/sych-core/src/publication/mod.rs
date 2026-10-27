@@ -148,8 +148,8 @@ pub fn plan(
                 _ if rejected.contains(&fingerprint) => Placement::Summary {
                     reason: "the provider rejected the inline position".into(),
                 },
-                (_, Placement::Inline { anchor }) if already || new_inline < MAX_INLINE => {
-                    new_inline += usize::from(!already);
+                (_, Placement::Inline { anchor }) if already || new_inline <= MAX_INLINE => {
+                    new_inline += 1;
                     Placement::Inline { anchor }
                 }
                 (_, Placement::Inline { .. }) => Placement::Summary {
