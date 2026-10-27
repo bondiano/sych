@@ -4,7 +4,7 @@
 use serde::Deserialize;
 use serde_json::Value;
 use sych_core::CiFacts;
-use sych_core::kubernetes::{K8sObject, RenderedManifests};
+use sych_core::kubernetes::{EvidenceStage, K8sObject, RenderedManifests};
 
 use super::{MAX_RECORDS, malformed};
 use crate::ci::CiError;
@@ -121,6 +121,19 @@ fn object(doc: &Value, kind: &str) -> K8sObject {
     }
 }
 
+/// Live objects carry `status`; a server dry-run fills `uid`/`creationTimestamp` without it.
+fn stage(doc: &Value) -> EvidenceStage {
+    if doc["status"].as_object().is_some_and(|s| !s.is_empty()) {
+        EvidenceStage::Runtime
+    } else if doc["metadata"].get("uid").is_some()
+        || doc["metadata"].get("creationTimestamp").is_some()
+    {
+        EvidenceStage::DryRun
+    } else {
+        EvidenceStage::Rendered
+    }
+}
+
 pub fn parse(text: &str, facts: &mut CiFacts) -> Result<(), CiError> {
     let mut rendered = RenderedManifests::default();
     let mut docs = Vec::new();
@@ -139,6 +152,12 @@ pub fn parse(text: &str, facts: &mut CiFacts) -> Result<(), CiError> {
             return Err(malformed(facts, &"a document without kind"));
         };
         if NORMALIZED.contains(&kind) {
+            let stage = stage(doc);
+            rendered.stage = if rendered.objects.is_empty() {
+                stage
+            } else {
+                rendered.stage.min(stage)
+            };
             if rendered.objects.len() == MAX_RECORDS {
                 facts
                     .limitations
@@ -227,6 +246,22 @@ metadata: {name: web}
         assert_eq!(m.unsupported_kinds, ["ServiceMonitor"]);
         let kept = serde_json::to_string(&m).expect("json");
         assert!(!kept.contains("hunter2"), "{kept}");
+    }
+
+    #[test]
+    fn the_weakest_document_sets_the_evidence_stage() {
+        let stage = |text: &str| {
+            let mut f = facts();
+            parse(text, &mut f).expect("manifests");
+            f.kubernetes.expect("kubernetes").stage
+        };
+        assert_eq!(stage(RENDERED), EvidenceStage::Rendered);
+        let dry =
+            "apiVersion: apps/v1\nkind: Deployment\nmetadata: {name: web, uid: u1}\nspec: {}\n";
+        assert_eq!(stage(dry), EvidenceStage::DryRun);
+        let live = "apiVersion: apps/v1\nkind: Deployment\nmetadata: {name: web, uid: u1}\nspec: {}\nstatus: {readyReplicas: 2}\n";
+        assert_eq!(stage(live), EvidenceStage::Runtime);
+        assert_eq!(stage(&format!("{live}---\n{dry}")), EvidenceStage::DryRun);
     }
 
     #[test]

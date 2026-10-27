@@ -31,8 +31,24 @@ pub struct K8sObject {
     pub deletion_policy: Option<String>,
 }
 
+/// What the documents are evidence of, weakest first (spec §14.2): rendered YAML shows the
+/// structure, a dry-run that the API server admitted it, runtime objects the live state.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum EvidenceStage {
+    #[default]
+    Rendered,
+    DryRun,
+    Runtime,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct RenderedManifests {
+    /// The weakest stage of any normalized document.
+    #[serde(default)]
+    pub stage: EvidenceStage,
     pub objects: Vec<K8sObject>,
     /// Kinds seen but not normalized (CRDs and the like): a limitation, not "no risk".
     pub unsupported_kinds: Vec<String>,
@@ -63,18 +79,32 @@ pub(crate) fn bind(planned: &mut PlannedObligation, rendered: &[(&RenderedManife
     }
 
     let o = &mut planned.obligation;
-    o.limitations.push(
-        "rendered manifests are structural evidence: no dry-run or runtime rollout was observed, \
-         and controller-specific ordering is not known"
-            .into(),
-    );
     for m in &bound {
+        o.limitations.push(
+            match m.stage {
+                EvidenceStage::Rendered => {
+                    "rendered manifests are structural evidence: no dry-run or runtime rollout \
+                     was observed"
+                }
+                EvidenceStage::DryRun => {
+                    "dry-run output: the API server admitted the objects; a dry-run is not a \
+                     successful runtime rollout"
+                }
+                EvidenceStage::Runtime => {
+                    "runtime objects: a snapshot of the live state, evidence of this rollout only \
+                     if taken after it"
+                }
+            }
+            .into(),
+        );
         o.limitations.extend(
             m.unsupported_kinds
                 .iter()
                 .map(|k| format!("{k} is not normalized; its rollout behaviour is unchecked")),
         );
     }
+    o.limitations
+        .push("controller-specific ordering and the environment inventory are not known".into());
     planned
         .criteria
         .extend(bound.iter().flat_map(|m| &m.objects).filter_map(criterion));
@@ -96,7 +126,10 @@ fn criterion(o: &K8sObject) -> Option<String> {
     }
 
     if !o.persistent_claims.is_empty() {
-        notes.push(format!("persistent claims {:?}", o.persistent_claims));
+        notes.push(format!(
+            "persistent claims {:?} (a Pod-template rollback does not restore their data)",
+            o.persistent_claims
+        ));
     }
 
     if !o.hooks.is_empty() {
