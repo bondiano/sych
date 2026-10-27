@@ -237,7 +237,7 @@ pub struct DoctorArguments {
     #[arg(long, value_name = "CONNECTION", requires = "pr")]
     pub scm_smoke: Option<String>,
     /// Pull request of the SCM smoke
-    #[arg(long)]
+    #[arg(long, requires = "scm_smoke")]
     pub pr: Option<u64>,
 }
 
