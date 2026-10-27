@@ -130,6 +130,25 @@ struct Opencode {
 struct ApiError {
     code: Option<Value>,
     message: Option<String>,
+    metadata: Option<Value>,
+}
+
+impl ApiError {
+    /// The message with the upstream's own error, which `OpenRouter` nests in `metadata.raw`:
+    /// its top-level message alone ("Provider returned error") does not say what to fix.
+    fn detail(&self) -> String {
+        let message = self.message.clone().unwrap_or_default();
+        let raw = match self.metadata.as_ref().and_then(|m| m.get("raw")) {
+            Some(Value::String(raw)) => raw.clone(),
+            Some(raw) => raw.to_string(),
+            None => return message,
+        };
+        if message.is_empty() {
+            raw
+        } else {
+            format!("{message}: {raw}")
+        }
+    }
 }
 
 /// Kind and whether the request may have been processed, by HTTP status.
@@ -170,7 +189,7 @@ fn api_error(error: &ApiError, default_status: u16) -> (u16, String) {
         .and_then(Value::as_u64)
         .and_then(|c| u16::try_from(c).ok())
         .unwrap_or(default_status);
-    (status, error.message.clone().unwrap_or_default())
+    (status, error.detail())
 }
 
 /// Maps one HTTP response to a reply or a typed error; a 200 can still carry an error.
@@ -188,7 +207,8 @@ pub fn parse_reply(
         let detail = body
             .as_ref()
             .and_then(|b| b.error.as_ref())
-            .and_then(|e| e.message.clone())
+            .map(ApiError::detail)
+            .filter(|d| !d.is_empty())
             .unwrap_or_else(|| format!("HTTP {status}"));
         let (kind, dispatched) = status_kind(status);
         return Err(fail(kind, dispatched, &detail, retry_after));
@@ -456,6 +476,20 @@ mod tests {
     use tracing::subscriber::with_default;
 
     use super::*;
+
+    #[test]
+    fn upstream_errors_name_their_cause() {
+        let body = r#"{"error":{"code":400,"message":"Provider returned error",
+            "metadata":{"raw":"{\"error\":{\"message\":\"Invalid schema\"}}","provider_name":"OpenAI"}}}"#;
+        let err = parse_reply("openrouter", 400, None, body).expect_err("400");
+        assert_eq!(err.kind, ErrorKind::Config);
+        assert!(err.message.contains("Invalid schema"), "{}", err.message);
+        let unnamed = r#"{"error":{"metadata":{"raw":"Invalid schema"}}}"#;
+        let err = parse_reply("openrouter", 400, None, unnamed).expect_err("400");
+        assert_eq!(err.message, "openrouter: Invalid schema");
+        let bare = parse_reply("openrouter", 400, None, "{}").expect_err("400");
+        assert_eq!(bare.message, "openrouter: HTTP 400");
+    }
 
     #[test]
     fn usd_converts_exactly_and_rounds_up() {
