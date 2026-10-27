@@ -2,6 +2,7 @@
 //! repair (spec §16.4, §17.2). Fallback hops belong to the [`Router`](super::Router).
 
 use schemars::generate::SchemaSettings;
+use schemars::transform::RecursiveTransform;
 use schemars::{JsonSchema, Schema};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -339,10 +340,16 @@ impl<P: ModelProvider, L: Ledger> Gateway<'_, P, L> {
 }
 
 /// The output schema with every subschema inlined: structured-output upstreams do not all
-/// resolve `$ref`, and an unresolved one silently empties arrays of nested objects.
+/// resolve `$ref`, and an unresolved one silently empties arrays of nested objects. `oneOf`
+/// becomes `anyOf`: Anthropic and strict OpenAI reject `oneOf`, and serde still decodes one variant.
 pub(super) fn output_schema<T: JsonSchema>() -> Schema {
     SchemaSettings::draft2020_12()
         .with(|s| s.inline_subschemas = true)
+        .with_transform(RecursiveTransform(|schema: &mut Schema| {
+            if let Some(variants) = schema.remove("oneOf") {
+                schema.insert("anyOf".into(), variants);
+            }
+        }))
         .into_generator()
         .into_root_schema_for::<T>()
 }
@@ -368,6 +375,7 @@ mod tests {
         ] {
             let text = serde_json::to_string(&schema).expect("json");
             assert!(!text.contains("$ref") && !text.contains("$defs"), "{text}");
+            assert!(!text.contains("\"oneOf\""), "{text}");
         }
     }
 
