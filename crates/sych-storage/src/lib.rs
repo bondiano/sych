@@ -203,9 +203,7 @@ impl Storage {
         Ok(RunHandle {
             id,
             partition: partition.clone(),
-            generation: u64::try_from(generation).map_err(|_| {
-                StorageError::Corrupt(format!("run {run} has generation {generation}"))
-            })?,
+            generation: u64::try_from(generation).unwrap_or_default(),
             fence: None,
         })
     }
@@ -424,7 +422,9 @@ impl Storage {
                 tenant_id: tenant_id.to_owned(),
                 access_scope: row.get(0),
             },
-            generation: u64::try_from(generation).unwrap_or_default(),
+            generation: u64::try_from(generation).map_err(|_| {
+                StorageError::Corrupt(format!("run {run} has generation {generation}"))
+            })?,
             fence: None,
         })
     }
