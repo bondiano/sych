@@ -42,9 +42,9 @@ fn gap(report: &str, code: &str, detail: impl Into<String>) -> CiGap {
     }
 }
 
-/// The parser of a declared format; infrastructure formats arrive with M3.
-const fn format(f: ReportFormat) -> Option<CiFormat> {
-    Some(match f {
+/// The parser of a declared format.
+const fn format(f: ReportFormat) -> CiFormat {
+    match f {
         ReportFormat::CargoJson => CiFormat::CargoJson,
         ReportFormat::Junit => CiFormat::Junit,
         ReportFormat::Sarif => CiFormat::Sarif,
@@ -55,8 +55,9 @@ const fn format(f: ReportFormat) -> Option<CiFormat> {
         ReportFormat::GoTestJson => CiFormat::GoTestJson,
         ReportFormat::GoCover => CiFormat::GoCover,
         ReportFormat::GoVetJson => CiFormat::GoVetJson,
-        ReportFormat::TerraformPlan | ReportFormat::KubernetesRendered => return None,
-    })
+        ReportFormat::TerraformPlan => CiFormat::TerraformPlan,
+        ReportFormat::KubernetesRendered => CiFormat::KubernetesRendered,
+    }
 }
 
 /// What the tested commit is to the requested head: itself, a merge of a target commit and
@@ -213,13 +214,7 @@ impl Head<'_> {
         Located { run, job, artifact }: Located,
     ) -> Result<(CiFacts, Vec<CiGap>), CiGap> {
         let id = report.id.as_str();
-        let declared = format(report.format).ok_or_else(|| {
-            gap(
-                id,
-                "CI_FORMAT_UNSUPPORTED",
-                format!("{:?} is not parsed yet", report.format),
-            )
-        })?;
+        let declared = format(report.format);
         let hosts = &self.conn.config.artifact_hosts;
         let zip = self
             .conn

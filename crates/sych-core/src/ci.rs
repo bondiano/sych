@@ -4,6 +4,8 @@
 //! A locally imported file proves nothing about its origin, so it is an author claim; a
 //! disabled lint or a skipped test is recorded as such and never reads as a fix.
 
+use crate::kubernetes::RenderedManifests;
+use crate::terraform::TerraformPlan;
 use std::fmt;
 
 use schemars::JsonSchema;
@@ -121,6 +123,10 @@ pub enum CiFormat {
     GoCover,
     /// `go vet -json`.
     GoVetJson,
+    /// `terraform show -json` of a saved plan; reduced to allowlisted structure.
+    TerraformPlan,
+    /// Rendered Kubernetes manifests (`helm template`, `kustomize build`), multi-document YAML.
+    KubernetesRendered,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -175,6 +181,10 @@ pub struct CiFacts {
     /// Set when the report was fetched from authenticated CI; local imports have none.
     #[serde(default)]
     pub origin: Option<CiOrigin>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terraform: Option<TerraformPlan>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubernetes: Option<RenderedManifests>,
 }
 
 impl CiManifest {
@@ -198,6 +208,8 @@ impl CiFacts {
             limitations: Vec::new(),
             coverage: Vec::new(),
             origin: None,
+            terraform: None,
+            kubernetes: None,
         }
     }
 
@@ -226,6 +238,15 @@ impl CiFacts {
             .is_some_and(|oid| oid == snapshot.head)
     }
 
+    /// Import marks a report that tested another commit, or whose commit is unknown, with a
+    /// `STALE`/`UNBOUND` limitation; the planner has only these facts, not the snapshot.
+    pub fn head_bound(&self) -> bool {
+        !self
+            .limitations
+            .iter()
+            .any(|l| l.starts_with("STALE:") || l.starts_with("UNBOUND:"))
+    }
+
     /// The build of the reviewed head itself succeeded, per a report bound to that head.
     pub fn compiled(&self, snapshot: &SourceSnapshot) -> bool {
         self.build_success == Some(true) && self.bound_to(snapshot)
@@ -249,6 +270,7 @@ impl CiFacts {
             | CiFormat::Cobertura
             | CiFormat::GoTestJson
             | CiFormat::GoCover => EvidenceKind::Test,
+            CiFormat::TerraformPlan | CiFormat::KubernetesRendered => EvidenceKind::Infrastructure,
         };
         let mut limitations = self.limitations.clone();
         let trust_class = if let Some(origin) = &self.origin {
@@ -288,6 +310,8 @@ impl CiFacts {
                     CiFormat::GoTestJson => "go_test_json",
                     CiFormat::GoCover => "go_cover",
                     CiFormat::GoVetJson => "go_vet_json",
+                    CiFormat::TerraformPlan => "terraform_plan",
+                    CiFormat::KubernetesRendered => "kubernetes_rendered",
                 }
                 .into(),
                 version: self

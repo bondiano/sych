@@ -204,6 +204,16 @@
         "format": {
           "$ref": "#/$defs/CiFormat"
         },
+        "kubernetes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RenderedManifests"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "limitations": {
           "type": "array",
           "default": [],
@@ -242,6 +252,16 @@
         },
         "source_snapshot_id": {
           "$ref": "#/$defs/SourceSnapshotId"
+        },
+        "terraform": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TerraformPlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "tests": {
           "type": "array",
@@ -295,6 +315,16 @@
           "description": "`go vet -json`.",
           "type": "string",
           "const": "go_vet_json"
+        },
+        {
+          "description": "`terraform show -json` of a saved plan; reduced to allowlisted structure.",
+          "type": "string",
+          "const": "terraform_plan"
+        },
+        {
+          "description": "Rendered Kubernetes manifests (`helm template`, `kustomize build`), multi-document YAML.",
+          "type": "string",
+          "const": "kubernetes_rendered"
         }
       ]
     },
@@ -739,6 +769,104 @@
         "changed"
       ]
     },
+    "K8sObject": {
+      "description": "One workload, job or hook object; values of env, data and secrets are never kept.",
+      "type": "object",
+      "properties": {
+        "config_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deletion_policy": {
+          "description": "`helm.sh/resource-policy: keep` or a prune annotation.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hooks": {
+          "description": "`helm.sh/hook`, `argocd.argoproj.io/hook` or a sync wave: ordering the controller owns.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "persistent_claims": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "pre_stop": {
+          "type": "boolean"
+        },
+        "replicas": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "secret_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "selector_mismatch": {
+          "description": "The selector does not match the pod template labels: the controller adopts nothing.",
+          "type": "boolean"
+        },
+        "strategy": {
+          "description": "`RollingUpdate`, `Recreate`, `OnDelete`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "termination_grace_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "without_readiness": {
+          "description": "Containers without a readiness probe.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "selector_mismatch",
+        "without_readiness",
+        "pre_stop",
+        "persistent_claims",
+        "secret_refs",
+        "config_refs",
+        "hooks"
+      ]
+    },
     "Language": {
       "oneOf": [
         {
@@ -1093,6 +1221,43 @@
         "status"
       ]
     },
+    "RenderedManifests": {
+      "type": "object",
+      "properties": {
+        "objects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/K8sObject"
+          }
+        },
+        "unsupported_kinds": {
+          "description": "Kinds seen but not normalized (CRDs and the like): a limitation, not \"no risk\".",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "objects",
+        "unsupported_kinds"
+      ]
+    },
+    "ReplaceOrder": {
+      "description": "How a replacement is ordered; Terraform distinguishes the two action lists.",
+      "oneOf": [
+        {
+          "description": "`[\"delete\", \"create\"]`: the resource is gone for a while.",
+          "type": "string",
+          "const": "delete_before_create"
+        },
+        {
+          "description": "`[\"create\", \"delete\"]`: `create_before_destroy`.",
+          "type": "string",
+          "const": "create_before_delete"
+        }
+      ]
+    },
     "RepoPath": {
       "type": "string",
       "minLength": 1
@@ -1116,6 +1281,74 @@
           "type": "string",
           "const": "dynamic_unknown"
         }
+      ]
+    },
+    "ResourceChange": {
+      "type": "object",
+      "properties": {
+        "actions": {
+          "description": "As the plan lists them: `no-op`, `create`, `read`, `update`, `delete`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "address": {
+          "type": "string"
+        },
+        "changed": {
+          "description": "Top-level attributes whose planned value differs; names only.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "moved_from": {
+          "description": "`previous_address` of a moved resource.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "replace_order": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReplaceOrder"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replace_paths": {
+          "description": "Attributes whose change forces the replacement.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sensitive": {
+          "description": "Attributes marked sensitive before or after.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unknown_after": {
+          "description": "Attributes known only after apply.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "address",
+        "actions",
+        "replace_paths",
+        "changed",
+        "unknown_after",
+        "sensitive"
       ]
     },
     "SchemaVersion": {
@@ -1576,6 +1809,38 @@
           "type": "string",
           "const": "runtime_registration"
         }
+      ]
+    },
+    "TerraformPlan": {
+      "type": "object",
+      "properties": {
+        "format_version": {
+          "type": "string"
+        },
+        "resource_changes": {
+          "description": "Resources with an action other than `no-op` or `read`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResourceChange"
+          }
+        },
+        "terraform_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "variables_sha256": {
+          "description": "Digest of the plan's input variables; their values are never kept.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "format_version",
+        "resource_changes"
       ]
     },
     "TestStatus": {

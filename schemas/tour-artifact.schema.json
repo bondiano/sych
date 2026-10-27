@@ -1,0 +1,310 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TourArtifact",
+  "description": "One tour of one result revision (spec §21.3); never mutated, a regeneration is a new id.",
+  "type": "object",
+  "properties": {
+    "generation_provenance": {
+      "description": "Route and attempts of the generation, e.g. `openrouter/deepseek, 2 attempts`.",
+      "type": "string"
+    },
+    "language": {
+      "$ref": "#/$defs/ReviewLanguage"
+    },
+    "limitations": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "overview": {
+      "$ref": "#/$defs/Overview"
+    },
+    "planner_version": {
+      "type": "string"
+    },
+    "policy_snapshot_id": {
+      "$ref": "#/$defs/PolicySnapshotId"
+    },
+    "prompt_version": {
+      "type": "string"
+    },
+    "renderer_version": {
+      "type": "string"
+    },
+    "result_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "review_revision": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    },
+    "source_snapshot_id": {
+      "$ref": "#/$defs/SourceSnapshotId"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/TourStep"
+      }
+    },
+    "tour_id": {
+      "$ref": "#/$defs/TourId"
+    }
+  },
+  "required": [
+    "schema_version",
+    "tour_id",
+    "result_id",
+    "review_revision",
+    "source_snapshot_id",
+    "policy_snapshot_id",
+    "language",
+    "planner_version",
+    "prompt_version",
+    "renderer_version",
+    "generation_provenance",
+    "overview",
+    "steps"
+  ],
+  "$defs": {
+    "CodeRef": {
+      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
+      "type": "object",
+      "properties": {
+        "blob_oid": {
+          "$ref": "#/$defs/GitObjectId"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "end_line": {
+          "description": "1-based, inclusive.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "path": {
+          "$ref": "#/$defs/RepoPath"
+        },
+        "side": {
+          "$ref": "#/$defs/SourceSide"
+        },
+        "snapshot_id": {
+          "$ref": "#/$defs/SourceSnapshotId"
+        },
+        "start_line": {
+          "description": "1-based, inclusive.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "side",
+        "path",
+        "blob_oid",
+        "start_line",
+        "end_line",
+        "content_sha256"
+      ]
+    },
+    "Coverage": {
+      "type": "string",
+      "enum": [
+        "COMPLETE_FOR_SCOPE",
+        "PARTIAL",
+        "UNAVAILABLE"
+      ]
+    },
+    "ExampleSnippet": {
+      "description": "Illustrative code the generator wrote; shown only under the `Example` label.",
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "text"
+      ]
+    },
+    "GitObjectId": {
+      "type": "string",
+      "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
+    },
+    "Overview": {
+      "description": "What every tour of the result must show, whatever its route.",
+      "type": "object",
+      "properties": {
+        "coverage": {
+          "$ref": "#/$defs/Coverage"
+        },
+        "critical_findings": {
+          "description": "Every HIGH and CRITICAL finding.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "important_unknowns": {
+          "description": "Every required obligation left `UNKNOWN`.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "required": [
+        "coverage",
+        "critical_findings",
+        "important_unknowns"
+      ]
+    },
+    "PolicySnapshotId": {
+      "description": "Content-derived identity of a [`crate::PolicySnapshot`].",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "Question": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/QuestionKind"
+        },
+        "reveal": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text",
+        "reveal"
+      ]
+    },
+    "QuestionKind": {
+      "type": "string",
+      "enum": [
+        "COMPREHENSION",
+        "FACT_REQUEST",
+        "RISK_DECISION"
+      ]
+    },
+    "RepoPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ReviewLanguage": {
+      "description": "The language of every human-readable text a review writes (`review.language`): model\nprose and the static text of published comments. Code, paths, ids and enum values stay as\nthey are.",
+      "type": "string",
+      "enum": [
+        "en",
+        "ru"
+      ]
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "Sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "SourceSide": {
+      "type": "string",
+      "enum": [
+        "DIFF_BASE",
+        "HEAD",
+        "TARGET_TIP"
+      ]
+    },
+    "SourceSnapshotId": {
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "TourId": {
+      "description": "One immutable tour of one result revision; regeneration makes a new one.",
+      "type": "string",
+      "format": "uuid"
+    },
+    "TourStep": {
+      "type": "object",
+      "properties": {
+        "code_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CodeRef"
+          }
+        },
+        "example_snippets": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ExampleSnippet"
+          }
+        },
+        "explanation": {
+          "description": "Free text; it can be wrong, and it never changes a status.",
+          "type": "string"
+        },
+        "finding_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "id": {
+          "type": "string"
+        },
+        "obligation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "question": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Question"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "purpose",
+        "finding_ids",
+        "obligation_ids",
+        "code_refs",
+        "explanation"
+      ]
+    }
+  }
+}

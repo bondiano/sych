@@ -10,10 +10,13 @@ use sych_core::effects::{EffectLedger, EffectMatch, LedgerEntry, Resolution};
 use sych_core::{
     Applicability, BackendStatus, ChangeStatus, CodeRef, Completeness, ContentKind, DiffManifest,
     EdgeSet, EvaluationMode, FileChange, FileSide, GitHashAlgorithm, GitObjectId, Language,
-    NOT_ASSESSED, ObligationStatus, PROVIDER_UNAVAILABLE, PathClass, Producer, QueryStatus,
-    ReviewPlan, RunFacts, SchemaVersion, SemanticFacts, SourceSide, SourceSnapshotId, SymbolFacts,
-    SyntaxFact, SyntaxFacts, SyntaxKind, plan, sha256,
+    NOT_ASSESSED, ObligationStatus, PathClass, Producer, QueryStatus, ReviewPlan, RunFacts,
+    SchemaVersion, SemanticFacts, SourceSide, SourceSnapshotId, SymbolFacts, SyntaxFact,
+    SyntaxFacts, SyntaxKind, plan, sha256,
 };
+
+#[path = "rules/infra.rs"]
+mod infra;
 
 const ORDERS_RULE: &str = "schema_version: 1\nrules:\n  - id: EFFECT-01\n    version: 1\n    title: Order event\n    kind: invariant\n    required: true\n    severity_on_violation: high\n    owner: backend\n    applies_to:\n      paths: [\"backend/orders/**\"]\n    statement: A stored order publishes order-created.\n";
 
@@ -326,8 +329,8 @@ fn ledger_changes_activate_the_effect_rules_with_a_provider() {
     let removed = planned(files(), &repo, &ledger_facts(EffectMatch::Removed, &[]));
     let effect = rule(&removed, "EFFECT-01").expect("activated by the ledger");
     assert_eq!(effect.applicability, Applicability::Applies);
-    assert!(!matches!(&effect.status,
-        ObligationStatus::Unknown { reason_code, .. } if reason_code == PROVIDER_UNAVAILABLE));
+    assert!(matches!(&effect.status,
+        ObligationStatus::Unknown { reason_code, .. } if reason_code == NOT_ASSESSED));
     assert!(rule(&removed, "EFFECT-02").is_none());
 
     let lifetime = ledger_facts(

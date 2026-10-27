@@ -27,7 +27,24 @@ is rejected without printing the value itself.
 - `contract_refs` must point to files in `.sych/contracts/` of the accepted policy.
 - A repository cannot exceed server ceilings: `context.max_tokens_per_request` ≤
   `budgets.analysis.max_input_tokens`. Execution is enabled only in `sych.yaml` together with
-  `execution.allowed_profiles`; it is disabled by default.
+  `execution.allowed_profiles`; it is disabled by default (M3.8). An allowed profile must be defined in
+  `execution.profiles` as an absolute `executable`, `args` that are literals or `{param, one_of: [...]}` choices, and
+  `timeout_seconds`; a request can only pick listed values and cannot add arguments, and neither the model nor the
+  repository writes a command line. A refused run (`disabled`, `not allowed`, `missing` or `invalid` parameter) is a
+  named limitation, never a passed check. No runner ships yet: targeted checks stay off, existing CI reports are the
+  evidence, and without runtime evidence the verifier keeps a bounded static argument or a concrete `UNKNOWN`;
+  generating new tests is optional and never done by the tour reader.
+
+  ```yaml
+  execution:
+    enabled: false
+    allowed_profiles: [go-test]
+    profiles:
+      go-test:
+        executable: /usr/local/go/bin/go
+        args: [test, {param: flags, one_of: [-race, -count=1]}, ./...]
+        timeout_seconds: 300
+  ```
 - `tooling.dependency_install` (default `false`) allows installing the dependencies of the repository under review
   for semantic analysis: `pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile` with the pinned
   pnpm from `packageManager`, and `cargo fetch` of the workspace and std into a Sych-owned `CARGO_HOME`. It runs only in
@@ -87,8 +104,8 @@ Applicability to a change (§11.4) is three-valued:
   paths does not lift the rule), or the changed construct is called or referenced from these paths according to semantic
   facts — then limitations record «applies through a semantic link: `name` is used from path:line».
 - `DOES_NOT_APPLY` → `NOT_APPLICABLE` with a verifiable basis (no path, no semantic link).
-- `UNKNOWN` — incomplete diff, unresolved `change_kinds`, or a generic rule whose domain checker is not yet
-  connected (`PROVIDER_UNAVAILABLE`).
+- `UNKNOWN` — incomplete diff, unresolved `change_kinds`, or a generic domain rule without its input
+  (`DEPLOYMENT_INPUT_MISSING`, `TERRAFORM_PLAN_MISSING`, `K8S_MANIFESTS_MISSING`).
 
 ### Generic rule pack
 

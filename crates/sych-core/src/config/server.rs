@@ -3,7 +3,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{ConfigError, Http, Models, Problems, Redaction, Scm, Tooling, endpoint, parse_yaml};
+use super::{
+    ConfigError, Execution, Http, Models, Problems, Redaction, Scm, Tooling, endpoint, parse_yaml,
+};
 use crate::{MicroUsd, SchemaVersion};
 
 /// Name of an environment variable that holds a secret; the value is never stored here.
@@ -164,14 +166,6 @@ impl Default for Budgets {
     }
 }
 
-/// Repository code execution; off unless the server explicitly allows profiles (spec §22.4).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields, default)]
-pub struct Execution {
-    pub enabled: bool,
-    pub allowed_profiles: Vec<String>,
-}
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PublicationMode {
@@ -274,11 +268,9 @@ impl ServerConfig {
         self.validate_models(&mut p);
         self.validate_budgets(&mut p);
         self.scm.validate(&mut p);
-        p.check(
-            !self.execution.enabled || !self.execution.allowed_profiles.is_empty(),
-            "execution.allowed_profiles",
-            "enabled execution needs at least one admin-approved profile",
-        );
+        for (field, problem) in self.execution.problems() {
+            p.check(false, field, problem);
+        }
         for (field, problem) in self.tooling.problems() {
             p.check(false, field, problem);
         }

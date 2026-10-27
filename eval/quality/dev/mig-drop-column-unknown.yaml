@@ -1,0 +1,35 @@
+schema_version: 1
+id: mig-drop-column-unknown
+split: development
+language: go
+pair: mig-drop-column
+variant: unknown
+profiles: [migration_compatibility]
+rationale: "Without a deployment model nobody has declared the compatibility window or who still consumes orders.status; removing it cannot be judged safe or unsafe from this repository (spec §13.3)."
+base:
+  go.mod: |
+    module example.com/shop
+
+    go 1.26
+  migrations/0001_orders.sql: |
+    CREATE TABLE orders (id TEXT PRIMARY KEY, status TEXT NOT NULL);
+  orders/read.go: |
+    package orders
+
+    import (
+    	"context"
+    	"database/sql"
+    )
+
+    func Status(ctx context.Context, db *sql.DB, id string) (string, error) {
+    	var status string
+    	err := db.QueryRowContext(ctx, "SELECT status FROM orders WHERE id = $1", id).Scan(&status)
+    	return status, err
+    }
+head:
+  migrations/0002_drop_status.sql: |
+    ALTER TABLE orders DROP COLUMN status;
+expected:
+  forbidden_claims:
+    - "No other consumer reads orders.status, so removing it is safe."
+  unknown: "The deployment model is missing: the compatibility window and the external consumers of orders.status are not declared."

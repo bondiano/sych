@@ -13,6 +13,7 @@ mod freeze;
 mod generic;
 mod glob;
 mod hash;
+pub mod kubernetes;
 pub mod lineage;
 mod lint;
 mod manifest;
@@ -34,6 +35,8 @@ mod semantic;
 mod snapshot;
 mod status;
 mod syntax;
+pub mod terraform;
+pub mod tour;
 mod version;
 
 pub use ci::*;
