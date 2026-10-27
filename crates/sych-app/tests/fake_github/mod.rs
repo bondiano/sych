@@ -293,6 +293,19 @@ async fn update_comment(
     Json(comment_json(id, &login, &text)).into_response()
 }
 
+async fn delete_comment(
+    State(state): State<Shared>,
+    Path((o, r, id)): Path<(String, String, u64)>,
+    headers: HeaderMap,
+) -> Response {
+    let path = format!("DELETE /repos/{o}/{r}/issues/comments/{id}");
+    let mut s = guard!(state, headers, path, TOKEN);
+    match s.comments.remove(&id) {
+        Some(_) => StatusCode::NO_CONTENT.into_response(),
+        None => (StatusCode::NOT_FOUND, Json(json!({"message": "Not Found"}))).into_response(),
+    }
+}
+
 async fn runs(
     State(state): State<Shared>,
     Path((o, r)): Path<(String, String)>,
@@ -420,7 +433,9 @@ pub async fn start() -> (String, Shared) {
         )
         .route(
             "/repos/{o}/{r}/issues/comments/{id}",
-            get(get_comment).patch(update_comment),
+            get(get_comment)
+                .patch(update_comment)
+                .delete(delete_comment),
         )
         .route(
             "/repos/{o}/{r}/pulls/{n}/comments",

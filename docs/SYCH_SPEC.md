@@ -1950,7 +1950,7 @@ Budget/context overrides from the repository cannot exceed server ceilings. Defa
 
 `config validate` checks the local schema, paths, role references and limit compatibility.
 
-`doctor` additionally checks available capabilities, Git, the database, the artifact store, providers and SCM permissions. It does not deploy, does not publish a test comment and does not start a paid model request without the explicit `--probe-model` flag.
+`doctor` additionally checks available capabilities, Git, the database, the artifact store, providers and SCM permissions. It does not deploy, does not publish a test comment without the explicit `--scm-smoke` flag and does not start a paid model request without the explicit `--probe-model` flag.
 
 If a corporate config contains no auth or enables an external bind without a permissible protection method, API startup is rejected. The personal API is available only via loopback by default.
 

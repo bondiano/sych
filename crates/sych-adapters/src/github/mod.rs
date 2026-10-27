@@ -14,7 +14,7 @@ use sych_core::scm::{ProviderCapabilities, RepositoryRef, ScmError, ScmErrorKind
 pub use actions::{Artifact, Job, WorkflowRun, host_allowed};
 pub use app::{AppKey, InstallationToken, Secret, TokenCache};
 pub use client::{Github, Installation};
-pub use comments::{Comment, MAX_COMMENTS};
+pub use comments::{Comment, MAX_COMMENTS, own_comment};
 pub use reviews::{CheckOutput, CheckRun};
 
 /// GitHub lists at most this many files of a pull request (spec §19.4).
