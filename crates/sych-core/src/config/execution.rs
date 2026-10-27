@@ -9,6 +9,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::CiFormat;
+
 /// One argument of a profile.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged, deny_unknown_fields)]
@@ -24,11 +26,35 @@ pub enum ProfileArg {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionProfile {
-    /// Absolute path; no lookup in `PATH`.
+    /// The docker image it runs in, pinned by digest (`…@sha256:…`); docker is the only backend.
+    pub image: String,
+    /// Absolute path inside the image; no lookup in `PATH`.
     pub executable: String,
     #[serde(default)]
     pub args: Vec<ProfileArg>,
     pub timeout_seconds: u32,
+    /// Format of what the command prints on stdout; imported like a CI report of the head.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub report: Option<CiFormat>,
+    #[serde(default = "memory_mb")]
+    pub memory_mb: u32,
+    /// CPU share in thousandths of a core.
+    #[serde(default = "cpu_millis")]
+    pub cpu_millis: u32,
+    #[serde(default = "pids")]
+    pub pids: u32,
+}
+
+const fn memory_mb() -> u32 {
+    2048
+}
+
+const fn cpu_millis() -> u32 {
+    2000
+}
+
+const fn pids() -> u32 {
+    512
 }
 
 /// Repository code execution; off unless the server explicitly allows profiles.
@@ -53,6 +79,17 @@ pub enum ExecutionRefused {
     Missing(String),
     #[error("parameter `{param}` value `{value}` is not one of the profile's choices")]
     Invalid { param: String, value: String },
+}
+
+/// `name@sha256:<64 lowercase hex>`, nothing after the digest.
+fn pinned(image: &str) -> bool {
+    image.split_once("@sha256:").is_some_and(|(name, digest)| {
+        !name.is_empty()
+            && digest.len() == 64
+            && digest
+                .bytes()
+                .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+    })
 }
 
 impl Execution {
@@ -113,10 +150,25 @@ impl Execution {
             }
         }
         for (name, p) in &self.profiles {
+            if !pinned(&p.image) {
+                out.push((
+                    format!("execution.profiles.{name}.image"),
+                    "must be pinned by digest (image@sha256:…)",
+                ));
+            }
+
             if !p.executable.starts_with('/') {
                 out.push((
                     format!("execution.profiles.{name}.executable"),
                     "must be an absolute path",
+                ));
+            }
+
+            // Docker reads a zero limit as no limit at all.
+            if [p.memory_mb, p.cpu_millis, p.pids].contains(&0) {
+                out.push((
+                    format!("execution.profiles.{name}"),
+                    "memory_mb, cpu_millis and pids must be greater than zero",
                 ));
             }
 
@@ -136,7 +188,7 @@ mod tests {
     use super::*;
 
     fn execution(enabled: bool) -> Execution {
-        let yaml = "enabled: true\nallowed_profiles: [go-test]\nprofiles:\n  go-test:\n    executable: /usr/local/go/bin/go\n    args: [test, {param: race, one_of: [-race, -count=1]}, ./...]\n    timeout_seconds: 300\n";
+        let yaml = "enabled: true\nallowed_profiles: [go-test]\nprofiles:\n  go-test:\n    image: golang:1.26@sha256:0000000000000000000000000000000000000000000000000000000000000000\n    executable: /usr/local/go/bin/go\n    args: [test, {param: race, one_of: [-race, -count=1]}, ./...]\n    timeout_seconds: 300\n";
         Execution {
             enabled,
             ..serde_yaml_ng::from_str(yaml).expect("execution")
@@ -180,8 +232,10 @@ mod tests {
         e.profiles
             .get_mut("go-test")
             .map(|p| {
+                p.image = "golang:1.26@sha256:latest".into();
                 p.executable = "go".into();
                 p.timeout_seconds = 0;
+                p.pids = 0;
             })
             .expect("profile");
         let fields: Vec<String> = e.problems().into_iter().map(|(f, _)| f).collect();
@@ -189,7 +243,9 @@ mod tests {
             fields,
             [
                 "execution.allowed_profiles.missing",
+                "execution.profiles.go-test.image",
                 "execution.profiles.go-test.executable",
+                "execution.profiles.go-test",
                 "execution.profiles.go-test.timeout_seconds",
             ]
         );

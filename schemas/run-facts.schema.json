@@ -255,6 +255,13 @@
           "description": "File name of the report as given, without directories.",
           "type": "string"
         },
+        "runner": {
+          "description": "`<profile> in <image>` of a targeted check Sych ran itself on the pinned head.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "schema_version": {
           "$ref": "#/$defs/SchemaVersion"
         },
