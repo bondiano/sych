@@ -7,7 +7,7 @@ use std::mem;
 use super::build::{Candidate, RunState};
 use super::{
     ContextRequest, EvidencePacket, Excluded, Fragment, Link, PacketResolution, PacketUsage,
-    Priority, QueryRecord, REQUIRED_OVER_BUDGET, Relation,
+    Priority, QueryRecord, REQUIRED_OVER_BUDGET, Relation, SIGNATURE_ONLY,
 };
 use crate::{
     CodeRef, Completeness, EvidenceId, RepoPath, SchemaVersion, SnapshotReader, SourceSide,
@@ -124,17 +124,12 @@ pub(super) fn select(
             continue;
         }
 
-        let (code_ref, tokens) = match read(reader, &m) {
+        let (mut code_ref, mut tokens) = match read(reader, &m, m.end) {
             Ok(read) => read,
             Err(err) => {
                 gaps.push(err);
                 continue;
             }
-        };
-        let exclude = |reason: &str| Excluded {
-            code_ref: code_ref.clone(),
-            priority: m.priority,
-            reason: reason.to_owned(),
         };
         let file = (m.side, m.path.clone());
         let new_file = !state.files.contains(&file);
@@ -142,13 +137,32 @@ pub(super) fn select(
             && m.priority != Priority::Required
             && state.files.len() >= usize::try_from(max_files).unwrap_or(usize::MAX)
         {
-            excluded.push(exclude("LIMIT_MAX_SOURCE_FILES"));
+            excluded.push(Excluded {
+                code_ref,
+                priority: m.priority,
+                reason: "LIMIT_MAX_SOURCE_FILES".into(),
+            });
             continue;
         }
 
-        let mut room = chunks
-            .iter()
-            .position(|c| c.tokens.saturating_add(tokens) <= budget);
+        let fits = |tokens: u32| {
+            chunks
+                .iter()
+                .position(|c| c.tokens.saturating_add(tokens) <= budget)
+        };
+        let mut room = fits(tokens);
+        let mut transformation = "none";
+        if room.is_none()
+            && let Some((head, head_tokens, i)) = signature(reader, &m, fits)
+        {
+            excluded.push(Excluded {
+                code_ref: mem::replace(&mut code_ref, head),
+                priority: m.priority,
+                reason: SIGNATURE_ONLY.to_owned(),
+            });
+            (room, tokens, transformation) = (Some(i), head_tokens, "signature");
+        }
+
         if room.is_none()
             && chunked
             && m.priority == Priority::Required
@@ -160,24 +174,7 @@ pub(super) fn select(
         }
 
         let Some(chunk) = room.map(|i| &mut chunks[i]) else {
-            if m.priority == Priority::Required {
-                gaps.push(format!(
-                    "{REQUIRED_OVER_BUDGET}: {}:{}-{}",
-                    m.path, m.start, m.end
-                ));
-                excluded.push(exclude(REQUIRED_OVER_BUDGET));
-            } else {
-                // A writer elsewhere that could refute a hypothesis is not dropped silently.
-                if m.priority == Priority::Refuting {
-                    gaps.push(format!(
-                        "REFUTING_OVER_BUDGET: {}:{}-{}",
-                        m.path, m.start, m.end
-                    ));
-                }
-
-                excluded.push(exclude("BUDGET"));
-            }
-
+            excluded.push(over_budget(&m, code_ref, &mut gaps));
             continue;
         };
 
@@ -192,7 +189,7 @@ pub(super) fn select(
             evidence_ids: m.evidence,
             completeness: m.completeness,
             tokens,
-            transformation: "none".into(),
+            transformation: transformation.into(),
         });
     }
     // What did not fit stays on its own packet, so the chunks that did fit are still assessed.
@@ -266,11 +263,51 @@ fn assemble(
 }
 
 /// The exact reference and token bound of a merged span; the reader checks the hash.
-fn read(reader: &dyn SnapshotReader, m: &Merged) -> Result<(CodeRef, u32), String> {
+/// Over budget, a supporting construct keeps its first line, usually the signature,
+/// instead of disappearing; the full span is still listed as excluded.
+fn signature(
+    reader: &dyn SnapshotReader,
+    m: &Merged,
+    fits: impl Fn(u32) -> Option<usize>,
+) -> Option<(CodeRef, u32, usize)> {
+    if m.priority != Priority::Supporting || m.end <= m.start {
+        return None;
+    }
+
+    let (head, tokens) = read(reader, m, m.start).ok()?;
+    fits(tokens).map(|i| (head, tokens, i))
+}
+
+/// A span with no room left: a required one forces `UNKNOWN`, and a writer elsewhere that
+/// could refute a hypothesis is not dropped silently.
+fn over_budget(m: &Merged, code_ref: CodeRef, gaps: &mut Vec<String>) -> Excluded {
+    let reason = match m.priority {
+        Priority::Required => REQUIRED_OVER_BUDGET,
+        _ => "BUDGET",
+    };
+    match m.priority {
+        Priority::Required => gaps.push(format!(
+            "{REQUIRED_OVER_BUDGET}: {}:{}-{}",
+            m.path, m.start, m.end
+        )),
+        Priority::Refuting => gaps.push(format!(
+            "REFUTING_OVER_BUDGET: {}:{}-{}",
+            m.path, m.start, m.end
+        )),
+        Priority::Supporting => {}
+    }
+    Excluded {
+        code_ref,
+        priority: m.priority,
+        reason: reason.to_owned(),
+    }
+}
+
+fn read(reader: &dyn SnapshotReader, m: &Merged, end: u32) -> Result<(CodeRef, u32), String> {
     let unreadable =
-        |err: crate::ReadError| format!("UNREADABLE {}:{}-{}: {err}", m.path, m.start, m.end);
+        |err: crate::ReadError| format!("UNREADABLE {}:{}-{end}: {err}", m.path, m.start);
     let code_ref = reader
-        .code_ref(m.side, &m.path, m.start, m.end)
+        .code_ref(m.side, &m.path, m.start, end)
         .map_err(unreadable)?;
     let span = reader.read_span(&code_ref).map_err(unreadable)?;
     Ok((code_ref, u32::try_from(span.text.len()).unwrap_or(u32::MAX)))

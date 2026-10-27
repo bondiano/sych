@@ -118,12 +118,12 @@ models:
 
 budgets:
   analysis:
-    max_cost_micro_usd: 300000
-    max_attempts: 6
-    max_input_tokens: 64000
-    # Above the §17.1 defaults (12 000 / 2 000): reasoning models spend ~1 000 tokens of every
-    # request on reasoning, and a 2 000 cap truncated discovery and verify answers.
+    max_cost_micro_usd: 600000
+    max_attempts: 12
+    max_input_tokens: 128000
     max_output_tokens: 24000
+    # Above the §17.1 default of 2 000: reasoning models spend ~1 000 tokens of every
+    # request on reasoning, and a 2 000 cap truncated discovery and verify answers.
     max_output_tokens_per_request: 4000
     max_parallel_calls: 2
     active_deadline_seconds: 300

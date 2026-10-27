@@ -26,28 +26,42 @@ use super::checkpoints;
 
 impl Session<'_> {
     pub(super) fn packets(&self, run: &RunHandle) -> Vec<EvidencePacket> {
-        let packets = build_packets(
-            &BrokerInput {
-                run_id: run.id,
-                snapshot_id: &self.snap.snapshot.id,
-                policy_snapshot_id: &self.policy.id,
-                access_scope: &self.snap.snapshot.repository,
-                plan: self.plan,
-                manifest: &self.snap.manifest,
-                facts: &self.facts.semantic,
-                syntax: &self.facts.syntax,
-                ci: &self.facts.ci,
-                head_compiled: self
-                    .facts
-                    .ci
-                    .iter()
-                    .any(|r| r.compiled(&self.snap.snapshot)),
-                ledger: &self.facts.ledger,
-                lint: &self.facts.lint,
-                limits: self.limits,
-            },
-            self.snap,
-        );
+        let head_compiled = self
+            .facts
+            .ci
+            .iter()
+            .any(|r| r.compiled(&self.snap.snapshot));
+        let build = |limits| {
+            build_packets(
+                &BrokerInput {
+                    run_id: run.id,
+                    snapshot_id: &self.snap.snapshot.id,
+                    policy_snapshot_id: &self.policy.id,
+                    access_scope: &self.snap.snapshot.repository,
+                    plan: self.plan,
+                    manifest: &self.snap.manifest,
+                    facts: &self.facts.semantic,
+                    syntax: &self.facts.syntax,
+                    ci: &self.facts.ci,
+                    head_compiled,
+                    ledger: &self.facts.ledger,
+                    lint: &self.facts.lint,
+                    limits,
+                },
+                self.snap,
+            )
+        };
+        let mut packets = build(self.limits);
+        let cap = self.budgets.analysis.max_input_tokens;
+        if let Some(fitted) = cap.and_then(|cap| self.limits.fit_run(&packets, cap)) {
+            tracing::info!(
+                request_tokens = fitted.request_tokens,
+                unit_tokens = fitted.unit_tokens,
+                "context compressed to fit the run input budget"
+            );
+            packets = build(fitted);
+        }
+
         tracing::info!(
             packets = packets.len(),
             partial = packets

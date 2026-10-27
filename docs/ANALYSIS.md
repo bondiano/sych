@@ -347,7 +347,11 @@ proc-macros: unexpanded macros, cfg outside the active features and dynamic disp
   `anchors`, and the engine rejected all hypotheses.
 - Reasoning models spend ~1,000–2,400 tokens of each reply on reasoning: with the §17.1 default of 2,000 tokens per
   request, discovery and verify get truncated (`TRUNCATED`). The personal example raises
-  `budgets.analysis.max_output_tokens_per_request` to 4,000 and `max_output_tokens` to 24,000; the run's money cap
-  ($0.30) does not change.
+  `budgets.analysis.max_output_tokens_per_request` to 4,000.
+- Context compression. Packets whose shown bytes, sent about twice (search, then verify), exceed
+  `budgets.analysis.max_input_tokens` are rebuilt with request budgets scaled down in proportion, to a quarter
+  at most; what no longer fits is cut by priority with the usual `BUDGET`/`REQUIRED_OVER_BUDGET` gaps. A supporting
+  construct over budget keeps its first line (`transformation: signature`, excluded as `SIGNATURE_ONLY`) instead of
+  disappearing.
 - The model is nondeterministic: the same run can yield `UNKNOWN` if it did not attach an anchor to a criterion; this is
   expected strictness, not a bug.

@@ -206,7 +206,7 @@
           "$ref": "#/$defs/Priority"
         },
         "reason": {
-          "description": "`REQUIRED_OVER_BUDGET`, `BUDGET` or `LIMIT_MAX_SOURCE_FILES`.",
+          "description": "`REQUIRED_OVER_BUDGET`, `BUDGET`, `SIGNATURE_ONLY` or `LIMIT_MAX_SOURCE_FILES`.",
           "type": "string"
         }
       },
