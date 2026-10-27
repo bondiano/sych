@@ -95,6 +95,13 @@ pub(crate) fn bind(
             .iter()
             .map(|r| format!("In state {:?}: {}.", r.state, r.obligation)),
     );
+    if !matrix.declared.is_empty() {
+        planned.criteria.push(format!(
+            "Judge against what the environment owner declared: {}.",
+            matrix.declared.join("; ")
+        ));
+    }
+
     planned.criteria.push(match &matrix.observed {
         Some(seen) => format!(
             "OBSERVED_TRANSITION: the environment reports \"{}\" ({}); judge the change against \

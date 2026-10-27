@@ -1,0 +1,60 @@
+schema_version: 1
+id: mig-recovery-after-writes-unsafe
+split: development
+language: go
+pair: mig-recovery-after-writes
+variant: unsafe
+profiles: [migration_compatibility]
+rationale: "The new app writes the status 'partially_refunded', and the declared recovery path is a compatible rollback to the old image; the old app's parser rejects any status it does not know, so after a rollback every order written with the new value fails to load (spec §13.4, recovery after new writes)."
+base:
+  .sych/deploy.yaml: |
+    schema_version: 1
+    environment: production
+    owner: orders
+    mixed_versions: {value: true, source: "rolling update"}
+    recovery: {value: compatible_rollback, source: "runbook RB-7: roll back the image"}
+  go.mod: |
+    module example.com/shop
+
+    go 1.26
+  migrations/0001_orders.sql: |
+    CREATE TABLE orders (id TEXT PRIMARY KEY, status TEXT NOT NULL);
+  orders/status.go: |
+    package orders
+
+    import "fmt"
+
+    func ParseStatus(s string) (string, error) {
+    	switch s {
+    	case "new", "paid", "refunded":
+    		return s, nil
+    	}
+    	return "", fmt.Errorf("unknown status %q", s)
+    }
+head:
+  migrations/0002_status_check.sql: |
+    ALTER TABLE orders ADD CONSTRAINT orders_status CHECK (status IN ('new', 'paid', 'refunded', 'partially_refunded'));
+  orders/status.go: |
+    package orders
+
+    import "fmt"
+
+    func ParseStatus(s string) (string, error) {
+    	switch s {
+    	case "new", "paid", "refunded", "partially_refunded":
+    		return s, nil
+    	}
+    	return "", fmt.Errorf("unknown status %q", s)
+    }
+expected:
+  obligations:
+    - { rule_id: MIG-RECOVERY, expected_status: VIOLATED }
+  findings:
+    - category: defect
+      semantic_target: "orders written with status partially_refunded after a rollback to the old image"
+      required_condition: "the new app writes partially_refunded, then the image is rolled back as the runbook declares"
+      evidence_locations:
+        - { side: DIFF_BASE, path: orders/status.go, start_line: 6, end_line: 10 }
+        - { side: HEAD, path: orders/status.go, start_line: 7, end_line: 7 }
+  forbidden_claims:
+    - "Rolling back the image restores the previous behaviour for every stored order."

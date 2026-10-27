@@ -1,0 +1,53 @@
+schema_version: 1
+id: mig-recovery-after-writes-safe
+split: development
+language: go
+pair: mig-recovery-after-writes
+variant: safe
+profiles: [migration_compatibility]
+rationale: "Same new status, but the declared recovery path is roll-forward repair: the old image is never brought back over rows it cannot read, so the new value does not break recovery (spec §13.4)."
+base:
+  .sych/deploy.yaml: |
+    schema_version: 1
+    environment: production
+    owner: orders
+    mixed_versions: {value: true, source: "rolling update"}
+    recovery: {value: roll_forward_repair, source: "runbook RB-7: fix forward, never roll the image back past a new status"}
+  go.mod: |
+    module example.com/shop
+
+    go 1.26
+  migrations/0001_orders.sql: |
+    CREATE TABLE orders (id TEXT PRIMARY KEY, status TEXT NOT NULL);
+  orders/status.go: |
+    package orders
+
+    import "fmt"
+
+    func ParseStatus(s string) (string, error) {
+    	switch s {
+    	case "new", "paid", "refunded":
+    		return s, nil
+    	}
+    	return "", fmt.Errorf("unknown status %q", s)
+    }
+head:
+  migrations/0002_status_check.sql: |
+    ALTER TABLE orders ADD CONSTRAINT orders_status CHECK (status IN ('new', 'paid', 'refunded', 'partially_refunded'));
+  orders/status.go: |
+    package orders
+
+    import "fmt"
+
+    func ParseStatus(s string) (string, error) {
+    	switch s {
+    	case "new", "paid", "refunded", "partially_refunded":
+    		return s, nil
+    	}
+    	return "", fmt.Errorf("unknown status %q", s)
+    }
+expected:
+  obligations:
+    - { rule_id: MIG-RECOVERY, expected_status: SUPPORTED }
+  forbidden_claims:
+    - "A rollback to the old image breaks orders with the new status."
