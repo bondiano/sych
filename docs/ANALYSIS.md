@@ -355,3 +355,25 @@ proc-macros: unexpanded macros, cfg outside the active features and dynamic disp
   disappearing.
 - The model is nondeterministic: the same run can yield `UNKNOWN` if it did not attach an anchor to a criterion; this is
   expected strictness, not a bug.
+
+## Guided tour (M5.1)
+
+`sych_core::tour` holds the deterministic part of spec §21 over one saved `ReviewResult`:
+
+- **Plan** (`tour::plan`, `tour-planner@1`): material findings (defects, rule violations) by severity, one stop per
+  file, then required `UNKNOWN` obligations that have a location; 3–6 stops from `tour.target_steps`. The overview —
+  coverage, every HIGH/CRITICAL finding and every required `UNKNOWN` — is never cut by the route; improvements and
+  nits are listed apart.
+- **Artifact** (`TourArtifact`, [schema](../schemas/tour-artifact.schema.json)): one result revision, planner/prompt/
+  renderer versions and generation provenance, steps with finding/obligation/evidence ids, code refs, free-text
+  explanation, an optional `COMPREHENSION | FACT_REQUEST | RISK_DECISION` question and `Example`-labelled snippets.
+- **Validation** (`tour::validate`): the tour belongs to the result and revision; the overview equals the typed
+  result's (a hidden UNKNOWN is rejected); every id exists; every code ref resolves in the pinned snapshot; every
+  illustrative snippet is labelled `Example`. A valid structure is not a true explanation.
+- **Rendering** (`tour::render`): the lines shown come from the Git blob, never from the model's text.
+- **States** (`tour::next`): `NOT_REQUESTED → GENERATING → VALIDATING → READY | FAILED`, two attempts at most (one
+  repair). A tour of an older revision is `STALE` (`tour::stale`) and is never rewritten; a new request makes a new
+  `tour_id`.
+
+Not yet: the model generation pass (`Purpose::Tour` and its budget exist), storage of tours, the CLI reader (M5.2)
+and a real sandbox tour with its usage report.

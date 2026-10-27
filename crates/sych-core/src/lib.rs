@@ -36,6 +36,7 @@ mod snapshot;
 mod status;
 mod syntax;
 pub mod terraform;
+pub mod tour;
 mod version;
 
 pub use ci::*;
