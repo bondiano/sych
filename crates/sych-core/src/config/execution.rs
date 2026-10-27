@@ -80,6 +80,17 @@ pub enum ExecutionRefused {
     Invalid { param: String, value: String },
 }
 
+/// `name@sha256:<64 lowercase hex>`, nothing after the digest.
+fn pinned(image: &str) -> bool {
+    image.split_once("@sha256:").is_some_and(|(name, digest)| {
+        !name.is_empty()
+            && digest.len() == 64
+            && digest
+                .bytes()
+                .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+    })
+}
+
 impl Execution {
     /// The argv of an allowed profile with checked parameters; parameters a profile does not
     /// name are ignored, so a request cannot add arguments.
@@ -138,7 +149,7 @@ impl Execution {
             }
         }
         for (name, p) in &self.profiles {
-            if !p.image.contains("@sha256:") {
+            if !pinned(&p.image) {
                 out.push((
                     format!("execution.profiles.{name}.image"),
                     "must be pinned by digest (image@sha256:…)",
@@ -149,6 +160,14 @@ impl Execution {
                 out.push((
                     format!("execution.profiles.{name}.executable"),
                     "must be an absolute path",
+                ));
+            }
+
+            // Docker reads a zero limit as no limit at all.
+            if [p.memory_mb, p.cpu_millis, p.pids].contains(&0) {
+                out.push((
+                    format!("execution.profiles.{name}"),
+                    "memory_mb, cpu_millis and pids must be greater than zero",
                 ));
             }
 
@@ -212,8 +231,10 @@ mod tests {
         e.profiles
             .get_mut("go-test")
             .map(|p| {
+                p.image = "golang:1.26@sha256:latest".into();
                 p.executable = "go".into();
                 p.timeout_seconds = 0;
+                p.pids = 0;
             })
             .expect("profile");
         let fields: Vec<String> = e.problems().into_iter().map(|(f, _)| f).collect();
@@ -221,7 +242,9 @@ mod tests {
             fields,
             [
                 "execution.allowed_profiles.missing",
+                "execution.profiles.go-test.image",
                 "execution.profiles.go-test.executable",
+                "execution.profiles.go-test",
                 "execution.profiles.go-test.timeout_seconds",
             ]
         );

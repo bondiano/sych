@@ -107,7 +107,7 @@ fn run_one(
         None,
     )
     .map_err(|e| gap("CI_REPORT_MALFORMED", e.to_string()))?;
-    facts.runner = Some(format!("{name}@{}", profile.image));
+    facts.runner = Some(format!("{name} in {}", profile.image));
     facts.limitations.extend(exit);
     let left_out = written.skipped.len() + written.tool_configs.len() + written.over_budget;
     if left_out > 0 {
@@ -227,7 +227,7 @@ mod tests {
         assert!(
             f.runner
                 .as_deref()
-                .is_some_and(|r| r.starts_with("outcomes@alpine"))
+                .is_some_and(|r| r.starts_with("outcomes in alpine"))
         );
     }
 }

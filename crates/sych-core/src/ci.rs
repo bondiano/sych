@@ -183,7 +183,7 @@ pub struct CiFacts {
     pub origin: Option<CiOrigin>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terraform: Option<TerraformPlan>,
-    /// `profile@image` of a targeted check Sych ran itself on the pinned head.
+    /// `<profile> in <image>` of a targeted check Sych ran itself on the pinned head.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runner: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
