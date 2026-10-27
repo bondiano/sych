@@ -6,6 +6,7 @@ use std::process::Command;
 
 use serde_json::{Value, json};
 use sych_adapters::github::{AppKey, Github, capabilities};
+use sych_app::server::smoke::smoke;
 use sych_core::scm::ScmErrorKind;
 
 mod fake_github;
@@ -121,4 +122,34 @@ async fn errors_map_without_guessing() {
         !format!("{missing:?}").contains(TOKEN),
         "no token in errors"
     );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn scm_smoke_writes_reads_finds_and_deletes_its_own_comment() {
+    let (url, fake) = start().await;
+    let gh = Github::new(&url, app_key()).expect("client");
+    let report = smoke(&gh, "o/r", 7, "sych[bot]", "n1", NOW)
+        .await
+        .expect("smoke");
+    assert!(report.found_by_marker && report.deleted, "{report:?}");
+    assert_eq!(report.marker, "sych:smoke:n1");
+    assert_eq!(
+        report
+            .revisions
+            .iter()
+            .map(|r| r.revision)
+            .collect::<Vec<_>>(),
+        [1, 2]
+    );
+    assert!(report.missing_capabilities.is_empty());
+    let s = lock(&fake);
+    assert!(s.comments.is_empty(), "the smoke comment is removed");
+    let writes: Vec<&String> = s
+        .log
+        .iter()
+        .filter(|l| {
+            l.starts_with("POST /repos") || l.starts_with("PATCH") || l.starts_with("DELETE")
+        })
+        .collect();
+    assert_eq!(writes.len(), 3, "{writes:?}");
 }
