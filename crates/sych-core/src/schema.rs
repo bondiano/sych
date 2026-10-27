@@ -1,5 +1,6 @@
 //! JSON Schemas generated from the DTOs, the single source of truth (spec §25.4).
 
+use crate::deploy::{DeploymentModel, TransitionMatrix};
 use schemars::{JsonSchema, Schema, schema_for};
 
 use crate::broker::ContextPackets;
@@ -14,7 +15,7 @@ fn with_name<T: JsonSchema>(name: &'static str) -> (&'static str, Schema) {
 }
 
 /// `(file stem, schema)` for every external versioned document.
-pub fn document_schemas() -> [(&'static str, Schema); 10] {
+pub fn document_schemas() -> [(&'static str, Schema); 12] {
     [
         with_name::<SourceSnapshot>("source-snapshot"),
         with_name::<DiffManifest>("diff-manifest"),
@@ -26,5 +27,7 @@ pub fn document_schemas() -> [(&'static str, Schema); 10] {
         with_name::<SemanticFacts>("semantic-facts"),
         with_name::<ContextPackets>("context-packets"),
         with_name::<RunFacts>("run-facts"),
+        with_name::<DeploymentModel>("deployment-model"),
+        with_name::<TransitionMatrix>("transition-matrix"),
     ]
 }
