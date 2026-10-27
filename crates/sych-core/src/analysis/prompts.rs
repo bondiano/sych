@@ -10,7 +10,7 @@ use crate::{Candidate, PlannedObligation};
 pub const DISCOVERY: &str = "discovery@6";
 pub const RISK_AUDIT: &str = "risk_audit@5";
 pub const ASSESSMENT: &str = "assessment@4";
-pub const VERIFY: &str = "verify@3";
+pub const VERIFY: &str = "verify@4";
 pub const REVIEW: &str = "review@5";
 
 /// The fields of one assessment; `ob` names the obligation id the answer must carry.
@@ -304,6 +304,12 @@ pub fn verify(
                      UNRESOLVED, not a lower severity.",
                     "An unfounded nit, or one that proposes no change, is REJECTED, never raised \
                      to a defect.",
+                    "A claim that a changed default, constant or literal changes behaviour is \
+                     CONFIRMED only when a shown span reads that value on the path to the \
+                     consequence. With no reader shown, ask search_source on BASE for its name \
+                     and answer UNRESOLVED; when a complete answer shows no reader outside \
+                     its definition and default and the value is not public API, it is \
+                     REJECTED: an unread value changes nothing.",
                 ]
                 .map(str::to_owned),
             );

@@ -345,6 +345,51 @@ async fn an_unresolved_candidate_is_verified_again_with_the_verifiers_answers() 
     );
 }
 
+/// The verifier searches BASE for a name nobody uses; the empty answer reaches the second
+/// round, which can reject the claim instead of staying unresolved.
+fn verifier_finds_no_reader(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
+    if request.schema_name != "candidate_verdicts" {
+        return expanding(request);
+    }
+
+    let user = &request.messages[1].content;
+    let verdict = if user.contains("no matches") {
+        "REJECTED"
+    } else {
+        "UNRESOLVED"
+    };
+    Ok(reply(
+        &json!({"verdicts": [{"candidate_id": "cand-1", "verdict": verdict,
+        "category": "DEFECT", "severity": "MEDIUM", "support": "SEMANTIC_ARGUMENT",
+        "title": "t", "explanation": "e", "anchors": [], "evidence_ids": [],
+        "alternatives_checked": [], "suggested_action": "", "validation_expectation": "",
+        "limitations": []}],
+        "context_requests": [{"question": "readers of the value",
+            "operation": {"op": "search_source", "side": "DIFF_BASE", "query": "noSuchReaderAnywhere"}}]})
+        .to_string(),
+    ))
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn an_empty_answer_reaches_the_verifier() {
+    let (outcome, _) = run(verifier_finds_no_reader, Budgets::default()).await;
+    assert!(
+        outcome
+            .record
+            .answers
+            .iter()
+            .any(|a| a.refs == 0 && a.status == Some(OpStatus::CompleteForQuery))
+    );
+    assert!(
+        outcome
+            .candidates
+            .iter()
+            .all(|c| c.verification_status == VerificationStatus::Rejected),
+        "{:?}",
+        outcome.candidates
+    );
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn a_second_round_over_the_budget_keeps_the_first_verdicts() {
     let mut budgets = Budgets::default();
