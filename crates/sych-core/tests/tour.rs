@@ -197,3 +197,14 @@ fn one_repair_then_failure_and_a_new_revision_is_stale() {
     assert!(!stale(&t, r.review_revision));
     assert!(stale(&t, r.review_revision + 1));
 }
+
+/// Two findings on the same lines make one stop that shows those lines once.
+#[test]
+fn a_stop_shows_each_location_once() {
+    let mut r = crowded();
+    r.findings.truncate(2);
+    let anchor = r.findings[0].anchors.clone();
+    r.findings[1].anchors.clone_from(&anchor);
+    let p = plan(&r, 5);
+    assert_eq!(p.stops[0].code_refs, anchor);
+}

@@ -3,7 +3,7 @@
 //! code read from Git, never from model text. Statuses come from the typed result only.
 
 use std::cmp::Reverse;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -111,6 +111,8 @@ pub fn plan(result: &ReviewResult, target: usize) -> TourPlan {
     }
     for (i, s) in stops.iter_mut().enumerate() {
         s.id = format!("stop-{}", i + 1);
+        let mut seen = HashSet::new();
+        s.code_refs.retain(|r| seen.insert(r.clone()));
     }
     TourPlan {
         result_id: result.result_id,
