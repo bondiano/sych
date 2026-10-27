@@ -269,7 +269,7 @@ recomputed, and old cache files are not deleted.
 ## ContextBroker
 
 `sych_core::broker` builds one discovery packet per review unit and one verification packet per obligation
-(§9). A packet contains no source text: only `CodeRef`s with hash, selection reasons, priority
+(§9), split into chunks when its required spans do not fit one request together. A packet contains no source text: only `CodeRef`s with hash, selection reasons, priority
 (`REQUIRED → REFUTING → SUPPORTING`), completeness, relations (`called_by`, `calls`, `uses_type`, `implemented_by`, `tested_by`,
 `read_by`, `written_by`, `referenced_by`), records of semantic queries, excluded items with reasons, and gaps. Text is read back via
 `SnapshotReader`, which verifies the hash. Packets are stored as the run's `context_packets` artifact. An example with excluded
@@ -289,9 +289,11 @@ all reasons.
 §9.3 limits: the unit budget is `context.initial_tokens_per_unit` (6000), a verification packet gets the sum over units, but no
 more than `context.max_tokens_per_request` (14000); tokens are counted as bytes of text (an upper bound). Files per
 run: `context.max_source_files` (80, does not apply to required spans). 24 semantic queries per unit and 160 per run,
-spans up to 160 lines, text blobs up to 512 KiB — constants of §9.3 for now. A required span that does not fit
-is not truncated: it goes into `excluded` as `REQUIRED_OVER_BUDGET`, and the obligation gets `UNKNOWN /
-CONTEXT_LIMIT` regardless of the model's answer. Syntax risk shapes and CI diagnostics (`REFUTING`) are taken only on
+spans up to 160 lines, text blobs up to 512 KiB — constants of §9.3 for now. Spans of a verification packet are
+packed first-fit into up to four chunks of the request budget, each chunk its own packet and assessment. A
+required span larger than the budget, or beyond the four chunks, is not truncated: it goes into `excluded` as
+`REQUIRED_OVER_BUDGET` on a packet of its own, and the obligation gets `UNKNOWN / CONTEXT_LIMIT` unless a chunk
+that fit shows a violation. Syntax risk shapes and CI diagnostics (`REFUTING`) are taken only on
 changed lines and are merged with the required hunk. Writers of a changed symbol outside the change are also `REFUTING`:
 such a span over budget is excluded as `BUDGET`, leaves the gap `REFUTING_OVER_BUDGET`, and the packet becomes `PARTIAL`.
 
