@@ -380,6 +380,20 @@ mod tests {
         }
     }
 
+    /// Strict structured outputs need every property required; an optional one is nullable.
+    #[test]
+    fn a_suggested_change_is_required_and_nullable() {
+        let schema = serde_json::to_value(output_schema::<VerifyOutput>()).expect("json");
+        let verdict = &schema["properties"]["verdicts"]["items"];
+        let required = verdict["required"].as_array().expect("required");
+        assert!(
+            required.iter().any(|r| r == "suggested_change"),
+            "{verdict}"
+        );
+        let change = verdict["properties"]["suggested_change"].to_string();
+        assert!(change.contains("\"null\""), "{change}");
+    }
+
     #[test]
     fn a_candidate_schema_demands_an_anchor() {
         let schema = serde_json::to_value(output_schema::<DiscoveryOutput>()).expect("json");

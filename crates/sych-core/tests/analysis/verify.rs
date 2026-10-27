@@ -214,3 +214,58 @@ fn a_useful_nit_needs_no_rule_and_stays_low() {
         "a nit is never raised above LOW"
     );
 }
+
+/// A change on lines of a shown HEAD span reaches the finding; one on BASE or outside the
+/// spans is dropped with the reason, and the finding stands.
+#[test]
+fn a_suggested_change_needs_lines_of_a_shown_head_span() {
+    let reader = Reader::new();
+    let (context, _) = context(&reader);
+    let trace = vec![anchor("ref-2", 2, 2)];
+    for (at, dropped) in [
+        (anchor("ref-2", 2, 2), None),
+        (anchor("ref-1", 2, 2), Some("BASE lines")),
+        (anchor("ref-2", 2, 9), Some("outside ref-2")),
+    ] {
+        let mut v = verdict(
+            "cand-1",
+            Severity::Medium,
+            Support::SemanticArgument,
+            &trace,
+        );
+        v["suggested_change"] = json!({"anchor": at, "replacement": "  return 0;\n"});
+        let output: VerifyOutput =
+            serde_json::from_value(json!({"verdicts": [v], "context_requests": []}))
+                .expect("verdicts");
+        let verified = validate_verdicts(
+            &output,
+            candidates(&reader, &context, 1),
+            &context,
+            &reader,
+            &[],
+            "unit",
+        );
+        let finding = &verified.findings[0];
+        match dropped {
+            None => {
+                let change = finding.suggested_change.as_ref().expect("kept");
+                assert_eq!(
+                    change.code,
+                    reader.at(SourceSide::Head, "src/order.ts", 2, 2)
+                );
+                assert_eq!(change.replacement, "  return 0;");
+            }
+            Some(reason) => {
+                assert!(finding.suggested_change.is_none(), "{reason}");
+                assert!(
+                    finding
+                        .limitations
+                        .iter()
+                        .any(|l| l.contains("suggested change dropped") && l.contains(reason)),
+                    "{:?}",
+                    finding.limitations
+                );
+            }
+        }
+    }
+}

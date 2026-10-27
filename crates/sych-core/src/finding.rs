@@ -44,6 +44,14 @@ pub struct Candidate {
     pub limitations: Vec<String>,
 }
 
+/// The full new text of exactly the HEAD lines of `code`, which a comment can offer as a
+/// one-click change.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SuggestedChange {
+    pub code: CodeRef,
+    pub replacement: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum FindingCategory {
@@ -108,4 +116,6 @@ pub struct Finding {
     pub scope: String,
     #[serde(default)]
     pub limitations: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggested_change: Option<SuggestedChange>,
 }

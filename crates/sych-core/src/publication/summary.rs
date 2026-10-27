@@ -231,7 +231,7 @@ fn problem(
     }
 
     out.push('\n');
-    details(out, f, l);
+    details(out, f, l, false);
 }
 
 fn unknowns(out: &mut String, result: &ReviewResult, detail: Detail) {

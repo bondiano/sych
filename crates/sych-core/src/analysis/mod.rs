@@ -19,6 +19,6 @@ pub use discovery::{
     validate as validate_discovery,
 };
 pub use verify::{
-    CandidateVerdict, KnownDiagnostics, Verdict, Verified, VerifyOutput, merge_overlapping,
-    validate as validate_verdicts,
+    CandidateVerdict, KnownDiagnostics, ProposedChange, Verdict, Verified, VerifyOutput,
+    merge_overlapping, validate as validate_verdicts,
 };

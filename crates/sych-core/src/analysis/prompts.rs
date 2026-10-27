@@ -10,7 +10,7 @@ use crate::{Candidate, PlannedObligation};
 pub const DISCOVERY: &str = "discovery@6";
 pub const RISK_AUDIT: &str = "risk_audit@5";
 pub const ASSESSMENT: &str = "assessment@4";
-pub const VERIFY: &str = "verify@4";
+pub const VERIFY: &str = "verify@5";
 pub const REVIEW: &str = "review@5";
 
 /// The fields of one assessment; `ob` names the obligation id the answer must carry.
@@ -285,8 +285,9 @@ pub fn verify(
         output_contract: "Reply with one JSON object {\"verdicts\": [...], \
             \"context_requests\": [...]}, one verdict per cand-N: candidate_id, verdict (CONFIRMED, REJECTED, UNRESOLVED), category, severity, support \
             (STATIC_TRACE, SEMANTIC_ARGUMENT, EXPLICIT_RULE, PREFERENCE), title, explanation, \
-            anchors, evidence_ids, alternatives_checked, suggested_action, validation_expectation \
-            and limitations. Be brief: every text one sentence, alternatives_checked short \
+            anchors, evidence_ids, alternatives_checked, suggested_action, validation_expectation, \
+            limitations and suggested_change (null, or {anchor, replacement}: the full new text \
+            of exactly the anchor's lines). Be brief: every text one sentence, alternatives_checked short \
             phrases; the hypothesis already states conditions and consequence. \
             context_requests ask for code a verdict needs and the spans do not show, \
             in the discovery form; they are answered once and the UNRESOLVED hypotheses \
@@ -310,6 +311,10 @@ pub fn verify(
                      and answer UNRESOLVED; when a complete answer shows no reader outside \
                      its definition and default and the value is not public API, it is \
                      REJECTED: an unread value changes nothing.",
+                    "suggested_change only for a CONFIRMED finding whose fix is local to lines of \
+                     a shown HEAD span: the anchor names those lines and replacement is their \
+                     complete new text with the original indentation. Otherwise null; never \
+                     write code the spans do not show.",
                 ]
                 .map(str::to_owned),
             );

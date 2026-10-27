@@ -12,7 +12,7 @@ use sych_core::publication::{
 };
 use sych_core::{
     Coverage, DiffManifest, ExecutionOutcome, Finding, FindingCategory, GitObjectId,
-    ReviewLanguage, ReviewResult, Severity, SourceSide, decode, sha256,
+    ReviewLanguage, ReviewResult, Severity, SourceSide, SuggestedChange, decode, sha256,
 };
 
 fn fixture(name: &str) -> PathBuf {
@@ -291,6 +291,24 @@ fn russian_summaries_and_inline_bodies_match_their_golden_files() {
     finding.triggering_conditions = vec!["two concurrent requests".into()];
     golden("inline.ru", &inline_body(&finding, ReviewLanguage::Ru));
     golden("inline.en", &inline_body(&finding, ReviewLanguage::En));
+
+    // A change of exactly the commented lines is a GitHub suggestion; other lines are code.
+    let mut change = SuggestedChange {
+        code: finding.anchors[0].clone(),
+        replacement: "    tx.Insert(order)\n    tx.Insert(outbox)".into(),
+    };
+    finding.suggested_change = Some(change.clone());
+    golden(
+        "inline-suggestion.ru",
+        &inline_body(&finding, ReviewLanguage::Ru),
+    );
+    let text = inline_body(&finding, ReviewLanguage::En);
+    assert!(text.contains("```suggestion\n    tx.Insert(order)\n    tx.Insert(outbox)\n```"));
+    golden("inline-suggestion.en", &text);
+    change.code.start_line += 1;
+    finding.suggested_change = Some(change);
+    let text = inline_body(&finding, ReviewLanguage::En);
+    assert!(!text.contains("suggestion\n") && text.contains("Suggested code"));
 }
 
 /// A summary whose full text is over GitHub's comment limit drops the details, never the
