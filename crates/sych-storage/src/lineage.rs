@@ -94,7 +94,7 @@ impl Storage {
         decisions: &[(String, Decision)],
         at: i64,
     ) -> Result<bool, StorageError> {
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let fresh =
             sqlx::query("UPDATE runs SET lineage_applied = 1 WHERE id = ? AND lineage_applied = 0")
                 .bind(run_id)
@@ -173,7 +173,7 @@ impl Storage {
         rationale: &str,
         at: i64,
     ) -> Result<(), StorageError> {
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let row = sqlx::query(
             "SELECT f.change_id, f.state, (SELECT policy_snapshot_id FROM runs WHERE id = f.last_run_id)
              FROM findings f JOIN changes c ON c.id = f.change_id WHERE f.id = ? AND c.tenant_id = ?",

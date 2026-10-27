@@ -85,7 +85,7 @@ impl Storage {
         dry_run: bool,
     ) -> Result<Vec<RecordPrune>, StorageError> {
         let mut out = Vec::new();
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         for (table, rule, count, delete, age) in RULES {
             let cutoff = now.as_second() - age;
             let rows: i64 = sqlx::query(*count)

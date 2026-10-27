@@ -149,6 +149,32 @@ async fn concurrent_reservations_never_exceed_the_cap() {
     assert_eq!(admitted, 10);
 }
 
+/// A server engine and a review thread each open their own pool on one file; reservations
+/// from both must wait for the lock, not fail with "database is locked".
+#[tokio::test]
+async fn reservations_from_two_connections_wait_for_the_lock() {
+    let (dir, first, run) = setup().await;
+    let second = Storage::open(&config(dir.path())).await.expect("open");
+    let pools = [Arc::new(first), Arc::new(second)];
+    let mut tasks = JoinSet::new();
+    for i in 0..40 {
+        let storage = Arc::clone(&pools[i % 2]);
+        tasks.spawn(async move {
+            storage
+                .reserve_attempt(&reservation(run, 100), &limits(1_000, 10_000))
+                .await
+                .map(|admitted| admitted.is_ok())
+        });
+    }
+    let results = tasks.join_all().await;
+    let admitted = results
+        .into_iter()
+        .map(|r| r.expect("no SQLITE_BUSY"))
+        .filter(|ok| *ok)
+        .count();
+    assert_eq!(admitted, 10);
+}
+
 #[tokio::test]
 async fn settlement_is_idempotent_and_unknown_holds_the_reservation() {
     let (_dir, storage, run) = setup().await;

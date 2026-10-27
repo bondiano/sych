@@ -81,7 +81,7 @@ impl Storage {
             (_, true, Ok(_)) if event.change_numbers.is_empty() => "NO_CHANGE",
             (_, true, Ok(_)) => "SCHEDULED",
         };
-        let mut tx = self.pool().begin().await?;
+        let mut tx = self.write().await?;
         let inserted = sqlx::query(
             "INSERT INTO inbox_events (provider_instance, connection_id, delivery_id, event,
                  action, payload_sha256, normalized, received_at, decision)
