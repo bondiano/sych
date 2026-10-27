@@ -111,6 +111,9 @@ pub fn plan(result: &ReviewResult, target: usize) -> TourPlan {
     }
     for (i, s) in stops.iter_mut().enumerate() {
         s.id = format!("stop-{}", i + 1);
+        let mut seen = BTreeSet::new();
+        s.code_refs
+            .retain(|r| seen.insert((r.path.to_string(), r.start_line, r.end_line)));
     }
     TourPlan {
         result_id: result.result_id,
