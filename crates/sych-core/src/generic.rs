@@ -1,7 +1,8 @@
 //! The generic rule pack shipped with the engine (spec §11.4). A generic rule is enabled by
 //! its review profile and activates only on the changes it is about; a repository rule with
 //! the same id replaces it. Rules whose domain checker arrives in M3 stay `UNKNOWN` when they
-//! activate: a missing provider never excludes a rule.
+//! activate: a missing provider never excludes a rule. Migration rules are bound to the
+//! deployment model's transition matrix (`migration::bind`).
 
 use crate::config::{Acceptance, AppliesTo, Effect, ReviewProfile, Rule, RuleKind, RuleSeverity};
 use crate::effects::{EffectLedger, EffectMatch, LedgerEntry};
@@ -79,7 +80,7 @@ pub(crate) fn pack() -> Vec<GenericRule> {
             rule(id, title, High, statement, &[statement]),
             MigrationCompatibility,
             Trigger::Paths(MIGRATION),
-            Some("migration checker (M3)"),
+            None,
         )
     };
     vec![

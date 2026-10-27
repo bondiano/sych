@@ -9,10 +9,10 @@ use sych_core::config::{EffectKind, PolicyFiles, RepositoryPolicy, ServerConfig}
 use sych_core::effects::{EffectLedger, EffectMatch, LedgerEntry, Resolution};
 use sych_core::{
     Applicability, BackendStatus, ChangeStatus, CodeRef, Completeness, ContentKind, DiffManifest,
-    EdgeSet, FileChange, FileSide, GitHashAlgorithm, GitObjectId, Language, ObligationStatus,
-    PROVIDER_UNAVAILABLE, PathClass, Producer, QueryStatus, ReviewPlan, RunFacts, SchemaVersion,
-    SemanticFacts, SourceSide, SourceSnapshotId, SymbolFacts, SyntaxFact, SyntaxFacts, SyntaxKind,
-    plan, sha256,
+    EdgeSet, EvaluationMode, FileChange, FileSide, GitHashAlgorithm, GitObjectId, Language,
+    NOT_ASSESSED, ObligationStatus, PROVIDER_UNAVAILABLE, PathClass, Producer, QueryStatus,
+    ReviewPlan, RunFacts, SchemaVersion, SemanticFacts, SourceSide, SourceSnapshotId, SymbolFacts,
+    SyntaxFact, SyntaxFacts, SyntaxKind, plan, sha256,
 };
 
 #[path = "rules/infra.rs"]
@@ -105,13 +105,21 @@ fn generic_rules_activate_only_on_their_changes() {
         &repo,
         &RunFacts::default(),
     );
+    // Without deploy.yaml the plan is still reviewed; the gaps are named, not assumed away.
     let mig = rule(&p, "MIG-COMPAT").expect("migration rule");
-    assert_eq!(mig.applicability, Applicability::Unknown);
-    assert!(matches!(&mig.status,
-        ObligationStatus::Unknown { reason_code, .. } if reason_code == PROVIDER_UNAVAILABLE));
+    assert_eq!(mig.applicability, Applicability::Applies);
+    assert_eq!(mig.evaluation_mode, Some(EvaluationMode::PlanReview));
     assert!(
-        mig.required,
-        "a missing checker does not make the rule optional"
+        mig.limitations
+            .iter()
+            .any(|l| l.starts_with("INITIAL_VERSION_UNKNOWN"))
+    );
+    let contract = rule(&p, "MIG-CONTRACT").expect("migration rule");
+    assert!(matches!(&contract.status,
+        ObligationStatus::Unknown { reason_code, .. } if reason_code == "DEPLOYMENT_INPUT_MISSING"));
+    assert!(
+        contract.required,
+        "a missing owner input does not make the rule optional"
     );
     let tests = rule(&p, "TEST-INTEGRITY").expect("test integrity");
     assert_eq!(tests.applicability, Applicability::Applies);
@@ -330,4 +338,51 @@ fn ledger_changes_activate_the_effect_rules_with_a_provider() {
         &["lifetime: caller → detached: go s.publish()"],
     );
     assert!(rule(&planned(files(), &repo, &lifetime), "EFFECT-02").is_some());
+}
+
+const DEPLOY: &str = r#"schema_version: 1
+environment: staging
+owner: payments
+recovery: {value: roll_forward_repair, source: runbook RB-12}
+excluded_states:
+  - {value: contract_phase, source: "contract ships in a separate release (RFC-31)"}
+"#;
+
+/// Migration rules are judged over the reachable rollout states (roadmap M3.5): a declared
+/// recovery path lets MIG-RECOVERY be assessed, a sourced exclusion drops MIG-CONTRACT.
+#[test]
+fn migration_rules_follow_the_deployment_model() {
+    let repo = policy(&[(".sych/deploy.yaml", DEPLOY)]);
+    let p = planned(
+        vec![changed("db/migrations/0002_orders.sql")],
+        &repo,
+        &RunFacts::default(),
+    );
+    let recovery = rule(&p, "MIG-RECOVERY").expect("migration rule");
+    assert!(matches!(&recovery.status,
+        ObligationStatus::Unknown { reason_code, .. } if reason_code == NOT_ASSESSED));
+    assert!(
+        recovery
+            .acceptance_criterion
+            .contains("RecoveryAfterNewWrites")
+    );
+    assert!(recovery.acceptance_criterion.contains("PLAN_REVIEW"));
+
+    let contract = rule(&p, "MIG-CONTRACT").expect("migration rule");
+    assert_eq!(contract.applicability, Applicability::DoesNotApply);
+    assert!(matches!(&contract.status,
+        ObligationStatus::NotApplicable { basis } if basis.contains("RFC-31")));
+
+    // Not declaring a recovery path keeps MIG-RECOVERY UNKNOWN on exactly that input.
+    let bare = policy(&[(".sych/deploy.yaml", "schema_version: 1\n")]);
+    let p = planned(
+        vec![changed("db/migrations/0002_orders.sql")],
+        &bare,
+        &RunFacts::default(),
+    );
+    let recovery = rule(&p, "MIG-RECOVERY").expect("migration rule");
+    assert!(matches!(&recovery.status,
+        ObligationStatus::Unknown { reason_code, next_evidence_needed }
+            if reason_code == "DEPLOYMENT_INPUT_MISSING"
+                && next_evidence_needed.starts_with("RECOVERY_UNKNOWN")));
 }

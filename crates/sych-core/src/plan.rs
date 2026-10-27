@@ -7,12 +7,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{RepositoryPolicy, Rule, RuleException, RuleKind, RuleSeverity};
 use crate::generic::{self, GenericRule};
-use crate::terraform;
 use crate::{
     Applicability, ContentKind, DiffManifest, FileChange, Obligation, ObligationId,
     ObligationStatus, PathGap, RepoPath, ReviewUnit, ReviewUnitId, RiskHint, RiskLevel, RunFacts,
     ScopeManifest, Severity, Sha256Digest, SourceSnapshotId, derived_uuid, glob_match,
 };
+use crate::{deploy, migration, terraform};
 
 /// A generic rule that activated but whose domain checker is not available yet.
 pub const PROVIDER_UNAVAILABLE: &str = "PROVIDER_UNAVAILABLE";
@@ -357,6 +357,7 @@ fn obligation(
             evidence_ids: Vec::new(),
             limitations: Vec::new(),
             waivers: Vec::new(),
+            evaluation_mode: None,
         },
         rule_title: rule.title.clone(),
         criteria,
@@ -418,6 +419,7 @@ fn obligations(
             );
             planned
         });
+    let matrix = deploy::matrix(policy.deployment.as_ref());
     let plans: Vec<_> = facts
         .ci
         .iter()
@@ -435,6 +437,7 @@ fn obligations(
             .collect();
         (!matched.is_empty()).then(|| {
             let mut planned = generic_obligation(snapshot, &g, &matched);
+            migration::bind(&mut planned, &matrix);
             terraform::bind(&mut planned, &plans);
             planned
         })

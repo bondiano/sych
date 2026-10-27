@@ -16,6 +16,7 @@ mod hash;
 pub mod lineage;
 mod lint;
 mod manifest;
+mod migration;
 pub mod model;
 mod obligation;
 mod path_class;

@@ -12,6 +12,7 @@ pub mod metrics;
 pub mod mirrors;
 mod publisher;
 pub mod requests;
+pub mod smoke;
 mod worker;
 
 use std::collections::BTreeMap;

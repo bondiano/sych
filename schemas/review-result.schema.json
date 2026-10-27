@@ -310,6 +310,14 @@
         "subscription_observable"
       ]
     },
+    "EvaluationMode": {
+      "description": "How a migration obligation is judged (spec §13.4): the plan alone, or an observed\ntransition of a real environment, which needs evidence of that environment's state.",
+      "type": "string",
+      "enum": [
+        "PLAN_REVIEW",
+        "OBSERVED_TRANSITION"
+      ]
+    },
     "EvidenceKind": {
       "type": "string",
       "enum": [
@@ -534,6 +542,16 @@
           "items": {
             "$ref": "#/$defs/CodeRef"
           }
+        },
+        "evaluation_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvaluationMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "evidence_ids": {
           "type": "array",

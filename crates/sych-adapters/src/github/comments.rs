@@ -37,6 +37,27 @@ impl Comment {
     }
 }
 
+/// The App's own comment carrying `<!-- marker -->`; a cut list never proves it absent.
+pub fn own_comment(
+    comments: Vec<Comment>,
+    complete: bool,
+    bot_login: &str,
+    marker: &str,
+) -> Result<Option<Comment>, ScmError> {
+    let marker = format!("<!-- {marker} -->");
+    match comments
+        .into_iter()
+        .find(|c| c.owned_by(bot_login) && c.body.contains(&marker))
+    {
+        Some(c) => Ok(Some(c)),
+        None if complete => Ok(None),
+        None => Err(ScmError::new(
+            ScmErrorKind::Transient,
+            "comment list was cut",
+        )),
+    }
+}
+
 impl Github {
     /// Every comment of the change; `complete` is false when the list was cut.
     pub async fn comments(
@@ -104,5 +125,15 @@ impl Github {
             )
             .await?;
         Comment::from_json(&v)
+    }
+
+    pub async fn delete_comment(
+        &self,
+        repo: &str,
+        id: u64,
+        token: &Secret,
+    ) -> Result<(), ScmError> {
+        self.delete(&format!("/repos/{repo}/issues/comments/{id}"), token)
+            .await
     }
 }
