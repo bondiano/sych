@@ -380,5 +380,13 @@ proc-macros: unexpanded macros, cfg outside the active features and dynamic disp
   repair). A tour of an older revision is `STALE` (`tour::stale`) and is never rewritten; a new request makes a new
   `tour_id`.
 
-Not yet: the model generation pass (`Purpose::Tour` and its budget exist), storage of tours, the CLI reader (M5.2)
-and a real sandbox tour with its usage report.
+**Generation** — `sych tour --run <id> --config sych.yaml --repo . [--models PROFILE]`: the saved run's snapshot is
+captured again from `--repo` and must have the same id; the plan picks the stops; the guide (`tour@1`, role reviewer,
+budget `budgets.tour`, `Purpose::Tour` in the run's ledger) writes only intent, titles, purposes, explanations, an
+optional question and `Example` snippets per stop — ids, code references and the overview come from the plan and the
+typed result, so the model cannot invent a location or change a status. A schema error gets the gateway's one repair;
+an invalid tour (a stop it invented or skipped, a reference that does not resolve) gets one regeneration told what
+was wrong, then `FAILED`. A valid tour is stored as artifact `tour:<tour_id>` of the run (`ArtifactKind::Tour`) and
+printed with code read from the blobs; the output reports attempts and their cost.
+
+Not yet: the CLI reader with sessions (M5.2).

@@ -6,6 +6,7 @@ mod assess;
 mod context;
 mod discovery;
 pub mod prompts;
+pub mod tour_prompt;
 mod verify;
 
 pub use assess::{

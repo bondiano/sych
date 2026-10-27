@@ -101,6 +101,8 @@ pub enum ArtifactKind {
     ReviewResult,
     /// An accepted model answer with its dependencies, for successor runs.
     Checkpoint,
+    /// A guided tour of the run's result; one per generation, never rewritten.
+    Tour,
 }
 
 impl ArtifactKind {
@@ -117,6 +119,7 @@ impl ArtifactKind {
             Self::Analysis => "analysis",
             Self::ReviewResult => "review_result",
             Self::Checkpoint => "checkpoint",
+            Self::Tour => "tour",
         }
     }
 
@@ -401,6 +404,29 @@ impl Storage {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    /// A handle to a saved local run, for work on its result (a tour) after it finished.
+    pub async fn run_handle(&self, tenant_id: &str, run: RunId) -> Result<RunHandle, StorageError> {
+        let row =
+            sqlx::query("SELECT access_scope, generation FROM runs WHERE id = ? AND tenant_id = ?")
+                .bind(run.to_string())
+                .bind(tenant_id)
+                .fetch_optional(&self.pool)
+                .await?
+                .ok_or(StorageError::UnknownRun(run))?;
+        let generation: i64 = row.get(1);
+        Ok(RunHandle {
+            id: run,
+            partition: Partition {
+                tenant_id: tenant_id.to_owned(),
+                access_scope: row.get(0),
+            },
+            generation: u64::try_from(generation).map_err(|_| {
+                StorageError::Corrupt(format!("run {run} has generation {generation}"))
+            })?,
+            fence: None,
+        })
     }
 
     pub async fn run_state(&self, tenant_id: &str, run: RunId) -> Result<String, StorageError> {

@@ -17,3 +17,4 @@ pub mod run_action;
 pub mod semantic;
 pub mod serve;
 pub mod show;
+pub mod tour;
