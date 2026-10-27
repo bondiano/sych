@@ -108,7 +108,7 @@ impl Engine {
         }
 
         let complete = pull.changed_files <= MAX_PR_FILES as u64;
-        let body = self.render(&c, complete).await?;
+        let body = self.render(&c, &change.full_name, complete).await?;
         if storage.begin_publishing(&c, &body, now).await?.is_none() {
             return Ok(true);
         }
@@ -132,7 +132,7 @@ impl Engine {
 
     /// The body of the claimed operation, from the immutable result. The summary also queues the
     /// inline comments of its revision before it is sent.
-    async fn render(&self, c: &PublishClaim, complete: bool) -> anyhow::Result<String> {
+    async fn render(&self, c: &PublishClaim, repo: &str, complete: bool) -> anyhow::Result<String> {
         let storage = &self.app.storage;
         if c.kind == "CHECK" && c.result_id.is_empty() {
             return Ok(
@@ -187,6 +187,7 @@ impl Engine {
 
         let ctx = SummaryContext {
             marker: &c.marker,
+            repo: Some(repo),
             head_sha: manifest.head.hex(),
             base_sha: manifest.diff_base.hex(),
             result_url: self
@@ -323,7 +324,7 @@ impl Engine {
         let Some(remote) = c.remote_id.clone() else {
             return Ok(());
         };
-        let body = self.render(&c, true).await?;
+        let body = self.render(&c, &change.full_name, true).await?;
         let token = self.token(conn, change).await?;
         conn.gh
             .update_comment(&change.full_name, remote.parse()?, &body, &token)

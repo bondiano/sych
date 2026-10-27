@@ -221,6 +221,7 @@ fn golden(name: &str, text: &str) {
 fn ctx() -> SummaryContext<'static> {
     SummaryContext {
         marker: "sych:summary:7",
+        repo: Some("acme/shop"),
         head_sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         base_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         result_url: Some(
@@ -276,7 +277,7 @@ fn russian_summaries_and_inline_bodies_match_their_golden_files() {
     let planned = plan(&crowded, &manifest(), &[], &[], true);
     let text = render_summary(&crowded, &planned, &ctx());
     assert!(text.starts_with("<!-- sych:summary:7 -->\n### Ревью Sych"));
-    assert!(text.contains("| Critical |") && text.contains("сверх 8 новых"));
+    assert!(text.contains("🔴 Critical · Нарушение правила") && text.contains("сверх 8 новых"));
     golden("summary-crowded.ru", &text);
 
     let mut partial = result();
@@ -290,4 +291,26 @@ fn russian_summaries_and_inline_bodies_match_their_golden_files() {
     finding.triggering_conditions = vec!["two concurrent requests".into()];
     golden("inline.ru", &inline_body(&finding, ReviewLanguage::Ru));
     golden("inline.en", &inline_body(&finding, ReviewLanguage::En));
+}
+
+/// A summary whose full text is over GitHub's comment limit drops the details, never the
+/// problems.
+#[test]
+fn an_oversized_summary_keeps_every_problem_heading() {
+    let mut r = crowded();
+    let base = r.findings[0].clone();
+    r.findings = (0..200)
+        .map(|i| {
+            let mut f = base.clone();
+            f.fingerprint = sha256(format!("long-{i}").as_bytes());
+            f.title = format!("Long defect {i}");
+            f.explanation = "x".repeat(500);
+            f
+        })
+        .collect();
+    r.unresolved_questions = vec!["Does any consumer rely on event ordering?".into()];
+    let text = render_summary(&r, &plan(&r, &manifest(), &[], &[], true), &ctx());
+    assert!(text.len() <= 60_000, "{} bytes", text.len());
+    assert!((0..200).all(|i| text.contains(&format!(": Long defect {i}\n"))));
+    assert!(text.contains("1 more not shown") && !text.contains(&"x".repeat(500)));
 }
