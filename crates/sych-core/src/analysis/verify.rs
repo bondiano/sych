@@ -10,7 +10,7 @@ use super::context::{Anchor, Context};
 use super::discovery::ContextAsk;
 use crate::{
     Candidate, CodeRef, Finding, FindingCategory, FindingId, Lifecycle, Severity, SnapshotReader,
-    Support, VerificationStatus, derived_uuid, sha256,
+    SourceSide, SuggestedChange, Support, VerificationStatus, derived_uuid, sha256,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -50,6 +50,17 @@ pub struct CandidateVerdict {
     pub suggested_action: String,
     pub validation_expectation: String,
     pub limitations: Vec<String>,
+    /// The full new text of anchored HEAD lines when the fix is local and shown, else null.
+    /// Strict structured outputs need it listed as required; serde still reads a missing one.
+    #[schemars(required, extend("type" = ["object", "null"]))]
+    pub suggested_change: Option<ProposedChange>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProposedChange {
+    pub anchor: Anchor,
+    pub replacement: String,
 }
 
 /// Verified candidates and the findings among them.
@@ -152,7 +163,8 @@ pub fn validate(
             continue;
         }
 
-        let finding = finding(candidate, verdict, anchors, evidence_ids, scope);
+        let mut finding = finding(candidate, verdict, anchors, evidence_ids, scope);
+        finding.suggested_change = change(verdict, context, reader, &mut finding.limitations);
         if findings
             .iter()
             .any(|f| f.fingerprint == finding.fingerprint)
@@ -202,6 +214,29 @@ pub fn merge_overlapping(mut findings: Vec<Finding>) -> Vec<Finding> {
         }
     }
     kept
+}
+
+/// The verdict's change when it names lines of a shown HEAD span; otherwise none, with the
+/// reason among the finding's limitations. The finding stands either way.
+fn change(
+    verdict: &CandidateVerdict,
+    context: &Context,
+    reader: &dyn SnapshotReader,
+    limitations: &mut Vec<String>,
+) -> Option<SuggestedChange> {
+    let proposed = verdict.suggested_change.as_ref()?;
+    let problem = match context.anchor(&proposed.anchor, reader) {
+        Ok(code) if code.side == SourceSide::Head => {
+            return Some(SuggestedChange {
+                code,
+                replacement: proposed.replacement.trim_end_matches('\n').to_owned(),
+            });
+        }
+        Ok(_) => "it names BASE lines, not HEAD".to_owned(),
+        Err(problem) => problem,
+    };
+    limitations.push(format!("engine: suggested change dropped: {problem}"));
+    None
 }
 
 fn finding(
@@ -259,5 +294,6 @@ fn finding(
             l.extend(verdict.limitations.iter().cloned());
             l
         },
+        suggested_change: None,
     }
 }

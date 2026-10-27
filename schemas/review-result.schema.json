@@ -441,6 +441,16 @@
         "suggested_action": {
           "type": "string"
         },
+        "suggested_change": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SuggestedChange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "support": {
           "$ref": "#/$defs/Support"
         },
@@ -893,6 +903,22 @@
     "SourceSnapshotId": {
       "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
       "$ref": "#/$defs/Sha256Digest"
+    },
+    "SuggestedChange": {
+      "description": "The full new text of exactly the HEAD lines of `code`, which a comment can offer as a\none-click change.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/CodeRef"
+        },
+        "replacement": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "replacement"
+      ]
     },
     "Support": {
       "description": "Kind of support; independent of severity.",

@@ -5,7 +5,7 @@
 use std::fmt::Write;
 
 use super::tr;
-use crate::{Finding, FindingCategory, ReviewLanguage, Severity};
+use crate::{Finding, FindingCategory, ReviewLanguage, Severity, SourceSide};
 
 /// The severity with a colour dot; severity names stay English in every language.
 pub(crate) const fn badge(severity: Severity) -> &'static str {
@@ -48,8 +48,9 @@ fn cell(text: &str) -> String {
     text.replace('|', "\\|").replace('\n', " ")
 }
 
-/// The explanation, a when/consequence table and the suggested action.
-pub(crate) fn details(out: &mut String, finding: &Finding, language: ReviewLanguage) {
+/// The explanation, a when/consequence table, the suggested action and its code; `inline`
+/// when the text is the comment on the finding's first anchor.
+pub(crate) fn details(out: &mut String, finding: &Finding, language: ReviewLanguage, inline: bool) {
     let l = language;
     let _ = writeln!(out, "{}", finding.explanation);
     let when = finding.triggering_conditions.join("; ");
@@ -82,6 +83,39 @@ pub(crate) fn details(out: &mut String, finding: &Finding, language: ReviewLangu
             "\n**{}:** {}",
             tr(l, "Suggested", "Что сделать"),
             finding.suggested_action
+        );
+    }
+
+    if let Some(change) = &finding.suggested_change {
+        let code = &change.code;
+        let fence = fence(&change.replacement);
+        // GitHub replaces exactly the commented lines with a `suggestion` block.
+        let commented = finding.anchors.first().is_some_and(|a| {
+            a.side == SourceSide::Head
+                && (&a.path, a.start_line, a.end_line)
+                    == (&code.path, code.start_line, code.end_line)
+        });
+        let (summary, info) = if inline && commented {
+            (
+                tr(l, "📝 Committable suggestion", "📝 Готовое исправление"),
+                "suggestion",
+            )
+        } else {
+            (tr(l, "📝 Suggested code", "📝 Предлагаемый код"), "")
+        };
+        // An empty block deletes the lines; one empty line would replace them with a blank.
+        let lines = if change.replacement.is_empty() {
+            String::new()
+        } else {
+            format!("{}\n", change.replacement)
+        };
+        let _ = writeln!(
+            out,
+            "\n<details open><summary>{summary}: <code>{}:{}-{}</code></summary>\n\n\
+             {fence}{info}\n{lines}{fence}\n\n</details>",
+            code.path.as_str(),
+            code.start_line,
+            code.end_line
         );
     }
 }
@@ -139,7 +173,7 @@ pub fn inline_body(finding: &Finding, language: ReviewLanguage) -> String {
         category(l, finding.category),
         finding.title
     );
-    details(&mut out, finding, l);
+    details(&mut out, finding, l, true);
     agent_prompt(
         &mut out,
         tr(l, "Prompt for AI agents", "Промпт для AI-агента"),

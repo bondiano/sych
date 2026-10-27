@@ -241,6 +241,7 @@ fn rule_violation(
             .collect::<Vec<_>>()
             .join(","),
         limitations: Vec::new(),
+        suggested_change: None,
     }
 }
 
