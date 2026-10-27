@@ -334,6 +334,70 @@ sych review --repo . --base 81ff2a7 --head 26cc0f4 --config examples/personal/sy
 Support is limited to what rust-analyzer and syn see on pinned commits without executing build scripts and
 proc-macros: unexpanded macros, cfg outside the active features and dynamic dispatch yield gaps, not a proven set.
 
+## Domain rules on real models (M3.4–M3.8)
+
+M3 cases of the development suite (`eval/quality/dev`): migrations against an old/new reader (`mig-*`, Go + SQL),
+an old frontend reading a removed field (`old-frontend-*`), Terraform plans (`tf-replace-db-*`, a CI `terraform show
+-json` report per case) and rendered Kubernetes manifests (`k8s-selector-*`). Two runs per case, variant C,
+`cheap_api` (DeepSeek V4.1 Flash via OpenRouter), the personal example's budgets:
+
+```sh
+sych eval measure --suite eval/quality/dev --config sych.yaml --models cheap_api --variant c --runs 2 \
+  --case mig-drop-column-unsafe --case … --output report.json
+```
+
+Each cell is "found in unsafe · labelled / all correctness findings · remark on safe · UNKNOWN preserved · obligation
+status as labelled".
+
+| | Go/SQL migrations | Kubernetes | Terraform | cost |
+|---|---|---|---|---|
+| [before](examples/quality/m3-domain-cheap_api-c.json): 12 KB request window | 6/6 · 7/10 · 1/6 · 0/2 · 5/12 | 2/2 · 2/2 · 0/2 · — · 1/4 | 0/2 · 0/1 · 0/2 · 1/2 · 3/6 | $0.105 |
+| [48 KB window](examples/quality/m3-domain-cheap_api-c-48k.json) (#32) | 4/6 · 5/7 · 0/6 · 0/2 · 6/12 | 2/2 · 2/2 · 0/2 · — · 2/4 | 0/2 · 0/0 · 0/2 · 2/2 · 2/6 | $0.112 |
+| [migrations after #33](examples/quality/m3-mig-cheap_api-c.json) (backfill + recovery pairs) | 3/4 · 5/8 · 2/4 · — · 2/8 | | | $0.072 |
+| [Terraform after #34](examples/quality/m3-tf-cheap_api-c.json) | | | 2/2 · 2/3 · 0/2 · 1/2 · 4/6 | $0.014 |
+
+What the runs showed and what changed:
+
+- **One finding per revision.** Before #32 a 12 KB request window cut the code the verifier asked for: production
+  runs had 5–8 candidates, 1–2 confirmed, the rest `UNRESOLVED` (span not shown) or an assessment skipped over the
+  context budget. The ×4 window (48 KB per request, 512 KB per run) trades two migration defects for no remark on a
+  safe case and one more preserved UNKNOWN; one run each, so within the variance.
+- **Migration obligations stayed UNKNOWN** because the owner's declared transition facts never reached the prompt,
+  the earlier migrations that define the schema were filtered out, and a reader hit was one line. #33 puts the
+  declared inputs into the MIG criterion, keeps earlier migrations and widens each hit by ±12 lines: the recovery
+  unsafe case went from 0/2 to 2/2 `VIOLATED`; the backfill unsafe case is found 1 of 2; `MIG-RESTART` still stays
+  `UNKNOWN` on both backfill cases and the recovery safe case is called `VIOLATED` once.
+- **TF-CHANGE was always UNKNOWN**: the criterion asked whether a replacement was "intended", which no code shows.
+  #34 makes it checkable (a replaced or deleted resource holds no data, or the change keeps it with
+  `create_before_destroy`, `prevent_destroy`, a snapshot or a `moved` block): the unsafe plan is `VIOLATED` 2 of 2.
+  The safe plan still stays `UNKNOWN`: the model does not take the plan's create-before-delete order as enough.
+- **Kubernetes**: the selector mismatch is found 2 of 2; the safe manifest stays `UNKNOWN` (structural evidence of
+  a dry-run is never a runtime rollout, by design).
+
+**Whole development suite** after the M3 cases and the 48 KB window (main with #32, before #33/#34; one run,
+variant C, [report](examples/quality/dev-cheap_api-c-m3.json); the two real-commit cases need local checkouts and were
+skipped): 121 cases, no errors, defects found 42/48 (recall 0.88), labelled correctness findings 58/88 (precision
+0.66), a correctness remark on 25 of 66 safe cases (16 of them false), UNKNOWN preserved 4/9, obligations as labelled
+16/26, nits matched 4/16; 386 model attempts, $0.327. Against the M1.8 C baseline (34/39, 39/61, 22/58, 2/6, $0.168)
+recall and kept UNKNOWNs rose and precision held, at twice the cost: the wider window sends more code per attempt.
+
+**Isolated runner (M3.8).** `execution.profiles` with `image: …@sha256:…` run on docker only: the head is
+materialised into a temporary directory and the profile's argv runs with `--network none`, memory, CPU and pid
+limits, no credentials; its report is imported like a CI report and bound to the head as `DerivedLocal` evidence
+with the runner `<profile> in <image>`. Local smoke with a Go test profile: the container had no network interface
+(`net=0`), the report bound to the head and reached the obligation. A refused or failing profile is a gap
+(`EXECUTION_REFUSED` / `EXECUTION_FAILED`), never a pass. Not yet: a targeted failure/retry profile per rule.
+
+**Real tour.** `sych review` of the `mig-drop-column-unsafe` repository (one HIGH finding: the migration drops
+`orders.status` while `orders/read.go` still selects it; `MIG-RESTART` UNKNOWN), then `sych tour --run …`: `READY`
+on the first attempt, two stops, $0.0005. Stop 1 explains the defect with a comprehension question ("Once the
+migration has run, what happens to the query in orders/read.go?"); stop 2 records `MIG-RESTART` as undecided, lists
+the evidence that would settle it and asks a risk decision ("Should MIG-RESTART be treated as satisfied before that
+evidence is gathered?" — "Not on the current evidence"). No status was raised or lowered; the code shown came from
+the blobs. The run showed the same lines twice in stop 2 (the obligation's references repeat); fixed in #35.
+
+**Spend** of this round on real models: about $0.95 (1 072 attempts) by the ledger, under the $5 cap.
+
 ## Limitations
 
 - Independent passes run in parallel, with no more than `budgets.analysis.max_parallel_calls` (default 2) calls
