@@ -138,10 +138,15 @@ impl ApiError {
     /// its top-level message alone ("Provider returned error") does not say what to fix.
     fn detail(&self) -> String {
         let message = self.message.clone().unwrap_or_default();
-        match self.metadata.as_ref().and_then(|m| m.get("raw")) {
-            Some(Value::String(raw)) => format!("{message}: {raw}"),
-            Some(raw) => format!("{message}: {raw}"),
-            None => message,
+        let raw = match self.metadata.as_ref().and_then(|m| m.get("raw")) {
+            Some(Value::String(raw)) => raw.clone(),
+            Some(raw) => raw.to_string(),
+            None => return message,
+        };
+        if message.is_empty() {
+            raw
+        } else {
+            format!("{message}: {raw}")
         }
     }
 }
@@ -479,6 +484,9 @@ mod tests {
         let err = parse_reply("openrouter", 400, None, body).expect_err("400");
         assert_eq!(err.kind, ErrorKind::Config);
         assert!(err.message.contains("Invalid schema"), "{}", err.message);
+        let unnamed = r#"{"error":{"metadata":{"raw":"Invalid schema"}}}"#;
+        let err = parse_reply("openrouter", 400, None, unnamed).expect_err("400");
+        assert_eq!(err.message, "openrouter: Invalid schema");
         let bare = parse_reply("openrouter", 400, None, "{}").expect_err("400");
         assert_eq!(bare.message, "openrouter: HTTP 400");
     }
