@@ -243,6 +243,16 @@
         "source_snapshot_id": {
           "$ref": "#/$defs/SourceSnapshotId"
         },
+        "terraform": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TerraformPlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "tests": {
           "type": "array",
           "items": {
@@ -295,6 +305,11 @@
           "description": "`go vet -json`.",
           "type": "string",
           "const": "go_vet_json"
+        },
+        {
+          "description": "`terraform show -json` of a saved plan; reduced to allowlisted structure.",
+          "type": "string",
+          "const": "terraform_plan"
         }
       ]
     },
@@ -1093,6 +1108,21 @@
         "status"
       ]
     },
+    "ReplaceOrder": {
+      "description": "How a replacement is ordered; Terraform distinguishes the two action lists.",
+      "oneOf": [
+        {
+          "description": "`[\"delete\", \"create\"]`: the resource is gone for a while.",
+          "type": "string",
+          "const": "delete_before_create"
+        },
+        {
+          "description": "`[\"create\", \"delete\"]`: `create_before_destroy`.",
+          "type": "string",
+          "const": "create_before_delete"
+        }
+      ]
+    },
     "RepoPath": {
       "type": "string",
       "minLength": 1
@@ -1116,6 +1146,74 @@
           "type": "string",
           "const": "dynamic_unknown"
         }
+      ]
+    },
+    "ResourceChange": {
+      "type": "object",
+      "properties": {
+        "actions": {
+          "description": "As the plan lists them: `no-op`, `create`, `read`, `update`, `delete`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "address": {
+          "type": "string"
+        },
+        "changed": {
+          "description": "Top-level attributes whose planned value differs; names only.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "moved_from": {
+          "description": "`previous_address` of a moved resource.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "replace_order": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReplaceOrder"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replace_paths": {
+          "description": "Attributes whose change forces the replacement.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sensitive": {
+          "description": "Attributes marked sensitive before or after.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unknown_after": {
+          "description": "Attributes known only after apply.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "address",
+        "actions",
+        "replace_paths",
+        "changed",
+        "unknown_after",
+        "sensitive"
       ]
     },
     "SchemaVersion": {
@@ -1576,6 +1674,38 @@
           "type": "string",
           "const": "runtime_registration"
         }
+      ]
+    },
+    "TerraformPlan": {
+      "type": "object",
+      "properties": {
+        "format_version": {
+          "type": "string"
+        },
+        "resource_changes": {
+          "description": "Resources with an action other than `no-op` or `read`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ResourceChange"
+          }
+        },
+        "terraform_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "variables_sha256": {
+          "description": "Digest of the plan's input variables; their values are never kept.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "format_version",
+        "resource_changes"
       ]
     },
     "TestStatus": {

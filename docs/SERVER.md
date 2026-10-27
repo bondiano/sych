@@ -230,8 +230,18 @@ waiting; after it — freeze with gaps, and a late report yields a successor (M2
 (run/attempt/job/artifact/binding) and the gaps.
 
 Limitations: no comparison with baseline diagnostics (a diagnostic disappearing between producer/version) is made —
-such conclusions are not claimed; `TerraformPlan`/`KubernetesRendered` — M3 (`CI_FORMAT_UNSUPPORTED`). Go reports
-(`go_test_json`, `go_cover`, `go_vet_json`) go through the same downloader/parser/binding as the other formats.
+such conclusions are not claimed; `KubernetesRendered` — M3.7 (`CI_FORMAT_UNSUPPORTED`). Go reports
+(`go_test_json`, `go_cover`, `go_vet_json`) and `terraform_plan` go through the same downloader/parser/binding as the
+other formats.
+
+**Terraform plan** (`terraform_plan`, `terraform show -json` of a saved plan, `format_version` 1.x; another major is
+`CI_REPORT_MALFORMED`). It is reduced on import to allowlisted structure — address, actions, replacement order
+(`delete_before_create` / `create_before_delete`), `replace_paths`, the *names* of changed, unknown-after-apply and
+sensitive attributes, `previous_address`, `terraform_version` and a digest of the variables. No attribute or variable
+value is kept, so none reaches a prompt, log or artifact; a resource change without address or actions is a
+limitation, not an empty plan. `TF-CHANGE` uses only a plan bound to the head: each deleted or replaced resource
+becomes a criterion; without one the obligation stays `UNKNOWN`/`TERRAFORM_PLAN_MISSING`. Workspace and environment are
+not part of the plan JSON: they are proven by the job binding (`ci_reports` selector + checkout manifest).
 
 ## Outbox and publication reconciliation (M2.5)
 

@@ -32,6 +32,7 @@ mod semantic;
 mod snapshot;
 mod status;
 mod syntax;
+pub mod terraform;
 mod version;
 
 pub use ci::*;

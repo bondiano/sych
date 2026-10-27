@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{RepositoryPolicy, Rule, RuleException, RuleKind, RuleSeverity};
 use crate::generic::{self, GenericRule};
+use crate::terraform;
 use crate::{
     Applicability, ContentKind, DiffManifest, FileChange, Obligation, ObligationId,
     ObligationStatus, PathGap, RepoPath, ReviewUnit, ReviewUnitId, RiskHint, RiskLevel, RunFacts,
@@ -417,6 +418,11 @@ fn obligations(
             );
             planned
         });
+    let plans: Vec<_> = facts
+        .ci
+        .iter()
+        .filter_map(|r| Some((r.terraform.as_ref()?, r.head_bound())))
+        .collect();
     let generic = generic::pack().into_iter().filter(|g| {
         policy.config.review.profiles.contains(&g.profile)
             && !policy.rules.iter().any(|r| r.id == g.rule.id)
@@ -427,7 +433,11 @@ fn obligations(
             .filter(|(_, files)| generic::activated(g.trigger, files, &policy.effects, facts))
             .map(|(unit, _)| unit)
             .collect();
-        (!matched.is_empty()).then(|| generic_obligation(snapshot, &g, &matched))
+        (!matched.is_empty()).then(|| {
+            let mut planned = generic_obligation(snapshot, &g, &matched);
+            terraform::bind(&mut planned, &plans);
+            planned
+        })
     });
     repository.chain(activated).collect()
 }

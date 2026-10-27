@@ -10,6 +10,7 @@ pub(crate) use findings::sarif;
 mod golang;
 mod junit;
 mod outcomes;
+mod terraform;
 
 use std::fmt::Display;
 use std::path::Path;
@@ -70,6 +71,11 @@ fn detect(text: &str) -> Option<CiFormat> {
         Some(CiFormat::Lcov)
     } else if start.starts_with('[') {
         Some(CiFormat::GitlabCodeQuality)
+    } else if start.starts_with('{')
+        && start.contains("\"format_version\"")
+        && start.contains("\"terraform_version\"")
+    {
+        Some(CiFormat::TerraformPlan)
     } else if start.starts_with('{') && start.contains("\"runs\"") {
         Some(CiFormat::Sarif)
     } else if start.starts_with('{') && start.contains("\"commands\"") {
@@ -125,6 +131,7 @@ pub fn import_as(
         CiFormat::GoTestJson => golang::test_json(text, &mut facts)?,
         CiFormat::GoCover => golang::cover(text, root_module(snapshot).as_deref(), &mut facts)?,
         CiFormat::GoVetJson => golang::vet_json(text, &mut facts)?,
+        CiFormat::TerraformPlan => terraform::parse(text, &mut facts)?,
     }
     facts.origin = origin;
     if facts.manifest.is_none() && facts.origin.is_none() {
@@ -233,6 +240,10 @@ mod tests {
             Some(CiFormat::GitlabCodeQuality)
         );
         assert_eq!(detect("mode: atomic\n"), Some(CiFormat::GoCover));
+        assert_eq!(
+            detect("{\"format_version\":\"1.2\",\"terraform_version\":\"1.9.5\"}"),
+            Some(CiFormat::TerraformPlan)
+        );
         assert_eq!(
             detect("{\"Time\":\"2026-01-01T00:00:00Z\",\"Action\":\"start\"}\n"),
             Some(CiFormat::GoTestJson)
