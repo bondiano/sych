@@ -104,8 +104,8 @@ Applicability to a change (§11.4) is three-valued:
   paths does not lift the rule), or the changed construct is called or referenced from these paths according to semantic
   facts — then limitations record «applies through a semantic link: `name` is used from path:line».
 - `DOES_NOT_APPLY` → `NOT_APPLICABLE` with a verifiable basis (no path, no semantic link).
-- `UNKNOWN` — incomplete diff, unresolved `change_kinds`, or a generic rule whose domain checker is not yet
-  connected (`PROVIDER_UNAVAILABLE`).
+- `UNKNOWN` — incomplete diff, unresolved `change_kinds`, or a generic domain rule without its input
+  (`DEPLOYMENT_INPUT_MISSING`, `TERRAFORM_PLAN_MISSING`, `K8S_MANIFESTS_MISSING`).
 
 ### Generic rule pack
 
