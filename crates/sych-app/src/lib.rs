@@ -21,6 +21,7 @@ pub mod semantic;
 pub mod server;
 pub mod snapshot;
 pub mod storage;
+pub mod tour;
 
 pub use command::run_command;
 

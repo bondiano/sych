@@ -1,6 +1,5 @@
 //! Packets, model passes and the reduced result of one run.
 
-use std::cell::RefCell;
 use std::time::Duration;
 
 use anyhow::Context as _;
@@ -10,13 +9,13 @@ use sych_core::broker::{
     BrokerInput, EvidencePacket, PacketResolution, build_packets, context_gaps, context_limited,
 };
 use sych_core::config::BillingKind;
-use sych_core::model::{ChargeState, Hop, Limits as ModelLimits, Purpose, Router};
+use sych_core::model::{ChargeState, Limits as ModelLimits, Purpose};
 use sych_core::{
     DEFAULT_ATTENTION_THRESHOLD, Evidence, EvidenceManifest, ExecutionOutcome,
     ExternalInputManifest, MicroUsd, Provenance, ReduceInput, ResultId, ReviewResult, RouteUsage,
     RunInfo, Timestamp, UsageSummary, finalize, reduce,
 };
-use sych_storage::{RunHandle, RunLedger, Storage, TENANT_LOCAL};
+use sych_storage::{RunHandle, RunLedger, Storage};
 
 use crate::analysis::{AnalysisRecord, Engine, Outcome, PassStatus};
 use crate::backend::Routing;
@@ -97,36 +96,7 @@ impl Session<'_> {
         tracing::info!(reusable = reuse.len(), "parent checkpoints read");
         let ledger = RunLedger::new(storage, run, Timestamp::now);
         let engine = Engine {
-            router: Router {
-                hops: model
-                    .profiles
-                    .iter()
-                    .map(|(name, resolved)| {
-                        let hop = resolved.as_ref().map_err(Clone::clone).map(|r| Hop {
-                            provider: &r.provider,
-                            route: r.route.clone(),
-                            price: r.price,
-                            fixed_fee: r.fixed_fee,
-                        });
-                        (name.clone(), hop)
-                    })
-                    .collect(),
-                plan: model.plan.clone(),
-                on: model.on.clone(),
-                cooldown_seconds: model.cooldown_seconds,
-                ledger: &ledger,
-                tenant_id: TENANT_LOCAL.into(),
-                run_id: run.id,
-                purpose: Purpose::Analysis,
-                limits,
-                deadline,
-                now: Timestamp::now,
-                redactor: &model.redactor,
-                cooldowns: RefCell::default(),
-                reuse,
-                models_revision: model.models_revision.clone(),
-                eligible: Some(&*model.recheck),
-            },
+            router: model.router(&ledger, run.id, Purpose::Analysis, limits, deadline, reuse),
             snap: self.snap,
             plan: self.plan,
             packets,

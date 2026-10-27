@@ -286,8 +286,8 @@ implementations, tests and depth-1 references, and import blocks of the changed 
 TS `import`; auxiliary). Overlapping and adjacent spans of the same file and side are merged, keeping
 all reasons.
 
-§9.3 limits: the unit budget is `context.initial_tokens_per_unit` (6000), a verification packet gets the sum over units, but no
-more than `context.max_tokens_per_request` (14000); tokens are counted as bytes of text (an upper bound). Files per
+§9.3 limits: the unit budget is `context.initial_tokens_per_unit` (16000), a verification packet gets the sum over units, but no
+more than `context.max_tokens_per_request` (48000); tokens are counted as bytes of text (an upper bound). Files per
 run: `context.max_source_files` (80, does not apply to required spans). 24 semantic queries per unit and 160 per run,
 spans up to 160 lines, text blobs up to 512 KiB — constants of §9.3 for now. Spans of a verification packet are
 packed first-fit into up to four chunks of the request budget, each chunk its own packet and assessment. A

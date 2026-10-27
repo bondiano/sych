@@ -348,6 +348,11 @@ proc-macros: unexpanded macros, cfg outside the active features and dynamic disp
 - Reasoning models spend ~1,000–2,400 tokens of each reply on reasoning: with the §17.1 default of 2,000 tokens per
   request, discovery and verify get truncated (`TRUNCATED`). The personal example raises
   `budgets.analysis.max_output_tokens_per_request` to 4,000.
+- Context window. `context.max_tokens_per_request` is 48 000 and `initial_tokens_per_unit` 16 000 (bytes of shown
+  code), the run's `budgets.analysis.max_input_tokens` 512 000. With 14 000 / 6 000 / 128 000 the reviewer of a
+  mid-size PR saw a slice of the change per call: verifiers left real candidates `UNRESOLVED` ("no span shows …"),
+  a required assessment was skipped over the context budget, and each new revision surfaced the next one or two
+  problems instead of all of them. The money cap stays the guard.
 - Context compression. Packets whose shown bytes, sent about twice (search, then verify), exceed
   `budgets.analysis.max_input_tokens` are rebuilt with request budgets scaled down in proportion, to a quarter
   at most; what no longer fits is cut by priority with the usual `BUDGET`/`REQUIRED_OVER_BUDGET` gaps. A supporting
@@ -375,5 +380,13 @@ proc-macros: unexpanded macros, cfg outside the active features and dynamic disp
   repair). A tour of an older revision is `STALE` (`tour::stale`) and is never rewritten; a new request makes a new
   `tour_id`.
 
-Not yet: the model generation pass (`Purpose::Tour` and its budget exist), storage of tours, the CLI reader (M5.2)
-and a real sandbox tour with its usage report.
+**Generation** — `sych tour --run <id> --config sych.yaml --repo . [--models PROFILE]`: the saved run's snapshot is
+captured again from `--repo` and must have the same id; the plan picks the stops; the guide (`tour@1`, role reviewer,
+budget `budgets.tour`, `Purpose::Tour` in the run's ledger) writes only intent, titles, purposes, explanations, an
+optional question and `Example` snippets per stop — ids, code references and the overview come from the plan and the
+typed result, so the model cannot invent a location or change a status. A schema error gets the gateway's one repair;
+an invalid tour (a stop it invented or skipped, a reference that does not resolve) gets one regeneration told what
+was wrong, then `FAILED`. A valid tour is stored as artifact `tour:<tour_id>` of the run (`ArtifactKind::Tour`) and
+printed with code read from the blobs; the output reports attempts and their cost.
+
+Not yet: the CLI reader with sessions (M5.2).
