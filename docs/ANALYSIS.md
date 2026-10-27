@@ -348,6 +348,11 @@ proc-macros: unexpanded macros, cfg outside the active features and dynamic disp
 - Reasoning models spend ~1,000–2,400 tokens of each reply on reasoning: with the §17.1 default of 2,000 tokens per
   request, discovery and verify get truncated (`TRUNCATED`). The personal example raises
   `budgets.analysis.max_output_tokens_per_request` to 4,000.
+- Context window. `context.max_tokens_per_request` is 48 000 and `initial_tokens_per_unit` 16 000 (bytes of shown
+  code), the run's `budgets.analysis.max_input_tokens` 512 000. With 14 000 / 6 000 / 128 000 the reviewer of a
+  mid-size PR saw a slice of the change per call: verifiers left real candidates `UNRESOLVED` ("no span shows …"),
+  a required assessment was skipped over the context budget, and each new revision surfaced the next one or two
+  problems instead of all of them. The money cap stays the guard.
 - Context compression. Packets whose shown bytes, sent about twice (search, then verify), exceed
   `budgets.analysis.max_input_tokens` are rebuilt with request budgets scaled down in proportion, to a quarter
   at most; what no longer fits is cut by priority with the usual `BUDGET`/`REQUIRED_OVER_BUDGET` gaps. A supporting

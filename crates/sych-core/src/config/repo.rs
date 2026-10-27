@@ -98,8 +98,10 @@ pub struct ContextSettings {
 impl Default for ContextSettings {
     fn default() -> Self {
         Self {
-            initial_tokens_per_unit: 6000,
-            max_tokens_per_request: 14_000,
+            // Bytes of shown code, not model tokens; a smaller window made each review see
+            // a slice of the change and find one problem per revision.
+            initial_tokens_per_unit: 16_000,
+            max_tokens_per_request: 48_000,
             max_source_files: 80,
             graph_depth_initial: 1,
             graph_depth_max: 3,
