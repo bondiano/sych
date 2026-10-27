@@ -42,7 +42,7 @@ fn gap(report: &str, code: &str, detail: impl Into<String>) -> CiGap {
     }
 }
 
-/// The parser of a declared format; infrastructure formats arrive with M3.
+/// The parser of a declared format; Kubernetes arrives with M3.7.
 const fn format(f: ReportFormat) -> Option<CiFormat> {
     Some(match f {
         ReportFormat::CargoJson => CiFormat::CargoJson,
@@ -55,7 +55,8 @@ const fn format(f: ReportFormat) -> Option<CiFormat> {
         ReportFormat::GoTestJson => CiFormat::GoTestJson,
         ReportFormat::GoCover => CiFormat::GoCover,
         ReportFormat::GoVetJson => CiFormat::GoVetJson,
-        ReportFormat::TerraformPlan | ReportFormat::KubernetesRendered => return None,
+        ReportFormat::TerraformPlan => CiFormat::TerraformPlan,
+        ReportFormat::KubernetesRendered => return None,
     })
 }
 

@@ -154,7 +154,7 @@ pub(crate) fn pack() -> Vec<GenericRule> {
             ),
             Infrastructure,
             Trigger::Paths(&["**/*.tf", "**/*.tfvars"]),
-            Some("Terraform plan checker (M3)"),
+            None,
         ),
         generic(
             rule(
