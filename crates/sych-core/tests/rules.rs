@@ -368,6 +368,13 @@ fn migration_rules_follow_the_deployment_model() {
             .contains("RecoveryAfterNewWrites")
     );
     assert!(recovery.acceptance_criterion.contains("PLAN_REVIEW"));
+    assert!(
+        recovery
+            .acceptance_criterion
+            .contains("recovery: RollForwardRepair (source: runbook RB-12)"),
+        "the assessor reads the declared path: {}",
+        recovery.acceptance_criterion
+    );
 
     let contract = rule(&p, "MIG-CONTRACT").expect("migration rule");
     assert_eq!(contract.applicability, Applicability::DoesNotApply);

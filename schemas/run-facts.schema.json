@@ -1393,7 +1393,7 @@
       "type": "object",
       "properties": {
         "change": {
-          "description": "`DROP COLUMN`, `RENAME COLUMN`, `ALTER COLUMN`, `ADD COLUMN`, `DROP TABLE`, `RENAME TABLE`.",
+          "description": "`DROP COLUMN`, `RENAME COLUMN`, `ALTER COLUMN`, `ADD COLUMN`, `ADD CHECK`, `DROP TABLE`,\n`RENAME TABLE`.",
           "type": "string"
         },
         "column": {

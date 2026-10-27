@@ -14,7 +14,8 @@ use crate::CodeRef;
 pub struct SchemaChange {
     pub table: String,
     pub column: Option<String>,
-    /// `DROP COLUMN`, `RENAME COLUMN`, `ALTER COLUMN`, `ADD COLUMN`, `DROP TABLE`, `RENAME TABLE`.
+    /// `DROP COLUMN`, `RENAME COLUMN`, `ALTER COLUMN`, `ADD COLUMN`, `ADD CHECK`, `DROP TABLE`,
+    /// `RENAME TABLE`.
     pub change: String,
 }
 
@@ -80,6 +81,13 @@ fn alter_clause(table: &str, clause: &str) -> Option<SchemaChange> {
         return Some(change("RENAME TABLE", None));
     }
 
+    // `ADD [CONSTRAINT name] CHECK (col …)` narrows what a column may hold.
+    if verb == "add"
+        && let Some(column) = check_column(clause)
+    {
+        return Some(change("ADD CHECK", Some(column)));
+    }
+
     let kind = match verb.as_str() {
         "drop" => "DROP COLUMN",
         "rename" => "RENAME COLUMN",
@@ -107,6 +115,21 @@ fn alter_clause(table: &str, clause: &str) -> Option<SchemaChange> {
         "key",
     ];
     (!constraint.contains(&column.as_str())).then(|| change(kind, Some(column)))
+}
+
+/// The first identifier inside `CHECK (…)`, the column it constrains.
+fn check_column(clause: &str) -> Option<String> {
+    let lower = clause.to_lowercase();
+    let at = lower.find("check")?;
+    let inner = &clause[at..];
+    let open = inner.find('(')?;
+    let column: String = inner[open + 1..]
+        .trim_start_matches([' ', '('])
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || matches!(c, '_' | '"' | '`' | '.'))
+        .collect();
+    let column = ident(&column);
+    (!column.is_empty()).then_some(column)
 }
 
 /// The schema changes of one migration file.
@@ -170,7 +193,8 @@ mod tests {
                    ADD COLUMN note text NULL, ADD CONSTRAINT orders_pk PRIMARY KEY (id);\n\
                    ALTER TABLE orders RENAME COLUMN state TO phase;\nALTER TABLE orders ALTER COLUMN id TYPE bigint;\n\
                    DROP TABLE IF EXISTS order_events;\nALTER TABLE carts RENAME TO baskets;\n\
-                   CREATE INDEX x ON orders (id);\nUPDATE orders SET state = status;";
+                   CREATE INDEX x ON orders (id);\nUPDATE orders SET state = status;\n\
+                   ALTER TABLE orders ADD CONSTRAINT orders_status CHECK (status IN ('new', 'paid'));";
         let s = |t: &str, c: Option<&str>, k: &str| (t.into(), c.map(Into::into), k.into());
         assert_eq!(
             shapes(sql),
@@ -181,6 +205,7 @@ mod tests {
                 s("orders", Some("id"), "ALTER COLUMN"),
                 s("order_events", None, "DROP TABLE"),
                 s("carts", None, "RENAME TABLE"),
+                s("orders", Some("status"), "ADD CHECK"),
             ]
         );
     }

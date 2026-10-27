@@ -2,6 +2,8 @@
 //! declared about rollout, each claim with its source. Nothing here is guessed from Git:
 //! `diff_base` and `target_tip` are never the deployed version.
 
+use std::fmt::Debug;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -156,6 +158,9 @@ pub struct TransitionMatrix {
     pub rows: Vec<MatrixRow>,
     pub missing_inputs: Vec<String>,
     pub observed: Option<Sourced<String>>,
+    /// What the owner declared, with sources, as the assessor must read it.
+    #[serde(default)]
+    pub declared: Vec<String>,
 }
 
 impl TransitionMatrix {
@@ -238,11 +243,33 @@ pub fn matrix(model: Option<&DeploymentModel>) -> TransitionMatrix {
         environment: model.environment.clone(),
         rows,
         missing_inputs: missing(model),
+        declared: declared(model),
         observed: model
             .observed
             .clone()
             .filter(|o| !o.source.trim().is_empty()),
     }
+}
+
+fn declared(model: &DeploymentModel) -> Vec<String> {
+    fn line<T: Debug>(name: &str, claim: Option<&Sourced<T>>) -> Option<String> {
+        claim
+            .filter(|c| !c.source.trim().is_empty())
+            .map(|c| format!("{name}: {:?} (source: {})", c.value, c.source))
+    }
+    [
+        line("initial versions", model.initial_versions.as_ref()),
+        line("order", model.order.as_ref()),
+        line("mixed versions", model.mixed_versions.as_ref()),
+        line("downtime", model.downtime.as_ref()),
+        line("compatibility window", model.compatibility_window.as_ref()),
+        line("backfill", model.backfill.as_ref()),
+        line("contract", model.contract.as_ref()),
+        line("recovery", model.recovery.as_ref()),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }
 
 fn missing(model: &DeploymentModel) -> Vec<String> {

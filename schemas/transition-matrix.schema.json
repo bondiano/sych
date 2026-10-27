@@ -4,6 +4,14 @@
   "description": "The matrix and the inputs the owner has not provided; dependent obligations stay\n`UNKNOWN` on these gaps, unrelated static review does not.",
   "type": "object",
   "properties": {
+    "declared": {
+      "description": "What the owner declared, with sources, as the assessor must read it.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
     "environment": {
       "type": [
         "string",
