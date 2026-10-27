@@ -17,6 +17,7 @@ use sych_core::{
     SymbolFacts, SyntaxFacts, line_range, plan, reduce, sha256,
 };
 
+mod chunks;
 mod ledger;
 mod lint;
 mod syntax;
@@ -227,13 +228,23 @@ fn run_full(
     ledger: &EffectLedger,
     lint: &[LintFacts],
 ) -> (ReviewPlan, Vec<EvidencePacket>) {
+    run_on(&manifest(), limits, facts, syntax, ledger, lint)
+}
+
+pub fn run_on(
+    manifest: &DiffManifest,
+    limits: Limits,
+    facts: &[SemanticFacts],
+    syntax: &[SyntaxFacts],
+    ledger: &EffectLedger,
+    lint: &[LintFacts],
+) -> (ReviewPlan, Vec<EvidencePacket>) {
     let mut files = PolicyFiles::default();
     files
         .files
         .insert(path(".sych/rules.yaml"), RULES.as_bytes().to_vec());
     let policy = RepositoryPolicy::parse(&files, &ServerConfig::engine_default()).expect("policy");
-    let manifest = manifest();
-    let plan = plan(&snapshot(), &manifest, &policy, &RunFacts::default());
+    let plan = plan(&snapshot(), manifest, &policy, &RunFacts::default());
     let policy_id = PolicySnapshotId(sha256(b"policy"));
     let input = BrokerInput {
         run_id: RunId(uuid::Uuid::from_u128(1)),
@@ -241,7 +252,7 @@ fn run_full(
         policy_snapshot_id: &policy_id,
         access_scope: "local:fixture",
         plan: &plan,
-        manifest: &manifest,
+        manifest,
         facts,
         syntax,
         ci: &[],

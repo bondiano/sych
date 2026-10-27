@@ -1,0 +1,307 @@
+//! Packet filling (spec §9.3): merged spans go into the request budget by priority; a
+//! verification packet whose required spans do not fit together is split into chunks.
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::mem;
+
+use super::build::{Candidate, RunState};
+use super::{
+    ContextRequest, EvidencePacket, Excluded, Fragment, Link, PacketResolution, PacketUsage,
+    Priority, QueryRecord, REQUIRED_OVER_BUDGET, Relation,
+};
+use crate::{
+    CodeRef, Completeness, EvidenceId, RepoPath, SchemaVersion, SnapshotReader, SourceSide,
+    is_secret_path, sha256,
+};
+
+fn rank(c: Completeness) -> u8 {
+    match c {
+        Completeness::Unknown => 0,
+        Completeness::Partial => 1,
+        Completeness::CompleteForQuery => 2,
+    }
+}
+
+struct Merged {
+    side: SourceSide,
+    path: RepoPath,
+    start: u32,
+    end: u32,
+    priority: Priority,
+    reasons: Vec<String>,
+    evidence: Vec<EvidenceId>,
+    completeness: Completeness,
+}
+
+/// Overlapping or adjacent spans of one file and side become one span.
+fn merge(mut candidates: Vec<Candidate>) -> Vec<Merged> {
+    candidates.sort_by(|a, b| (a.side, &a.path, a.start).cmp(&(b.side, &b.path, b.start)));
+    let mut out: Vec<Merged> = Vec::new();
+    for c in candidates {
+        match out.last_mut() {
+            Some(m)
+                if m.side == c.side && m.path == c.path && c.start <= m.end.saturating_add(1) =>
+            {
+                m.end = m.end.max(c.end);
+                m.priority = m.priority.min(c.priority);
+                if !m.reasons.contains(&c.reason) {
+                    m.reasons.push(c.reason);
+                }
+
+                m.evidence
+                    .extend(c.evidence.filter(|e| !m.evidence.contains(e)));
+                if rank(c.completeness) < rank(m.completeness) {
+                    m.completeness = c.completeness;
+                }
+            }
+            _ => out.push(Merged {
+                side: c.side,
+                path: c.path,
+                start: c.start,
+                end: c.end,
+                priority: c.priority,
+                reasons: vec![c.reason],
+                evidence: c.evidence.into_iter().collect(),
+                completeness: c.completeness,
+            }),
+        }
+    }
+    out
+}
+
+fn fragment_id(r: &CodeRef) -> String {
+    let key = format!(
+        "{:?}:{}:{}:{}-{}",
+        r.side, r.path, r.blob_oid, r.start_line, r.end_line
+    );
+    sha256(key.as_bytes()).hex()[..12].to_owned()
+}
+
+/// Packets one obligation's required spans may be split into; the rest is over budget.
+const MAX_CHUNKS: usize = 4;
+
+/// The fragments of one packet being filled.
+#[derive(Default)]
+struct Chunk {
+    fragments: Vec<Fragment>,
+    tokens: u32,
+    files: BTreeSet<(SourceSide, RepoPath)>,
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one call site assembling the packet"
+)]
+pub(super) fn select(
+    reader: &dyn SnapshotReader,
+    state: &mut RunState,
+    request: &ContextRequest,
+    candidates: Vec<Candidate>,
+    queries: Vec<QueryRecord>,
+    mut gaps: Vec<String>,
+    requests: u32,
+    max_files: u32,
+) -> Vec<EvidencePacket> {
+    let links: Vec<RawLink> = candidates
+        .iter()
+        .filter_map(|c| {
+            c.link
+                .clone()
+                .map(|(path, line, rel)| (c.side, path, line, c.path.clone(), c.start, rel))
+        })
+        .collect();
+    let mut merged = merge(candidates);
+    merged.sort_by_key(|m| m.priority);
+    let budget = request.remaining_budget;
+    // A verification packet whose required spans do not fit together is split (spec §9.3);
+    // discovery keeps one packet per unit.
+    let chunked = request.obligation_id.is_some();
+    let mut chunks = vec![Chunk::default()];
+    let mut excluded = Vec::new();
+    for m in merged {
+        if is_secret_path(m.path.as_str()) {
+            gaps.push(format!("SECRET_PATH {} not read", m.path));
+            continue;
+        }
+
+        let (code_ref, tokens) = match read(reader, &m) {
+            Ok(read) => read,
+            Err(err) => {
+                gaps.push(err);
+                continue;
+            }
+        };
+        let exclude = |reason: &str| Excluded {
+            code_ref: code_ref.clone(),
+            priority: m.priority,
+            reason: reason.to_owned(),
+        };
+        let file = (m.side, m.path.clone());
+        let new_file = !state.files.contains(&file);
+        if new_file
+            && m.priority != Priority::Required
+            && state.files.len() >= usize::try_from(max_files).unwrap_or(usize::MAX)
+        {
+            excluded.push(exclude("LIMIT_MAX_SOURCE_FILES"));
+            continue;
+        }
+
+        let mut room = chunks
+            .iter()
+            .position(|c| c.tokens.saturating_add(tokens) <= budget);
+        if room.is_none()
+            && chunked
+            && m.priority == Priority::Required
+            && tokens <= budget
+            && chunks.len() < MAX_CHUNKS
+        {
+            chunks.push(Chunk::default());
+            room = Some(chunks.len() - 1);
+        }
+
+        let Some(chunk) = room.map(|i| &mut chunks[i]) else {
+            if m.priority == Priority::Required {
+                gaps.push(format!(
+                    "{REQUIRED_OVER_BUDGET}: {}:{}-{}",
+                    m.path, m.start, m.end
+                ));
+                excluded.push(exclude(REQUIRED_OVER_BUDGET));
+            } else {
+                // A writer elsewhere that could refute a hypothesis is not dropped silently.
+                if m.priority == Priority::Refuting {
+                    gaps.push(format!(
+                        "REFUTING_OVER_BUDGET: {}:{}-{}",
+                        m.path, m.start, m.end
+                    ));
+                }
+
+                excluded.push(exclude("BUDGET"));
+            }
+
+            continue;
+        };
+
+        chunk.tokens += tokens;
+        chunk.files.insert(file.clone());
+        state.files.insert(file);
+        chunk.fragments.push(Fragment {
+            id: fragment_id(&code_ref),
+            code_ref,
+            priority: m.priority,
+            reason_selected: m.reasons,
+            evidence_ids: m.evidence,
+            completeness: m.completeness,
+            tokens,
+            transformation: "none".into(),
+        });
+    }
+    // What did not fit stays on its own packet, so the chunks that did fit are still assessed.
+    let over = excluded.iter().any(|e| e.reason == REQUIRED_OVER_BUDGET);
+    if chunked && over && chunks.iter().any(|c| !c.fragments.is_empty()) {
+        chunks.push(Chunk::default());
+    }
+
+    let rest = Rest {
+        queries,
+        excluded,
+        gaps,
+        semantic_items: requests,
+    };
+    assemble(request, chunks, &links, rest)
+}
+
+/// What the first packet records (queries, semantic items) and the last one keeps (what
+/// was left out and the gaps).
+struct Rest {
+    queries: Vec<QueryRecord>,
+    excluded: Vec<Excluded>,
+    gaps: Vec<String>,
+    semantic_items: u32,
+}
+
+fn assemble(
+    request: &ContextRequest,
+    chunks: Vec<Chunk>,
+    links: &[RawLink],
+    mut rest: Rest,
+) -> Vec<EvidencePacket> {
+    let last = chunks.len() - 1;
+    chunks
+        .into_iter()
+        .enumerate()
+        .map(|(i, chunk)| {
+            let (excluded, gaps) = if i == last {
+                (mem::take(&mut rest.excluded), mem::take(&mut rest.gaps))
+            } else {
+                (Vec::new(), Vec::new())
+            };
+            let resolution = if chunk.fragments.is_empty() {
+                PacketResolution::Unavailable
+            } else if gaps.is_empty() {
+                PacketResolution::Satisfied
+            } else {
+                PacketResolution::Partial
+            };
+            EvidencePacket {
+                schema_version: SchemaVersion,
+                request: request.clone(),
+                links: resolve_links(&chunk.fragments, links.to_vec()),
+                queries: if i == 0 {
+                    mem::take(&mut rest.queries)
+                } else {
+                    Vec::new()
+                },
+                excluded,
+                gaps,
+                usage: PacketUsage {
+                    tokens: chunk.tokens,
+                    files: u32::try_from(chunk.files.len()).unwrap_or(u32::MAX),
+                    semantic_items: if i == 0 { rest.semantic_items } else { 0 },
+                },
+                fragments: chunk.fragments,
+                resolution,
+            }
+        })
+        .collect()
+}
+
+/// The exact reference and token bound of a merged span; the reader checks the hash.
+fn read(reader: &dyn SnapshotReader, m: &Merged) -> Result<(CodeRef, u32), String> {
+    let unreadable =
+        |err: crate::ReadError| format!("UNREADABLE {}:{}-{}: {err}", m.path, m.start, m.end);
+    let code_ref = reader
+        .code_ref(m.side, &m.path, m.start, m.end)
+        .map_err(unreadable)?;
+    let span = reader.read_span(&code_ref).map_err(unreadable)?;
+    Ok((code_ref, u32::try_from(span.text.len()).unwrap_or(u32::MAX)))
+}
+
+type RawLink = (SourceSide, RepoPath, u32, RepoPath, u32, Relation);
+
+/// Links between the included fragments that contain each end; self-links are dropped.
+fn resolve_links(fragments: &[Fragment], links: Vec<RawLink>) -> Vec<Link> {
+    let containing = |side: SourceSide, path: &RepoPath, line: u32| {
+        fragments
+            .iter()
+            .find(|f| {
+                f.code_ref.side == side
+                    && &f.code_ref.path == path
+                    && (f.code_ref.start_line..=f.code_ref.end_line).contains(&line)
+            })
+            .map(|f| f.id.clone())
+    };
+    let mut link_set = BTreeMap::new();
+    for (side, from_path, from_line, to_path, to_line, relation) in links {
+        if let (Some(from), Some(to)) = (
+            containing(side, &from_path, from_line),
+            containing(side, &to_path, to_line),
+        ) && from != to
+        {
+            link_set.insert(
+                (from.clone(), to.clone(), relation as u8),
+                Link { from, to, relation },
+            );
+        }
+    }
+    link_set.into_values().collect()
+}
