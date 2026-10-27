@@ -1,0 +1,49 @@
+schema_version: 1
+id: mig-drop-column-safe
+split: development
+language: go
+pair: mig-drop-column
+variant: safe
+profiles: [migration_compatibility]
+rationale: "The migration only adds a nullable column; the old app neither reads nor writes it, so every reachable rollout state keeps working (spec §13.2, expand phase)."
+base:
+  .sych/deploy.yaml: |
+    schema_version: 1
+    environment: staging
+    owner: orders
+    initial_versions:
+      value:
+        app_image: ghcr.io/shop/orders@sha256:aaaa
+        source_commit: "1111111111111111111111111111111111111111"
+        schema_phase: expanded
+        supported_clients: ["orders-web >= 2026.10"]
+      source: argocd app orders-staging
+    order: {value: [schema, app], source: deploy/README.md}
+    mixed_versions: {value: true, source: "rolling update, maxSurge 1"}
+    compatibility_window: {value: 14d, source: release policy}
+    recovery: {value: roll_forward_repair, source: runbook RB-3}
+  go.mod: |
+    module example.com/shop
+
+    go 1.26
+  migrations/0001_orders.sql: |
+    CREATE TABLE orders (id TEXT PRIMARY KEY, status TEXT NOT NULL);
+  orders/read.go: |
+    package orders
+
+    import (
+    	"context"
+    	"database/sql"
+    )
+
+    func Status(ctx context.Context, db *sql.DB, id string) (string, error) {
+    	var status string
+    	err := db.QueryRowContext(ctx, "SELECT status FROM orders WHERE id = $1", id).Scan(&status)
+    	return status, err
+    }
+head:
+  migrations/0002_add_note.sql: |
+    ALTER TABLE orders ADD COLUMN note TEXT NULL;
+expected:
+  forbidden_claims:
+    - "The old app breaks when the note column is added."

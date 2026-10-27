@@ -204,6 +204,16 @@
         "format": {
           "$ref": "#/$defs/CiFormat"
         },
+        "kubernetes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RenderedManifests"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "limitations": {
           "type": "array",
           "default": [],
@@ -310,6 +320,11 @@
           "description": "`terraform show -json` of a saved plan; reduced to allowlisted structure.",
           "type": "string",
           "const": "terraform_plan"
+        },
+        {
+          "description": "Rendered Kubernetes manifests (`helm template`, `kustomize build`), multi-document YAML.",
+          "type": "string",
+          "const": "kubernetes_rendered"
         }
       ]
     },
@@ -754,6 +769,104 @@
         "changed"
       ]
     },
+    "K8sObject": {
+      "description": "One workload, job or hook object; values of env, data and secrets are never kept.",
+      "type": "object",
+      "properties": {
+        "config_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deletion_policy": {
+          "description": "`helm.sh/resource-policy: keep` or a prune annotation.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hooks": {
+          "description": "`helm.sh/hook`, `argocd.argoproj.io/hook` or a sync wave: ordering the controller owns.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "persistent_claims": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "pre_stop": {
+          "type": "boolean"
+        },
+        "replicas": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "secret_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "selector_mismatch": {
+          "description": "The selector does not match the pod template labels: the controller adopts nothing.",
+          "type": "boolean"
+        },
+        "strategy": {
+          "description": "`RollingUpdate`, `Recreate`, `OnDelete`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "termination_grace_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "without_readiness": {
+          "description": "Containers without a readiness probe.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "selector_mismatch",
+        "without_readiness",
+        "pre_stop",
+        "persistent_claims",
+        "secret_refs",
+        "config_refs",
+        "hooks"
+      ]
+    },
     "Language": {
       "oneOf": [
         {
@@ -1106,6 +1219,28 @@
         "implementation",
         "contract_refs",
         "status"
+      ]
+    },
+    "RenderedManifests": {
+      "type": "object",
+      "properties": {
+        "objects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/K8sObject"
+          }
+        },
+        "unsupported_kinds": {
+          "description": "Kinds seen but not normalized (CRDs and the like): a limitation, not \"no risk\".",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "objects",
+        "unsupported_kinds"
       ]
     },
     "ReplaceOrder": {

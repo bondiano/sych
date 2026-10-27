@@ -13,6 +13,7 @@ mod freeze;
 mod generic;
 mod glob;
 mod hash;
+pub mod kubernetes;
 pub mod lineage;
 mod lint;
 mod manifest;

@@ -9,6 +9,7 @@ mod findings;
 pub(crate) use findings::sarif;
 mod golang;
 mod junit;
+mod kubernetes;
 mod outcomes;
 mod terraform;
 
@@ -67,6 +68,12 @@ fn detect(text: &str) -> Option<CiFormat> {
         } else {
             CiFormat::Junit
         })
+    } else if (start.starts_with("---")
+        || start.starts_with("apiVersion:")
+        || start.starts_with("kind:"))
+        && start.contains("apiVersion:")
+    {
+        Some(CiFormat::KubernetesRendered)
     } else if start.starts_with("TN:") || start.starts_with("SF:") {
         Some(CiFormat::Lcov)
     } else if start.starts_with('[') {
@@ -132,6 +139,7 @@ pub fn import_as(
         CiFormat::GoCover => golang::cover(text, root_module(snapshot).as_deref(), &mut facts)?,
         CiFormat::GoVetJson => golang::vet_json(text, &mut facts)?,
         CiFormat::TerraformPlan => terraform::parse(text, &mut facts)?,
+        CiFormat::KubernetesRendered => kubernetes::parse(text, &mut facts)?,
     }
     facts.origin = origin;
     if facts.manifest.is_none() && facts.origin.is_none() {
@@ -243,6 +251,10 @@ mod tests {
         assert_eq!(
             detect("{\"format_version\":\"1.2\",\"terraform_version\":\"1.9.5\"}"),
             Some(CiFormat::TerraformPlan)
+        );
+        assert_eq!(
+            detect("---\napiVersion: apps/v1\nkind: Deployment\n"),
+            Some(CiFormat::KubernetesRendered)
         );
         assert_eq!(
             detect("{\"Time\":\"2026-01-01T00:00:00Z\",\"Action\":\"start\"}\n"),
