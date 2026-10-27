@@ -4,6 +4,7 @@
 //! A locally imported file proves nothing about its origin, so it is an author claim; a
 //! disabled lint or a skipped test is recorded as such and never reads as a fix.
 
+use crate::kubernetes::RenderedManifests;
 use crate::terraform::TerraformPlan;
 use std::fmt;
 
@@ -124,6 +125,8 @@ pub enum CiFormat {
     GoVetJson,
     /// `terraform show -json` of a saved plan; reduced to allowlisted structure.
     TerraformPlan,
+    /// Rendered Kubernetes manifests (`helm template`, `kustomize build`), multi-document YAML.
+    KubernetesRendered,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -180,6 +183,8 @@ pub struct CiFacts {
     pub origin: Option<CiOrigin>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terraform: Option<TerraformPlan>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubernetes: Option<RenderedManifests>,
 }
 
 impl CiManifest {
@@ -204,6 +209,7 @@ impl CiFacts {
             coverage: Vec::new(),
             origin: None,
             terraform: None,
+            kubernetes: None,
         }
     }
 
@@ -264,7 +270,7 @@ impl CiFacts {
             | CiFormat::Cobertura
             | CiFormat::GoTestJson
             | CiFormat::GoCover => EvidenceKind::Test,
-            CiFormat::TerraformPlan => EvidenceKind::Infrastructure,
+            CiFormat::TerraformPlan | CiFormat::KubernetesRendered => EvidenceKind::Infrastructure,
         };
         let mut limitations = self.limitations.clone();
         let trust_class = if let Some(origin) = &self.origin {
@@ -305,6 +311,7 @@ impl CiFacts {
                     CiFormat::GoCover => "go_cover",
                     CiFormat::GoVetJson => "go_vet_json",
                     CiFormat::TerraformPlan => "terraform_plan",
+                    CiFormat::KubernetesRendered => "kubernetes_rendered",
                 }
                 .into(),
                 version: self

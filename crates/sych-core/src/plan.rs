@@ -6,16 +6,13 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::config::{RepositoryPolicy, Rule, RuleException, RuleKind, RuleSeverity};
-use crate::generic::{self, GenericRule};
+use crate::generic;
 use crate::{
     Applicability, ContentKind, DiffManifest, FileChange, Obligation, ObligationId,
     ObligationStatus, PathGap, RepoPath, ReviewUnit, ReviewUnitId, RiskHint, RiskLevel, RunFacts,
     ScopeManifest, Severity, Sha256Digest, SourceSnapshotId, derived_uuid, glob_match,
 };
-use crate::{deploy, migration, terraform};
-
-/// A generic rule that activated but whose domain checker is not available yet.
-pub const PROVIDER_UNAVAILABLE: &str = "PROVIDER_UNAVAILABLE";
+use crate::{deploy, kubernetes, migration, terraform};
 
 /// An obligation as planned, with the rule data the reducer needs later.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -367,24 +364,6 @@ fn obligation(
     }
 }
 
-/// An activated generic rule; one that waits for a domain checker stays UNKNOWN.
-fn generic_obligation(
-    snapshot: &SourceSnapshotId,
-    generic: &GenericRule,
-    matched: &[&ReviewUnit],
-) -> PlannedObligation {
-    let mut planned = obligation(snapshot, &generic.rule, matched, false);
-    if let Some(provider) = generic.pending_provider {
-        planned.obligation.applicability = Applicability::Unknown;
-        planned.obligation.status = ObligationStatus::Unknown {
-            reason_code: PROVIDER_UNAVAILABLE.into(),
-            next_evidence_needed: format!("the {provider}"),
-        };
-    }
-
-    planned
-}
-
 /// Obligations of the repository's invariant rules, then of the activated generic rules.
 fn obligations(
     snapshot: &SourceSnapshotId,
@@ -425,6 +404,11 @@ fn obligations(
         .iter()
         .filter_map(|r| Some((r.terraform.as_ref()?, r.head_bound())))
         .collect();
+    let rendered: Vec<_> = facts
+        .ci
+        .iter()
+        .filter_map(|r| Some((r.kubernetes.as_ref()?, r.head_bound())))
+        .collect();
     let generic = generic::pack().into_iter().filter(|g| {
         policy.config.review.profiles.contains(&g.profile)
             && !policy.rules.iter().any(|r| r.id == g.rule.id)
@@ -436,9 +420,10 @@ fn obligations(
             .map(|(unit, _)| unit)
             .collect();
         (!matched.is_empty()).then(|| {
-            let mut planned = generic_obligation(snapshot, &g, &matched);
+            let mut planned = obligation(snapshot, &g.rule, &matched, false);
             migration::bind(&mut planned, &matrix);
             terraform::bind(&mut planned, &plans);
+            kubernetes::bind(&mut planned, &rendered);
             planned
         })
     });
