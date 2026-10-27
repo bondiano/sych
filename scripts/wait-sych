@@ -12,6 +12,10 @@ repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 while ((SECONDS < deadline)); do
     # Re-read the head every round: a push while waiting needs the review of the new head.
     head="$(gh pr view "$pr" --json headRefOid --jq .headRefOid)"
+    if [[ "$head" != "${seen:-}" ]]; then
+        echo "wait-sych: waiting for the review of ${head:0:12} on PR #$pr" >&2
+        seen="$head"
+    fi
     summary="$(gh api --paginate "repos/$repo/issues/$pr/comments" \
         --jq ".[] | select(.user.login == \"$bot\") | select(.body | contains(\"Reviewed head \`${head:0:12}\`\")) | .body")"
     if [[ -n "$summary" ]]; then
