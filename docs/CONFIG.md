@@ -28,12 +28,20 @@ is rejected without printing the value itself.
 - A repository cannot exceed server ceilings: `context.max_tokens_per_request` ≤
   `budgets.analysis.max_input_tokens`. Execution is enabled only in `sych.yaml` together with
   `execution.allowed_profiles`; it is disabled by default (M3.8). An allowed profile must be defined in
-  `execution.profiles` as an absolute `executable`, `args` that are literals or `{param, one_of: [...]}` choices, and
-  `timeout_seconds`; a request can only pick listed values and cannot add arguments, and neither the model nor the
-  repository writes a command line. A refused run (`disabled`, `not allowed`, `missing` or `invalid` parameter) is a
-  named limitation, never a passed check. No runner ships yet: targeted checks stay off, existing CI reports are the
-  evidence, and without runtime evidence the verifier keeps a bounded static argument or a concrete `UNKNOWN`;
-  generating new tests is optional and never done by the tour reader.
+  `execution.profiles`: a docker `image` pinned by `@sha256:`, an absolute `executable` inside it, `args` that are
+  literals or `{param, one_of: [...]}` choices, `timeout_seconds`, the `report` format of its stdout and limits
+  (`memory_mb` 2048, `cpu_millis` 2000, `pids` 512 by default). A request can only pick listed values and cannot add
+  arguments; neither the model nor the repository writes a command line.
+
+  When enabled, every allowed profile runs once per review on the pinned head: the head is materialized into a fresh
+  workspace (secrets, symlinks, submodules and tool configs left out), mounted as the only volume of a docker
+  container with `--network none`, `--cap-drop ALL`, `--read-only`, no-new-privileges and the limits; the environment
+  carries no Sych secret. Docker is the only backend for repository code. The stdout is imported as a CI report bound
+  to the head (`TrustClass::DerivedLocal`, binding `ENVIRONMENT`, producer `profile@image`); a non-zero exit is a
+  result, not an error. A refused (`disabled`, `not allowed`, `missing` or `invalid` parameter) or failed run is a
+  task gap `EXECUTION_REFUSED` / `EXECUTION_FAILED`, never a passed check. No request supplies parameters yet, so a
+  profile with choices is refused as missing them. Without runtime evidence the verifier keeps a bounded static
+  argument or a concrete `UNKNOWN`; generating new tests is optional and never done by the tour reader.
 
   ```yaml
   execution:
@@ -41,9 +49,11 @@ is rejected without printing the value itself.
     allowed_profiles: [go-test]
     profiles:
       go-test:
+        image: golang:1.26@sha256:<digest>
         executable: /usr/local/go/bin/go
-        args: [test, {param: flags, one_of: [-race, -count=1]}, ./...]
+        args: [test, -json, ./...]
         timeout_seconds: 300
+        report: go_test_json
   ```
 - `tooling.dependency_install` (default `false`) allows installing the dependencies of the repository under review
   for semantic analysis: `pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile` with the pinned

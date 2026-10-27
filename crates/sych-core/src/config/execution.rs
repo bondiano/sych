@@ -9,6 +9,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::CiFormat;
+
 /// One argument of a profile.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged, deny_unknown_fields)]
@@ -24,11 +26,34 @@ pub enum ProfileArg {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionProfile {
-    /// Absolute path; no lookup in `PATH`.
+    /// The docker image it runs in, pinned by digest (`…@sha256:…`); docker is the only backend.
+    pub image: String,
+    /// Absolute path inside the image; no lookup in `PATH`.
     pub executable: String,
     #[serde(default)]
     pub args: Vec<ProfileArg>,
     pub timeout_seconds: u32,
+    /// Format of what the command prints on stdout; imported like a CI report of the head.
+    pub report: Option<CiFormat>,
+    #[serde(default = "memory_mb")]
+    pub memory_mb: u32,
+    /// CPU share in thousandths of a core.
+    #[serde(default = "cpu_millis")]
+    pub cpu_millis: u32,
+    #[serde(default = "pids")]
+    pub pids: u32,
+}
+
+const fn memory_mb() -> u32 {
+    2048
+}
+
+const fn cpu_millis() -> u32 {
+    2000
+}
+
+const fn pids() -> u32 {
+    512
 }
 
 /// Repository code execution; off unless the server explicitly allows profiles.
@@ -113,6 +138,13 @@ impl Execution {
             }
         }
         for (name, p) in &self.profiles {
+            if !p.image.contains("@sha256:") {
+                out.push((
+                    format!("execution.profiles.{name}.image"),
+                    "must be pinned by digest (image@sha256:…)",
+                ));
+            }
+
             if !p.executable.starts_with('/') {
                 out.push((
                     format!("execution.profiles.{name}.executable"),
@@ -136,7 +168,7 @@ mod tests {
     use super::*;
 
     fn execution(enabled: bool) -> Execution {
-        let yaml = "enabled: true\nallowed_profiles: [go-test]\nprofiles:\n  go-test:\n    executable: /usr/local/go/bin/go\n    args: [test, {param: race, one_of: [-race, -count=1]}, ./...]\n    timeout_seconds: 300\n";
+        let yaml = "enabled: true\nallowed_profiles: [go-test]\nprofiles:\n  go-test:\n    image: golang:1.26@sha256:0000000000000000000000000000000000000000000000000000000000000000\n    executable: /usr/local/go/bin/go\n    args: [test, {param: race, one_of: [-race, -count=1]}, ./...]\n    timeout_seconds: 300\n";
         Execution {
             enabled,
             ..serde_yaml_ng::from_str(yaml).expect("execution")

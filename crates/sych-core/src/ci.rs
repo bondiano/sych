@@ -183,6 +183,9 @@ pub struct CiFacts {
     pub origin: Option<CiOrigin>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terraform: Option<TerraformPlan>,
+    /// `profile@image` of a targeted check Sych ran itself on the pinned head.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runner: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kubernetes: Option<RenderedManifests>,
 }
@@ -210,6 +213,7 @@ impl CiFacts {
             origin: None,
             terraform: None,
             kubernetes: None,
+            runner: None,
         }
     }
 
@@ -252,6 +256,26 @@ impl CiFacts {
         self.build_success == Some(true) && self.bound_to(snapshot)
     }
 
+    /// Who stands behind the report: Sych's own check, an authenticated CI job or the author.
+    fn trust(&self, limitations: &mut Vec<String>) -> TrustClass {
+        if let Some(runner) = &self.runner {
+            limitations.push(format!(
+                "TARGETED_CHECK {runner}: run by Sych in an isolated container on the pinned head"
+            ));
+            TrustClass::DerivedLocal
+        } else if let Some(origin) = &self.origin {
+            // Provenance, not oracle independence (spec §15.4).
+            limitations.push(format!(
+                "AUTHENTICATED_CI {}: origin is established, the test oracle is not independent",
+                origin.workflow
+            ));
+            TrustClass::AuthenticatedCi
+        } else {
+            limitations.push("imported locally: origin is not authenticated".into());
+            TrustClass::AuthorClaim
+        }
+    }
+
     /// External input evidence: `Ci` binding, author claim until a trusted CI transport
     /// authenticates the job (M2).
     pub fn to_evidence(
@@ -273,17 +297,7 @@ impl CiFacts {
             CiFormat::TerraformPlan | CiFormat::KubernetesRendered => EvidenceKind::Infrastructure,
         };
         let mut limitations = self.limitations.clone();
-        let trust_class = if let Some(origin) = &self.origin {
-            // Provenance, not oracle independence (spec §15.4).
-            limitations.push(format!(
-                "AUTHENTICATED_CI {}: origin is established, the test oracle is not independent",
-                origin.workflow
-            ));
-            TrustClass::AuthenticatedCi
-        } else {
-            limitations.push("imported locally: origin is not authenticated".into());
-            TrustClass::AuthorClaim
-        };
+        let trust_class = self.trust(&mut limitations);
         if !self.coverage.is_empty() {
             limitations.push("coverage shows execution, not correct assertions".into());
         }
@@ -321,7 +335,11 @@ impl CiFacts {
                 config_hash: None,
             },
             binding: EvidenceBinding {
-                kind: BindingKind::Ci,
+                kind: if self.runner.is_some() {
+                    BindingKind::Environment
+                } else {
+                    BindingKind::Ci
+                },
                 head_oid: Some(snapshot.head.clone()),
                 target_tip_oid: Some(snapshot.target_tip.clone()),
                 tested_oid: match &self.origin {

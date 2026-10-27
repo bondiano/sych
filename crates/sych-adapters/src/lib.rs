@@ -1,5 +1,6 @@
 pub mod chat;
 pub mod ci;
+pub mod execution;
 pub mod git;
 pub mod github;
 pub mod lint;

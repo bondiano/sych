@@ -39,6 +39,14 @@ pub struct Job<'a> {
     pub timeout: Duration,
 }
 
+/// Limits for repository code run as a targeted check: no network, bounded memory, CPU and
+/// processes. Installers keep the network they need and run without them.
+pub struct Isolation {
+    pub memory_mb: u32,
+    pub cpu_millis: u32,
+    pub pids: u32,
+}
+
 pub fn name(backend: SandboxBackend) -> &'static str {
     match backend {
         SandboxBackend::Bwrap => "bwrap",
@@ -98,10 +106,25 @@ fn container_name() -> String {
     )
 }
 
-fn docker(job: &Job<'_>, image: &str, container: &str) -> Command {
+fn docker(job: &Job<'_>, image: &str, container: &str, isolation: Option<&Isolation>) -> Command {
     let mut cmd = Command::new("docker");
     cmd.args(["run", "--rm", "--name", container]);
-    cmd.args(["--network", "bridge", "--cap-drop", "ALL"]);
+    let network = if isolation.is_some() {
+        "none"
+    } else {
+        "bridge"
+    };
+    cmd.args(["--network", network, "--cap-drop", "ALL"]);
+    if let Some(i) = isolation {
+        cmd.arg(format!("--memory={}m", i.memory_mb))
+            .arg(format!(
+                "--cpus={}.{:03}",
+                i.cpu_millis / 1000,
+                i.cpu_millis % 1000
+            ))
+            .arg(format!("--pids-limit={}", i.pids));
+    }
+
     cmd.args([
         "--security-opt",
         "no-new-privileges",
@@ -211,18 +234,52 @@ pub fn run(
     image: Option<&str>,
     job: &Job<'_>,
 ) -> Result<(), SandboxError> {
-    let (mut cmd, container) = match backend {
+    let (cmd, container) = match backend {
         SandboxBackend::Bwrap => (bwrap(job), None),
         SandboxBackend::Docker => {
             let container = container_name();
             let image = image.ok_or(SandboxError::NoImage)?;
-            (docker(job, image, &container), Some(container))
+            (docker(job, image, &container, None), Some(container))
         }
     };
+    execute(cmd, container.as_deref(), backend, job, None)
+}
+
+/// Runs repository code in docker without network and within `isolation`; its stdout goes
+/// to `stdout` whole (a report), stderr is only kept as the failure tail.
+#[tracing::instrument(level = "debug", skip_all, fields(program = %job.program.display()))]
+pub fn run_isolated(
+    image: &str,
+    job: &Job<'_>,
+    isolation: &Isolation,
+    stdout: &Path,
+) -> Result<(), SandboxError> {
+    let container = container_name();
+    let cmd = docker(job, image, &container, Some(isolation));
+    execute(
+        cmd,
+        Some(&container),
+        SandboxBackend::Docker,
+        job,
+        Some(stdout),
+    )
+}
+
+fn execute(
+    mut cmd: Command,
+    container: Option<&str>,
+    backend: SandboxBackend,
+    job: &Job<'_>,
+    stdout: Option<&Path>,
+) -> Result<(), SandboxError> {
     let log = tempfile::tempfile()?;
+    let out = match stdout {
+        Some(path) => File::create(path)?,
+        None => log.try_clone()?,
+    };
     let mut child = cmd
         .stdin(Stdio::null())
-        .stdout(Stdio::from(log.try_clone()?))
+        .stdout(Stdio::from(out))
         .stderr(Stdio::from(log.try_clone()?))
         .spawn()
         .map_err(|source| SandboxError::Spawn {
@@ -344,11 +401,22 @@ mod tests {
         );
         let container = container_name();
         assert_ne!(container, container_name(), "every job owns its container");
-        let docker = docker(&job, "debian@sha256:00", &container);
-        let dargs: Vec<String> = docker
-            .get_args()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
+        let docker_args = |isolation: Option<&Isolation>| -> Vec<String> {
+            docker(&job, "debian@sha256:00", &container, isolation)
+                .get_args()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect()
+        };
+        let dargs = docker_args(None);
+        assert!(dargs.join(" ").contains("--network bridge"));
+        let isolated = docker_args(Some(&Isolation {
+            memory_mb: 512,
+            cpu_millis: 1500,
+            pids: 64,
+        }))
+        .join(" ");
+        assert!(isolated.contains("--network none"), "{isolated}");
+        assert!(isolated.contains("--memory=512m --cpus=1.500 --pids-limit=64"));
         assert!(
             dargs
                 .join(" ")

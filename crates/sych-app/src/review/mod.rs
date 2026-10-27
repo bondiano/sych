@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use anyhow::Context;
 
 use sych_adapters::git::LocalSnapshot;
-use sych_adapters::syntax;
+use sych_adapters::{execution, syntax};
 use sych_core::broker::{EvidencePacket, Limits};
 use sych_core::config::Budgets;
 use sych_core::config::{
@@ -14,7 +14,7 @@ use sych_core::config::{
     policy_diff,
 };
 use sych_core::{
-    Candidate, Coverage, Evidence, EvidenceManifest, ExternalInputManifest, FileChange,
+    Candidate, CiFacts, Coverage, Evidence, EvidenceManifest, ExternalInputManifest, FileChange,
     PolicySnapshot, PolicySource, Recommendation, ReviewPlan, ReviewResult, RunFacts,
     SchemaVersion, SourceSide, Timestamp, is_migration_path, plan, redact,
 };
@@ -101,12 +101,14 @@ fn migration_changed(file: &FileChange) -> bool {
 /// Imported CI reports come back as external evidence.
 fn derived_facts(
     args: &ReviewArguments,
+    executed: Vec<CiFacts>,
     snap: &LocalSnapshot,
     effective: &EffectiveConfig,
     now: Timestamp,
 ) -> anyhow::Result<(RunFacts, Vec<Evidence>, Vec<Evidence>)> {
     let mut ci = ci::import(snap, &args.ci_facts, args.ci_manifest.as_deref())?;
     ci.extend(args.ci_imported.iter().cloned());
+    ci.extend(executed);
     let (facts, lint) = match args.semantic {
         Switch::On => (
             semantic::collect_facts(snap, &effective.server.tooling)?,
@@ -301,8 +303,16 @@ fn execute(
         Some(fake) => fake.script(&snap, now).map_err(invalid_fake)?,
         None => Scripted::default(),
     };
+    // Off unless the server allows profiles; a refused or failed check is a task gap.
+    let (executed, refused) = execution::run_profiles(&snap, &effective.server.execution);
+    let ci_gaps: Vec<String> = args
+        .ci_gaps
+        .iter()
+        .cloned()
+        .chain(refused.iter().map(ToString::to_string))
+        .collect();
     let (facts, derived, external) =
-        derived_facts(args, &snap, &effective, now).context("cannot collect facts")?;
+        derived_facts(args, executed, &snap, &effective, now).context("cannot collect facts")?;
     tracing::info!(
         semantic = facts.semantic.len(),
         syntax = facts.syntax.len(),
@@ -342,7 +352,7 @@ fn execute(
         budgets: &effective.server.budgets,
         risk_audit: args.risk_audit,
         verify: args.verify,
-        ci_gaps: &args.ci_gaps,
+        ci_gaps: &ci_gaps,
         parent: args.parent,
         language: effective.repository.config.review.language,
         now,
