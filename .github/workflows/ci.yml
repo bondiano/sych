@@ -33,4 +33,30 @@ jobs:
       - uses: extractions/setup-just@v2
         with:
           just-version: "1.59.0"
-      - run: just check
+      - name: Check
+        id: check
+        continue-on-error: true
+        run: just check
+      # Evidence for the Sych self-review (docs/SERVER.md#self-review-bondianosych).
+      - name: Write Sych reports
+        if: always()
+        env:
+          OUTCOME: ${{ steps.check.outcome }}
+        run: |
+          cargo clippy --workspace --all-targets --all-features --locked --message-format=json > clippy.json || true
+          code=$([ "$OUTCOME" = success ] && echo 0 || echo 1)
+          printf '{"schema_version":1,"commands":[{"name":"just check","exit_code":%s}]}\n' "$code" > outcomes.json
+          printf '{"schema_version":1,"job":"github:%s/actions/runs/%s","tested_oid":"%s","toolchain":"%s","target":"x86_64-unknown-linux-gnu","features":["all"]}\n' \
+            "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$(git rev-parse HEAD)" "$(rustc --version)" > sych-ci.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sych-reports
+          path: |
+            clippy.json
+            outcomes.json
+            sych-ci.json
+          retention-days: 7
+      - name: Fail when the check failed
+        if: steps.check.outcome != 'success'
+        run: exit 1

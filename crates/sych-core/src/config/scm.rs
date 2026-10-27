@@ -7,9 +7,6 @@ use super::{EnvName, Problems, endpoint};
 
 /// Default webhook body limit (spec §19.2).
 pub const WEBHOOK_BODY_LIMIT: u32 = 2 * 1024 * 1024;
-/// Production connections wait for the full-feature release gate and a separate owner
-/// decision (roadmap R1, M2.9); until then the validator refuses them.
-pub const PRODUCTION_ALLOWED: bool = false;
 /// Repositories that are production by definition, whatever a connection says.
 pub const PRODUCTION_REPOSITORIES: &[&str] = &["bondiano/sych"];
 
@@ -207,10 +204,11 @@ impl Scm {
                         .iter()
                         .any(|p| p.eq_ignore_ascii_case(r))
                 });
+            // The owner enabled production self-review before R1 (M2.9): only from a pinned build.
             p.check(
-                PRODUCTION_ALLOWED || !production,
-                format!("{path}.repositories"),
-                "production repositories wait for the R1 gate and an owner decision; use a sandbox mirror",
+                !production || c.self_review,
+                format!("{path}.self_review"),
+                "production repositories are reviewed only by a pinned trusted build; set self_review",
             );
             p.check(
                 !c.self_review
@@ -259,12 +257,23 @@ mod tests {
     }
 
     #[test]
-    fn production_waits_for_r1_and_self_review_needs_a_pinned_build() {
+    fn production_and_self_review_need_a_pinned_build() {
         assert!(errors("      repositories: [bondiano/sych-sandbox]\n").is_empty());
         let prod = errors("      repositories: [bondiano/sych]\n");
-        assert!(prod.iter().any(|e| e.contains("R1 gate")), "{prod:?}");
+        assert!(
+            prod.iter().any(|e| e.contains("pinned trusted build")),
+            "{prod:?}"
+        );
         let flagged = errors("      repositories: [o/r]\n      environment: production\n");
-        assert!(flagged.iter().any(|e| e.contains("R1 gate")), "{flagged:?}");
+        assert!(
+            flagged.iter().any(|e| e.contains("pinned trusted build")),
+            "{flagged:?}"
+        );
+        let pinned_prod = errors(&format!(
+            "      repositories: [bondiano/sych]\n      self_review: true\n      reviewer_commit: \"{}\"\n",
+            "b".repeat(40)
+        ));
+        assert!(pinned_prod.is_empty(), "{pinned_prod:?}");
         let unpinned = errors("      repositories: [o/r]\n      self_review: true\n");
         assert!(
             unpinned

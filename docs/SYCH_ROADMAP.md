@@ -61,7 +61,7 @@ flowchart TD
 
 M3 и локальный tour могут развиваться независимо после M2. Tour-контракт и AC-34–36 обязательны до корпоративного подключения: это устраняет конфликт между поздним номером M5 в §28 и ранним требованием §29. Web reader не блокирует CLI tour, но включённый в release baseline web scope блокирует R1.
 
-Сначала завершаем один local сценарий M0, затем качественные TS/React и Rust пути M1 и общий model routing; M2 включает безопасный self-review sandbox-зеркала Sych. Первое локальное ревью не ждёт Kubernetes/GitLab/web UI. Боевой bot на `bondiano/sych` включается только после R1 по отдельному разрешению, не автоматически при push этого плана.
+Сначала завершаем один local сценарий M0, затем качественные TS/React и Rust пути M1 и общий model routing; M2 включает безопасный self-review sandbox-зеркала Sych. Первое локальное ревью не ждёт Kubernetes/GitLab/web UI. Боевой bot на `bondiano/sych` владелец включил до R1 (2026-10-27) — только advisory и закреплённой сборкой ([SERVER.md](SERVER.md#self-review-bondianosych)).
 
 ## 3. Задачи по этапам
 
@@ -633,7 +633,7 @@ M3 и локальный tour могут развиваться независи
 - [ ] Untrusted fork/PR код, Cargo build.rs/proc-macro и изменённые workflow files не исполняются рядом с publisher/model secrets. `pull_request_target` с checkout/execute head и write credentials запрещён. Секретные jobs не доверяют произвольному workflow_run artifact без установленного producer/revision/checkout binding.
 - [ ] Result привязан к exact PR head/diff_base/target и trusted reviewer version; неполный CI или Rust semantics видны как gaps. HIGH/CRITICAL/mandatory UNKNOWN не теряются из summary. DeepSeek/subscription/premium route выбирается по M1.13 с mode/license eligibility; personal subscription не включается в hosted runner по наличию локального login.
 - [ ] Force-push, late CI, duplicate webhook, self-comment, timeout/lost-ACK и restart не создают лишние inference/CREATE; устаревший результат помечается STALE и переоценка не присваивает RESOLVED без проверки. Bot не approve/request-changes/merge; D11 остаётся advisory.
-- [ ] До full features/R1 workflow или connection production не активны ни на push/tag, ни в shadow mode; подготовленная конфигурация и sandbox smoke не трактуются как разрешение боевого запуска. Пока реальный `sych review` не реализован, help/fake-запуск не считается self-review.
+- [ ] Production connection `bondiano/sych` активна только с pin доверенной сборки (`self_review` + `reviewer_commit`); решение владельца о включении до R1 — 2026-10-27. Пока реальный `sych review` не реализован, help/fake-запуск не считается self-review.
 
 **DoD**
 - [x] Есть versioned flow/configuration и setup/runbook с GitHub App permissions, trusted reviewer pin, events, CI selectors, model credentials references, budget и production activation guard; выбран один общий M2 engine/publisher, не второй бот.
@@ -1138,7 +1138,7 @@ M3 и локальный tour могут развиваться независи
 
 **AC**
 - [ ] Нет незавершённой включённой функции: CLI/API/worker, оба SCM, качественные TS/React/Rust и Go/infra/базовый Python, OpenRouter и реальные GPT/GLM/OpenCode subscription paths в разрешённых modes, DeepSeek/fallback/Astra/Fable routing, self-review Sych в sandbox, budgets/security/ops и tour/Q&A/handoff.
-- [ ] Dogfooding gate M2.9 пройден на sandbox-зеркале Sych: реальные PR → review → comments/readback → новый head, safe PR, tampering/fork/force-push/late-CI/lost-ACK cases; только затем отдельное owner-approved подключение `bondiano/sych` (`PRODUCTION_ALLOWED` меняется вместе с этим решением).
+- [ ] Dogfooding gate M2.9 пройден на sandbox-зеркале Sych: реальные PR → review → comments/readback → новый head, safe PR, tampering/fork/force-push/late-CI/lost-ACK cases; подключение `bondiano/sych` владелец включил раньше, до этого gate.
 - [ ] Все AC-01–AC-60 и INV-01–INV-22 имеют evidence; critical deterministic cases проходят до corporate staging, real provider/runtime cases дополнены smoke и quality evaluation. Честный mandatory UNKNOWN остаётся видимым; soft subscription limits не объявлены hard. Full feature scope не означает доказательства отсутствия ошибок в любом PR.
 - [ ] В staging проверены API/worker restart, DB+artifact restore, graceful shutdown, upgrade/rollback, многоворкерный fencing, concurrent budget reservations, lost-ACK SCM reconciliation, access/secret isolation. Производственные credentials/данные для этих проверок не использовались.
 - [ ] Owner принял eval/pilot policy и фактические quality/cost results; dashboards/alerts/runbooks готовы. Успех не включает automatically blocking checks, autofix или merge: default остаётся advisory.

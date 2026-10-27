@@ -101,6 +101,18 @@ async fn a_merge_result_binds_through_its_parents() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn a_cargo_json_report_declared_by_policy_is_authenticated_evidence() {
+    let policy = POLICY.replace("format: junit", "format: cargo_json");
+    let w = world(Some(&policy)).await;
+    let head = w.branch("src/b.rs");
+    let clippy = br#"{"reason":"compiler-message","message":{"level":"warning","code":{"code":"clippy::unwrap_used"},"message":"used `unwrap()`","spans":[{"file_name":"src/b.rs","line_start":1,"line_end":1,"is_primary":true}]}}"#;
+    w.publish_ci(7, &head, "success", Some(&head), clippy);
+    let (_, gaps, ci) = review(&w, &head).await;
+    assert!(gaps.is_empty(), "{gaps:?}");
+    assert_eq!(ci, [(TrustClass::AuthenticatedCi, Validity::Valid)]);
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn an_unproven_checkout_is_stale_and_named() {
     let w = world(Some(POLICY)).await;
     let head = w.branch("src/b.rs");
