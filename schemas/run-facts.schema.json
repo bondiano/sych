@@ -30,6 +30,14 @@
         "$ref": "#/$defs/LintFacts"
       }
     },
+    "schema_refs": {
+      "description": "Tables and columns a changed migration touches, with the code that names them.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SchemaRef"
+      }
+    },
     "schema_version": {
       "$ref": "#/$defs/SchemaVersion"
     },
@@ -1349,6 +1357,45 @@
         "changed",
         "unknown_after",
         "sensitive"
+      ]
+    },
+    "SchemaRef": {
+      "description": "A schema change with the code of either side that names it: the old app's readers and\nwriters live on the base side, the new app's on the head.",
+      "type": "object",
+      "properties": {
+        "change": {
+          "description": "`DROP COLUMN`, `RENAME COLUMN`, `ALTER COLUMN`, `ADD COLUMN`, `DROP TABLE`, `RENAME TABLE`.",
+          "type": "string"
+        },
+        "column": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "migration": {
+          "$ref": "#/$defs/CodeRef"
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CodeRef"
+          }
+        },
+        "table": {
+          "type": "string"
+        },
+        "truncated": {
+          "description": "The search hit its limit: more references may exist.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "table",
+        "change",
+        "migration",
+        "references",
+        "truncated"
       ]
     },
     "SchemaVersion": {

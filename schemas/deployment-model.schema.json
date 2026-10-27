@@ -79,6 +79,17 @@
         }
       ]
     },
+    "observed": {
+      "description": "The environment's actual transition state as observed (e.g. \"backfill done up to id\n120000, 2026-10-20\"); only this turns a migration review into `OBSERVED_TRANSITION`.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Sourced4"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "order": {
       "anyOf": [
         {

@@ -198,6 +198,9 @@ pub struct RunFacts {
     /// Pinned linters run on the head's changed files.
     #[serde(default)]
     pub lint: Vec<LintFacts>,
+    /// Tables and columns a changed migration touches, with the code that names them.
+    #[serde(default)]
+    pub schema_refs: Vec<crate::SchemaRef>,
 }
 
 impl SyntaxFacts {

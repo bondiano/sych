@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::config::{RepositoryPolicy, Rule, RuleException, RuleKind, RuleSeverity};
+use crate::deploy::TransitionMatrix;
 use crate::generic;
 use crate::{
     Applicability, ContentKind, DiffManifest, FileChange, Obligation, ObligationId,
@@ -399,6 +400,7 @@ fn obligations(
             planned
         });
     let matrix = deploy::matrix(policy.deployment.as_ref());
+    let matrix_evidence = TransitionMatrix::evidence_id(snapshot);
     let plans: Vec<_> = facts
         .ci
         .iter()
@@ -421,7 +423,7 @@ fn obligations(
             .collect();
         (!matched.is_empty()).then(|| {
             let mut planned = obligation(snapshot, &g.rule, &matched, false);
-            migration::bind(&mut planned, &matrix);
+            migration::bind(&mut planned, &matrix, &facts.schema_refs, matrix_evidence);
             terraform::bind(&mut planned, &plans);
             kubernetes::bind(&mut planned, &rendered);
             planned
