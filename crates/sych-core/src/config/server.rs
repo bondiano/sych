@@ -149,7 +149,7 @@ impl Default for Budgets {
         Self {
             analysis: Budget {
                 max_attempts: Some(12),
-                max_input_tokens: Some(128_000),
+                max_input_tokens: Some(512_000),
                 max_output_tokens: Some(24_000),
                 max_parallel_calls: Some(2),
                 active_deadline_seconds: Some(300),

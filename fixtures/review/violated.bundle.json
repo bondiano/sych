@@ -16,16 +16,16 @@
         "validity": "VALID"
       }
     ],
-    "external_input_manifest_id": "sha256:c1ddf34cfb6a3a4f4a0242b068d7ecde9bc713478cf19c91cd13a5cb163233bf",
+    "external_input_manifest_id": "sha256:af2760df21bcd641af75a1f0a3bfd21d5a559afed7c7086f382e03f9da95aead",
     "frozen_at": "2026-10-25T00:00:00Z",
-    "id": "4bc094fe-c99d-89f6-ac71-f6512309e034",
-    "policy_snapshot_id": "sha256:bb4a38f8b2323b7e0ca9a832b670035f089a6fbb24cfb2d0956295acf0e84a91",
+    "id": "1a1cbb53-8524-8227-ab53-24a6dd8363b6",
+    "policy_snapshot_id": "sha256:17f1deb232844cc51567525d6c3399f4ebdb1fa63c1d9bd4724176d0914a2b43",
     "schema_version": 1,
     "source_snapshot_id": "sha256:40be609af9d1e7f8c02e4149ec30246718a311e4dddfe8ec488d400c0bd44572"
   },
   "external_input_manifest": {
     "frozen_at": "2026-10-25T00:00:00Z",
-    "id": "sha256:c1ddf34cfb6a3a4f4a0242b068d7ecde9bc713478cf19c91cd13a5cb163233bf",
+    "id": "sha256:af2760df21bcd641af75a1f0a3bfd21d5a559afed7c7086f382e03f9da95aead",
     "inputs": [
       {
         "artifact_sha256": "sha256:cb9a02f579da3ffa03dc3ed340e0162018c4c446875d8b15d9f4e23152b25822",
@@ -33,15 +33,15 @@
         "kind": "test"
       }
     ],
-    "policy_snapshot_id": "sha256:bb4a38f8b2323b7e0ca9a832b670035f089a6fbb24cfb2d0956295acf0e84a91",
+    "policy_snapshot_id": "sha256:17f1deb232844cc51567525d6c3399f4ebdb1fa63c1d9bd4724176d0914a2b43",
     "schema_version": 1,
     "source_snapshot_id": "sha256:40be609af9d1e7f8c02e4149ec30246718a311e4dddfe8ec488d400c0bd44572"
   },
   "policy_snapshot": {
     "authorization_policy_version": 1,
-    "config_hash": "sha256:4853441cec9860e1ae7457376968a4d4b517b46af6047ec60ed1e0aba4fea451",
+    "config_hash": "sha256:9f8f0489828cd2ea584efda3623eabb69a041ed6f60d920215df34b285d24f1f",
     "created_at": "2026-10-25T00:00:00Z",
-    "id": "sha256:bb4a38f8b2323b7e0ca9a832b670035f089a6fbb24cfb2d0956295acf0e84a91",
+    "id": "sha256:17f1deb232844cc51567525d6c3399f4ebdb1fa63c1d9bd4724176d0914a2b43",
     "rules_hash": "sha256:b6be6ee9263ee65ce080a322663f91ced15380e6e4a9b657ce29ca38fd08842c",
     "schema_version": 1,
     "source": {
@@ -53,7 +53,7 @@
   "review_result": {
     "coverage": "COMPLETE_FOR_SCOPE",
     "created_at": "2026-10-25T00:00:00Z",
-    "evidence_manifest_id": "4bc094fe-c99d-89f6-ac71-f6512309e034",
+    "evidence_manifest_id": "1a1cbb53-8524-8227-ab53-24a6dd8363b6",
     "excluded_or_unreviewed": [
       {
         "path": "assets/logo.png",
@@ -134,7 +134,7 @@
       }
     ],
     "parent_result_id": null,
-    "policy_snapshot_id": "sha256:bb4a38f8b2323b7e0ca9a832b670035f089a6fbb24cfb2d0956295acf0e84a91",
+    "policy_snapshot_id": "sha256:17f1deb232844cc51567525d6c3399f4ebdb1fa63c1d9bd4724176d0914a2b43",
     "provenance": {
       "engine_version": "fixture",
       "model_adapters": [
