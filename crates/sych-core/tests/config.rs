@@ -390,8 +390,8 @@ fn a_new_meaning_needs_a_new_rule_version() {
         .head_errors
     };
     let reworded = rules.replace(
-        "сохраняет обязательную публикацию события",
-        "может пропустить публикацию события",
+        "keeps the required event publication",
+        "may skip the event publication",
     );
     assert!(
         diff(reworded.clone())
@@ -403,8 +403,8 @@ fn a_new_meaning_needs_a_new_rule_version() {
     let bumped = reworded.replacen("    version: 1", "    version: 2", 1);
     assert!(diff(bumped).is_empty());
     let retitled = rules.replace(
-        "Сохранение обязательных эффектов операции",
-        "Обязательные эффекты заказа",
+        "Preserve the required effects of an operation",
+        "Required effects of an order",
     );
     assert!(diff(retitled).is_empty(), "a title is not the meaning");
 }

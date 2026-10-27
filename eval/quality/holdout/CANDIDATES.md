@@ -15,15 +15,15 @@ the bug, found with `git log -L` or `git blame` on the fixed lines, is the `unsa
 | 7cd85f890 | 2 | 38 | fix(pwa): a storage worker that cannot start reaches recovery in 2 s, not 20 s |
 | 8cfa192de | 2 | 50 | fix(pwa): open the device database without Promise.withResolvers, which iOS 17.0–17.3 lack |
 | 81782b26f | 2 | 52 | fix(pwa): the app-ready envelope names the day screen by its lazy index.ts |
-| 01d77a1f7 | 2 | 25 | fix(pwa): «Выбрать дни вручную» stays while the pair of days reloads |
+| 01d77a1f7 | 2 | 25 | fix(pwa): "Choose days manually" stays while the pair of days reloads |
 | 452de6460 | 3 | 38 | fix(pwa): the lazy day route waits in the day's own columns |
-| c73c7d0c7 | 7 | 46 | fix(pwa): a cited observation keeps the focus after «Открыть наблюдение» |
+| c73c7d0c7 | 7 | 46 | fix(pwa): a cited observation keeps the focus after "Open observation" |
 | c2ac3f3c6 | 3 | 28 | feat(core): a meal item of a BLS, CIQUAL or MEXT product keeps its source |
 | 03ef13d2d | 3 | 142 | perf(pwa): the coach route gates load with their routes, not with the router |
 | 25337f305 | 7 | 123 | fix(pwa): a page arrives whole on navigation, no fade-in blink |
 | a4cccb7ef | 7 | 163 | fix(pwa): the product card of BLS, CIQUAL and MEXT names its own source |
 | 19ca179d0 | 6 | 223 | feat(pwa): swipe a toast away, down or sideways, as an Android snackbar |
-| 6d0560b4d | 11 | 361 | feat(pwa): «Другая дата» opens a month whose weeks start on the profile's day |
+| 6d0560b4d | 11 | 361 | feat(pwa): "Another date" opens a month whose weeks start on the profile's day |
 | 1fa090fc5 | 11 | 341 | feat(core): signInWithApple over the shared finishSignIn |
 
 ## Vkusori: Elixir (no Sych backend; good `unknown` cases)

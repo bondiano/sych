@@ -1,4 +1,4 @@
 # Order created
 
-После успешной записи заказа событие `order.created` доставляется потребителям хотя бы один раз
-через outbox в той же транзакции.
+After an order is successfully written, the `order.created` event is delivered to consumers at least once
+through an outbox in the same transaction.

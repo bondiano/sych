@@ -1,12 +1,12 @@
-# Пример модельного review
+# Model review example
 
-Пара изменений одного файла `src/order.ts` под правилом `ORDER-01` (required, HIGH: «total() returns 0 when items
-is undefined instead of throwing») из `.sych/rules.yaml` target tip; semantic backend недоступен (нет lockfile),
-поэтому packets — diff hunks с тремя строками контекста.
+A pair of changes to a single file `src/order.ts` under rule `ORDER-01` (required, HIGH: "total() returns 0 when items
+is undefined instead of throwing") from the target tip's `.sych/rules.yaml`; the semantic backend is unavailable (no lockfile),
+so the packets are diff hunks with three lines of context.
 
-- **unsafe** — guard `if (!items) { return 0; }` заменён на `items!.reduce(...)`: [unsafe.md](unsafe.md),
+- **unsafe** — the guard `if (!items) { return 0; }` is replaced with `items!.reduce(...)`: [unsafe.md](unsafe.md),
   [analysis](unsafe.analysis.json).
-- **safe** — guard заменён на `(items ?? []).reduce(...)`: [safe.md](safe.md), [analysis](safe.analysis.json).
+- **safe** — the guard is replaced with `(items ?? []).reduce(...)`: [safe.md](safe.md), [analysis](safe.analysis.json).
 
-Профиль `cheap_api` (DeepSeek V4.1 Flash через OpenRouter, `reasoning_effort: low`, шаблон `review@1`), бюджеты по
-умолчанию. Это smoke harness и контрактов на реальной модели, а не измерение качества (M1.8).
+Profile `cheap_api` (DeepSeek V4.1 Flash via OpenRouter, `reasoning_effort: low`, template `review@1`), default
+budgets. This is a smoke test of the harness and contracts on a real model, not a quality measurement (M1.8).
