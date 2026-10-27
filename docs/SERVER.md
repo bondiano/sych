@@ -270,7 +270,8 @@ other formats.
 **Terraform plan** (`terraform_plan`, `terraform show -json` of a saved plan, `format_version` 1.x; another major is
 `CI_REPORT_MALFORMED`). It is reduced on import to allowlisted structure — address, actions, replacement order
 (`delete_before_create` / `create_before_delete`), `replace_paths`, the *names* of changed, unknown-after-apply and
-sensitive attributes, `previous_address`, `terraform_version` and a digest of the variables. No attribute or variable
+sensitive attributes, `previous_address`, root-module `depends_on`, `terraform_version`, the plan `timestamp`, provider
+version constraints and a digest of the variables. Provider lock hashes are not part of plan JSON: a limitation says so. No attribute or variable
 value is kept, so none reaches a prompt, log or artifact; a resource change without address or actions is a
 limitation, not an empty plan. `TF-CHANGE` uses only a plan bound to the head: each deleted or replaced resource
 becomes a criterion; without one the obligation stays `UNKNOWN`/`TERRAFORM_PLAN_MISSING`. Workspace and environment are
@@ -282,9 +283,12 @@ selector vs pod-template labels, containers without a readiness probe, replicas,
 `preStop`, persistent claims, the *names* of referenced Secrets/ConfigMaps, hook and sync-wave annotations
 (`helm.sh/hook`, `argocd.argoproj.io/hook`, `argocd.argoproj.io/sync-wave`) and a keep/no-prune policy. Env values and
 ConfigMap/Secret data are never read. Passive built-ins (Service, Ingress, RBAC, …) are skipped; any other kind (CRDs)
-is listed as not normalized. `K8S-ROLLOUT` uses manifests bound to the head — each risky object becomes a criterion,
-with the limitation that rendered YAML is structural evidence: no dry-run or runtime rollout is observed, and
-controller-specific ordering is unknown. Without them: `UNKNOWN`/`K8S_MANIFESTS_MISSING`. The reviewer never deploys or
+is listed as not normalized. The report's evidence stage is read from the documents — `rendered` (plain YAML),
+`dry_run` (`uid`/`creationTimestamp` without `status`, as a server dry-run returns them), `runtime` (objects with
+`status`) — and the weakest document wins. `K8S-ROLLOUT` uses manifests bound to the head: each risky object becomes a
+criterion (a persistent claim notes that a Pod-template rollback does not restore its data), with a limitation for the
+stage — rendered is structure only, a dry-run is admission, not a successful rollout, runtime objects are a snapshot of
+the live state — and one that controller-specific ordering and inventory are not known. Without them: `UNKNOWN`/`K8S_MANIFESTS_MISSING`. The reviewer never deploys or
 asks for cluster credentials; StatefulSet- and controller-specific profiles are not claimed.
 
 ## Outbox and publication reconciliation (M2.5)

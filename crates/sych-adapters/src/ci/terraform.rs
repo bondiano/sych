@@ -1,6 +1,8 @@
 //! `terraform show -json` of a saved plan, reduced to allowlisted structure before anything
 //! else sees it: attribute values are compared and dropped, only names and paths are kept.
 
+use std::collections::BTreeMap;
+
 use serde_json::{Map, Value};
 use sych_core::terraform::{ReplaceOrder, ResourceChange, TerraformPlan};
 use sych_core::{CiFacts, canonical_sha256};
@@ -26,6 +28,14 @@ fn marked(v: &Value) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn strings(v: &Value) -> Vec<String> {
+    v.as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|s| s.as_str().map(str::to_owned))
+        .collect()
 }
 
 fn changed(before: &Value, after: &Value) -> Vec<String> {
@@ -88,6 +98,7 @@ fn resource(r: &Value) -> Option<ResourceChange> {
         unknown_after: marked(&change["after_unknown"]),
         sensitive,
         moved_from: r["previous_address"].as_str().map(str::to_owned),
+        depends_on: Vec::new(),
         actions,
     })
 }
@@ -105,6 +116,32 @@ pub fn parse(text: &str, facts: &mut CiFacts) -> Result<(), CiError> {
         ));
     }
 
+    let config = &plan["configuration"];
+    let depends: BTreeMap<&str, Vec<String>> = config["root_module"]["resources"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|r| Some((r["address"].as_str()?, strings(&r["depends_on"]))))
+        .collect();
+    let header = TerraformPlan {
+        format_version: format_version.to_owned(),
+        terraform_version: plan["terraform_version"].as_str().map(str::to_owned),
+        variables_sha256: plan
+            .get("variables")
+            .and_then(|v| canonical_sha256(v).ok())
+            .map(|d| d.to_string()),
+        timestamp: plan["timestamp"].as_str().map(str::to_owned),
+        providers: config["provider_config"]
+            .as_object()
+            .into_iter()
+            .flatten()
+            .filter_map(|(k, v)| Some((k.clone(), v["version_constraint"].as_str()?.to_owned())))
+            .collect(),
+        resource_changes: Vec::new(),
+    };
+    facts.limitations.push(
+        "provider lock hashes are not part of plan JSON; only version constraints are kept".into(),
+    );
     let Some(all) = plan["resource_changes"].as_array() else {
         if plan.get("resource_changes").is_some() {
             return Err(malformed(facts, &"resource_changes is not a list"));
@@ -113,12 +150,7 @@ pub fn parse(text: &str, facts: &mut CiFacts) -> Result<(), CiError> {
         facts
             .limitations
             .push("plan lists no resource_changes: nothing would change".into());
-        facts.terraform = Some(TerraformPlan {
-            format_version: format_version.to_owned(),
-            terraform_version: plan["terraform_version"].as_str().map(str::to_owned),
-            variables_sha256: None,
-            resource_changes: Vec::new(),
-        });
+        facts.terraform = Some(header);
         return Ok(());
     };
     let mut resource_changes = Vec::new();
@@ -132,7 +164,12 @@ pub fn parse(text: &str, facts: &mut CiFacts) -> Result<(), CiError> {
         }
 
         match resource(r) {
-            Some(c) => resource_changes.push(c),
+            Some(mut c) => {
+                // `aws_x.y[0]` is configured as `aws_x.y`.
+                let configured = c.address.split('[').next().unwrap_or_default();
+                c.depends_on = depends.get(configured).cloned().unwrap_or_default();
+                resource_changes.push(c);
+            }
             // A change it cannot read is a limitation, never an empty plan.
             None if r["change"]["actions"].as_array().is_none()
                 || r["address"].as_str().is_none() =>
@@ -145,13 +182,8 @@ pub fn parse(text: &str, facts: &mut CiFacts) -> Result<(), CiError> {
         }
     }
     facts.terraform = Some(TerraformPlan {
-        format_version: format_version.to_owned(),
-        terraform_version: plan["terraform_version"].as_str().map(str::to_owned),
-        variables_sha256: plan
-            .get("variables")
-            .and_then(|v| canonical_sha256(v).ok())
-            .map(|d| d.to_string()),
         resource_changes,
+        ..header
     });
     Ok(())
 }
@@ -171,8 +203,11 @@ mod tests {
     }
 
     const PLAN: &str = r#"{
-      "format_version": "1.2", "terraform_version": "1.9.5",
+      "format_version": "1.2", "terraform_version": "1.9.5", "timestamp": "2026-10-27T10:00:00Z",
       "variables": {"db_password": {"value": "hunter2"}},
+      "configuration": {
+        "provider_config": {"aws": {"name": "aws", "version_constraint": "~> 5.0"}},
+        "root_module": {"resources": [{"address": "aws_db_instance.main", "depends_on": ["aws_vpc.main"]}]}},
       "resource_changes": [
         {"address": "aws_db_instance.main", "change": {
           "actions": ["delete", "create"],
@@ -199,6 +234,12 @@ mod tests {
         assert_eq!(db.changed, ["engine_version"]);
         assert_eq!(db.unknown_after, ["endpoint", "id"]);
         assert_eq!(db.sensitive, ["password"]);
+        assert_eq!(db.depends_on, ["aws_vpc.main"]);
+        assert_eq!(plan.timestamp.as_deref(), Some("2026-10-27T10:00:00Z"));
+        assert_eq!(
+            plan.providers.get("aws").map(String::as_str),
+            Some("~> 5.0")
+        );
         let lb = &plan.resource_changes[1];
         assert_eq!(lb.replace_order, Some(ReplaceOrder::CreateBeforeDelete));
         assert_eq!(lb.moved_from.as_deref(), Some("aws_lb.old"));

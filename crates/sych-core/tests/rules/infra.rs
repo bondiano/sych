@@ -1,7 +1,9 @@
 //! TF-CHANGE and K8S-ROLLOUT over imported infrastructure reports (roadmap M3.6–M3.7): without
 //! a report bound to the head they stay UNKNOWN; with one, each risky resource is a criterion.
 
-use sych_core::kubernetes::{K8sObject, RenderedManifests};
+use std::collections::BTreeMap;
+
+use sych_core::kubernetes::{EvidenceStage, K8sObject, RenderedManifests};
 use sych_core::terraform::{ReplaceOrder, ResourceChange, TerraformPlan};
 use sych_core::{CiFacts, CiFormat, ObligationStatus, RunFacts};
 
@@ -19,6 +21,8 @@ fn plan_report(stale: bool) -> CiFacts {
         format_version: "1.2".into(),
         terraform_version: Some("1.9.5".into()),
         variables_sha256: None,
+        timestamp: None,
+        providers: BTreeMap::new(),
         resource_changes: vec![ResourceChange {
             address: "aws_db_instance.main".into(),
             actions: vec!["delete".into(), "create".into()],
@@ -28,6 +32,7 @@ fn plan_report(stale: bool) -> CiFacts {
             unknown_after: vec!["endpoint".into()],
             sensitive: vec!["password".into()],
             moved_from: None,
+            depends_on: Vec::new(),
         }],
     });
     facts
@@ -94,6 +99,7 @@ fn k8s_rollout_needs_rendered_manifests_and_stays_structural() {
             ..K8sObject::default()
         }],
         unsupported_kinds: vec!["ServiceMonitor".into()],
+        stage: EvidenceStage::DryRun,
     });
     let o = rollout(vec![report]);
     assert!(
@@ -103,11 +109,35 @@ fn k8s_rollout_needs_rendered_manifests_and_stays_structural() {
     assert!(
         o.limitations
             .iter()
-            .any(|l| l.contains("no dry-run or runtime rollout"))
+            .any(|l| l.contains("a dry-run is not a successful runtime rollout"))
     );
     assert!(
         o.limitations
             .iter()
             .any(|l| l.starts_with("ServiceMonitor"))
     );
+
+    // Each stage states what it does not prove; rendered YAML is never an observed rollout.
+    for (stage, says) in [
+        (
+            EvidenceStage::Rendered,
+            "no dry-run or runtime rollout was observed",
+        ),
+        (
+            EvidenceStage::Runtime,
+            "evidence of this rollout only if taken after it",
+        ),
+    ] {
+        let mut report = CiFacts::new(snapshot(), CiFormat::KubernetesRendered, "r.yaml".into());
+        report.kubernetes = Some(RenderedManifests {
+            stage,
+            ..RenderedManifests::default()
+        });
+        let o = rollout(vec![report]);
+        assert!(
+            o.limitations.iter().any(|l| l.contains(says)),
+            "{stage:?}: {:?}",
+            o.limitations
+        );
+    }
 }
