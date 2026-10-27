@@ -13,12 +13,12 @@ use sych_core::config::{
     EffectiveConfig, PolicyFiles, PolicyInput, RuleException, ServerConfig, ServerInput,
     policy_diff,
 };
-use sych_core::effects;
 use sych_core::{
-    Candidate, Coverage, Evidence, EvidenceManifest, ExternalInputManifest, PolicySnapshot,
-    PolicySource, Recommendation, ReviewPlan, ReviewResult, RunFacts, SchemaVersion, SourceSide,
-    Timestamp, plan, redact,
+    Candidate, Coverage, Evidence, EvidenceManifest, ExternalInputManifest, FileChange,
+    PolicySnapshot, PolicySource, Recommendation, ReviewPlan, ReviewResult, RunFacts,
+    SchemaVersion, SourceSide, Timestamp, is_migration_path, plan, redact,
 };
+use sych_core::{deploy, effects};
 use sych_storage::{RunHandle, StoreConfig};
 use tokio::sync::watch;
 
@@ -31,6 +31,7 @@ use crate::{ci, config, semantic, snapshot, storage};
 
 mod checkpoints;
 mod outcome;
+mod schema;
 mod session;
 
 /// Strict mode: a significant violation (10) outranks incomplete scope (11).
@@ -89,6 +90,13 @@ fn trusted_config(
     ))
 }
 
+fn migration_changed(file: &FileChange) -> bool {
+    [&file.old, &file.new]
+        .into_iter()
+        .flatten()
+        .any(|side| is_migration_path(side.path.as_str()))
+}
+
 /// Semantic (optional) and syntax facts of the snapshot with the evidence derived from them.
 /// Imported CI reports come back as external evidence.
 fn derived_facts(
@@ -121,6 +129,11 @@ fn derived_facts(
         .chain(syntax.iter().map(|f| f.to_evidence(&snap.snapshot, now)))
         .chain(ledger.to_evidence(&snap.snapshot, now).transpose())
         .chain(lint.iter().map(|f| f.to_evidence(&snap.snapshot, now)))
+        // The MIG obligations cite it; they exist only when a migration path changed.
+        .chain(snap.manifest.files.iter().any(migration_changed).then(|| {
+            deploy::matrix(effective.repository.deployment.as_ref())
+                .to_evidence(&snap.snapshot, now)
+        }))
         .collect::<Result<Vec<_>, _>>();
     let external = ci
         .iter()
@@ -136,6 +149,7 @@ fn derived_facts(
         ci,
         ledger,
         lint,
+        schema_refs: schema::schema_refs(snap),
     };
     Ok((facts, derived, external))
 }

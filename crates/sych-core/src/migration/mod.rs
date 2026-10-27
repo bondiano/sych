@@ -3,8 +3,12 @@
 //! dropped only by a sourced constraint; an owner input the rule depends on that is missing
 //! keeps it `UNKNOWN` with that gap, never filled in by an assumption.
 
+mod sql;
+
+pub use sql::{SchemaChange, SchemaRef, schema_changes};
+
 use crate::deploy::{Reachability, TransitionMatrix, TransitionState};
-use crate::{Applicability, EvaluationMode, ObligationStatus, PlannedObligation};
+use crate::{Applicability, EvaluationMode, EvidenceId, ObligationStatus, PlannedObligation};
 
 /// Missing deployment input the owner must provide.
 pub const DEPLOYMENT_INPUT_MISSING: &str = "DEPLOYMENT_INPUT_MISSING";
@@ -30,13 +34,41 @@ fn scope(rule_id: &str) -> Option<(&'static [TransitionState], &'static [&'stati
     })
 }
 
-/// Binds a MIG-* obligation to the matrix; any other obligation is left as it is.
-pub(crate) fn bind(planned: &mut PlannedObligation, matrix: &TransitionMatrix) {
+/// Binds a MIG-* obligation to the matrix and to the code that names the changed schema;
+/// any other obligation is left as it is.
+pub(crate) fn bind(
+    planned: &mut PlannedObligation,
+    matrix: &TransitionMatrix,
+    refs: &[SchemaRef],
+    evidence: EvidenceId,
+) {
     let o = &mut planned.obligation;
     let Some((states, needs)) = scope(&o.rule_id) else {
         return;
     };
-    o.evaluation_mode = Some(EvaluationMode::PlanReview);
+    // Only an environment observation makes it an observed transition; a plan never does.
+    o.evaluation_mode = Some(if matrix.observed.is_some() {
+        EvaluationMode::ObservedTransition
+    } else {
+        EvaluationMode::PlanReview
+    });
+    o.evidence_ids.push(evidence);
+    for r in refs {
+        o.code_refs.push(r.migration.clone());
+        o.code_refs.extend(r.references.iter().cloned());
+        let column = r
+            .change
+            .column
+            .as_deref()
+            .map_or(String::new(), |c| format!(".{c}"));
+        o.limitations.push(format!(
+            "{} {}{column}: {} references in this repository{}; external consumers are not searched",
+            r.change.change,
+            r.change.table,
+            r.references.len(),
+            if r.truncated { " (search limit reached)" } else { "" },
+        ));
+    }
     let rows = matrix.rows.iter().filter(|r| states.contains(&r.state));
     let (reachable, excluded): (Vec<_>, Vec<_>) =
         rows.partition(|r| r.reachability == Reachability::Reachable);
@@ -63,12 +95,17 @@ pub(crate) fn bind(planned: &mut PlannedObligation, matrix: &TransitionMatrix) {
             .iter()
             .map(|r| format!("In state {:?}: {}.", r.state, r.obligation)),
     );
-    planned.criteria.push(
-        "PLAN_REVIEW: judge the proposed order and the mechanisms that enforce its preconditions \
-         (for example a gate on backfill completion); SUPPORTED means the plan is conditionally \
-         sound, not that it has run."
+    planned.criteria.push(match &matrix.observed {
+        Some(seen) => format!(
+            "OBSERVED_TRANSITION: the environment reports \"{}\" ({}); judge the change against \
+             that state, not against the plan.",
+            seen.value, seen.source
+        ),
+        None => "PLAN_REVIEW: judge the proposed order and the mechanisms that enforce its \
+                 preconditions (for example a gate on backfill completion); SUPPORTED means the \
+                 plan is conditionally sound, not that it has run."
             .into(),
-    );
+    });
     planned.obligation.acceptance_criterion = planned.criteria.join("; ");
     let o = &mut planned.obligation;
     let (blocking, other): (Vec<&String>, Vec<&String>) = matrix

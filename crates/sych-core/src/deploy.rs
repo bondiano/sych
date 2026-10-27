@@ -5,7 +5,12 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::SchemaVersion;
+use crate::hash::derived_uuid;
+use crate::{
+    BindingKind, Completeness, Evidence, EvidenceBinding, EvidenceId, EvidenceKind, Producer,
+    SchemaVersion, SourceSnapshot, SourceSnapshotId, Timestamp, TrustClass, Validity,
+    canonical_sha256,
+};
 
 /// A claim and who or what states it (a runbook, a deploy config, the owner).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -76,6 +81,9 @@ pub struct DeploymentModel {
     /// States the rollout cannot reach; each needs its own confirmed constraint.
     #[serde(default)]
     pub excluded_states: Vec<Sourced<TransitionState>>,
+    /// The environment's actual transition state as observed (e.g. "backfill done up to id
+    /// 120000, 2026-10-20"); only this turns a migration review into `OBSERVED_TRANSITION`.
+    pub observed: Option<Sourced<String>>,
 }
 
 /// The reachable combinations of spec §13.2.
@@ -147,6 +155,53 @@ pub struct TransitionMatrix {
     pub environment: Option<String>,
     pub rows: Vec<MatrixRow>,
     pub missing_inputs: Vec<String>,
+    pub observed: Option<Sourced<String>>,
+}
+
+impl TransitionMatrix {
+    pub fn evidence_id(snapshot: &SourceSnapshotId) -> EvidenceId {
+        EvidenceId(derived_uuid(&[
+            "transition-matrix",
+            &snapshot.0.to_string(),
+        ]))
+    }
+
+    /// Derived contract evidence: what the owner declared, as the obligations used it.
+    pub fn to_evidence(
+        &self,
+        snapshot: &SourceSnapshot,
+        observed_at: Timestamp,
+    ) -> Result<Evidence, serde_json::Error> {
+        Ok(Evidence {
+            schema_version: SchemaVersion,
+            id: Self::evidence_id(&snapshot.id),
+            kind: EvidenceKind::Contract,
+            source_snapshot_id: snapshot.id.clone(),
+            producer: Producer {
+                name: "sych-transition-matrix".into(),
+                version: env!("CARGO_PKG_VERSION").into(),
+                config_hash: None,
+            },
+            binding: EvidenceBinding {
+                kind: BindingKind::Source,
+                head_oid: Some(snapshot.head.clone()),
+                target_tip_oid: Some(snapshot.target_tip.clone()),
+                tested_oid: None,
+                environment_id: self.environment.clone(),
+            },
+            validity: Validity::Valid,
+            completeness: if self.missing_inputs.is_empty() {
+                Completeness::CompleteForQuery
+            } else {
+                Completeness::Partial
+            },
+            trust_class: TrustClass::DerivedLocal,
+            artifact_sha256: canonical_sha256(self)?,
+            code_refs: Vec::new(),
+            limitations: self.missing_inputs.clone(),
+            observed_at,
+        })
+    }
 }
 
 /// Spec §13.2: every state is reachable unless a sourced constraint excludes it; a missing
@@ -183,6 +238,10 @@ pub fn matrix(model: Option<&DeploymentModel>) -> TransitionMatrix {
         environment: model.environment.clone(),
         rows,
         missing_inputs: missing(model),
+        observed: model
+            .observed
+            .clone()
+            .filter(|o| !o.source.trim().is_empty()),
     }
 }
 

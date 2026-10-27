@@ -69,6 +69,11 @@ pub fn generic_rule_ids() -> Vec<String> {
     pack().into_iter().map(|g| g.rule.id).collect()
 }
 
+/// A path the migration rules activate on.
+pub fn is_migration_path(path: &str) -> bool {
+    MIGRATION.iter().any(|g| glob_match(g, path))
+}
+
 pub(crate) fn pack() -> Vec<GenericRule> {
     use ReviewProfile::{Correctness, Infrastructure, MigrationCompatibility, SideEffects};
     use RuleSeverity::{High, Medium};

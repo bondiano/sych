@@ -16,6 +16,16 @@
         "type": "string"
       }
     },
+    "observed": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Sourced"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "rows": {
       "type": "array",
       "items": {
@@ -72,6 +82,23 @@
       "required": [
         "state",
         "obligation"
+      ]
+    },
+    "Sourced": {
+      "description": "A claim and who or what states it (a runbook, a deploy config, the owner).",
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "source"
       ]
     },
     "TransitionState": {
