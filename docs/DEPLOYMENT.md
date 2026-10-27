@@ -25,6 +25,7 @@ contract: {value: "drop after backfill gate + 14d", source: RFC-31}
 recovery: {value: roll_forward_repair, source: runbook RB-12}   # compatible_rollback | roll_forward_repair | restore_replay | other
 excluded_states:
   - {value: old_frontend_new_backend, source: "server-rendered, no long-lived tabs"}
+observed: {value: "backfill done up to id 120000", source: "staging job log, 2026-10-20"}   # optional
 ```
 
 ## Transition matrix
@@ -66,7 +67,16 @@ The generic `MIG-*` rules activate on `**/migrations/**`, `**/migrate/**` and `*
 matrix. Every one carries `evaluation_mode: PLAN_REVIEW`: the proposed order and the mechanisms that enforce its
 preconditions (for example a gate on backfill completion) are judged; `SUPPORTED` means the plan is conditionally
 sound, not that a backfill or drain has run. `OBSERVED_TRANSITION` needs evidence of the environment's actual
-state and is not produced until such evidence is imported; a plan never stands in for it.
+state: only a sourced `observed` entry of `deploy.yaml` (what the environment reports, e.g. how far a backfill got)
+switches the obligations to it, and the criterion asks to judge the change against that reported state. A plan never
+stands in for an observation.
+
+**Context (§13.3).** For each changed migration Sych scans the DDL that affects existing code (`DROP`/`RENAME`/`ALTER`/
+`ADD COLUMN`, `DROP TABLE`, `RENAME TO`) and searches both sides of the repository for the table or column name (at most
+20 hits per side, outside migration paths): the base side holds the old app's readers and writers, the head the new
+app's. Those locations become the obligation's code references, so the reviewer sees them, and a limitation states the
+count and that consumers outside the repository are not searched. The matrix itself is derived evidence
+(`sych-transition-matrix`, kind `contract`) that every migration obligation cites.
 
 | Rule | Rollout states it covers | Owner inputs it cannot do without |
 |---|---|---|

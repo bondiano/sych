@@ -6,13 +6,14 @@ use std::collections::BTreeMap;
 
 use sych_core::analysis::{Context, prompts};
 use sych_core::config::{EffectKind, PolicyFiles, RepositoryPolicy, ServerConfig};
+use sych_core::deploy::TransitionMatrix;
 use sych_core::effects::{EffectLedger, EffectMatch, LedgerEntry, Resolution};
 use sych_core::{
     Applicability, BackendStatus, ChangeStatus, CodeRef, Completeness, ContentKind, DiffManifest,
     EdgeSet, EvaluationMode, FileChange, FileSide, GitHashAlgorithm, GitObjectId, Language,
     NOT_ASSESSED, ObligationStatus, PathClass, Producer, QueryStatus, ReviewPlan, RunFacts,
-    SchemaVersion, SemanticFacts, SourceSide, SourceSnapshotId, SymbolFacts, SyntaxFact,
-    SyntaxFacts, SyntaxKind, plan, sha256,
+    SchemaChange, SchemaRef, SchemaVersion, SemanticFacts, SourceSide, SourceSnapshotId,
+    SymbolFacts, SyntaxFact, SyntaxFacts, SyntaxKind, plan, sha256,
 };
 
 #[path = "rules/infra.rs"]
@@ -385,4 +386,54 @@ fn migration_rules_follow_the_deployment_model() {
         ObligationStatus::Unknown { reason_code, next_evidence_needed }
             if reason_code == "DEPLOYMENT_INPUT_MISSING"
                 && next_evidence_needed.starts_with("RECOVERY_UNKNOWN")));
+}
+
+/// A migration obligation cites the matrix, carries the code that names the changed column as
+/// context, and is an observed transition only when the environment's state is declared.
+#[test]
+fn migration_obligations_cite_the_matrix_readers_and_observation() {
+    let schema = SchemaRef {
+        change: SchemaChange {
+            table: "orders".into(),
+            column: Some("status".into()),
+            change: "DROP COLUMN".into(),
+        },
+        migration: code_ref("db/migrations/0002_orders.sql", 1),
+        references: vec![code_ref("orders/read.go", 10)],
+        truncated: false,
+    };
+    let facts = RunFacts {
+        schema_refs: vec![schema],
+        ..RunFacts::default()
+    };
+    let observed = "schema_version: 1\nobserved: {value: \"backfill done up to id 120000\", source: \"job log 2026-10-20\"}\n";
+    for (deploy, mode) in [
+        ("schema_version: 1\n", EvaluationMode::PlanReview),
+        (observed, EvaluationMode::ObservedTransition),
+    ] {
+        let repo = policy(&[(".sych/deploy.yaml", deploy)]);
+        let p = planned(
+            vec![changed("db/migrations/0002_orders.sql")],
+            &repo,
+            &facts,
+        );
+        let compat = rule(&p, "MIG-COMPAT").expect("migration rule");
+        assert_eq!(compat.evaluation_mode, Some(mode));
+        assert_eq!(
+            compat.evidence_ids,
+            [TransitionMatrix::evidence_id(&snapshot())]
+        );
+        assert!(
+            compat
+                .code_refs
+                .iter()
+                .any(|r| r.path.as_str() == "orders/read.go")
+        );
+        assert!(
+            compat
+                .limitations
+                .iter()
+                .any(|l| l.starts_with("DROP COLUMN orders.status: 1 references"))
+        );
+    }
 }
