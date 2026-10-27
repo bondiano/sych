@@ -1,6 +1,6 @@
 # Model gateway and ledger
 
-Implements roadmap M1.3: §16.4–16.7, §17 of the [specification](SYCH_SPEC.md). Transports: OpenRouter (M1.9),
+Implements roadmap M1.3: §16.4–16.7, §17 of the specification. Transports: OpenRouter (M1.9),
 OpenCode Go (M1.12), GLM Coding Plan via Pi (M1.11) and GPT via Sign in with ChatGPT (M1.10); the router (M1.13) is described below.
 External model calls are made only by an explicit `sych doctor --probe-model PROFILE` and `sych review --models PROFILE`
 ([ANALYSIS.md](ANALYSIS.md)).

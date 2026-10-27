@@ -1,6 +1,6 @@
 # Model review
 
-Implements roadmap M1.5–M1.7: §7.3, §16.1–16.5, §17.1 of the [specification](SYCH_SPEC.md). The model proposes
+Implements roadmap M1.5–M1.7: §7.3, §16.1–16.5, §17.1 of the specification. The model proposes
 hypotheses, assessments and verdicts; the final statuses and findings come from the engine and the deterministic M0 reducer.
 
 Historical Sych SHAs in the measurements and examples below refer to the history before the squash. The saved reports remain

@@ -1,6 +1,6 @@
 # Local storage
 
-Implements roadmap M0.5: §8.2, §20 and §24.4 of the [specification](SYCH_SPEC.md).
+Implements roadmap M0.5: §8.2, §20 and §24.4 of the specification.
 
 ## Components
 

@@ -18,6 +18,10 @@ RUN apt-get update \
     && rustup component add rustfmt clippy \
     && useradd --system --uid 10001 --home-dir /data --shell /usr/sbin/nologin sych
 COPY --from=build /usr/local/bin/sych /usr/local/bin/sych
+LABEL org.opencontainers.image.title="Sych" \
+      org.opencontainers.image.description="Deterministic code review: a Rust core with bounded model calls" \
+      org.opencontainers.image.source="https://github.com/bondiano/sych" \
+      org.opencontainers.image.documentation="https://github.com/bondiano/sych/tree/main/docs"
 USER 10001
 WORKDIR /data
 ENV XDG_CACHE_HOME=/data/cache CARGO_HOME=/data/cargo CARGO_NET_OFFLINE=true

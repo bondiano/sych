@@ -1,6 +1,6 @@
 # Local review
 
-Implements roadmap M0.6: §24.1, §24.4–24.5 and §27.1 of the [specification](SYCH_SPEC.md). Local review reads only
+Implements roadmap M0.6: §24.1, §24.4–24.5 and §27.1 of the specification. Local review reads only
 Git objects, stores the run in local storage ([STORAGE.md](STORAGE.md)) and publishes nothing to the SCM.
 The fake adapter (`--models fake`) proves that the harness works, not review quality; review with a real model is
 `--models PROFILE` ([ANALYSIS.md](ANALYSIS.md)).
