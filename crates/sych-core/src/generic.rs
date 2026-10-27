@@ -166,7 +166,7 @@ pub(crate) fn pack() -> Vec<GenericRule> {
             ),
             Infrastructure,
             Trigger::Paths(&["**/k8s/**", "**/helm/**", "**/charts/**"]),
-            Some("Kubernetes rollout checker (M3)"),
+            None,
         ),
         generic(
             rule(

@@ -12,7 +12,7 @@ use crate::{
     ObligationStatus, PathGap, RepoPath, ReviewUnit, ReviewUnitId, RiskHint, RiskLevel, RunFacts,
     ScopeManifest, Severity, Sha256Digest, SourceSnapshotId, derived_uuid, glob_match,
 };
-use crate::{deploy, migration, terraform};
+use crate::{deploy, kubernetes, migration, terraform};
 
 /// A generic rule that activated but whose domain checker is not available yet.
 pub const PROVIDER_UNAVAILABLE: &str = "PROVIDER_UNAVAILABLE";
@@ -425,6 +425,11 @@ fn obligations(
         .iter()
         .filter_map(|r| Some((r.terraform.as_ref()?, r.head_bound())))
         .collect();
+    let rendered: Vec<_> = facts
+        .ci
+        .iter()
+        .filter_map(|r| Some((r.kubernetes.as_ref()?, r.head_bound())))
+        .collect();
     let generic = generic::pack().into_iter().filter(|g| {
         policy.config.review.profiles.contains(&g.profile)
             && !policy.rules.iter().any(|r| r.id == g.rule.id)
@@ -439,6 +444,7 @@ fn obligations(
             let mut planned = generic_obligation(snapshot, &g, &matched);
             migration::bind(&mut planned, &matrix);
             terraform::bind(&mut planned, &plans);
+            kubernetes::bind(&mut planned, &rendered);
             planned
         })
     });
