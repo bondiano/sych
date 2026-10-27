@@ -41,6 +41,7 @@ secret и ключа, пустой список repositories и `bot_login`. С�
 | summary_write, inline_write | Pull requests: write | issue comment, review comments (M2.5–M2.6) |
 | actor_permissions | Metadata: read | `GET /repos/{r}/collaborators/{login}/permission` |
 | checks_write | Checks: write — только при `checks: true` | check runs (M2.6) |
+| events `issue_comment`, `check_suite` | Issues: read, Checks: read | без них GitHub не даёт подписаться на эти события |
 
 `ProviderCapabilities` вычисляется из `permissions` installation (`GET /repos/{r}/installation`) и
 сохраняется в binding; отсутствующая capability даёт limitation, не догадку. Installation token запрашивается
