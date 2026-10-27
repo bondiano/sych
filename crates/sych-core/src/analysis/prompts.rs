@@ -307,8 +307,9 @@ pub fn verify(
                     "A claim that a changed default, constant or literal changes behaviour is \
                      CONFIRMED only when a shown span reads that value on the path to the \
                      consequence. With no reader shown, ask search_source on BASE for its name \
-                     and answer UNRESOLVED; when the answer shows no reader outside its \
-                     definition and default, it is REJECTED: an unread value changes nothing.",
+                     and answer UNRESOLVED; when a complete answer shows no reader outside \
+                     its definition and default and the value is not public API, it is \
+                     REJECTED: an unread value changes nothing.",
                 ]
                 .map(str::to_owned),
             );

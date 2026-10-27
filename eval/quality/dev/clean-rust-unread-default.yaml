@@ -4,7 +4,7 @@ split: development
 language: rust
 variant: safe
 profiles: [correctness, migration_compatibility]
-rationale: "The default of a settings field nobody reads changes; no behaviour changes."
+rationale: "The default of a crate-private settings field nobody reads changes; no behaviour changes."
 base:
   Cargo.toml: |
     [package]
@@ -18,16 +18,16 @@ base:
     [toolchain]
     channel = "1.94.1"
   src/lib.rs: |
-    pub mod settings;
-    pub mod summary;
+    mod settings;
+    mod summary;
   src/settings.rs: |
     use serde::Deserialize;
 
     #[derive(Debug, Clone, Deserialize)]
     #[serde(default)]
-    pub struct Settings {
-        pub language: String,
-        pub max_comments: usize,
+    pub(crate) struct Settings {
+        pub(crate) language: String,
+        pub(crate) max_comments: usize,
     }
 
     impl Default for Settings {
@@ -41,7 +41,7 @@ base:
   src/summary.rs: |
     use crate::settings::Settings;
 
-    pub fn summary(settings: &Settings, findings: &[String]) -> String {
+    pub(crate) fn summary(settings: &Settings, findings: &[String]) -> String {
         let shown = findings.len().min(settings.max_comments);
         format!("Findings: {shown} of {}", findings.len())
     }
@@ -51,9 +51,9 @@ head:
 
     #[derive(Debug, Clone, Deserialize)]
     #[serde(default)]
-    pub struct Settings {
-        pub language: String,
-        pub max_comments: usize,
+    pub(crate) struct Settings {
+        pub(crate) language: String,
+        pub(crate) max_comments: usize,
     }
 
     impl Default for Settings {

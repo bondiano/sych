@@ -353,7 +353,7 @@ fn verifier_finds_no_reader(request: &ModelRequest) -> Result<ModelReply, Provid
     }
 
     let user = &request.messages[1].content;
-    let verdict = if user.contains("no matches (CompleteForQuery)") {
+    let verdict = if user.contains("no matches") {
         "REJECTED"
     } else {
         "UNRESOLVED"
