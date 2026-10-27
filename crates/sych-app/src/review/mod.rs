@@ -14,7 +14,7 @@ use sych_core::config::{
     policy_diff,
 };
 use sych_core::{
-    Candidate, CiFacts, Coverage, Evidence, EvidenceManifest, ExternalInputManifest, FileChange,
+    Candidate, Coverage, Evidence, EvidenceManifest, ExternalInputManifest, FileChange,
     PolicySnapshot, PolicySource, Recommendation, ReviewPlan, ReviewResult, RunFacts,
     SchemaVersion, SourceSide, Timestamp, is_migration_path, plan, redact,
 };
@@ -97,18 +97,28 @@ fn migration_changed(file: &FileChange) -> bool {
         .any(|side| is_migration_path(side.path.as_str()))
 }
 
+/// Facts, derived and external evidence, and the CI task gaps of a run.
+type Collected = (RunFacts, Vec<Evidence>, Vec<Evidence>, Vec<String>);
+
 /// Semantic (optional) and syntax facts of the snapshot with the evidence derived from them.
 /// Imported CI reports come back as external evidence.
 fn derived_facts(
     args: &ReviewArguments,
-    executed: Vec<CiFacts>,
     snap: &LocalSnapshot,
     effective: &EffectiveConfig,
     now: Timestamp,
-) -> anyhow::Result<(RunFacts, Vec<Evidence>, Vec<Evidence>)> {
+) -> anyhow::Result<Collected> {
     let mut ci = ci::import(snap, &args.ci_facts, args.ci_manifest.as_deref())?;
     ci.extend(args.ci_imported.iter().cloned());
+    // Off unless the server allows profiles; a refused or failed check is a task gap.
+    let (executed, refused) = execution::run_profiles(snap, &effective.server.execution);
     ci.extend(executed);
+    let ci_gaps = args
+        .ci_gaps
+        .iter()
+        .cloned()
+        .chain(refused.iter().map(ToString::to_string))
+        .collect();
     let (facts, lint) = match args.semantic {
         Switch::On => (
             semantic::collect_facts(snap, &effective.server.tooling)?,
@@ -153,7 +163,7 @@ fn derived_facts(
         lint,
         schema_refs: schema::schema_refs(snap),
     };
-    Ok((facts, derived, external))
+    Ok((facts, derived, external, ci_gaps))
 }
 
 /// The routing of `--models`, resolved with its credentials; `None` for `fake`.
@@ -303,16 +313,8 @@ fn execute(
         Some(fake) => fake.script(&snap, now).map_err(invalid_fake)?,
         None => Scripted::default(),
     };
-    // Off unless the server allows profiles; a refused or failed check is a task gap.
-    let (executed, refused) = execution::run_profiles(&snap, &effective.server.execution);
-    let ci_gaps: Vec<String> = args
-        .ci_gaps
-        .iter()
-        .cloned()
-        .chain(refused.iter().map(ToString::to_string))
-        .collect();
-    let (facts, derived, external) =
-        derived_facts(args, executed, &snap, &effective, now).context("cannot collect facts")?;
+    let (facts, derived, external, ci_gaps) =
+        derived_facts(args, &snap, &effective, now).context("cannot collect facts")?;
     tracing::info!(
         semantic = facts.semantic.len(),
         syntax = facts.syntax.len(),
