@@ -19,13 +19,23 @@ impl Limits {
             .unwrap_or(REQUEST_OUTPUT_TOKENS)
     }
 
-    /// The caps a search pass sees: one attempt and its share of the run money stay for the
-    /// verifier, so discovery cannot leave candidates without a check (spec §17.1).
+    /// The caps a search pass sees: one attempt and its share of the run money and tokens
+    /// stay for the verifier, so discovery cannot leave candidates without a check (spec §17.1).
     #[must_use]
     pub fn reserving_verification(mut self) -> Self {
         if let Some(cap) = self.run.max_attempts {
             if let Some(money) = &mut self.run.max_cost_micro_usd {
                 money.0 -= money.0 / u64::from(cap.max(1));
+            }
+
+            for tokens in [
+                &mut self.run.max_input_tokens,
+                &mut self.run.max_output_tokens,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                *tokens -= *tokens / cap.max(1);
             }
 
             self.run.max_attempts = Some(cap.saturating_sub(1));

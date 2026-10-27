@@ -26,6 +26,7 @@ use sych_core::{
 };
 use sych_storage::{Partition, Storage, StoreConfig, TENANT_LOCAL};
 use tempfile::TempDir;
+use tokio::task::yield_now;
 
 pub const RULES: &str = "schema_version: 1\nrules:\n  - id: ORDER-01\n    version: 1\n    title: Missing items total zero\n    kind: invariant\n    required: true\n    severity_on_violation: high\n    owner: backend\n    applies_to:\n      paths: [\"src/**\"]\n    statement: total() returns 0 when items is undefined.\n";
 pub const BASE: &str = "export function total(items) {\n  if (!items) {\n    return 0;\n  }\n  return items.reduce(sum, 0);\n}\n";
@@ -91,6 +92,8 @@ pub struct Scripted {
 impl ModelProvider for Scripted {
     async fn complete(&self, request: &ModelRequest) -> Result<ModelReply, ProviderError> {
         self.calls.borrow_mut().push(request.schema_name.clone());
+        // A real call is in flight a while: parallel siblings reserve while it is unsettled.
+        yield_now().await;
         (self.answer)(request)
     }
 }
