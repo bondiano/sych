@@ -55,7 +55,9 @@ async fn findings_become_inline_comments_at_exact_positions_and_one_summary() {
     }
     let summary = &lock(&w.fake).comments[&1].1.clone();
     assert!(
-        summary.contains("| High | Defect 0 `EFFECT-01` | `src/b.rs:1` | inline |"),
+        summary.contains(
+            "High · Rule violation: Defect 0\n\n`EFFECT-01` · `src/b.rs:1` · ↳ shown inline"
+        ),
         "{summary}"
     );
     let log = lock(&w.fake).log.join("\n");
@@ -73,7 +75,7 @@ async fn a_refused_position_moves_the_finding_into_the_refreshed_summary() {
     drain(&w).await;
     let summary = lock(&w.fake).comments[&1].1.clone();
     assert!(
-        summary.contains("here (the provider rejected the inline position)"),
+        summary.contains("not inline: the provider rejected the inline position"),
         "{summary}"
     );
     let ops = w.app.storage.operations(1).await.expect("ops");

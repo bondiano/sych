@@ -2,15 +2,15 @@
 //! findings, the inline plan of one revision and the bodies. Pure: the publisher renders from
 //! the immutable result and the diff manifest, never from model prose.
 
+mod body;
 mod summary;
-
-use std::fmt::Write;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{DiffManifest, Finding, FindingCategory, ReviewLanguage, ReviewResult, SourceSide};
 
+pub use body::inline_body;
 pub use summary::{SummaryContext, render_summary};
 
 /// New inline comments one revision may add (spec §18.2).
@@ -199,50 +199,4 @@ pub(crate) fn reason_text(language: ReviewLanguage, reason: &str) -> String {
         other => other,
     };
     ru.to_owned()
-}
-
-/// The body of an inline comment in the result's `language`; the marker finds it again.
-pub fn inline_body(finding: &Finding, language: ReviewLanguage) -> String {
-    let l = language;
-    let mut out = format!(
-        "<!-- sych:inline:{} -->\n**{:?} · {:?}** {}\n\n{}\n",
-        finding.fingerprint, finding.severity, finding.category, finding.title, finding.explanation
-    );
-    if !finding.triggering_conditions.is_empty() {
-        let _ = writeln!(
-            out,
-            "\n{}: {}",
-            tr(l, "When", "Когда"),
-            finding.triggering_conditions.join("; ")
-        );
-    }
-
-    if !finding.consequence.is_empty() {
-        let _ = writeln!(
-            out,
-            "\n{}: {}",
-            tr(l, "Consequence", "Последствие"),
-            finding.consequence
-        );
-    }
-
-    if !finding.suggested_action.is_empty() {
-        let _ = writeln!(
-            out,
-            "\n{}: {}",
-            tr(l, "Suggested", "Предлагается"),
-            finding.suggested_action
-        );
-    }
-
-    let _ = writeln!(
-        out,
-        "\n_{}_",
-        tr(
-            l,
-            "Advisory finding by Sych; not a merge gate.",
-            "Рекомендательное замечание Sych; не блокирует слияние."
-        )
-    );
-    out
 }

@@ -185,8 +185,10 @@ impl Engine {
                 .await?;
         }
 
+        let repo = storage.change(c.change_id).await?.full_name;
         let ctx = SummaryContext {
             marker: &c.marker,
+            repo: Some(&repo),
             head_sha: manifest.head.hex(),
             base_sha: manifest.diff_base.hex(),
             result_url: self

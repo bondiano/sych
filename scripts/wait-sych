@@ -17,7 +17,7 @@ while ((SECONDS < deadline)); do
         seen="$head"
     fi
     summary="$(gh api --paginate "repos/$repo/issues/$pr/comments" \
-        --jq ".[] | select(.user.login == \"$bot\") | select(.body | contains(\"Reviewed head \`${head:0:12}\`\")) | .body")"
+        --jq ".[] | select(.user.login == \"$bot\") | select(.body | test(\"head \`${head:0:12}\`\"; \"i\")) | .body")"
     if [[ -n "$summary" ]]; then
         printf '%s\n' "$summary"
         gh api --paginate "repos/$repo/pulls/$pr/comments" \
