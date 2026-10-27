@@ -18,6 +18,7 @@ use sych_core::{
 };
 
 mod chunks;
+mod compiled;
 mod ledger;
 mod lint;
 mod syntax;
@@ -239,6 +240,18 @@ pub fn run_on(
     ledger: &EffectLedger,
     lint: &[LintFacts],
 ) -> (ReviewPlan, Vec<EvidencePacket>) {
+    run_built(manifest, limits, facts, syntax, ledger, lint, false)
+}
+
+fn run_built(
+    manifest: &DiffManifest,
+    limits: Limits,
+    facts: &[SemanticFacts],
+    syntax: &[SyntaxFacts],
+    ledger: &EffectLedger,
+    lint: &[LintFacts],
+    head_compiled: bool,
+) -> (ReviewPlan, Vec<EvidencePacket>) {
     let mut files = PolicyFiles::default();
     files
         .files
@@ -256,6 +269,7 @@ pub fn run_on(
         facts,
         syntax,
         ci: &[],
+        head_compiled,
         ledger,
         lint,
         limits,

@@ -226,6 +226,11 @@ impl CiFacts {
             .is_some_and(|oid| oid == snapshot.head)
     }
 
+    /// The build of the reviewed head itself succeeded, per a report bound to that head.
+    pub fn compiled(&self, snapshot: &SourceSnapshot) -> bool {
+        self.build_success == Some(true) && self.bound_to(snapshot)
+    }
+
     /// External input evidence: `Ci` binding, author claim until a trusted CI transport
     /// authenticates the job (M2).
     pub fn to_evidence(

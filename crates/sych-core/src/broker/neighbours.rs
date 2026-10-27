@@ -38,6 +38,7 @@ pub(super) struct Neighbourhood<'s, 'a> {
     pub gaps: &'s mut Vec<String>,
     /// `#[cfg(test)]` modules from syntax facts: references inside them are tests.
     pub syntax: &'a [SyntaxFacts],
+    pub head_compiled: bool,
 }
 
 impl Neighbourhood<'_, '_> {
@@ -177,10 +178,16 @@ impl Neighbourhood<'_, '_> {
 
     /// Errors and warnings of the file as supporting context: with proc-macros off and
     /// dependencies missing many are analysis artefacts, so they never outrank the change.
+    /// Once CI compiled the head its errors are certainly artefacts and stay out.
     fn diagnostics(&mut self) {
         let (facts, path) = (self.facts, self.path);
+        let shown: &[&str] = if self.head_compiled {
+            &["warning"]
+        } else {
+            &["error", "warning"]
+        };
         let relevant = facts.diagnostics.iter().filter(|d| {
-            &d.code_ref.path == path && matches!(d.severity.as_deref(), Some("error" | "warning"))
+            &d.code_ref.path == path && d.severity.as_deref().is_some_and(|s| shown.contains(&s))
         });
         for (i, d) in relevant.enumerate() {
             if i == MAX_DIAGNOSTICS_PER_FILE {
