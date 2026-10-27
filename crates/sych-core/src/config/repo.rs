@@ -110,6 +110,8 @@ impl Default for ContextSettings {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReportFormat {
+    /// `cargo check/clippy/build --message-format=json`.
+    CargoJson,
     Junit,
     Sarif,
     GitlabCodeQuality,

@@ -45,6 +45,7 @@ fn gap(report: &str, code: &str, detail: impl Into<String>) -> CiGap {
 /// The parser of a declared format; infrastructure formats arrive with M3.
 const fn format(f: ReportFormat) -> Option<CiFormat> {
     Some(match f {
+        ReportFormat::CargoJson => CiFormat::CargoJson,
         ReportFormat::Junit => CiFormat::Junit,
         ReportFormat::Sarif => CiFormat::Sarif,
         ReportFormat::GitlabCodeQuality => CiFormat::GitlabCodeQuality,

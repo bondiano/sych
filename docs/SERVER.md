@@ -207,7 +207,7 @@ Worker ищет run по точному `head_sha` (`GET /actions/runs?head_sha=
 
 Zip читается в памяти, на диск ничего не пишется: любое имя с `..`, абсолютным путём, `\`, `:` или symlink
 отвергает весь архив; не больше 1000 entries; распаковка одного entry останавливается на 32 MiB (zip bomb);
-CRC сверяется; zip64 и шифрование не поддерживаются. Парсеры: JUnit, SARIF 2.1, GitLab Code Quality, LCOV,
+CRC сверяется; zip64 и шифрование не поддерживаются. Парсеры: `cargo --message-format=json`, JUnit, SARIF 2.1, GitLab Code Quality, LCOV,
 Cobertura и project JSON manifest (`{"schema_version": 1, "commands": [{"name", "exit_code"}], "tests": [...]}`);
 не больше 2000 записей, XML — глубина 64, внешние entities не разрешаются (quick-xml не читает DTD); пути вне
 repository отбрасываются.
@@ -512,4 +512,6 @@ approve, не request-changes, не merge. Агенты обязаны дожд�
   secret и ключ OpenRouter живут только там.
 - **Модели.** Роли по M1.13 без local-only подписок: `reviewer`/`verifier` — DeepSeek через OpenRouter,
   `risk_auditor` и `deep_roles.verifier` — Astra с fallback на Fable; лимиты — `budgets` server config.
-- CI evidence пока не подключено (`ci_reports` пуст): Rust CI виден в PR отдельно, summary называет это gap.
+- **CI evidence.** Job `check` [ci.yml](../.github/workflows/ci.yml) кладёт в artifact `sych-reports` вывод
+  `cargo clippy --message-format=json` (`clippy.json`), итог `just check` (`outcomes.json`) и checkout manifest
+  (`sych-ci.json`); [.sych/config.yaml](../.sych/config.yaml) ждёт их до 15 минут, `ci_reports` — в petinfra.

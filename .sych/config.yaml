@@ -1,0 +1,11 @@
+# Repository policy of Sych reviewing itself; read from the target tip, a PR cannot change its own.
+schema_version: 1
+ci:
+  wait_seconds: 900
+  expected_reports:
+    - id: clippy
+      applies_to: ["crates/**", "Cargo.toml", "Cargo.lock"]
+      format: cargo_json
+    - id: check
+      applies_to: ["**"]
+      format: sych_manifest
