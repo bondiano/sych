@@ -59,3 +59,24 @@ static review is not blocked.
 
 DB engine, migration framework and controller semantics (locks, transactions, ordering) are prerequisites the
 owner chooses; Sych does not pick them and keeps them outside the confirmed scope until a DB-specific profile exists.
+
+## Migration rules (M3.5)
+
+The generic `MIG-*` rules activate on `**/migrations/**`, `**/migrate/**` and `**/*.sql` and are bound to the
+matrix. Every one carries `evaluation_mode: PLAN_REVIEW`: the proposed order and the mechanisms that enforce its
+preconditions (for example a gate on backfill completion) are judged; `SUPPORTED` means the plan is conditionally
+sound, not that a backfill or drain has run. `OBSERVED_TRANSITION` needs evidence of the environment's actual
+state and is not produced until such evidence is imported; a plan never stands in for it.
+
+| Rule | Rollout states it covers | Owner inputs it cannot do without |
+|---|---|---|
+| `MIG-COMPAT` | `old_app_expanded_schema`, `mixed_apps`, `old_frontend_new_backend` | — |
+| `MIG-RESTART` | `partial_backfill_concurrent_writes`, `backfill_retry` | — |
+| `MIG-CONTRACT` | `contract_phase` | compatibility window, supported clients/consumers |
+| `MIG-RECOVERY` | `recovery_after_new_writes` | recovery path |
+
+The reachable states become acceptance criteria of the obligation. When all of its states are excluded by sourced
+constraints, the obligation is `NOT_APPLICABLE` with those sources as the basis. A missing input it cannot do
+without makes it `UNKNOWN` with `DEPLOYMENT_INPUT_MISSING` and the named gap; other missing inputs are listed as
+limitations. A reverse migration or an old image is not treated as proof of recovery: the recovery criterion asks
+whether the chosen path handles the data written after the change.

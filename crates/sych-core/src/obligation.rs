@@ -42,6 +42,15 @@ pub enum ObligationStatus {
     },
 }
 
+/// How a migration obligation is judged (spec §13.4): the plan alone, or an observed
+/// transition of a real environment, which needs evidence of that environment's state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum EvaluationMode {
+    PlanReview,
+    ObservedTransition,
+}
+
 /// One concrete question with its rule, scope, acceptance criterion and assessment.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Obligation {
@@ -65,6 +74,8 @@ pub struct Obligation {
     /// Scoped exceptions in force; they lower the risk decision and never rewrite `status`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub waivers: Vec<Waiver>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evaluation_mode: Option<EvaluationMode>,
 }
 
 /// A rule exception in force for one obligation (spec §11.6).

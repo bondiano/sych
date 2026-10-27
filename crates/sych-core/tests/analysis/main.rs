@@ -176,6 +176,7 @@ fn obligation(criteria: &[&str]) -> PlannedObligation {
             evidence_ids: Vec::new(),
             limitations: Vec::new(),
             waivers: Vec::new(),
+            evaluation_mode: None,
         },
         rule_title: "Missing items total zero".into(),
         criteria,
