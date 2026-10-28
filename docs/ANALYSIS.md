@@ -463,5 +463,6 @@ was wrong, then `FAILED`. A valid tour is stored as artifact `tour:<tour_id>` of
 printed with code read from the blobs; the output reports attempts and their cost.
 
 The stored tour is read by `sych tour show|reveal|complete|dismiss` (M5.2, [LOCAL_REVIEW.md](LOCAL_REVIEW.md#reading-a-tour)):
-no model, a personal session, `STALE` on a moved head, "source unavailable" once the source is pruned. Not yet: the
-server tour/session API.
+no model, a personal session, `STALE` on a moved head, "source unavailable" once the source is pruned. The server
+serves the same tour and a session per API client at `/v1/runs/:id/tour` ([SERVER.md](SERVER.md)), with `code_refs`
+instead of source text.

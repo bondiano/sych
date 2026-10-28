@@ -73,19 +73,15 @@ pub struct CheckRequest {
 }
 
 impl CheckRequest {
-    /// The check's identity in facts and gaps: the profile, with its parameters when given, so
-    /// one profile requested with different values stays two distinct runs.
+    /// The check's identity in facts and gaps: the profile, with its parameters as JSON when
+    /// given, so distinct parameter maps stay distinct runs whatever their values contain.
     pub fn label(&self) -> String {
         if self.params.is_empty() {
             return self.profile.clone();
         }
 
-        let params: Vec<String> = self
-            .params
-            .iter()
-            .map(|(k, v)| format!("{k}={v}"))
-            .collect();
-        format!("{}({})", self.profile, params.join(","))
+        let params = serde_json::to_string(&self.params).expect("a string map serializes");
+        format!("{}{params}", self.profile)
     }
 
     /// `PROFILE[:param=value,...]`, the CLI form.
@@ -307,8 +303,17 @@ mod tests {
             CheckRequest::parse("go-test:race=-race,tags=x")
                 .expect("check")
                 .label(),
-            "go-test(race=-race,tags=x)"
+            r#"go-test{"race":"-race","tags":"x"}"#
         );
+        let one = CheckRequest {
+            profile: "p".into(),
+            params: BTreeMap::from([("a".into(), "x,b=y".into())]),
+        };
+        let two = CheckRequest {
+            profile: "p".into(),
+            params: BTreeMap::from([("a".into(), "x".into()), ("b".into(), "y".into())]),
+        };
+        assert_ne!(one.label(), two.label(), "separators in values stay apart");
         assert_eq!(
             CheckRequest::parse("go-test").expect("check").label(),
             "go-test"

@@ -349,6 +349,153 @@ async fn feedback_and_waivers_need_their_roles_and_metrics_stay_bounded() {
     );
 }
 
+/// Stores what `sych tour` would have, with a fixed draft; returns `(run, tour, first step)`.
+async fn store_tour(w: &World) -> (String, String, String) {
+    use sych_core::analysis::tour_prompt::{DraftStep, TourDraft, assemble};
+    use sych_core::tour::{Question, QuestionKind, plan};
+    use sych_storage::{ArtifactKind, tour_role};
+
+    let run = w.run_ids().await[0].clone();
+    let result = w.result(0).await;
+    let plan = plan(&result, 5);
+    let draft = TourDraft {
+        intent: "publish an order".into(),
+        steps: plan
+            .stops
+            .iter()
+            .map(|s| DraftStep {
+                stop_id: s.id.clone(),
+                title: format!("Stop {}", s.id),
+                purpose: "where the defect is".into(),
+                explanation: "the new line".into(),
+                question: Some(Question {
+                    kind: QuestionKind::Comprehension,
+                    text: "What breaks?".into(),
+                    reveal: "the caller".into(),
+                }),
+                example_snippets: Vec::new(),
+            })
+            .collect(),
+    };
+    let (tour, problems) = assemble(&plan, &result, draft, "fixed".into());
+    assert!(problems.is_empty(), "{problems:?}");
+    let s = &w.app.storage;
+    let handle = s.run_handle("local", result.run_id).await.expect("run");
+    s.put_artifact(
+        &handle,
+        &tour_role(tour.tour_id),
+        ArtifactKind::Tour,
+        &tour,
+        sych_core::Timestamp::now(),
+    )
+    .await
+    .expect("store");
+    (run, tour.tour_id.to_string(), plan.stops[0].id.clone())
+}
+
+fn reveals(view: &Value) -> Vec<&str> {
+    view["tour"]["steps"]
+        .as_array()
+        .expect("steps")
+        .iter()
+        .map(|s| s["question"]["reveal"].as_str().expect("reveal"))
+        .collect()
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_tour_session_is_personal_hides_answers_and_finishes_once() {
+    let w = world(None).await;
+    let head = commit_result(&w, 1).await;
+    let (run, tour, step) = store_tour(&w).await;
+    let url = listen(&w).await;
+    let get = |who: &'static str, path: String| {
+        let url = url.clone();
+        async move { call(&url, "GET", &path, Some(who), None, &Value::Null).await }
+    };
+    let (status, view) = get("reader", format!("/v1/runs/{run}/tour")).await;
+    assert_eq!(status, StatusCode::OK, "{view}");
+    assert_eq!(view["tour"]["tour_id"].as_str(), Some(tour.as_str()));
+    assert_eq!(view["session"]["state"].as_str(), Some("IN_PROGRESS"));
+    assert_eq!(view["stale"], json!(false));
+    assert!(reveals(&view).iter().all(|r| r.is_empty()), "hidden");
+
+    let base = format!("/v1/runs/{run}/tours/{tour}");
+    let (status, view) = call(
+        &url,
+        "POST",
+        &format!("{base}/reveal"),
+        Some("reader"),
+        Some("r1"),
+        &json!({"step_id": step}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{view}");
+    assert_eq!(reveals(&view)[0], "the caller");
+    assert_eq!(view["session"]["revealed"], json!([step]));
+    let (status, _) = call(
+        &url,
+        "POST",
+        &format!("{base}/reveal"),
+        Some("reader"),
+        Some("r2"),
+        &json!({"step_id": "nope"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "unknown step");
+
+    let (_, other) = get("writer", format!("/v1/runs/{run}/tour?tour={tour}")).await;
+    assert!(reveals(&other).iter().all(|r| r.is_empty()), "own session");
+    let (status, _) = get("outsider", format!("/v1/runs/{run}/tour")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "out of scope");
+    let (status, _) = get(
+        "reader",
+        format!("/v1/runs/{run}/tour?tour=0192f000-0000-7000-8000-000000000000"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "another tour");
+
+    let finish = |path: &'static str, key: &'static str| {
+        let (url, base) = (url.clone(), base.clone());
+        async move {
+            call(
+                &url,
+                "POST",
+                &format!("{base}/{path}"),
+                Some("reader"),
+                Some(key),
+                &Value::Null,
+            )
+            .await
+        }
+    };
+    let (status, view) = finish("complete", "c1").await;
+    assert_eq!(
+        (status, view["session"]["state"].as_str()),
+        (StatusCode::OK, Some("COMPLETED"))
+    );
+    let (status, view) = finish("dismiss", "d1").await;
+    assert_eq!(
+        (status, view["error"]["code"].as_str()),
+        (StatusCode::CONFLICT, Some("SESSION_FINISHED"))
+    );
+    let (_, again) = get("reader", format!("/v1/runs/{run}/tour")).await;
+    assert_eq!(again["session"]["state"].as_str(), Some("COMPLETED"));
+    assert_eq!(reveals(&again)[0], "the caller", "kept after finishing");
+
+    // A newer generation leaves the tour readable and `STALE`.
+    fake_github::lock(&w.fake)
+        .permissions
+        .insert("dev".into(), "write".into());
+    w.comment("d-9", "dev", "/sych rerun").await;
+    w.schedule(1).await;
+    world::commit_claimed(&w, &head, 1).await;
+    let (status, view) = get("reader", format!("/v1/runs/{run}/tour")).await;
+    assert_eq!(
+        (status, view["stale"].clone()),
+        (StatusCode::OK, json!(true))
+    );
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn requested_checks_reach_the_run_and_a_malformed_one_is_refused() {
     let w = world(None).await;

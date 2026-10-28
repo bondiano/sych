@@ -308,6 +308,33 @@ pub fn next(state: &TourState, event: TourEvent) -> TourState {
     }
 }
 
+/// The tour as one session sees it: answers it has not revealed are blanked.
+#[must_use]
+pub fn for_session(mut tour: TourArtifact, session: &TourSession) -> TourArtifact {
+    for step in &mut tour.steps {
+        if let Some(q) = step
+            .question
+            .as_mut()
+            .filter(|_| !session.revealed.contains(&step.id))
+        {
+            q.reveal.clear();
+        }
+    }
+
+    tour
+}
+
+/// The question a reveal answers; an unknown step or one without a question is refused.
+pub fn question<'a>(tour: &'a TourArtifact, step_id: &str) -> Result<&'a Question, String> {
+    tour.steps
+        .iter()
+        .find(|s| s.id == step_id)
+        .ok_or_else(|| format!("the tour has no step `{step_id}`"))?
+        .question
+        .as_ref()
+        .ok_or_else(|| format!("step `{step_id}` has no question"))
+}
+
 /// A tour of an older revision is `STALE`; it stays readable and is never rewritten.
 pub fn stale(tour: &TourArtifact, current_revision: u64) -> bool {
     tour.review_revision != current_revision

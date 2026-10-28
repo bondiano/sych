@@ -44,6 +44,24 @@ impl Storage {
         .transpose()
     }
 
+    /// The run pins this tour; a tour of another run or tenant is not its.
+    pub async fn has_tour(
+        &self,
+        tenant_id: &str,
+        run: RunId,
+        tour: TourId,
+    ) -> Result<bool, StorageError> {
+        Ok(sqlx::query(
+            "SELECT 1 FROM run_artifacts WHERE run_id = ? AND tenant_id = ? AND role = ?",
+        )
+        .bind(run.to_string())
+        .bind(tenant_id)
+        .bind(tour_role(tour))
+        .fetch_optional(self.pool())
+        .await?
+        .is_some())
+    }
+
     pub async fn tour_session(
         &self,
         tenant_id: &str,

@@ -126,7 +126,7 @@ fn pinned(report_snapshot: Option<&SourceSnapshot>, repo: &Path) -> Option<Local
 
 fn show(r: &TourRef, repo: &Path, brief: bool) -> anyhow::Result<ExitCode> {
     let report = saved_report(r.config.as_deref(), &r.run)?;
-    let (mut t, session, ()) = with_session(r, |_, s| Ok((s, ())))?;
+    let (t, session, ()) = with_session(r, |_, s| Ok((s, ())))?;
     let snap = pinned(report.snapshot.as_ref(), repo);
     let head = Git::open(repo)
         .and_then(|g| g.stdout(["rev-parse", "HEAD"]))
@@ -155,23 +155,15 @@ fn show(r: &TourRef, repo: &Path, brief: bool) -> anyhow::Result<ExitCode> {
         t.overview.important_unknowns.len(),
         session.state,
     );
-    for step in &mut t.steps {
+    for step in &t.steps {
         if brief {
             let _ = writeln!(text, "- {}: {}", step.id, step.title);
         } else {
             write_step(&mut text, step, reader, &mut source_unavailable);
         }
-
-        if let Some(q) = step
-            .question
-            .as_mut()
-            .filter(|_| !session.revealed.contains(&step.id))
-        {
-            q.reveal.clear();
-        }
     }
     let out = Shown {
-        tour: t,
+        tour: tour::for_session(t, &session),
         session,
         stale,
         source_unavailable,
@@ -222,14 +214,7 @@ pub fn write_step(
 
 fn reveal(r: &TourRef, step: &str) -> anyhow::Result<ExitCode> {
     let (_, session, (question, answer)) = with_session(r, |t, s| {
-        let q = t
-            .steps
-            .iter()
-            .find(|x| x.id == step)
-            .ok_or_else(|| Failure::invalid(format!("the tour has no step `{step}`")))?
-            .question
-            .clone()
-            .ok_or_else(|| Failure::invalid(format!("step `{step}` has no question")))?;
+        let q = tour::question(t, step).map_err(Failure::invalid)?.clone();
         Ok((s.reveal(step), (q.text, q.reveal)))
     })?;
     let out = Revealed {

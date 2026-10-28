@@ -30,7 +30,7 @@ use super::requests::RequestError;
 /// The authenticated caller.
 pub struct Caller(pub ApiClient);
 
-fn status(code: StatusCode, name: &'static str, message: impl Into<String>) -> ApiError {
+pub(super) fn status(code: StatusCode, name: &'static str, message: impl Into<String>) -> ApiError {
     ApiError::new(code, name, message)
 }
 
@@ -62,7 +62,7 @@ impl FromRequestParts<Arc<App>> for Caller {
 }
 
 impl Caller {
-    fn need(&self, role: ApiRole) -> Result<(), ApiError> {
+    pub(super) fn need(&self, role: ApiRole) -> Result<(), ApiError> {
         if self.0.role >= role {
             Ok(())
         } else {
@@ -83,7 +83,7 @@ impl Caller {
     }
 }
 
-fn now(app: &App) -> Timestamp {
+pub(super) fn now(app: &App) -> Timestamp {
     (app.now)()
 }
 
@@ -97,7 +97,7 @@ fn engine(app: &App) -> Result<&super::Engine, ApiError> {
     })
 }
 
-fn storage_error(e: &dyn Display) -> ApiError {
+pub(super) fn storage_error(e: &dyn Display) -> ApiError {
     status(
         StatusCode::SERVICE_UNAVAILABLE,
         "DEPENDENCY_UNAVAILABLE",
@@ -123,7 +123,7 @@ fn request_error(e: &RequestError) -> ApiError {
 
 /// Runs a mutating handler once per `Idempotency-Key`; a repeat replays the stored answer and a
 /// reused key with another body is 409.
-async fn idempotent<F, Fut>(
+pub(super) async fn idempotent<F, Fut>(
     app: &App,
     caller: &Caller,
     endpoint: &'static str,
@@ -191,7 +191,7 @@ where
     }
 }
 
-fn parse<T: for<'de> Deserialize<'de>>(body: &[u8]) -> Result<T, ApiError> {
+pub(super) fn parse<T: for<'de> Deserialize<'de>>(body: &[u8]) -> Result<T, ApiError> {
     serde_json::from_slice(body)
         .map_err(|e| status(StatusCode::BAD_REQUEST, "INVALID_REQUEST", e.to_string()))
 }
@@ -253,7 +253,7 @@ pub async fn create_review(
     .await
 }
 
-fn to_value<T: serde::Serialize>(v: &T) -> Result<Value, ApiError> {
+pub(super) fn to_value<T: serde::Serialize>(v: &T) -> Result<Value, ApiError> {
     serde_json::to_value(v).map_err(|e| storage_error(&e))
 }
 
@@ -277,7 +277,7 @@ fn run_status(v: RunView) -> RunStatus {
     }
 }
 
-async fn visible_run(app: &App, caller: &Caller, id: &str) -> Result<RunView, ApiError> {
+pub(super) async fn visible_run(app: &App, caller: &Caller, id: &str) -> Result<RunView, ApiError> {
     let view = app
         .storage
         .run_view(&caller.0.tenant_id, id)

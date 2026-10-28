@@ -319,8 +319,8 @@ mod tests {
         assert_eq!(
             reports,
             [
-                "execution:outcomes(flags=-x; id)",
-                "execution:other(flags=-x)"
+                r#"execution:outcomes{"flags":"-x; id"}"#,
+                r#"execution:other{"flags":"-x"}"#
             ],
             "a check is named with its parameters"
         );
