@@ -6,6 +6,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 
 use anyhow::Context;
 use sych_adapters::github::{AppKey, Github};
@@ -92,6 +93,7 @@ pub fn engine(app: Arc<App>, conns: BTreeMap<String, Conn>, c: EngineConfig<'_>)
         },
         owner: format!("worker-{}", Uuid::now_v7()),
         lease_seconds: i64::from(c.server.workers.lease_seconds),
+        heartbeat: Duration::from_secs(u64::from(c.server.workers.heartbeat_seconds)),
         public_base_url: c.server.http.public_base_url.clone(),
         now: Timestamp::now,
     }

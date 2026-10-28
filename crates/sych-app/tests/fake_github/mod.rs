@@ -8,6 +8,7 @@ mod reviews;
 use std::collections::BTreeMap;
 use std::mem;
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Duration;
 
 use axum::Json;
 use axum::Router;
@@ -17,6 +18,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch, post};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
+use tokio::time;
 
 pub const TOKEN: &str = "ghs_installation";
 
@@ -47,6 +49,8 @@ pub struct Fake {
     pub check_runs: Vec<Value>,
     /// Refuse an inline comment on this line with 422, as GitHub does outside the diff.
     pub reject_inline_line: Option<u64>,
+    /// Answer installation token requests only after this long.
+    pub token_delay: Option<Duration>,
 }
 
 pub type Shared = Arc<Mutex<Fake>>;
@@ -124,10 +128,17 @@ async fn access_token(
     Path(id): Path<u64>,
     Json(body): Json<Value>,
 ) -> Response {
-    let mut s = lock(&state);
-    s.log
-        .push(format!("POST /app/installations/{id}/access_tokens {body}"));
-    s.tokens_issued += 1;
+    let delay = {
+        let mut s = lock(&state);
+        s.log
+            .push(format!("POST /app/installations/{id}/access_tokens {body}"));
+        s.tokens_issued += 1;
+        s.token_delay
+    };
+    if let Some(delay) = delay {
+        time::sleep(delay).await;
+    }
+
     Json(json!({"token": TOKEN, "expires_at": "2027-01-15T10:00:00Z"})).into_response()
 }
 

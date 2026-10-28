@@ -113,6 +113,27 @@ impl Storage {
         Ok(done.rows_affected() == 1)
     }
 
+    /// Moves the job's retry deadline out to `deadline` when it is earlier; fenced.
+    pub async fn extend_deadline(
+        &self,
+        fence: &Fence,
+        deadline: i64,
+        now: Timestamp,
+    ) -> Result<bool, StorageError> {
+        let done = sqlx::query(
+            "UPDATE jobs SET deadline = max(deadline, ?) WHERE id = ? AND owner = ?
+                 AND lease_epoch = ? AND state = 'CLAIMED' AND lease_until >= ?",
+        )
+        .bind(deadline)
+        .bind(fence.job_id)
+        .bind(&fence.owner)
+        .bind(fence.epoch)
+        .bind(now.as_second())
+        .execute(self.pool())
+        .await?;
+        Ok(done.rows_affected() == 1)
+    }
+
     /// Returns expired leases to the queue; past the attempt limit or deadline the job and its
     /// run fail instead. Returns how many jobs it moved.
     pub async fn reap(&self, now: Timestamp) -> Result<u64, StorageError> {

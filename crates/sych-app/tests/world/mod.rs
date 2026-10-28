@@ -9,6 +9,7 @@ use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 
 use serde_json::{Value, json};
 use sych_adapters::git::{LocalSnapshot, SnapshotRequest};
@@ -227,6 +228,8 @@ pub async fn world_with(policy: Option<&str>, endpoint: Option<&str>) -> World {
         },
         owner: "w1".into(),
         lease_seconds: 60,
+        // Real time against the test clock: preparation and analysis renew the lease often.
+        heartbeat: Duration::from_millis(10),
         public_base_url: None,
         now,
     });

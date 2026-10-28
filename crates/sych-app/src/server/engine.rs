@@ -10,7 +10,7 @@ use sych_adapters::github::{Github, PullState, Secret, capabilities};
 use sych_core::Timestamp;
 use sych_core::config::{GithubConnection, RunMode};
 use sych_core::schedule::{
-    Decision, IntentKind, MAX_RETRIES, RunInputs, ScmState, decide, retry_at,
+    CI_WAIT_SECONDS, Decision, IntentKind, MAX_RETRIES, RunInputs, ScmState, decide, retry_at,
 };
 use sych_core::scm::{ChangeSignal, RepositoryRef, ScmError, WebhookEvent};
 use sych_core::{canonical_json, sha256};
@@ -21,8 +21,11 @@ use tokio::{task, time};
 use super::App;
 use crate::args::{ModelSelection, Switch};
 
-/// Default bound of one analysis job, retries included: active deadline, CI wait and slack.
-pub(super) const JOB_SECONDS: i64 = 300 + 180 + 120;
+/// Bound of one analysis job once its evidence is due: active deadline and slack.
+pub(super) const AFTER_EVIDENCE_SECONDS: i64 = 300 + 120;
+/// Default bound of one analysis job, retries included: the default CI wait, then the above.
+/// PREPARE extends it to the CI wait the target's policy asks for.
+pub(super) const JOB_SECONDS: i64 = CI_WAIT_SECONDS as i64 + AFTER_EVIDENCE_SECONDS;
 /// Write access lets an actor run commands (spec §22.5).
 const COMMAND_PERMISSIONS: &[&str] = &["admin", "maintain", "write"];
 
@@ -50,6 +53,8 @@ pub struct Engine {
     pub review: ReviewSettings,
     pub owner: String,
     pub lease_seconds: i64,
+    /// Interval of lease renewals while a job is held (`workers.heartbeat_seconds`).
+    pub heartbeat: Duration,
     /// `http.public_base_url`, for links to full results.
     pub public_base_url: Option<String>,
     pub now: fn() -> Timestamp,

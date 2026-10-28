@@ -104,7 +104,7 @@ flowchart TD
 - **Участок:** [worker.rs:78–205](../crates/sych-app/src/server/worker.rs#L78-L205), [worker.rs:216–235](../crates/sych-app/src/server/worker.rs#L216-L235), [build.rs:79–96](../crates/sych-app/src/server/build.rs#L79-L96).
 - **Проблема:** token, fetch, pin и CI collection идут после claim, но до первого heartbeat. Fetch разрешено ждать 120 секунд при default lease 60. Кроме того, validator принимает `0 < heartbeat_seconds < lease_seconds`, но runtime использует константу 15 секунд и не переносит configured heartbeat в Engine.
 - **Проверка границ:** CLI принял `lease_seconds: 10`, `heartbeat_seconds: 2`. Реальный storage отказал в `prepare_run` на T+65 для lease60 и в heartbeat на T+15 для lease10. Это проверка фактического fencing с заданным временем, не полный сценарий медленного network fetch.
-- [ ] **Минимальное исправление:** поддерживать claim от получения до release/terminal transition, включая PREPARE/CI, с настроенным интервалом. Не ослаблять fence, чтобы «починить» просроченный worker.
+- [x] **Минимальное исправление:** поддерживать claim от получения до release/terminal transition, включая PREPARE/CI, с настроенным интервалом. Не ослаблять fence, чтобы «починить» просроченный worker.
 - **Если оставить:** `[INFERENCE]` успешная, но медленная подготовка теряет lease; reaper запускает её заново, расходуя attempts до отказа. Проблема достижима в одном процессе, без конкурирующего worker.
 
 ### 7. P2 — На границе UTC-месяца обнуляется lifetime budget run/session
@@ -120,7 +120,7 @@ flowchart TD
 - **Участок:** [engine.rs:24–25,168–176](../crates/sych-app/src/server/engine.rs#L24-L25), [requests.rs:102–104](../crates/sych-app/src/server/requests.rs#L102-L104), [worker.rs:143–180,249–265](../crates/sych-app/src/server/worker.rs#L143-L180), [.sych/config.yaml:5–13](../.sych/config.yaml#L5-L13).
 - **Проблема:** job получает фиксированные 600 секунд: `300 + 180 + 120`. При этом собственная policy Sych разрешает ждать CI 900 секунд. После штатного ожидания retry/recovery уже ограничен истёкшим deadline.
 - **Проверка границы:** настоящий `retry_at(Transient, attempt=1, now=T+901, deadline=T+600)` вернул `None`. Full wait900 → временный fetch failure не запускался; достижимость установлена через callers и реальную policy.
-- [ ] **Минимальное исправление:** в PREPARE согласовать persisted job deadline с фактическим evidence deadline, active analysis budget и transport slack. Не оставлять вторую константу, предполагающую CI wait180.
+- [x] **Минимальное исправление:** в PREPARE согласовать persisted job deadline с фактическим evidence deadline, active analysis budget и transport slack. Не оставлять вторую константу, предполагающую CI wait180.
 - **Если оставить:** `[INFERENCE]` transient failure или crash после разрешённого ожидания превращается в `FAILED` вместо retry. **Это не означает остановку любого run на 600-й секунде:** queued job не отсекается по deadline в `claim`; успешное продолжение возможно.
 
 ### 9. P2 — Второй лимит контекста скрывает усечение полного ответа

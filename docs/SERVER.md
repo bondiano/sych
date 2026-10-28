@@ -188,9 +188,12 @@ installation token in `GIT_CONFIG_*` env (not argv, not the URL), without tags/h
 a fork is read the same way. Then it pins the snapshot and the trusted target tip policy: `ci.expected_reports` whose `applies_to`
 matched the changed paths put the run into `WAITING_EVIDENCE` with deadline `ci.wait_seconds` (default 180 s); the job
 is released until the deadline and woken by a CI event. Freeze records `expected`, the CI runs that arrived and `missing`;
-after that, review runs in a separate thread (without an SQL transaction across git/model), with a heartbeat every 15 s. A
-fetch/token error is retried per the classifier (`RATE_LIMITED`, `TRANSIENT`; up to two retries, backoff + jitter,
-`Retry-After`, not past the job deadline), otherwise the run is `FAILED`.
+after that, review runs in a separate thread (without an SQL transaction across git/model). The lease is renewed every
+`workers.heartbeat_seconds` for the whole claim, from token and fetch through CI collection to the end of the analysis; a
+lost lease abandons the job to its new holder. A fetch/token error is retried per the classifier (`RATE_LIMITED`,
+`TRANSIENT`; up to two retries, backoff + jitter, `Retry-After`, not past the job deadline), otherwise the run is
+`FAILED`. The job deadline starts at 180 + 300 + 120 s and PREPARE moves it to the evidence deadline + 300 + 120 s, so
+a longer `ci.wait_seconds` still leaves room for retries.
 
 **Reconciliation.** At startup and periodically, for each repository in `repositories`: installation and
 capabilities (recorded in the binding), the list of open PRs → synthetic receipt `reconcile:<n>:<head>:<base>` (a repeat is a

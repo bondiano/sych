@@ -3,9 +3,14 @@
 //! target-only move, drafts, commands, close, bot comments, CI waits and successors, a crashed
 //! worker and missed webhooks.
 
+use std::time::Duration;
+
 use serde_json::json;
 use sych_core::Coverage;
+use sych_core::schedule::retry_at;
+use sych_core::scm::ScmErrorKind;
 use sych_storage::Admitted;
+use tokio::time;
 
 mod fake_github;
 mod world;
@@ -99,6 +104,42 @@ const JUNIT: &[u8] = br#"<testsuites><testsuite name="s"><testcase name="t" file
 
 const CI_POLICY: &str = "schema_version: 1\nci:\n  wait_seconds: 180\n  expected_reports:\n    \
     - id: tests\n      applies_to: [\"src/**\"]\n      format: junit\n";
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_long_ci_wait_leaves_room_to_retry_after_it() {
+    let w = world(Some(
+        &CI_POLICY.replace("wait_seconds: 180", "wait_seconds: 900"),
+    ))
+    .await;
+    let head = w.branch("src/b.rs");
+    w.open_pull(&head, &w.base, false);
+    w.pr_event("d-1", "opened", &head).await;
+    w.schedule(6).await;
+    w.engine.work_once().await.expect("work");
+    assert_eq!(w.states().await, ["WAITING_EVIDENCE"]);
+    advance(901);
+    let claim = w
+        .app
+        .storage
+        .claim("probe", 60, now())
+        .await
+        .expect("claim")
+        .expect("due at the evidence deadline");
+    let evidence = claim.evidence_deadline.expect("waited for CI");
+    assert!(claim.deadline >= evidence + 300 + 120, "{claim:?}");
+    let retry = retry_at(
+        ScmErrorKind::Transient,
+        1,
+        None,
+        0,
+        now().as_second(),
+        claim.deadline,
+    );
+    assert!(
+        retry.is_some(),
+        "a transient failure after the wait is retried"
+    );
+}
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_run_waits_for_expected_ci_and_a_late_report_makes_a_successor() {
@@ -219,6 +260,28 @@ async fn a_crashed_worker_is_reaped_and_missed_webhooks_are_reconciled() {
     w.schedule(1).await;
     let change = w.app.storage.change(1).await.expect("change");
     assert_eq!(change.scm_state.as_deref(), Some("CLOSED"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_slow_preparation_keeps_its_lease() {
+    let w = world(None).await;
+    let head = w.branch("src/b.rs");
+    w.open_pull(&head, &w.base, false);
+    w.pr_event("d-1", "opened", &head).await;
+    w.schedule(6).await;
+    lock(&w.fake).token_delay = Some(Duration::from_millis(300));
+    // Past the cached token's expiry, so the job asks for a new one; that request outlasts
+    // the 60 s lease twice over while heartbeats renew it.
+    advance(7_200);
+    let clock = async {
+        for _ in 0..4 {
+            time::sleep(Duration::from_millis(50)).await;
+            advance(30);
+        }
+    };
+    let (worked, ()) = tokio::join!(w.engine.work_once(), clock);
+    assert!(worked.expect("work"));
+    assert_eq!(w.states().await, ["COMPLETED"]);
 }
 
 #[tokio::test(flavor = "current_thread")]
