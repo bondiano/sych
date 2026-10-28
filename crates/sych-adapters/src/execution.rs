@@ -69,8 +69,9 @@ fn run_one(
     check: &CheckRequest,
 ) -> Result<Option<CiFacts>, CiGap> {
     let name = check.profile.as_str();
+    let label = check.label();
     let gap = |code: &str, detail: String| CiGap {
-        report: format!("execution:{name}"),
+        report: format!("execution:{label}"),
         code: code.into(),
         detail,
     };
@@ -80,14 +81,14 @@ fn run_one(
     let Some(profile) = execution.profiles.get(name) else {
         return Err(gap("EXECUTION_REFUSED", "profile is not defined".into()));
     };
-    let ran = run_side(snapshot, profile, &argv, name, SourceSide::Head)
+    let ran = run_side(snapshot, profile, &argv, &label, SourceSide::Head)
         .map_err(|e| gap("EXECUTION_FAILED", e))?;
     let Some(format) = profile.report else {
         return Ok(None);
     };
     let manifest = CiManifest {
         schema_version: SchemaVersion,
-        job: format!("execution:{name}"),
+        job: format!("execution:{label}"),
         tested_oid: snapshot.snapshot.head.hex().to_owned(),
         toolchain: profile.image.clone(),
         target: "docker".into(),
@@ -96,7 +97,7 @@ fn run_one(
     let import = |text: &str| {
         ci::import_as(
             snapshot,
-            &format!("{name}.out"),
+            &format!("{label}.out"),
             text,
             Some(&manifest),
             Some(format),
@@ -105,7 +106,7 @@ fn run_one(
         .map_err(|e| gap("CI_REPORT_MALFORMED", e.to_string()))
     };
     let mut facts = import(&ran.stdout)?;
-    facts.runner = Some(format!("{name} in {}", profile.image));
+    facts.runner = Some(format!("{label} in {}", profile.image));
     facts.limitations.extend(ran.exit);
     if ran.left_out > 0 {
         facts.limitations.push(format!(
@@ -117,7 +118,7 @@ fn run_one(
 
     if profile.compare_base {
         // The base run only labels head outcomes; it is never evidence of its own.
-        let base = run_side(snapshot, profile, &argv, name, SourceSide::DiffBase).and_then(|r| {
+        let base = run_side(snapshot, profile, &argv, &label, SourceSide::DiffBase).and_then(|r| {
             let facts = import(&r.stdout).map_err(|g| g.detail)?;
             Ok((r, facts))
         });
@@ -314,6 +315,15 @@ mod tests {
             &[check("outcomes", "-x; id"), check("other", "-x")],
         );
         assert!(facts.is_empty());
+        let reports: Vec<&str> = gaps.iter().map(|g| g.report.as_str()).collect();
+        assert_eq!(
+            reports,
+            [
+                "execution:outcomes(flags=-x; id)",
+                "execution:other(flags=-x)"
+            ],
+            "a check is named with its parameters"
+        );
         let details: Vec<&str> = gaps.iter().map(|g| g.detail.as_str()).collect();
         assert_eq!(
             details,

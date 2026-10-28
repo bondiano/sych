@@ -73,6 +73,21 @@ pub struct CheckRequest {
 }
 
 impl CheckRequest {
+    /// The check's identity in facts and gaps: the profile, with its parameters when given, so
+    /// one profile requested with different values stays two distinct runs.
+    pub fn label(&self) -> String {
+        if self.params.is_empty() {
+            return self.profile.clone();
+        }
+
+        let params: Vec<String> = self
+            .params
+            .iter()
+            .map(|(k, v)| format!("{k}={v}"))
+            .collect();
+        format!("{}({})", self.profile, params.join(","))
+    }
+
     /// `PROFILE[:param=value,...]`, the CLI form.
     pub fn parse(text: &str) -> Result<Self, String> {
         let (profile, rest) = text.split_once(':').unwrap_or((text, ""));
@@ -287,6 +302,16 @@ mod tests {
         assert_eq!(
             CheckRequest::parse("go-test").expect("check").params,
             BTreeMap::new()
+        );
+        assert_eq!(
+            CheckRequest::parse("go-test:race=-race,tags=x")
+                .expect("check")
+                .label(),
+            "go-test(race=-race,tags=x)"
+        );
+        assert_eq!(
+            CheckRequest::parse("go-test").expect("check").label(),
+            "go-test"
         );
         assert!(CheckRequest::parse(":race=-race").is_err());
         assert!(CheckRequest::parse("go-test:race").is_err());
