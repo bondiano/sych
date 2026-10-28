@@ -450,7 +450,7 @@ repository (`connection/owner/name` or `*`); a foreign repository — 404. Mutat
 
 | Endpoint | Role | Response |
 |---|---|---|
-| `POST /v1/reviews` | writer | 202 `{request_id, run_id, status_url, reused}` — durable admission; `publish` defaults to `false` and is enabled only where the connection publishes |
+| `POST /v1/reviews` | writer | 202 `{request_id, run_id, status_url, reused}` — durable admission; `publish` defaults to `false` and is enabled only where the connection publishes; optional `checks: [{profile, params}]` run only those execution profiles ([CONFIG.md](CONFIG.md)) |
 | `GET /v1/runs/:id` | reader | state, stage, coverage, usage, link to the result |
 | `GET /v1/runs/:id/result` | reader | immutable `ReviewResult`; before commit — 409 `NO_RESULT` |
 | `POST /v1/runs/:id/cancel` | writer | active → `CANCELLED`; a committed one stays in its terminal state |

@@ -1,0 +1,44 @@
+schema_version: 1
+id: relay-retry-trace-unsafe
+split: development
+language: shell
+variant: unsafe
+profiles: [correctness, side_effects]
+rationale: "The relay no longer retries a publish that failed after the commit, so a crash between commit and publish loses the event. The case's targeted check runs the relay on the diff base and the head offline and names the changed event order (roadmap M3.8)."
+base:
+  check.sh: |
+    events=
+    crashed=
+    publish() { if [ -z "$crashed" ]; then crashed=1; events="$events crash"; return 1; fi; events="$events publish"; }
+    . ./relay.sh
+    relay
+    json=$(printf '%s\n' $events | sed 's/.*/"&"/' | paste -sd, -)
+    printf '{"schema_version":1,"assertions":[{"name":"publish retried after a crash","expected":["commit","crash","publish"],"observed":[%s]}]}' "$json"
+  relay.sh: |
+    relay() { events="commit"; publish || publish; }
+head:
+  relay.sh: |
+    relay() { events="commit"; publish || true; }
+execution:
+  profiles:
+    retry-trace:
+      image: "alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"
+      executable: /bin/sh
+      args: [{ param: script, one_of: [check.sh] }]
+      timeout_seconds: 60
+      report: sych_manifest
+      memory_mb: 256
+      cpu_millis: 500
+      pids: 64
+      compare_base: true
+  checks:
+    - { profile: retry-trace, params: { script: check.sh } }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "delivery of the event after a failed publish"
+      required_condition: "the first publish after commit fails or the process crashes before it succeeds"
+      evidence_locations:
+        - { side: HEAD, path: relay.sh, start_line: 1, end_line: 1 }
+  forbidden_claims:
+    - "A failed publish is still retried."
