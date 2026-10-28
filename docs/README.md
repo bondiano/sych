@@ -27,6 +27,7 @@
 
 ## Reference
 
+- [SYCH_ROADMAP.md](SYCH_ROADMAP.md): open architecture-review tasks, decisions, evidence and verification limits.
 - [adr/](adr/): architecture decision records.
 - [examples/](examples/): saved outputs: local review, context packets, model probes, model review, quality runs,
   a real Rust review, semantic facts and server documents.
