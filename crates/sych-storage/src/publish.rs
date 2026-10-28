@@ -384,49 +384,6 @@ impl Storage {
         .await?;
         Ok(())
     }
-
-    /// An operator's audited decision to create again despite the known duplicate risk.
-    pub async fn authorize_recreate(
-        &self,
-        op_id: i64,
-        tenant_id: &str,
-        actor: &str,
-        reason: &str,
-        now: Timestamp,
-    ) -> Result<bool, StorageError> {
-        let at = now.as_second();
-        let mut tx = self.write().await?;
-        let done = sqlx::query(
-            "UPDATE publication_operations SET state = 'PENDING', owner = NULL, next_action_at = ?,
-                 reconcile_deadline = NULL, last_error = 'operator authorized a new CREATE'
-             WHERE id = ? AND state = 'UNCERTAIN'
-                 AND (SELECT remote_id FROM publication_objects p WHERE p.id = object_id) IS NULL",
-        )
-        .bind(at)
-        .bind(op_id)
-        .execute(&mut *tx)
-        .await?;
-        if done.rows_affected() == 1 {
-            sqlx::query(
-                "INSERT INTO audit_events (tenant_id, actor, action, target, correlation_id,
-                     metadata, at) VALUES (?, ?, 'PUBLICATION_RECREATE_AUTHORIZED', ?, ?, ?, ?)",
-            )
-            .bind(tenant_id)
-            .bind(actor)
-            .bind(format!("publication_operation:{op_id}"))
-            .bind(Uuid::now_v7().to_string())
-            .bind(
-                serde_json::json!({"reason": reason, "risk": "a duplicate comment may appear"})
-                    .to_string(),
-            )
-            .bind(at)
-            .execute(&mut *tx)
-            .await?;
-        }
-
-        tx.commit().await?;
-        Ok(done.rows_affected() == 1)
-    }
 }
 
 async fn observe(

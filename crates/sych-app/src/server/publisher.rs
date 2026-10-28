@@ -1,6 +1,7 @@
 //! The publisher and its reconciler (spec §18). A write happens only after the operation is
 //! durably `PUBLISHING` and both gates pass; an unknown outcome is reconciled by the stored
-//! remote id or the marker of an object the App itself wrote, never by a blind CREATE.
+//! remote id or the marker of an object the App itself wrote; CREATE again only once a complete
+//! read after a grace shows the object absent.
 
 use sych_adapters::github::{CheckOutput, Comment, MAX_PR_FILES, Secret, own_comment};
 use sych_core::publication::{
@@ -16,6 +17,8 @@ use super::engine::{Conn, Engine};
 pub const UNCERTAIN_WINDOW: i64 = 3_600;
 /// Pause between reconciliation passes of one operation.
 const RECONCILE_EVERY: i64 = 30;
+/// How long a write answered 5xx may stay invisible before a complete empty read proves it absent.
+const CREATE_GRACE: i64 = 300;
 const CHECK_NAME: &str = "Sych (advisory)";
 
 /// The provider object a write produced or a reconciliation found.
@@ -363,7 +366,21 @@ impl Engine {
 
                     storage.uncertain_found(&u, &found.id, now).await?;
                 }
-                // One empty or partial read never allows a new CREATE.
+                // Every page read and nothing of ours: after the grace a late-applied write
+                // would be visible, so the absence is known and CREATE is safe.
+                Ok(None)
+                    if u.kind != "CHECK"
+                        && u.remote_id.is_none()
+                        && now.as_second()
+                            >= u.reconcile_deadline - UNCERTAIN_WINDOW + CREATE_GRACE
+                        && storage
+                            .recreate_absent(u.op_id, &change.partition.tenant_id, now)
+                            .await? =>
+                {
+                    tracing::warn!(op = u.op_id, kind = %u.kind, "absent after a complete read: CREATE again");
+                }
+                // A partial read, a check run (one page, no completeness) or the attempt bound
+                // never allows a new CREATE.
                 Ok(None) | Err(_) => storage.uncertain_unresolved(&u, later, now).await?,
             }
         }

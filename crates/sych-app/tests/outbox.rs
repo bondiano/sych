@@ -1,6 +1,6 @@
 //! Durable outbox and reconciliation traces (roadmap M2.5) on the GitHub fake: one CREATE per
 //! summary whatever is lost, updates by the stored id, reconciliation only of the bot's own
-//! comment, a lost close stops the write, and a late older write is repaired.
+//! comment, CREATE again only after a complete empty read, a lost close stops the write, and a late older write is repaired.
 
 use serde_json::json;
 
@@ -94,11 +94,8 @@ async fn a_lost_reply_is_uncertain_and_reconciled_by_marker_across_pages() {
     assert!(lock(&w.fake).comments[&5_000].1.ends_with("copied"));
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn a_crash_while_publishing_waits_for_the_operator_and_never_creates_twice() {
-    let w = world(None).await;
-    reviewed(&w, "src/b.rs", "d-1").await;
-    // A publisher claims and marks PUBLISHING, then dies before sending.
+/// Claims, marks PUBLISHING and dies before sending; the reaper makes it UNCERTAIN.
+async fn crashed(w: &World) {
     let s = &w.app.storage;
     let c = s
         .claim_publication("dead", 60, world::now())
@@ -114,15 +111,79 @@ async fn a_crash_while_publishing_waits_for_the_operator_and_never_creates_twice
     advance(61);
     w.engine.reap_once().await.expect("reap");
     assert_eq!(
-        states(&w).await,
+        states(w).await,
         ["UNCERTAIN"],
         "a lost lease is never PENDING"
     );
-    advance(3_601);
+}
+
+async fn reconcile(w: &World) {
     w.engine
         .reconcile_publications_once()
         .await
         .expect("reconcile");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_first_publish_5xx_is_created_again_once_a_complete_read_after_the_grace_is_empty() {
+    let w = world(None).await;
+    reviewed(&w, "src/b.rs", "d-1").await;
+    lock(&w.fake).fail_next.insert(
+        "POST /repos/o/r/issues/7/comments".into(),
+        (502, json!({"message": "Bad Gateway"})),
+    );
+    assert!(w.engine.publish_once().await.expect("publish"));
+    assert_eq!(states(&w).await, ["UNCERTAIN"]);
+    reconcile(&w).await;
+    assert_eq!(
+        states(&w).await,
+        ["UNCERTAIN"],
+        "inside the grace an empty read proves nothing"
+    );
+
+    advance(301);
+    reconcile(&w).await;
+    assert!(w.engine.publish_once().await.expect("publish"));
+    assert_eq!(states(&w).await, ["DELIVERED"]);
+    assert_eq!(creates(&w), 2, "the refused POST and one CREATE");
+    assert_eq!(lock(&w.fake).comments.len(), 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_crash_while_publishing_is_created_again_only_after_a_complete_empty_read() {
+    let w = world(None).await;
+    reviewed(&w, "src/b.rs", "d-1").await;
+    crashed(&w).await;
+    advance(301);
+    // A failed read is not absence.
+    lock(&w.fake).fail_next.insert(
+        "GET /repos/o/r/issues/7/comments".into(),
+        (502, json!({"message": "Bad Gateway"})),
+    );
+    reconcile(&w).await;
+    assert_eq!(states(&w).await, ["UNCERTAIN"]);
+    assert!(!w.engine.publish_once().await.expect("publish"));
+
+    advance(31);
+    reconcile(&w).await;
+    assert!(w.engine.publish_once().await.expect("publish"));
+    assert_eq!(states(&w).await, ["DELIVERED"]);
+    assert_eq!(creates(&w), 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn without_a_complete_read_it_waits_for_the_operator_and_never_creates_twice() {
+    let w = world(None).await;
+    reviewed(&w, "src/b.rs", "d-1").await;
+    crashed(&w).await;
+    advance(3_601);
+    lock(&w.fake).fail_next.insert(
+        "GET /repos/o/r/issues/7/comments".into(),
+        (502, json!({"message": "Bad Gateway"})),
+    );
+    reconcile(&w).await;
+    advance(31);
+    reconcile(&w).await;
     assert_eq!(
         states(&w).await,
         ["UNCERTAIN"],
@@ -131,6 +192,7 @@ async fn a_crash_while_publishing_waits_for_the_operator_and_never_creates_twice
     assert!(!w.engine.publish_once().await.expect("publish"));
     assert_eq!(creates(&w), 0);
 
+    let s = &w.app.storage;
     let op = s.operations(1).await.expect("ops")[0].id;
     assert!(
         s.authorize_recreate(op, "local", "owner", "checked the PR by hand", world::now())

@@ -302,8 +302,9 @@ PENDING ──claim──▶ (gates) ──▶ PUBLISHING ──reply──▶ D
    ▲                   │            │ lost reply / 5xx / crash / lease loss
    │ definite refusal  │ gate       ▼
    └── (429, retry) ◀──┘ closed ─▶ UNCERTAIN ──found by id/marker──▶ DELIVERED
-                         superseded  │ window exhausted
-                         ─▶ CANCELLED/SUPERSEDED   ▼
+                         superseded  │ complete read empty after 5 min (audit) ─▶ PENDING
+                         ─▶ CANCELLED/SUPERSEDED   │ window exhausted without one
+                                                   ▼
                                      operator `--allow-create` (audit) ─▶ PENDING
 ```
 
@@ -317,9 +318,12 @@ PENDING ──claim──▶ (gates) ──▶ PUBLISHING ──reply──▶ D
 - **Unknown outcome** (connection drop, 5xx on write, process death, lease loss in `PUBLISHING` — the reaper moves it
   only to `UNCERTAIN`, never to `PENDING`): every 30 s the reconciler looks up the comment by the stored id, otherwise by
   marker across all pages, and only one written by the bot itself (`type: Bot`, `login == bot_login`); a marker copied by a
-  human grants nothing. An empty or truncated list does not permit CREATE. Found — `DELIVERED` (if the
-  body differs, it is restored with `PATCH` by the known id). The reconciliation window is 1 hour; after that the operation stays
-  `UNCERTAIN` with `RECONCILIATION_WINDOW_EXHAUSTED` and waits for the operator.
+  human grants nothing. Found — `DELIVERED` (if the body differs, it is restored with `PATCH` by the known id). A
+  comment with no stored id whose list was read to the end without a match, at least 5 minutes after the outcome became
+  unknown (time for a write applied despite the 5xx to show up), is known absent: the reconciler returns it to `PENDING`
+  with an `audit_events` row `PUBLICATION_RECREATE_AUTOMATIC`, within the same 5 attempts. A failed or truncated read,
+  a check run (one page, no completeness) or a known id never permit CREATE. The reconciliation window is 1 hour; after
+  that the operation stays `UNCERTAIN` with `RECONCILIATION_WINDOW_EXHAUSTED` and waits for the operator.
 - **Relevance** is separate from delivery: a new generation marks the change's objects `STALE`; delivery of the current one —
   `CURRENT`. Closing the change cancels `PENDING`; `UNCERTAIN` stays for read-only reconciliation.
 - **Late old UPDATE**: every 10 minutes delivered objects are checked against the last sent body;
@@ -329,7 +333,8 @@ PENDING ──claim──▶ (gates) ──▶ PUBLISHING ──reply──▶ D
 
 1. `sych reconcile --config sych.yaml [--change ID]` — list of `PUBLISHING`/`UNCERTAIN`: age, attempts,
    "reconciling for N s more" or "operator decision (window exhausted)", the last error. The SCM is not called.
-2. While the window has not expired — do nothing: the server reconciles on its own.
+2. While the window has not expired — do nothing: the server reconciles on its own, including a new CREATE once a complete
+   read shows the comment absent.
 3. After the window: open the PR and check whether there is a bot comment with marker `sych:summary:<change>`. If there is, but
    reconciliation did not find it (for example, the list was truncated) — leave it as is and investigate access.
 4. If the comment is definitely absent: `sych reconcile --allow-create OP --actor NAME --reason TEXT`. The decision
@@ -421,7 +426,7 @@ loopback fake, `-p sych-storage --test admission` (atomicity, coalescing, two te
 (supersede/fence, reaper, cancel, waiting for evidence), `-p sych-app --test scheduler` (end-to-end traces on fake GitHub,
 origin via `file://` and fake models), `-p sych-adapters --test git_fetch`, `--test ci_reports` (the `fixtures/ci` corpus: valid, corrupted, XXE,
 depth), `--lib ci::archive` (traversal, symlink, bomb, CRC), `-p sych-app --test ci_evidence` (binding and gaps), `--test outbox` (a single CREATE on a lost reply,
-crash in `PUBLISHING`, operator decision, pagination and a copied marker, a lost close, a late UPDATE),
+crash in `PUBLISHING`, a first-publish 5xx re-created after a complete empty read, operator decision, pagination and a copied marker, a lost close, a late UPDATE),
 `--test publication` (inline with exact fields, 422 → summary, neutral check), `-p sych-core --test publication`
 (anchor corpus and golden summaries), `-p sych-core --test lineage` (lineage corpus), `-p sych-app --test findings`
 (feedback/waiver with permissions, `DISMISSED` survives a rerun).
@@ -500,7 +505,8 @@ completeness, held budget. Tour/session metrics will be added by M5.
 6. **Credentials**: an expired/revoked App key or token — `SCM_READ_FAILED` in `change_events` and `UNAUTHORIZED` in the
    log; replace the PEM/secret and restart. Model key — run `FAILED` with a reason; the budget is not spent again.
 7. **Incomplete CI**: a run with `CI_*` gaps — coverage `PARTIAL`, the gap in the summary; a late report creates a successor on its own.
-8. **Unknown publications**: `sych reconcile` (see M2.5); a new CREATE — only `--allow-create` with an audit.
+8. **Unknown publications**: `sych reconcile` (see M2.5); a new CREATE — automatically after a complete empty read, otherwise
+   only `--allow-create`; both with an audit.
 9. **Storage**: `sych cache prune --dry-run`, then without the flag; backup — stop the process and copy the whole
    `.sych-data/`.
 
