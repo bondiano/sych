@@ -314,7 +314,9 @@ all reasons.
 §9.3 limits: the unit budget is `context.initial_tokens_per_unit` (16000), a verification packet gets the sum over units, but no
 more than `context.max_tokens_per_request` (48000); tokens are counted as bytes of text (an upper bound). Files per
 run: `context.max_source_files` (80, does not apply to required spans). 24 semantic queries per unit and 160 per run,
-spans up to 160 lines, text blobs up to 512 KiB — constants of §9.3 for now. Spans of a verification packet are
+spans up to 160 lines (merging adjacent spans never exceeds it, and hunk context is only the three lines
+before and the three lines after a change), text blobs up to 512 KiB — constants of §9.3 for now. At equal priority, code goes before prose
+(`.md`, `.txt`, …), so a tight budget drops notes first. Spans of a verification packet are
 packed first-fit into up to four chunks of the request budget, each chunk its own packet and assessment. A
 required span larger than the budget, or beyond the four chunks, is not truncated: it goes into `excluded` as
 `REQUIRED_OVER_BUDGET` on a packet of its own, and the obligation gets `UNKNOWN / CONTEXT_LIMIT` unless a chunk
