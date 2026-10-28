@@ -48,6 +48,11 @@ pub(super) struct Totals {
     model_attempts: u32,
     cost_known_micro_usd: u64,
     unknown_cost_attempts: u32,
+    /// Labelled defects only a rejected or unresolved candidate reached: verifier misses.
+    verifier_dropped: u32,
+    /// Runs short of `COMPLETE_FOR_SCOPE`, and paths the reviews left unreviewed.
+    partial_coverage_runs: u32,
+    unreviewed_paths: u32,
     /// Labelled nitpicks a nit or improvement finding hit.
     nit_recall: Option<f64>,
     /// Labelled of all correctness findings.
@@ -109,6 +114,9 @@ impl Totals {
         self.model_attempts += m.model_attempts;
         self.cost_known_micro_usd += m.cost_known_micro_usd;
         self.unknown_cost_attempts += m.unknown_cost_attempts;
+        self.verifier_dropped += m.verifier_dropped;
+        self.partial_coverage_runs += u32::from(m.coverage != Coverage::CompleteForScope);
+        self.unreviewed_paths += m.unreviewed_paths;
     }
 }
 
@@ -135,6 +143,9 @@ pub(super) struct Measured {
     model_attempts: u32,
     cost_known_micro_usd: u64,
     unknown_cost_attempts: u32,
+    /// Labelled defects a rejected or unresolved candidate hit and no correctness finding did.
+    verifier_dropped: u32,
+    unreviewed_paths: u32,
 }
 
 #[derive(Serialize)]
@@ -176,9 +187,11 @@ pub(super) fn remarks(result: &ReviewResult) -> Vec<Remark<'_>> {
         .collect()
 }
 
-pub(super) fn candidate_remarks(candidates: &[Candidate]) -> Vec<Remark<'_>> {
+pub(super) fn candidate_remarks<'a>(
+    candidates: impl IntoIterator<Item = &'a Candidate>,
+) -> Vec<Remark<'a>> {
     candidates
-        .iter()
+        .into_iter()
         .map(|c| Remark {
             category: c.category,
             title: &c.claim,
@@ -209,7 +222,50 @@ fn not_false(
     (overrated, tolerated)
 }
 
-pub(super) fn score(case: &QualityCase, result: &ReviewResult, remarks: &[Remark<'_>]) -> Measured {
+/// Labels some remark's anchor overlaps.
+fn hits(labels: &[&ExpectedFinding], found: &[&Remark<'_>]) -> usize {
+    labels
+        .iter()
+        .filter(|e| {
+            found.iter().any(|f| {
+                f.anchors
+                    .iter()
+                    .any(|a| e.evidence_locations.iter().any(|l| overlaps(a, l)))
+            })
+        })
+        .count()
+}
+
+/// Labelled defects no correctness finding hit and a dropped correctness candidate did.
+fn verifier_dropped(
+    expected: &[&ExpectedFinding],
+    findings: &[&Remark<'_>],
+    dropped: &[Remark<'_>],
+) -> usize {
+    let missed: Vec<_> = expected
+        .iter()
+        .copied()
+        .filter(|e| hits(&[e], findings) == 0)
+        .collect();
+    let dropped: Vec<_> = dropped
+        .iter()
+        .filter(|f| {
+            matches!(
+                f.category,
+                FindingCategory::Defect | FindingCategory::RuleViolation
+            )
+        })
+        .collect();
+    hits(&missed, &dropped)
+}
+
+/// `dropped`: candidates the verifier rejected or left unresolved; empty without a verifier.
+pub(super) fn score(
+    case: &QualityCase,
+    result: &ReviewResult,
+    remarks: &[Remark<'_>],
+    dropped: &[Remark<'_>],
+) -> Measured {
     let correctness =
         |c: FindingCategory| matches!(c, FindingCategory::Defect | FindingCategory::RuleViolation);
     let labels: Vec<&Location> = case
@@ -244,18 +300,6 @@ pub(super) fn score(case: &QualityCase, result: &ReviewResult, remarks: &[Remark
         .findings
         .iter()
         .partition(|f| f.category == "nitpick");
-    let hits = |labels: &[&ExpectedFinding], found: &[&Remark<'_>]| {
-        labels
-            .iter()
-            .filter(|e| {
-                found.iter().any(|f| {
-                    f.anchors
-                        .iter()
-                        .any(|a| e.evidence_locations.iter().any(|l| overlaps(a, l)))
-                })
-            })
-            .count()
-    };
     let matched = hits(&expected, &correctness_findings);
     let (overrated_nits, tolerated) = not_false(case, &expected_nits, &correctness_findings);
     let obligations: Vec<ObligationCheck> = case
@@ -305,6 +349,8 @@ pub(super) fn score(case: &QualityCase, result: &ReviewResult, remarks: &[Remark
         model_attempts: usage.model_attempts,
         cost_known_micro_usd: usage.cost.known.0,
         unknown_cost_attempts: usage.cost.unknown_cost_attempts,
+        verifier_dropped: count(verifier_dropped(&expected, &correctness_findings, dropped)),
+        unreviewed_paths: count(result.excluded_or_unreviewed.len()),
     }
 }
 
@@ -327,7 +373,7 @@ mod tests {
     }
 
     fn score_of(case: &QualityCase, result: &ReviewResult) -> Measured {
-        score(case, result, &remarks(result))
+        score(case, result, &remarks(result), &[])
     }
 
     fn result() -> ReviewResult {
@@ -406,6 +452,22 @@ mod tests {
         let mut wrong = case("safe", 1, 2);
         wrong.expected.findings.clear();
         assert_eq!(run(&wrong).clean_runs_with_false_finding, 1);
+    }
+
+    #[test]
+    fn a_labelled_defect_only_a_dropped_candidate_reached_is_a_verifier_miss() {
+        let unsafe_case = case("unsafe", 45, 50);
+        let mut result = result();
+        let finding = result.findings.remove(0);
+        let dropped = [Remark {
+            category: FindingCategory::Defect,
+            title: "dropped",
+            anchors: &finding.anchors,
+        }];
+        let m = score(&unsafe_case, &result, &[], &dropped);
+        assert_eq!((m.matched_expected, m.verifier_dropped), (0, 1));
+        let kept = score(&unsafe_case, &result, &dropped, &dropped);
+        assert_eq!((kept.matched_expected, kept.verifier_dropped), (1, 0));
     }
 
     #[test]

@@ -227,5 +227,18 @@ locations), `clean_false_positive_rate` (safe cases with any correctness finding
 `tolerated_findings` — correctness findings at `expected.tolerated` locations: a correct but non-target remark for the case — and
 without `overrated_nits` — correctness findings at the location of a labelled nitpick), `unknown_kept_rate`, `nit_recall` (labelled
 nitpicks hit by a nit or improvement), nits, attempts and
-cost. A match is an intersection of an anchor with a labelled evidence location: this approximates meaning, and the owner
-checks it against finding titles. The numbers are a measurement; acceptance criteria are set by the owner.
+cost, and three gaps of the pipeline itself: `verifier_dropped` (labelled defects that only a candidate the verifier
+rejected or left unresolved reached), `partial_coverage_runs` (reviews short of `COMPLETE_FOR_SCOPE`) and
+`unreviewed_paths`. A match is an intersection of an anchor with a labelled evidence location: this approximates meaning, and the owner
+checks it against finding titles. The numbers are a measurement; acceptance criteria are set by the owner. The report
+records `config_sha256`, the hash of `--config`, so that measurements under other budgets are not compared.
+
+```sh
+sych eval compare a.json b.json c.json [--output comparison.json]
+```
+
+`compare` puts saved `measure` reports side by side without calling a model: the totals of each, and under `differing`
+every case whose outcome (labelled defects found, correctness findings, labelled findings, `UNKNOWN` kept, or a failed run)
+differs between reports or between repeated runs of one report, with the outcome of each run. Reports of another suite,
+another case set or another config hash are refused (exit 2); a report written before `config_sha256` gives
+`config_sha256: null`, so equal budgets are not proven.
