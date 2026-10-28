@@ -21,6 +21,7 @@ mod worker;
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
+use std::future::pending;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
@@ -181,6 +182,11 @@ pub async fn serve(
     role: Role,
 ) -> anyhow::Result<()> {
     let listener = TcpListener::bind(bind).await?;
+    let metrics_listener = match env::var("SYCH_METRICS_BIND") {
+        Ok(address) => Some(TcpListener::bind(address.parse::<SocketAddr>()?).await?),
+        Err(env::VarError::NotPresent) => None,
+        Err(error) => return Err(error.into()),
+    };
     tracing::info!(%bind, ?role, "serving");
     let (stop_tx, stop_rx) = watch::channel(false);
     let engine = engine.map(Arc::new);
@@ -201,20 +207,31 @@ pub async fn serve(
         .run_until(async move {
             let loops = engine.filter(|_| role != Role::Api);
             let background = loops.map(|e| task::spawn_local(e.run(stop_rx)));
-            axum::serve(
-                listener,
-                routes.into_make_service_with_connect_info::<SocketAddr>(),
-            )
-            .with_graceful_shutdown(async {
-                signal::ctrl_c().await.ok();
-            })
-            .await?;
+            let metrics = async {
+                if let Some(listener) = metrics_listener {
+                    let routes = Router::new()
+                        .route("/metrics", get(metrics::scrape))
+                        .with_state(app);
+                    axum::serve(listener, routes).await?;
+                    anyhow::bail!("metrics listener stopped");
+                }
+                pending::<anyhow::Result<()>>().await
+            };
+            let result = tokio::select! {
+                result = axum::serve(
+                    listener,
+                    routes.into_make_service_with_connect_info::<SocketAddr>(),
+                ).with_graceful_shutdown(async {
+                    signal::ctrl_c().await.ok();
+                }) => result.map_err(anyhow::Error::from),
+                result = metrics => result,
+            };
             let _ = stop_tx.send(true);
             if let Some(background) = background {
                 background.await?;
             }
 
-            Ok(())
+            result
         })
         .await
 }
