@@ -16,7 +16,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use sych_core::api::{
     Accepted, CancelOutcome, FeedbackRequest, PublicationStatus, RerunRequest, ReviewRequest,
-    RunStatus, RunUsage, WaiverRequest,
+    RunStatus, RunUsage, WaiverRequest, WaiverTerms,
 };
 use sych_core::config::{ApiClient, ApiRole, RuleException};
 use sych_core::scm::ScmErrorKind;
@@ -87,7 +87,7 @@ pub(super) fn now(app: &App) -> Timestamp {
     (app.now)()
 }
 
-fn engine(app: &App) -> Result<&super::Engine, ApiError> {
+pub(super) fn engine(app: &App) -> Result<&super::Engine, ApiError> {
     app.engine.get().map(AsRef::as_ref).ok_or_else(|| {
         status(
             StatusCode::SERVICE_UNAVAILABLE,
@@ -467,6 +467,68 @@ pub async fn feedback(
     .await
 }
 
+/// Terms a waiver can be recorded with on `change` by this caller: paths and an end, a change
+/// of the caller's tenant and repositories.
+pub(super) async fn check_waiver(
+    app: &App,
+    caller: &Caller,
+    change: i64,
+    terms: &WaiverTerms,
+) -> Result<(), ApiError> {
+    caller.need(ApiRole::Maintainer)?;
+    if terms.expires_at.is_none() && terms.until.is_none() || terms.paths.is_empty() {
+        return Err(status(
+            StatusCode::BAD_REQUEST,
+            "INVALID_REQUEST",
+            "paths and an expiry or completion condition are required",
+        ));
+    }
+
+    let row = app
+        .storage
+        .change(change)
+        .await
+        .map_err(|_| status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"))?;
+    if row.partition.tenant_id != caller.0.tenant_id {
+        return Err(status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"));
+    }
+
+    caller.scope(Some(&row.connection_id), Some(&row.full_name))
+}
+
+/// Records a waiver [`check_waiver`] accepted; the review's statuses are never rewritten.
+pub(super) async fn record_waiver(
+    app: &App,
+    caller: &Caller,
+    change: i64,
+    terms: &WaiverTerms,
+) -> Result<i64, ApiError> {
+    let exception = RuleException {
+        paths: terms.paths.clone(),
+        reason: terms.reason.clone(),
+        owner: terms.owner.clone(),
+        author: caller.0.name.clone(),
+        expires_at: terms.expires_at,
+        until: terms.until.clone(),
+    };
+    let policy = app
+        .storage
+        .latest_policy(change)
+        .await
+        .map_err(|e| storage_error(&e))?;
+    app.storage
+        .add_waiver(
+            &caller.0.tenant_id,
+            change,
+            &terms.rule_id,
+            &exception,
+            policy.as_deref(),
+            now(app).as_second(),
+        )
+        .await
+        .map_err(|e| storage_error(&e))
+}
+
 /// `POST /v1/waivers`: a scoped risk decision; statuses are never rewritten.
 pub async fn waiver(
     State(app): State<Arc<App>>,
@@ -476,24 +538,15 @@ pub async fn waiver(
 ) -> Result<Response, ApiError> {
     caller.need(ApiRole::Maintainer)?;
     let r: WaiverRequest = parse(&body)?;
-    if r.expires_at.is_none() && r.until.is_none() || r.paths.is_empty() {
-        return Err(status(
-            StatusCode::BAD_REQUEST,
-            "INVALID_REQUEST",
-            "paths and an expiry or completion condition are required",
-        ));
-    }
-
-    let change = app
-        .storage
-        .change(r.change_id)
-        .await
-        .map_err(|_| status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"))?;
-    if change.partition.tenant_id != caller.0.tenant_id {
-        return Err(status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"));
-    }
-
-    caller.scope(Some(&change.connection_id), Some(&change.full_name))?;
+    let terms = WaiverTerms {
+        rule_id: r.rule_id,
+        paths: r.paths,
+        reason: r.reason,
+        owner: r.owner,
+        expires_at: r.expires_at,
+        until: r.until,
+    };
+    check_waiver(&app, &caller, r.change_id, &terms).await?;
     idempotent(
         &app,
         &caller,
@@ -501,31 +554,7 @@ pub async fn waiver(
         &headers,
         &body,
         || async {
-            let exception = RuleException {
-                paths: r.paths.clone(),
-                reason: r.reason.clone(),
-                owner: r.owner.clone(),
-                author: caller.0.name.clone(),
-                expires_at: r.expires_at,
-                until: r.until.clone(),
-            };
-            let policy = app
-                .storage
-                .latest_policy(r.change_id)
-                .await
-                .map_err(|e| storage_error(&e))?;
-            let id = app
-                .storage
-                .add_waiver(
-                    &caller.0.tenant_id,
-                    r.change_id,
-                    &r.rule_id,
-                    &exception,
-                    policy.as_deref(),
-                    now(&app).as_second(),
-                )
-                .await
-                .map_err(|e| storage_error(&e))?;
+            let id = record_waiver(&app, &caller, r.change_id, &terms).await?;
             Ok((StatusCode::CREATED, json!({"waiver_id": id})))
         },
     )

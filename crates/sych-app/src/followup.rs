@@ -9,6 +9,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::mem;
+use std::path::Path;
 use std::process::ExitCode;
 
 use sych_core::analysis::followup::{self, Exchange, FOLLOWUP, FollowupOutput, Reply};
@@ -128,6 +129,16 @@ async fn answer(
     })
 }
 
+/// One line of a reply, for listings.
+pub fn reply_text(reply: &Reply) -> String {
+    match reply {
+        Reply::Explanation { text, .. } | Reply::HumanStatement { text } => text.clone(),
+        Reply::RiskDecision { waiver_id, rule_id } => {
+            format!("waiver {waiver_id} for {rule_id}; the review's statuses are unchanged")
+        }
+    }
+}
+
 fn markdown(e: &Exchange) -> String {
     let mut text = format!("> {:?} on {}: {}\n\n", e.kind, e.step_id, e.question);
     match &e.reply {
@@ -137,6 +148,9 @@ fn markdown(e: &Exchange) -> String {
                 "Recorded as your statement ({}, {}); it is not evidence and changes no requirement.\n\n{s}",
                 e.actor, e.at
             );
+        }
+        Reply::RiskDecision { .. } => {
+            let _ = writeln!(text, "{}", reply_text(&e.reply));
         }
         Reply::Explanation {
             text: answer,
@@ -169,6 +183,35 @@ fn markdown(e: &Exchange) -> String {
     text
 }
 
+/// The step of `tour` a question names.
+pub fn step<'a>(tour: &'a TourArtifact, id: &str) -> Result<&'a TourStep, String> {
+    tour.steps
+        .iter()
+        .find(|s| s.id == id)
+        .ok_or_else(|| format!("the tour has no step `{id}`"))
+}
+
+/// A new exchange of `actor`'s session on `step`.
+pub fn exchange(
+    (tour, step): (&TourArtifact, &TourStep),
+    actor: &str,
+    (kind, question): (QuestionKind, &str),
+    at: Timestamp,
+    reply: Reply,
+) -> Exchange {
+    Exchange {
+        schema_version: SchemaVersion,
+        id: uuid::Uuid::now_v7().to_string(),
+        tour_id: tour.tour_id,
+        step_id: step.id.clone(),
+        actor: actor.to_owned(),
+        kind,
+        question: question.to_owned(),
+        at,
+        reply,
+    }
+}
+
 pub fn run(args: &AskArguments) -> anyhow::Result<ExitCode> {
     let r = &args.tour;
     let run = tour_reader::run_id(&r.run)?;
@@ -178,8 +221,8 @@ pub fn run(args: &AskArguments) -> anyhow::Result<ExitCode> {
         AskKind::RiskDecision => {
             return Err(Failure::permission(
                 "a risk decision is a scoped waiver a repository owner accepts on the server \
-                 (`POST /v1/waivers`) or in the accepted `.sych/rules.yaml`; a local session \
-                 cannot create one",
+                 (`POST /v1/runs/:id/tours/:tour/questions` or `POST /v1/waivers`) or in the \
+                 accepted `.sych/rules.yaml`; a local session cannot create one",
             )
             .into());
         }
@@ -190,28 +233,39 @@ pub fn run(args: &AskArguments) -> anyhow::Result<ExitCode> {
     let exchange = block_on(async {
         let storage = Storage::open(&store).await?;
         let (tour, _) = tour_reader::load(&storage, run, r).await?;
-        let step = tour
-            .steps
-            .iter()
-            .find(|s| s.id == args.step)
-            .ok_or_else(|| Failure::invalid(format!("the tour has no step `{}`", args.step)))?;
-        let reply = match kind {
-            QuestionKind::FactRequest => Reply::HumanStatement {
+        let step = step(&tour, &args.step).map_err(Failure::invalid)?;
+        let reply = if kind == QuestionKind::FactRequest {
+            Reply::HumanStatement {
                 text: args.question.clone(),
-            },
-            _ => explain(args, &storage, run, (&tour, step), &report).await?,
+            }
+        } else {
+            let config = r.config.as_deref().ok_or_else(|| {
+                Failure::invalid("a question needs --config with the model profiles")
+            })?;
+            let reader =
+                tour_reader::pinned(report.snapshot.as_ref(), &args.repo).ok_or_else(|| {
+                    Failure::no_result(
+                        "the run's source is unavailable (pruned, or --repo is not the \
+                         reviewed repository)",
+                    )
+                })?;
+            let asker = Asker {
+                config,
+                models: &args.models,
+                mode: RunMode::PersonalLocal,
+                storage: &storage,
+                tenant: TENANT_LOCAL,
+                actor,
+            };
+            explain(&asker, run, (&tour, step), &report, &reader, &args.question).await?
         };
-        let exchange = Exchange {
-            schema_version: SchemaVersion,
-            id: uuid::Uuid::now_v7().to_string(),
-            tour_id: tour.tour_id,
-            step_id: step.id.clone(),
-            actor: actor.to_owned(),
-            kind,
-            question: args.question.clone(),
-            at: Timestamp::now(),
+        let exchange = exchange(
+            (&tour, step),
+            actor,
+            (kind, &args.question),
+            Timestamp::now(),
             reply,
-        };
+        );
         storage.add_exchange(TENANT_LOCAL, run, &exchange).await?;
         anyhow::Ok(exchange)
     })??;
@@ -219,40 +273,43 @@ pub fn run(args: &AskArguments) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// A comprehension answer under the session's own follow-up budget.
-async fn explain(
-    args: &AskArguments,
-    storage: &Storage,
+/// Who asks, and where the model profiles and the store are: the CLI's local reader or a
+/// server caller.
+pub struct Asker<'a> {
+    pub config: &'a Path,
+    pub models: &'a ModelSelection,
+    pub mode: RunMode,
+    pub storage: &'a Storage,
+    pub tenant: &'a str,
+    pub actor: &'a str,
+}
+
+/// A comprehension answer under the asker's own follow-up budget; `reader` is the run's
+/// pinned snapshot.
+pub async fn explain(
+    asker: &Asker<'_>,
     run: RunId,
     (tour, step): (&TourArtifact, &TourStep),
     report: &Report,
+    reader: &dyn SnapshotReader,
+    question: &str,
 ) -> anyhow::Result<Reply> {
-    let selected = match &args.models {
+    let selected = match asker.models {
         ModelSelection::Fake => {
             return Err(Failure::invalid("a question needs a model profile").into());
         }
         ModelSelection::Roles => None,
         ModelSelection::Profile(name) => Some(name.as_str()),
     };
-    let config = args
-        .tour
-        .config
-        .as_deref()
-        .ok_or_else(|| Failure::invalid("a question needs --config with the model profiles"))?;
-    let snap = tour_reader::pinned(report.snapshot.as_ref(), &args.repo).ok_or_else(|| {
-        Failure::no_result(
-            "the run's source is unavailable (pruned, or --repo is not the reviewed repository)",
-        )
-    })?;
-    let effective = config::effective(Some(config), Some(&args.repo))?;
-    let server = &effective.server;
-    let routing = backend::routing(config, server, selected, false, RunMode::PersonalLocal)
-        .map_err(|e| match e {
+    let server = config::server(Some(asker.config))?;
+    let routing = backend::routing(asker.config, &server, selected, false, asker.mode).map_err(
+        |e| match e {
             ResolveError::Invalid(e) | ResolveError::Credentials(e) => Failure::invalid(e),
-        })?;
-    let handle = storage.run_handle(TENANT_LOCAL, run).await?;
-    let ledger = RunLedger::new(storage, &handle, Timestamp::now)
-        .scoped(followup::scope(tour.tour_id, tour_reader::LOCAL_ACTOR));
+        },
+    )?;
+    let handle = asker.storage.run_handle(asker.tenant, run).await?;
+    let ledger = RunLedger::new(asker.storage, &handle, Timestamp::now)
+        .scoped(followup::scope(tour.tour_id, asker.actor));
     let limits = Limits::new(&server.budgets, Purpose::Followup);
     let router = routing.router(
         &ledger,
@@ -269,21 +326,15 @@ async fn explain(
     let ops = Ops {
         facts: &report.semantic_facts,
         evidence: &report.evidence,
-        reader: &snap as &dyn SnapshotReader,
+        reader,
     };
-    let mut reply = answer(
-        &model,
-        (tour, step),
-        &report.review_result,
-        &ops,
-        &args.question,
-    )
-    .await
-    .map_err(|e| {
-        Failure::no_result(format!(
-            "no answer within the session's follow-up budget and routes: {e}"
-        ))
-    })?;
+    let mut reply = answer(&model, (tour, step), &report.review_result, &ops, question)
+        .await
+        .map_err(|e| {
+            Failure::no_result(format!(
+                "no answer within the session's follow-up budget and routes: {e}"
+            ))
+        })?;
     let spent = model.attempts.into_inner();
     if let Reply::Explanation {
         attempts,

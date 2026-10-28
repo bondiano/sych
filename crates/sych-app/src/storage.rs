@@ -78,16 +78,16 @@ pub fn database_status(config: &Path, server: &ServerConfig) -> Result<String, S
 }
 
 async fn load<T: DeserializeOwned>(
-    storage: &Storage,
+    (storage, tenant): (&Storage, &str),
     run: RunId,
     role: &str,
 ) -> Result<T, StorageError> {
-    storage.load_artifact(TENANT_LOCAL, run, role).await
+    storage.load_artifact(tenant, run, role).await
 }
 
 /// Source data has a shorter retention than the result; once pruned it reads as `None`.
 async fn load_source<T: DeserializeOwned>(
-    storage: &Storage,
+    storage: (&Storage, &str),
     run: RunId,
     role: &str,
 ) -> Result<Option<T>, StorageError> {
@@ -97,11 +97,18 @@ async fn load_source<T: DeserializeOwned>(
     }
 }
 
-/// Reads every artifact of a completed run; no analysis and no model call.
 async fn load_report(store: StoreConfig, run: RunId) -> Result<Report, StorageError> {
-    let storage = Storage::open(&store).await?;
-    let review_result = storage.load_result(TENANT_LOCAL, run).await?;
-    let storage = &storage;
+    report_of(&Storage::open(&store).await?, TENANT_LOCAL, run).await
+}
+
+/// Reads every artifact of a completed run of `tenant`; no analysis and no model call.
+pub async fn report_of(
+    storage: &Storage,
+    tenant: &str,
+    run: RunId,
+) -> Result<Report, StorageError> {
+    let review_result = storage.load_result(tenant, run).await?;
+    let storage = (storage, tenant);
     let evidence_manifest: EvidenceManifest = load(storage, run, "evidence_manifest").await?;
     let mut evidence = Vec::with_capacity(evidence_manifest.evidence.len());
     for record in &evidence_manifest.evidence {

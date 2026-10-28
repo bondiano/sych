@@ -25,11 +25,11 @@ pub struct TourQuery {
     tour: Option<String>,
 }
 
-fn not_found(message: &str) -> ApiError {
+pub(super) fn not_found(message: &str) -> ApiError {
     status(StatusCode::NOT_FOUND, "NOT_FOUND", message)
 }
 
-fn run_of(view: &RunView) -> Result<RunId, ApiError> {
+pub(super) fn run_of(view: &RunView) -> Result<RunId, ApiError> {
     Ok(RunId(
         view.run_id
             .parse()
@@ -38,7 +38,7 @@ fn run_of(view: &RunView) -> Result<RunId, ApiError> {
 }
 
 /// The named tour of the run, or its newest one.
-async fn tour_id(
+pub(super) async fn tour_id(
     app: &App,
     caller: &Caller,
     run: RunId,
@@ -74,7 +74,7 @@ async fn tour_id(
 }
 
 /// The tour and the caller's session through it (a new one when absent).
-async fn open(
+pub(super) async fn open(
     app: &App,
     caller: &Caller,
     run: RunId,
@@ -102,7 +102,7 @@ async fn open(
 
 /// `STALE` once the run's result moved to another revision or a newer generation of the change
 /// committed inputs; the tour still shows the code the review saw.
-async fn view(
+pub(super) async fn view(
     app: &App,
     caller: &Caller,
     run_view: &RunView,
@@ -121,7 +121,13 @@ async fn view(
         .await
         .map_err(|e| storage_error(&e))?
         .is_some_and(|l| l.run_id != run_view.run_id);
+    let exchanges = app
+        .storage
+        .exchanges(&caller.0.tenant_id, tour.tour_id, &caller.0.name)
+        .await
+        .map_err(|e| storage_error(&e))?;
     Ok(TourView {
+        exchanges,
         stale: newer || tour::stale(&tour, result.review_revision),
         tour: tour::for_session(tour, &session),
         session,

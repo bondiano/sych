@@ -9,7 +9,7 @@ use std::process::ExitCode;
 
 use serde::Serialize;
 use sych_adapters::git::{Git, LocalSnapshot};
-use sych_core::analysis::followup::{Exchange, Reply};
+use sych_core::analysis::followup::Exchange;
 use sych_core::tour::{self, SessionState, TourArtifact, TourSession, TourStep};
 use sych_core::{ComparisonMode, RunId, SnapshotReader, SourceSnapshot, Timestamp, TourId};
 use sych_storage::{Storage, StorageError, TENANT_LOCAL, tour_role};
@@ -17,8 +17,8 @@ use sych_storage::{Storage, StorageError, TENANT_LOCAL, tour_role};
 use crate::args::{Comparison, TourCommands, TourRef};
 use crate::errors::Failure;
 use crate::output::emit_as;
-use crate::snapshot;
 use crate::storage::{block_on, load_store_config, saved_report};
+use crate::{followup, snapshot};
 
 /// The only reader of a local store.
 pub(crate) const LOCAL_ACTOR: &str = "local";
@@ -180,9 +180,7 @@ fn show(r: &TourRef, repo: &Path, brief: bool) -> anyhow::Result<ExitCode> {
     if !brief && !exchanges.is_empty() {
         let _ = writeln!(text, "## Your questions (private, not evidence)\n");
         for e in &exchanges {
-            let reply = match &e.reply {
-                Reply::Explanation { text, .. } | Reply::HumanStatement { text } => text,
-            };
+            let reply = followup::reply_text(&e.reply);
             let _ = writeln!(
                 text,
                 "- {} {:?}: {}\n  {reply}",

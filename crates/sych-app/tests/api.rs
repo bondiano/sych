@@ -2,53 +2,15 @@
 //! idempotency with replay and conflict, 202 as durable admission, the error envelope,
 //! cancellation that never rewrites a committed result, and metrics for allowed peers only.
 
-use std::net::SocketAddr;
-use std::sync::Arc;
-
 use reqwest::StatusCode;
 use serde_json::{Value, json};
-use sych_app::server::router;
-use tokio::net::TcpListener;
 
 mod fake_github;
+mod http;
 mod world;
 
-use world::{World, commit_result, world};
-
-async fn listen(w: &World) -> String {
-    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
-    let url = format!("http://{}", listener.local_addr().expect("addr"));
-    let routes = router(Arc::clone(&w.app)).into_make_service_with_connect_info::<SocketAddr>();
-    tokio::spawn(async move { axum::serve(listener, routes).await });
-    url
-}
-
-async fn call(
-    url: &str,
-    method: &str,
-    path: &str,
-    who: Option<&str>,
-    key: Option<&str>,
-    body: &Value,
-) -> (StatusCode, Value) {
-    let client = reqwest::Client::new();
-    let mut req = client.request(method.parse().expect("method"), format!("{url}{path}"));
-    if let Some(who) = who {
-        req = req.bearer_auth(format!("{who}-token-0123456789"));
-    }
-
-    if let Some(key) = key {
-        req = req.header("idempotency-key", key);
-    }
-
-    if !body.is_null() {
-        req = req.json(body);
-    }
-
-    let reply = req.send().await.expect("send");
-    let status = reply.status();
-    (status, reply.json().await.unwrap_or(Value::Null))
-}
+use http::{call, listen, store_tour};
+use world::{commit_result, world};
 
 fn review(number: &str) -> Value {
     json!({"schema_version": 1, "change": {"connection_id": "gh", "repository": "o/r",
@@ -347,50 +309,6 @@ async fn feedback_and_waivers_need_their_roles_and_metrics_stay_bounded() {
         !metrics.contains("src/") && !metrics.contains("token-0123"),
         "no paths or secrets as labels"
     );
-}
-
-/// Stores what `sych tour` would have, with a fixed draft; returns `(run, tour, first step)`.
-async fn store_tour(w: &World) -> (String, String, String) {
-    use sych_core::analysis::tour_prompt::{DraftStep, TourDraft, assemble};
-    use sych_core::tour::{Question, QuestionKind, plan};
-    use sych_storage::{ArtifactKind, tour_role};
-
-    let run = w.run_ids().await[0].clone();
-    let result = w.result(0).await;
-    let plan = plan(&result, 5);
-    let draft = TourDraft {
-        intent: "publish an order".into(),
-        steps: plan
-            .stops
-            .iter()
-            .map(|s| DraftStep {
-                stop_id: s.id.clone(),
-                title: format!("Stop {}", s.id),
-                purpose: "where the defect is".into(),
-                explanation: "the new line".into(),
-                question: Some(Question {
-                    kind: QuestionKind::Comprehension,
-                    text: "What breaks?".into(),
-                    reveal: "the caller".into(),
-                }),
-                example_snippets: Vec::new(),
-            })
-            .collect(),
-    };
-    let (tour, problems) = assemble(&plan, &result, draft, "fixed".into());
-    assert!(problems.is_empty(), "{problems:?}");
-    let s = &w.app.storage;
-    let handle = s.run_handle("local", result.run_id).await.expect("run");
-    s.put_artifact(
-        &handle,
-        &tour_role(tour.tour_id),
-        ArtifactKind::Tour,
-        &tour,
-        sych_core::Timestamp::now(),
-    )
-    .await
-    .expect("store");
-    (run, tour.tour_id.to_string(), plan.stops[0].id.clone())
 }
 
 fn reveals(view: &Value) -> Vec<&str> {

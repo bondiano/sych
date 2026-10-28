@@ -88,7 +88,8 @@ sych ask --run RUN --step stop-1 --kind fact-request --question "The consumer de
 - `fact-request` records your own statement with author and time and calls no model; it is not evidence and does not
   change an accepted requirement.
 - `risk-decision` is refused locally (exit 4): a scoped waiver is the repository owner's decision, made on the server
-  (`POST /v1/waivers`) or in the accepted `.sych/rules.yaml`, and it never rewrites `UNKNOWN` or `VIOLATED`.
+  (`POST /v1/runs/:id/tours/:tour/questions` with the maintainer role, or `POST /v1/waivers`) or in the accepted
+  `.sych/rules.yaml`, and it never rewrites `UNKNOWN` or `VIOLATED`.
 - Your questions and replies are private to your session; `sych tour show` lists them again without a model.
 
 ## Fake responses

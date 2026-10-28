@@ -5,8 +5,9 @@ use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
+use crate::analysis::followup::Exchange;
 use crate::config::CheckRequest;
-use crate::tour::{TourArtifact, TourSession};
+use crate::tour::{QuestionKind, TourArtifact, TourSession};
 use crate::{ReviewResult, Timestamp};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -70,6 +71,8 @@ pub struct TourView {
     pub session: TourSession,
     /// A newer revision or generation of the change exists; the tour still shows what was reviewed.
     pub stale: bool,
+    /// The caller's own questions on this tour, oldest first; never another caller's.
+    pub exchanges: Vec<Exchange>,
 }
 
 /// `POST /v1/runs/:id/tours/:tour/reveal`.
@@ -77,6 +80,31 @@ pub struct TourView {
 #[serde(deny_unknown_fields)]
 pub struct RevealRequest {
     pub step_id: String,
+}
+
+/// `POST /v1/runs/:id/tours/:tour/questions`: a bounded follow-up on one step (spec §21.6).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct QuestionRequest {
+    pub step_id: String,
+    pub kind: QuestionKind,
+    /// The question; for `FACT_REQUEST`, the caller's own statement of the missing fact.
+    pub question: String,
+    /// Only with `RISK_DECISION`, which needs the maintainer role.
+    #[serde(default)]
+    pub waiver: Option<WaiverTerms>,
+}
+
+/// What a waiver accepts, for which paths and until when.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WaiverTerms {
+    pub rule_id: String,
+    pub paths: Vec<String>,
+    pub reason: String,
+    pub owner: String,
+    pub expires_at: Option<Timestamp>,
+    pub until: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -191,6 +219,8 @@ pub fn openapi() -> Value {
     let publication = component::<PublicationStatus>(&mut c, "PublicationStatus");
     let tour = component::<TourView>(&mut c, "TourView");
     let reveal = component::<RevealRequest>(&mut c, "RevealRequest");
+    let question = component::<QuestionRequest>(&mut c, "QuestionRequest");
+    let exchange = component::<Exchange>(&mut c, "Exchange");
     let error = component::<ErrorEnvelope>(&mut c, "ErrorEnvelope");
     let errors = |codes: &[u16]| -> Map<String, Value> {
         codes
@@ -259,6 +289,7 @@ pub fn openapi() -> Value {
             "/v1/runs/{id}/tours/{tour}/reveal": {"post": op("Reveal one step's answer in the caller's session", Some(&reveal), 200, &tour, true, &[400, 401, 403, 404, 409, 503])},
             "/v1/runs/{id}/tours/{tour}/complete": {"post": op("Complete the caller's session; not an approval", None, 200, &tour, true, &[400, 401, 403, 404, 409, 503])},
             "/v1/runs/{id}/tours/{tour}/dismiss": {"post": op("Dismiss the caller's session", None, 200, &tour, true, &[400, 401, 403, 404, 409, 503])},
+            "/v1/runs/{id}/tours/{tour}/questions": {"post": op("A bounded follow-up on one step; private, never evidence", Some(&question), 201, &exchange, true, &[400, 401, 403, 404, 409, 503])},
         }
     })
 }

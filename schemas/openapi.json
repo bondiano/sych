@@ -357,6 +357,52 @@
         ],
         "type": "object"
       },
+      "Exchange": {
+        "description": "One question and its reply in one actor's private session; the tour and the result stay\nas they are.",
+        "properties": {
+          "actor": {
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/$defs/QuestionKind"
+          },
+          "question": {
+            "type": "string"
+          },
+          "reply": {
+            "$ref": "#/$defs/Reply"
+          },
+          "schema_version": {
+            "$ref": "#/$defs/SchemaVersion"
+          },
+          "step_id": {
+            "type": "string"
+          },
+          "tour_id": {
+            "$ref": "#/$defs/TourId"
+          }
+        },
+        "required": [
+          "schema_version",
+          "id",
+          "tour_id",
+          "step_id",
+          "actor",
+          "kind",
+          "question",
+          "at",
+          "reply"
+        ],
+        "title": "Exchange",
+        "type": "object"
+      },
       "ExecutionOutcome": {
         "description": "How the run reached FINALIZING; recorded inside the immutable result.",
         "oneOf": [
@@ -860,6 +906,41 @@
         ],
         "type": "string"
       },
+      "QuestionRequest": {
+        "additionalProperties": false,
+        "description": "`POST /v1/runs/:id/tours/:tour/questions`: a bounded follow-up on one step (spec §21.6).",
+        "properties": {
+          "kind": {
+            "$ref": "#/$defs/QuestionKind"
+          },
+          "question": {
+            "description": "The question; for `FACT_REQUEST`, the caller's own statement of the missing fact.",
+            "type": "string"
+          },
+          "step_id": {
+            "type": "string"
+          },
+          "waiver": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WaiverTerms"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Only with `RISK_DECISION`, which needs the maintainer role."
+          }
+        },
+        "required": [
+          "step_id",
+          "kind",
+          "question"
+        ],
+        "title": "QuestionRequest",
+        "type": "object"
+      },
       "Recommendation": {
         "description": "Computed by the reducer; never a model verdict or SCM approval (spec §5.7).",
         "enum": [
@@ -868,6 +949,100 @@
           "NO_BLOCKING_FINDINGS_IN_SCOPE"
         ],
         "type": "string"
+      },
+      "Reply": {
+        "oneOf": [
+          {
+            "description": "`COMPREHENSION`: generated prose; it can be wrong and is never technical evidence.",
+            "properties": {
+              "attempts": {
+                "format": "uint",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "code_refs": {
+                "items": {
+                  "$ref": "#/$defs/CodeRef"
+                },
+                "type": "array"
+              },
+              "cost_micro_usd": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "hypotheses": {
+                "description": "After the regular verifier; none of them is a finding of the review or published.",
+                "items": {
+                  "$ref": "#/$defs/Candidate"
+                },
+                "type": "array"
+              },
+              "limitations": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "text": {
+                "type": "string"
+              },
+              "type": {
+                "const": "EXPLANATION",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "text",
+              "code_refs",
+              "hypotheses",
+              "limitations",
+              "attempts",
+              "cost_micro_usd"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "`FACT_REQUEST`: the actor's own statement; it never rewrites an accepted requirement.",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "type": {
+                "const": "HUMAN_STATEMENT",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "text"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "`RISK_DECISION`: a separate scoped waiver; the review's `UNKNOWN` and `VIOLATED` stay.",
+            "properties": {
+              "rule_id": {
+                "type": "string"
+              },
+              "type": {
+                "const": "RISK_DECISION",
+                "type": "string"
+              },
+              "waiver_id": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "type",
+              "waiver_id",
+              "rule_id"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "RepoPath": {
         "minLength": 1,
@@ -1544,6 +1719,13 @@
       "TourView": {
         "description": "`GET /v1/runs/:id/tour` and the session calls: the tour as the caller's session sees it.",
         "properties": {
+          "exchanges": {
+            "description": "The caller's own questions on this tour, oldest first; never another caller's.",
+            "items": {
+              "$ref": "#/$defs/Exchange"
+            },
+            "type": "array"
+          },
           "session": {
             "$ref": "#/$defs/TourSession",
             "description": "The caller's own progress; never published and never an approval."
@@ -1560,7 +1742,8 @@
         "required": [
           "tour",
           "session",
-          "stale"
+          "stale",
+          "exchanges"
         ],
         "title": "TourView",
         "type": "object"
@@ -1710,6 +1893,47 @@
           "owner"
         ],
         "title": "WaiverRequest",
+        "type": "object"
+      },
+      "WaiverTerms": {
+        "additionalProperties": false,
+        "description": "What a waiver accepts, for which paths and until when.",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owner": {
+            "type": "string"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "until": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "rule_id",
+          "paths",
+          "reason",
+          "owner"
+        ],
         "type": "object"
       }
     },
@@ -2632,6 +2856,109 @@
           }
         ],
         "summary": "Dismiss the caller's session"
+      }
+    },
+    "/v1/runs/{id}/tours/{tour}/questions": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Exchange"
+                }
+              }
+            },
+            "description": "A bounded follow-up on one step; private, never evidence"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A bounded follow-up on one step; private, never evidence"
       }
     },
     "/v1/runs/{id}/tours/{tour}/reveal": {

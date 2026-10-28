@@ -42,6 +42,8 @@ pub enum Reply {
     },
     /// `FACT_REQUEST`: the actor's own statement; it never rewrites an accepted requirement.
     HumanStatement { text: String },
+    /// `RISK_DECISION`: a separate scoped waiver; the review's `UNKNOWN` and `VIOLATED` stay.
+    RiskDecision { waiver_id: i64, rule_id: String },
 }
 
 /// One question and its reply in one actor's private session; the tour and the result stay
