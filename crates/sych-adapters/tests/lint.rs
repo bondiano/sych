@@ -39,14 +39,15 @@ fn commit(dir: &Path, files: &[(&str, &str)], message: &str) {
 }
 
 /// Answers like actionlint when given `-shellcheck=`, else with SARIF citing line 2 of its
-/// last argument through an absolute URI; the message reports the environment it saw.
+/// last argument through an absolute URI; the message reports the environment and arguments
+/// it saw.
 const STAND_IN: &str = r#"#!/bin/sh
 for f in "$@"; do last="$f"; done
 case " $* " in
   *" -shellcheck= "*)
     printf '[{"message":"bad","filepath":"%s","line":2,"kind":"expression"}]' "$last" ;;
   *)
-    printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"stand-in"}},"results":[{"ruleId":"X1","level":"error","message":{"text":"PATH=[%s] HOME=%s"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"file://%s/%s"},"region":{"startLine":2}}}]}]}]}' "$PATH" "$HOME" "$PWD" "$last" ;;
+    printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"stand-in"}},"results":[{"ruleId":"X1","level":"error","message":{"text":"PATH=[%s] HOME=%s ARGS=[%s]"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"file://%s/%s"},"region":{"startLine":2}}}]}]}]}' "$PATH" "$HOME" "$*" "$PWD" "$last" ;;
 esac
 "#;
 
@@ -80,6 +81,8 @@ fn linters_run_on_changed_files_in_an_empty_environment() {
         ("db/q.sql", "select 1;\nselect 2;\n"),
         ("src/a.php", "<?php\n$a = 1;\n"),
         ("R/a.R", "x <- 1\ny <- 2\n"),
+        ("src/core.clj", "(ns core)\n(def a 1)\n"),
+        (".clj-kondo/config.edn", "{:hooks {:analyze-call {}}}\n"),
         (".github/workflows/ci.yml", "on: push\njobs: {}\n"),
         ("docs/readme.md", "text\n"),
     ];
@@ -90,6 +93,7 @@ fn linters_run_on_changed_files_in_an_empty_environment() {
         ("db/q.sql", "select 1;\nselect 3;\n"),
         ("src/a.php", "<?php\n$a = 2;\n"),
         ("R/a.R", "x <- 1\ny <- 3\n"),
+        ("src/core.clj", "(ns core)\n(def a 2)\n"),
         (
             ".github/workflows/ci.yml",
             "on: pull_request_target\njobs: {}\n",
@@ -106,11 +110,37 @@ fn linters_run_on_changed_files_in_an_empty_environment() {
             "sqruff",
             "mago",
             "jarl",
+            "clj-kondo",
             "actionlint",
             "zizmor"
         ]
     );
     assert!(facts.iter().all(|f| f.status == BackendStatus::Ready));
+
+    for (linter, file) in [
+        (2, "db/q.sql"),
+        (3, "src/a.php"),
+        (4, "R/a.R"),
+        (5, "src/core.clj"),
+    ] {
+        let d = &facts[linter].diagnostics[0];
+        assert_eq!((d.path.as_str(), d.line), (file, 2));
+        assert!(d.code_ref.is_some(), "{file} anchored on head");
+    }
+
+    // clj-kondo reads an empty Sych-owned config dir, never the project's hooks.
+    let kondo = &facts[5];
+    let args = kondo.diagnostics[0].message.as_str();
+    assert!(args.contains("--repro --cache false"), "{args}");
+    assert!(args.contains("--config-dir /"), "{args}");
+    assert!(args.ends_with("--lint src/core.clj]"), "{args}");
+    assert!(kondo.config.is_empty());
+    assert!(
+        kondo
+            .limitations
+            .iter()
+            .any(|l| l.contains(".clj-kondo configuration was not read"))
+    );
 
     let ruff = &facts[0];
     assert_eq!(ruff.files, ["app/a.py"]);
@@ -127,13 +157,7 @@ fn linters_run_on_changed_files_in_an_empty_environment() {
             .any(|l| l.contains("configuration changed"))
     );
 
-    for (linter, file) in [(2, "db/q.sql"), (3, "src/a.php"), (4, "R/a.R")] {
-        let d = &facts[linter].diagnostics[0];
-        assert_eq!((d.path.as_str(), d.line), (file, 2));
-        assert!(d.code_ref.is_some(), "{file} anchored on head");
-    }
-
-    let actionlint = &facts[5];
+    let actionlint = &facts[6];
     assert_eq!(actionlint.diagnostics[0].path, ".github/workflows/ci.yml");
     assert!(actionlint.diagnostics[0].code_ref.is_some());
 }

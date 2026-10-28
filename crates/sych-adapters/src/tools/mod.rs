@@ -16,10 +16,14 @@ use reqwest::Client;
 use serde::Deserialize;
 use sych_core::sha256;
 use thiserror::Error;
+
+use crate::ci::archive::{Limits, read_entry};
 use tokio::process::Command;
 
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(300);
 const MAX_DOWNLOAD_BYTES: usize = 256 << 20;
+/// Largest binary inflated out of a zip; native-image builds are around 70 MiB.
+const MAX_BINARY_BYTES: u64 = 256 << 20;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -28,6 +32,8 @@ pub enum ArchiveKind {
     Gzip,
     /// A gzip-compressed tarball unpacked whole; `binary` is a path inside it.
     TarGzip,
+    /// A zip of which only the `binary` entry is read, through the CI artifact reader.
+    Zip,
     /// A Go module built with the pinned `go`: `sha256` is the hex of the module's `h1:` hash,
     /// checked before the build, and the module's `go.sum` pins its dependencies.
     GoModule,
@@ -361,6 +367,20 @@ fn install(
         }
         // `unpack` refuses entries escaping the destination.
         ArchiveKind::TarGzip => tar::Archive::new(GzDecoder::new(bytes)).unpack(staging.path())?,
+        ArchiveKind::Zip => {
+            let limits = Limits {
+                max_entries: 1_000,
+                max_entry_bytes: MAX_BINARY_BYTES,
+            };
+            let contents = read_entry(bytes, binary, limits)
+                .map_err(|e| ToolError::Download(format!("{}: {e}", artifact.url)))?
+                .ok_or_else(|| {
+                    ToolError::Download(format!("{} does not contain {binary}", artifact.url))
+                })?;
+            let path = staging.path().join(binary);
+            fs::write(&path, contents)?;
+            make_executable(&path)?;
+        }
         ArchiveKind::GoModule => {
             return Err(ToolError::Unsupported(format!(
                 "{} is built, not unpacked",
@@ -401,6 +421,7 @@ mod tests {
     use flate2::write::GzEncoder;
 
     use super::*;
+    use crate::ci::archive::tests::zip;
 
     fn gzip(data: &[u8]) -> Vec<u8> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
@@ -450,6 +471,7 @@ mod tests {
             "sqruff",
             "mago",
             "jarl",
+            "clj-kondo",
             "actionlint",
             "zizmor",
         ] {
@@ -476,6 +498,40 @@ mod tests {
         )
         .expect("install");
         assert_eq!(fs::read(dir.join("t")).expect("binary"), b"#!/bin/sh\n");
+    }
+
+    #[test]
+    fn zip_install_reads_only_the_binary_entry() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let bytes = zip(&[
+            ("README.md", b"docs", true, 0o100_644),
+            ("t", b"#!/bin/sh\n", true, 0o100_755),
+        ]);
+        let dir = root.path().join("t/1/host");
+        install(
+            &bytes,
+            &tool(ArchiveKind::Zip, "t"),
+            &artifact(&bytes),
+            &dir,
+        )
+        .expect("install");
+        assert_eq!(fs::read(dir.join("t")).expect("binary"), b"#!/bin/sh\n");
+        assert!(
+            !dir.join("README.md").exists(),
+            "only the binary is written"
+        );
+
+        let escaping = zip(&[("../t", b"x", false, 0o100_755)]);
+        let other = root.path().join("t/2/host");
+        assert!(
+            install(
+                &escaping,
+                &tool(ArchiveKind::Zip, "t"),
+                &artifact(&escaping),
+                &other
+            )
+            .is_err()
+        );
     }
 
     #[test]

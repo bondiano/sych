@@ -18,6 +18,7 @@ fn each_linter_selects_its_files() {
     assert_eq!(picks("src/Order.php"), ["mago"]);
     assert_eq!(picks("R/orders.R"), ["jarl"]);
     assert_eq!(picks("R/orders.r"), ["jarl"]);
+    assert_eq!(picks("src/shop/orders.cljc"), ["clj-kondo"]);
     assert_eq!(picks(".github/workflows/ci.yml"), ["actionlint", "zizmor"]);
     assert_eq!(picks("tools/setup/action.yaml"), ["zizmor"]);
     assert!(picks("README.md").is_empty() && picks("config.yml").is_empty());
