@@ -2,7 +2,8 @@
 
 use serde_json::json;
 use sych_core::analysis::{
-    Anchor, Context, VerifyOutput, merge_overlapping, validate_discovery, validate_verdicts,
+    Anchor, AskOperation, Context, VerifyOutput, merge_overlapping, refuting_asks,
+    validate_discovery, validate_verdicts,
 };
 use sych_core::{FindingCategory, ObligationId, Severity, SourceSide, Support, VerificationStatus};
 
@@ -314,4 +315,26 @@ fn a_suggested_change_needs_lines_of_a_shown_head_span() {
             }
         }
     }
+}
+
+#[test]
+fn open_claims_are_searched_by_the_identifiers_they_name() {
+    let reader = Reader::new();
+    let (context, _) = context(&reader);
+    let mut open = candidates(&reader, &context, 3);
+    open[0].claim = "`heartbeat_seconds` of 0 makes `analyze` spin; `a b` is prose".into();
+    open[1].claim = "`analyze` again, then `lease_seconds`, `x`, `fetch`".into();
+    open[2].claim = "`retry_at` gives up".into();
+    let queries: Vec<String> = refuting_asks(&open)
+        .into_iter()
+        .map(|a| match a.operation {
+            AskOperation::SearchSource { query, .. } => query,
+            other => panic!("{other:?}"),
+        })
+        .collect();
+    // Two per claim, no repeats, no prose or one-letter names, four in all.
+    assert_eq!(
+        queries,
+        ["heartbeat_seconds", "analyze", "lease_seconds", "fetch"]
+    );
 }

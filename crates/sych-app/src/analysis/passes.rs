@@ -3,7 +3,7 @@
 use sych_core::analysis::{
     AssessmentOutput, AssessmentRecord, CANDIDATE_OVERFLOW, Context, ContextAsk, Discovered,
     DiscoveryOutput, ReviewOutput, Verified, VerifyOutput, context_asks, not_assessed, prompts,
-    unseen_violation, validate_assessment, validate_discovery, validate_verdicts,
+    refuting_asks, unseen_violation, validate_assessment, validate_discovery, validate_verdicts,
 };
 use sych_core::broker::{Ops, REQUIRED_OVER_BUDGET, unseen_spans};
 use sych_core::config::Role;
@@ -237,6 +237,12 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                 })
             })
             .collect();
+        // Left open without a question, a claim is still searched for what refutes it.
+        let asks = if asks.is_empty() {
+            refuting_asks(&open)
+        } else {
+            asks
+        };
         if !asks.is_empty() && !open.is_empty() {
             self.answer(batch[0], &asks, &mut context, out);
             // A failed second round keeps the first verdicts.

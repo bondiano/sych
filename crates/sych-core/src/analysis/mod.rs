@@ -18,7 +18,7 @@ pub use context::{Anchor, Context, packet_evidence};
 pub use discovery::{
     Answered, AskOperation, CANDIDATE_OVERFLOW, CandidateDraft, ContextAsk, Discovered,
     DiscoveryOutput, MAX_CONTEXT_ASKS, RejectedDraft, ReviewOutput, context_asks, obligation_id,
-    validate as validate_discovery,
+    refuting_asks, validate as validate_discovery,
 };
 pub use verify::{
     CandidateVerdict, KnownDiagnostics, ProposedChange, Verdict, Verified, VerifyOutput,
