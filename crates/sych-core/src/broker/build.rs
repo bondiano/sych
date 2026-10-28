@@ -314,8 +314,8 @@ fn packet(
 /// Source extensions of languages without a semantic backend yet: their callers and
 /// references are unknown, not absent.
 const UNSUPPORTED_CODE: &[&str] = &[
-    "java", "kt", "rb", "php", "cs", "swift", "c", "h", "cc", "cpp", "hpp", "scala", "ex", "exs",
-    "sql",
+    "java", "kt", "kts", "scala", "sc", "clj", "cljs", "cljc", "rb", "php", "cs", "swift", "c",
+    "h", "cc", "cpp", "cxx", "hpp", "hh", "hxx", "ex", "exs", "gleam", "zig", "r", "R", "sql",
 ];
 
 fn unsupported_code(path: &str) -> Option<&'static str> {

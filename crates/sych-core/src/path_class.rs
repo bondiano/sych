@@ -18,7 +18,16 @@ pub enum PathClass {
     Build,
 }
 
-const TEST_DIRS: &[&str] = &["tests", "test", "__tests__", "e2e", "benches", "testing"];
+const TEST_DIRS: &[&str] = &[
+    "tests",
+    "test",
+    "__tests__",
+    "e2e",
+    "benches",
+    "testing",
+    "spec",
+    "testthat",
+];
 const TEST_MARKERS: &[&str] = &[".test.", ".spec.", ".stories.", ".e2e."];
 const GENERATED_DIRS: &[&str] = &["generated", "__generated__"];
 const GENERATED_MARKERS: &[&str] = &[".gen.", ".generated.", ".pb."];
@@ -32,7 +41,45 @@ const CONFIG_FILES: &[&str] = &[
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
     "yarn.lock",
+    "go.mod",
+    "go.sum",
+    "go.work",
+    "pyproject.toml",
+    "setup.cfg",
+    "requirements.txt",
+    "uv.lock",
+    "poetry.lock",
+    "mix.exs",
+    "mix.lock",
+    "gleam.toml",
+    "Gemfile",
+    "Gemfile.lock",
+    "composer.json",
+    "composer.lock",
+    "pom.xml",
+    "gradle.properties",
+    "deps.edn",
+    "project.clj",
+    "build.zig.zon",
+    "renv.lock",
 ];
+/// Build scripts by exact name, besides `build.rs`, Dockerfiles and bundler configs.
+const BUILD_FILES: &[&str] = &[
+    "build.gradle",
+    "build.gradle.kts",
+    "settings.gradle",
+    "settings.gradle.kts",
+    "build.sbt",
+    "build.zig",
+    "CMakeLists.txt",
+    "Makefile",
+    "meson.build",
+];
+/// Test file stems in the snake-case languages (`foo_test.go`, `test_foo.py`, `foo_spec.rb`).
+const TEST_SUFFIXES: &[&str] = &["_test", "_tests", "_spec"];
+/// Test class names on the JVM (`FooTest.java`, `FooSpec.scala`).
+const JVM_TEST_SUFFIXES: &[&str] = &["Test", "Tests", "Spec"];
+const JVM_EXTENSIONS: &[&str] = &["java", "kt", "scala", "groovy"];
 
 /// `generated` is the snapshot's header-marker flag (`@generated`, `DO NOT EDIT`).
 pub fn classify(path: &str, generated: bool) -> PathClass {
@@ -48,21 +95,25 @@ pub fn classify(path: &str, generated: bool) -> PathClass {
     {
         PathClass::Config
     } else if name == "build.rs"
+        || BUILD_FILES.contains(&name)
         || name.starts_with("Dockerfile")
         || [".config.ts", ".config.js", ".config.mjs", ".config.cjs"]
             .iter()
             .any(|s| name.ends_with(s))
     {
         PathClass::Build
-    } else if in_dir(TEST_DIRS)
-        || marked(TEST_MARKERS)
-        || name.ends_with("_test.rs")
-        || name.ends_with("_tests.rs")
-    {
+    } else if in_dir(TEST_DIRS) || marked(TEST_MARKERS) || test_name(name) {
         PathClass::Test
     } else {
         PathClass::Production
     }
+}
+
+fn test_name(name: &str) -> bool {
+    let (stem, ext) = name.rsplit_once('.').unwrap_or((name, ""));
+    stem.starts_with("test_")
+        || TEST_SUFFIXES.iter().any(|s| stem.ends_with(s))
+        || (JVM_EXTENSIONS.contains(&ext) && JVM_TEST_SUFFIXES.iter().any(|s| stem.ends_with(s)))
 }
 
 #[cfg(test)]
@@ -89,6 +140,29 @@ mod tests {
             ("crates/x/build.rs", false, PathClass::Build),
             ("apps/pwa/vite.config.ts", false, PathClass::Build),
             ("src/testimony.rs", false, PathClass::Production),
+            ("orders/create_test.go", false, PathClass::Test),
+            ("app/test_orders.py", false, PathClass::Test),
+            ("lib/orders_spec.rb", false, PathClass::Test),
+            ("lib/shop/orders_test.exs", false, PathClass::Test),
+            ("src/orders_test.gleam", false, PathClass::Test),
+            ("src/main/java/shop/OrderTest.java", false, PathClass::Test),
+            ("src/shop/OrderSpec.scala", false, PathClass::Test),
+            ("tests/testthat/test-orders.R", false, PathClass::Test),
+            // CamelCase test suffixes count only on the JVM.
+            ("src/ApiSpec.ts", false, PathClass::Production),
+            (
+                "src/main/java/shop/Contest.java",
+                false,
+                PathClass::Production,
+            ),
+            ("go.mod", false, PathClass::Config),
+            ("pyproject.toml", false, PathClass::Config),
+            ("mix.exs", false, PathClass::Config),
+            ("Gemfile", false, PathClass::Config),
+            ("pom.xml", false, PathClass::Config),
+            ("build.gradle.kts", false, PathClass::Build),
+            ("CMakeLists.txt", false, PathClass::Build),
+            ("build.zig", false, PathClass::Build),
         ];
         for (path, generated, class) in cases {
             assert_eq!(classify(path, generated), class, "{path}");
