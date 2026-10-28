@@ -62,7 +62,7 @@ const fn pids() -> u32 {
     512
 }
 
-/// A requested run of one allowed profile with its parameters; [`Execution::command`] still
+/// A requested run of one allowed profile with its parameters; `Execution::command` still
 /// decides whether it runs and what its argv is.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

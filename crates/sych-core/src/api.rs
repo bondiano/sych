@@ -31,7 +31,8 @@ pub struct ReviewRequest {
     #[serde(default)]
     pub publish: bool,
     /// Execution profiles to run with their parameters instead of every allowed one; the
-    /// server's profiles still decide whether and how each runs.
+    /// server's profiles still decide whether and how each runs. Independent of `profile`,
+    /// which only sets the review depth.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub checks: Vec<CheckRequest>,
 }
