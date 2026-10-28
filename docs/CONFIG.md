@@ -36,7 +36,9 @@ is rejected without printing the value itself.
   When enabled, every allowed profile runs once per review without parameters, unless the review request names
   checks: `checks: [{profile, params}]` in `POST /v1/reviews` or `sych review --check PROFILE[:PARAM=VALUE,...]`
   (repeatable) runs only those, each argv still built by the server's profile; a check is named `<profile>{"<param>":"<value>",…}`
-  in its job, gaps and runner. Reruns and webhook-triggered runs take no checks and run every allowed profile. A check runs on the pinned head: the head is materialized into a fresh
+  in its job, gaps and runner. A new generation from a push or a
+  rerun takes no checks and runs every allowed profile; a successor for CI that arrived after the freeze keeps its
+  parent's checks. A check runs on the pinned head: the head is materialized into a fresh
   workspace (secrets, symlinks, submodules and tool configs left out), mounted as the only volume of a docker
   container with `--network none`, `--cap-drop ALL`, `--read-only`, no-new-privileges and the limits; the environment
   carries no Sych secret. Docker is the only backend for repository code. The stdout is imported as a CI report bound
