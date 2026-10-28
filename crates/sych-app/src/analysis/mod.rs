@@ -370,6 +370,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             &self.packet_evidence[index],
             self.snap,
         );
+        context.add_changes(&self.snap.manifest);
         context
     }
 
@@ -379,6 +380,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         for &i in batch {
             context.add_packet(&self.packets[i], &self.packet_evidence[i], self.snap);
         }
+        context.add_changes(&self.snap.manifest);
 
         let units: Vec<ReviewUnitId> = batch
             .iter()

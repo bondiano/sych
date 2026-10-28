@@ -288,8 +288,9 @@ fn decide(
             unknown("CONTRADICTORY_ASSESSMENT")
         }
         ProposedStatus::Supported if incomplete || !all_met => unknown("CRITERIA_NOT_MET"),
-        // A test the author wrote is not the accepted requirement (INV-19).
-        ProposedStatus::Supported if test_oracle_only(criteria) => {
+        // A test the author wrote is not the accepted requirement (INV-19), unless the
+        // requirement is about the tests themselves.
+        ProposedStatus::Supported if !planned.about_tests && test_oracle_only(criteria) => {
             problems.push("every MET criterion rests on test files only".into());
             unknown("TEST_ORACLE_ONLY")
         }

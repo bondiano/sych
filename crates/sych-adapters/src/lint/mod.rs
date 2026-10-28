@@ -323,7 +323,8 @@ fn run_linter(
         return;
     }
 
-    args.extend(files.iter().map(|f| (*f).to_owned()));
+    // Absolute paths: a repository file named like `--output-file=…` must never become an option.
+    args.extend(files.iter().map(|f| root.join(f).display().to_string()));
     let out = match run::run(&binary, &args, root, scratch) {
         Ok(out) => out,
         Err(err) => {

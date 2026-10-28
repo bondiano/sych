@@ -61,17 +61,19 @@ impl Storage {
         let month = utc(r.at, "%Y-%m");
         let billing = tag(&r.route.billing)?;
         let mut tx = self.write().await?;
-        // Only the constant expressions above are interpolated; values are bound.
+        // Only the constant expressions above are interpolated; values are bound. Run caps are
+        // lifetime: a released attempt still counts, and a run spans calendar months.
         let row = sqlx::query(AssertSqlSafe(format!(
             "SELECT
-                 coalesce(sum(run_id = ?1 AND purpose = ?2 AND scope IS ?8 AND state <> 'RELEASED'), 0),
+                 coalesce(sum(run_id = ?1 AND purpose = ?2 AND scope IS ?8), 0),
                  coalesce(sum(CASE WHEN run_id = ?1 AND purpose = ?2 AND scope IS ?8 THEN {MONEY} END), 0),
                  coalesce(sum(CASE WHEN run_id = ?1 AND purpose = ?2 AND scope IS ?8 THEN {INPUT} END), 0),
                  coalesce(sum(CASE WHEN run_id = ?1 AND purpose = ?2 AND scope IS ?8 THEN {OUTPUT} END), 0),
                  coalesce(sum(CASE WHEN day = ?3 THEN {MONEY} END), 0),
-                 coalesce(sum({MONEY}), 0),
-                 coalesce(max(provider = ?6 AND billing_kind = ?7 AND billing_mismatch = 1), 0)
-             FROM model_attempts WHERE tenant_id = ?4 AND month = ?5"
+                 coalesce(sum(CASE WHEN month = ?5 THEN {MONEY} END), 0),
+                 coalesce(max(month = ?5 AND provider = ?6 AND billing_kind = ?7 AND billing_mismatch = 1), 0)
+             FROM model_attempts
+             WHERE tenant_id = ?4 AND (month = ?5 OR (run_id = ?1 AND purpose = ?2 AND scope IS ?8))"
         )))
         .bind(r.run_id.to_string())
         .bind(r.purpose.as_str())

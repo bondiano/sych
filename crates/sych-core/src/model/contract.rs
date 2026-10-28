@@ -102,16 +102,18 @@ impl Prompt {
         let mut user = self.task.clone();
         for block in &self.data {
             let content = redactor.redact(&block.content);
+            // The label carries selection reasons quoted from source, so it is redacted too.
+            let label = redactor.redact(&block.label);
             let digest = sha256(content.as_bytes()).to_string();
             let fence = &digest[digest.len() - 16..];
-            let transformed = match content {
-                Cow::Borrowed(_) => "",
-                Cow::Owned(_) => " [secret values redacted]",
+            let transformed = match (&content, &label) {
+                (Cow::Borrowed(_), Cow::Borrowed(_)) => "",
+                _ => " [secret values redacted]",
             };
             let _ = write!(
                 user,
                 "\n\n<<<DATA {fence} {}{transformed}>>>\n{content}\n<<<END {fence}>>>",
-                block.label.replace(['\n', '>'], " "),
+                label.replace(['\n', '>'], " "),
             );
         }
         vec![
@@ -271,6 +273,25 @@ mod tests {
         assert!(user.contains("    1 | GITHUB=[REDACTED]\n    2 | x = 1"));
         assert!(user.contains(".env.example:1-2 [secret values redacted]>>>"));
         assert!(user.contains("src/lib.rs:1-1>>>"));
+    }
+
+    #[test]
+    fn secret_values_never_leave_in_a_data_label() {
+        let canary = "ghp_0123456789abcdefABCDEF";
+        let prompt = Prompt {
+            template: "t@1".into(),
+            role: "r".into(),
+            output_contract: "c".into(),
+            rules: vec![],
+            task: "t".into(),
+            data: vec![DataBlock {
+                label: format!("ref-1 HEAD src/a.rs:1-1 call env::var(\"{canary}\")"),
+                content: "    1 | fn main() {}\n".into(),
+            }],
+        };
+        let user = &prompt.messages(Redactor::builtin())[1].content;
+        assert!(!user.contains(canary), "{user}");
+        assert!(user.contains("[secret values redacted]>>>"), "{user}");
     }
 
     #[test]
