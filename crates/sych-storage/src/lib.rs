@@ -16,6 +16,7 @@ mod ledger;
 mod lineage;
 mod outbox;
 mod publish;
+mod recreate;
 mod retention;
 mod scheduler;
 
