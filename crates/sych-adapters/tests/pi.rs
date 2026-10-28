@@ -12,6 +12,8 @@ use sych_core::config::ReasoningEffort;
 use sych_core::model::{ErrorKind, Finish, Message, ModelProvider, ModelRequest, Speaker};
 use sych_core::{AttemptId, MicroUsd, TaskId};
 
+mod common;
+
 fn fixture(name: &str) -> String {
     fs::read_to_string(
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -152,7 +154,7 @@ fn stand_in(dir: &Path, version: &str) -> PathBuf {
     fs::write(
         &script,
         format!(
-            "#!/bin/sh\n\
+            "#!{sh}\n\
              if [ \"$1\" = --version ]; then echo {version}; exit 0; fi\n\
              printf '%s\\n' \"$@\" > {seen}.args\n\
              env > {seen}.env\n\
@@ -160,6 +162,7 @@ fn stand_in(dir: &Path, version: &str) -> PathBuf {
              pwd > {seen}.cwd; ls -A > {seen}.ls\n\
              cat \"$PI_CODING_AGENT_DIR/models.json\" > {seen}.models\n\
              cat {reply}\n",
+            sh = common::host_sh().display(),
             seen = seen.display(),
             reply = reply.display()
         ),
