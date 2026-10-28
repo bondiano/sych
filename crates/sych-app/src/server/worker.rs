@@ -63,6 +63,8 @@ impl Engine {
             verify: true,
             ci_imported: Vec::new(),
             ci_gaps: Vec::new(),
+            checks: claim.inputs.targeted.clone(),
+            execution: None,
             waivers: Vec::new(),
             run_mode: self.review.mode,
             deep: matches!(claim.inputs.trigger, Trigger::Manual { deep: true, .. }),

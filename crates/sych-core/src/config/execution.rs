@@ -6,6 +6,7 @@
 
 use std::collections::BTreeMap;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -59,6 +60,41 @@ const fn cpu_millis() -> u32 {
 
 const fn pids() -> u32 {
     512
+}
+
+/// A requested run of one allowed profile with its parameters; [`Execution::command`] still
+/// decides whether it runs and what its argv is.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CheckRequest {
+    pub profile: String,
+    #[serde(default)]
+    pub params: BTreeMap<String, String>,
+}
+
+impl CheckRequest {
+    /// `PROFILE[:param=value,...]`, the CLI form.
+    pub fn parse(text: &str) -> Result<Self, String> {
+        let (profile, rest) = text.split_once(':').unwrap_or((text, ""));
+        if profile.is_empty() {
+            return Err(format!("`{text}` names no profile"));
+        }
+
+        let params = rest
+            .split(',')
+            .filter(|p| !p.is_empty())
+            .map(|p| {
+                p.split_once('=')
+                    .filter(|(k, _)| !k.is_empty())
+                    .map(|(k, v)| (k.to_owned(), v.to_owned()))
+                    .ok_or_else(|| format!("`{p}` is not `param=value`"))
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(Self {
+            profile: profile.to_owned(),
+            params,
+        })
+    }
 }
 
 /// Repository code execution; off unless the server explicitly allows profiles.
@@ -136,7 +172,7 @@ impl Execution {
     }
 
     /// Config problems as `(field, message)`.
-    pub(crate) fn problems(&self) -> Vec<(String, &'static str)> {
+    pub fn problems(&self) -> Vec<(String, &'static str)> {
         let mut out = Vec::new();
         if self.enabled && self.allowed_profiles.is_empty() {
             out.push((
@@ -234,6 +270,27 @@ mod tests {
             Err(ExecutionRefused::Missing("race".into()))
         );
         assert!(on.problems().is_empty());
+    }
+
+    #[test]
+    fn a_check_request_parses_its_cli_form() {
+        assert_eq!(
+            CheckRequest::parse("go-test:race=-race,tags=x=y").expect("check"),
+            CheckRequest {
+                profile: "go-test".into(),
+                params: BTreeMap::from([
+                    ("race".into(), "-race".into()),
+                    ("tags".into(), "x=y".into()),
+                ]),
+            }
+        );
+        assert_eq!(
+            CheckRequest::parse("go-test").expect("check").params,
+            BTreeMap::new()
+        );
+        assert!(CheckRequest::parse(":race=-race").is_err());
+        assert!(CheckRequest::parse("go-test:race").is_err());
+        assert!(CheckRequest::parse("go-test:=x").is_err());
     }
 
     #[test]

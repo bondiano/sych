@@ -69,7 +69,15 @@ fn change_review(args: &ReviewArguments, change: &str) -> anyhow::Result<ExitCod
             },
         );
         let run = engine
-            .request_review(connection, repo, number, "cli", false, false)
+            .request_review(
+                connection,
+                repo,
+                number,
+                "cli",
+                false,
+                false,
+                args.checks.clone(),
+            )
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))?;
         let tenant = run.partition.tenant_id.clone();

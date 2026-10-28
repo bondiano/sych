@@ -241,6 +241,8 @@ fn run_case(case: &Case, suite_dir: &Path) -> Result<Actual, String> {
         verify: true,
         ci_imported: Vec::new(),
         ci_gaps: Vec::new(),
+        checks: Vec::new(),
+        execution: None,
         waivers: Vec::new(),
         run_mode: RunMode::PersonalLocal,
         deep: false,

@@ -181,6 +181,26 @@
         ],
         "type": "object"
       },
+      "CheckRequest": {
+        "additionalProperties": false,
+        "description": "A requested run of one allowed profile with its parameters; [`Execution::command`] still\ndecides whether it runs and what its argv is.",
+        "properties": {
+          "params": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "type": "object"
+          },
+          "profile": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile"
+        ],
+        "type": "object"
+      },
       "CodeRef": {
         "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
         "properties": {
@@ -813,6 +833,13 @@
         "properties": {
           "change": {
             "$ref": "#/$defs/ChangeRef"
+          },
+          "checks": {
+            "description": "Execution profiles to run with their parameters instead of every allowed one; the\nserver's profiles still decide whether and how each runs.",
+            "items": {
+              "$ref": "#/$defs/CheckRequest"
+            },
+            "type": "array"
           },
           "profile": {
             "default": "economical",

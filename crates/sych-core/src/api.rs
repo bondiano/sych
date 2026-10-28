@@ -5,6 +5,7 @@ use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
+use crate::config::CheckRequest;
 use crate::{ReviewResult, Timestamp};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -28,6 +29,10 @@ pub struct ReviewRequest {
     /// Off by default; on only where the connection publishes.
     #[serde(default)]
     pub publish: bool,
+    /// Execution profiles to run with their parameters instead of every allowed one; the
+    /// server's profiles still decide whether and how each runs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub checks: Vec<CheckRequest>,
 }
 
 fn economical() -> String {

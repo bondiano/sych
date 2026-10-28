@@ -81,6 +81,11 @@ fn review_case(
         verify: args.verify,
         ci_imported: Vec::new(),
         ci_gaps: Vec::new(),
+        checks: case
+            .execution
+            .as_ref()
+            .map_or_else(Vec::new, |x| x.checks.clone()),
+        execution: case.execution.as_ref().map(super::CaseExecution::config),
         waivers: Vec::new(),
         run_mode: RunMode::PersonalLocal,
         deep: false,

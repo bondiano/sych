@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use sych_core::config::{RuleException, RunMode};
+use sych_core::config::{CheckRequest, Execution, RuleException, RunMode};
 
 use crate::render::Format;
 
@@ -182,6 +182,13 @@ pub struct ReviewArguments {
     /// it they are unbound and their locations are not mapped
     #[arg(long, value_name = "FILE")]
     pub ci_manifest: Option<PathBuf>,
+    /// Run only this execution profile of `--config`, with its parameters, instead of every
+    /// allowed one (repeatable); each value must be one of the profile's choices
+    #[arg(long = "check", value_name = "PROFILE[:PARAM=VALUE,...]", value_parser = CheckRequest::parse)]
+    pub checks: Vec<CheckRequest>,
+    /// Execution profiles of one eval case instead of the server's.
+    #[arg(skip)]
+    pub execution: Option<Execution>,
     /// `strict` exits 10 on a significant violation, else 11 on incomplete coverage
     #[arg(long, value_enum, default_value = "operational")]
     pub exit_policy: ExitPolicy,

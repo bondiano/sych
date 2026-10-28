@@ -348,3 +348,45 @@ async fn feedback_and_waivers_need_their_roles_and_metrics_stay_bounded() {
         "no paths or secrets as labels"
     );
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn requested_checks_reach_the_run_and_a_malformed_one_is_refused() {
+    let w = world(None).await;
+    let head = w.branch("src/b.rs");
+    w.open_pull(&head, &w.base, false);
+    let url = listen(&w).await;
+    let mut body = review("7");
+    body["checks"] = json!([{"profile": "go-test", "params": {"race": "-race"}}]);
+    let (status, _) = call(
+        &url,
+        "POST",
+        "/v1/reviews",
+        Some("writer"),
+        Some("c1"),
+        &body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED);
+    let latest = w.app.storage.latest(1).await.expect("latest").expect("run");
+    assert_eq!(
+        serde_json::to_value(&latest.inputs.targeted).expect("json"),
+        json!([{"profile": "go-test", "params": {"race": "-race"}}]),
+        "the worker reads them from the run inputs"
+    );
+
+    body["checks"] = json!([{"profile": "go-test", "argv": ["sh"]}]);
+    let (status, _) = call(
+        &url,
+        "POST",
+        "/v1/reviews",
+        Some("writer"),
+        Some("c2"),
+        &body,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "a request cannot add arguments"
+    );
+}

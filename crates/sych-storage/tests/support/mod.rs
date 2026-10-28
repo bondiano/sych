@@ -68,6 +68,7 @@ pub fn inputs(head: &str) -> RunInputs {
         trigger: Trigger::Changed,
         publish: false,
         checks: false,
+        targeted: Vec::new(),
     }
 }
 

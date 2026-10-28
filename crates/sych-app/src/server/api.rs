@@ -237,6 +237,7 @@ pub async fn create_review(
                     &caller.0.name,
                     request.publish,
                     deep,
+                    request.checks.clone(),
                 )
                 .await
                 .map_err(|e| request_error(&e))?;
@@ -388,7 +389,7 @@ pub async fn rerun(
         &body,
         || async {
             let run = engine(&app)?
-                .manual(id, &caller.0.name, request.publish, deep)
+                .manual(id, &caller.0.name, request.publish, deep, Vec::new())
                 .await
                 .map_err(|e| request_error(&e))?;
             let accepted = Accepted {

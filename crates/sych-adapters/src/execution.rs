@@ -10,7 +10,7 @@ use std::io;
 use std::path::Path;
 use std::time::Duration;
 
-use sych_core::config::{Execution, ExecutionProfile};
+use sych_core::config::{CheckRequest, Execution, ExecutionProfile};
 use sych_core::{CiFacts, CiGap, CiManifest, CiTest, SchemaVersion, SourceSide};
 
 use crate::ci;
@@ -20,15 +20,34 @@ use crate::sandbox::{self, Isolation, Job, Mount, SandboxError};
 /// Largest single file written into the check's workspace.
 const MAX_BLOB_BYTES: u64 = 8 << 20;
 
-/// Facts of the profiles that ran and gaps of those that did not.
-pub fn run_profiles(snapshot: &LocalSnapshot, execution: &Execution) -> (Vec<CiFacts>, Vec<CiGap>) {
+/// Facts of the profiles that ran and gaps of those that did not. Without requested `checks`
+/// every allowed profile runs with no parameters; with them, only the requested ones run.
+pub fn run_profiles(
+    snapshot: &LocalSnapshot,
+    execution: &Execution,
+    checks: &[CheckRequest],
+) -> (Vec<CiFacts>, Vec<CiGap>) {
     let (mut facts, mut gaps) = (Vec::new(), Vec::new());
     if !execution.enabled {
         return (facts, gaps);
     }
 
-    for name in &execution.allowed_profiles {
-        match run_one(snapshot, execution, name) {
+    let all: Vec<CheckRequest>;
+    let checks = if checks.is_empty() {
+        all = execution
+            .allowed_profiles
+            .iter()
+            .map(|p| CheckRequest {
+                profile: p.clone(),
+                params: BTreeMap::new(),
+            })
+            .collect();
+        &all
+    } else {
+        checks
+    };
+    for check in checks {
+        match run_one(snapshot, execution, check) {
             Ok(Some(f)) => facts.push(f),
             Ok(None) => {}
             Err(gap) => gaps.push(gap),
@@ -47,17 +66,16 @@ struct Ran {
 fn run_one(
     snapshot: &LocalSnapshot,
     execution: &Execution,
-    name: &str,
+    check: &CheckRequest,
 ) -> Result<Option<CiFacts>, CiGap> {
+    let name = check.profile.as_str();
     let gap = |code: &str, detail: String| CiGap {
         report: format!("execution:{name}"),
         code: code.into(),
         detail,
     };
-    // shortcut: no request carries parameters yet, so a profile with choices is refused as
-    // missing them; pass them through here once the verifier can ask for a check.
     let argv = execution
-        .command(name, &BTreeMap::new())
+        .command(name, &check.params)
         .map_err(|e| gap("EXECUTION_REFUSED", e.to_string()))?;
     let Some(profile) = execution.profiles.get(name) else {
         return Err(gap("EXECUTION_REFUSED", "profile is not defined".into()));
@@ -274,16 +292,36 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let snap = snapshot(dir.path());
         let off = Execution::default();
-        let (facts, gaps) = run_profiles(&snap, &off);
+        let (facts, gaps) = run_profiles(&snap, &off, &[]);
         assert!(facts.is_empty() && gaps.is_empty());
 
         let needs_param = execution(vec![ProfileArg::Choice {
             param: "flags".into(),
             one_of: vec!["-x".into()],
         }]);
-        let (facts, gaps) = run_profiles(&snap, &needs_param);
+        let (facts, gaps) = run_profiles(&snap, &needs_param, &[]);
         assert!(facts.is_empty());
         assert_eq!(gaps[0].code, "EXECUTION_REFUSED");
+
+        // A requested value outside the choices and an unlisted profile are refused too.
+        let check = |profile: &str, value: &str| CheckRequest {
+            profile: profile.into(),
+            params: BTreeMap::from([("flags".into(), value.into())]),
+        };
+        let (facts, gaps) = run_profiles(
+            &snap,
+            &needs_param,
+            &[check("outcomes", "-x; id"), check("other", "-x")],
+        );
+        assert!(facts.is_empty());
+        let details: Vec<&str> = gaps.iter().map(|g| g.detail.as_str()).collect();
+        assert_eq!(
+            details,
+            [
+                "parameter `flags` value `-x; id` is not one of the profile's choices",
+                "profile `other` is not allowed",
+            ]
+        );
     }
 
     /// Needs a Docker daemon: `cargo test -p sych-adapters -- --ignored execution`.
@@ -301,6 +339,7 @@ mod tests {
                 ProfileArg::Literal("-c".into()),
                 ProfileArg::Literal(script.into()),
             ]),
+            &[],
         );
         assert!(gaps.is_empty(), "{gaps:?}");
         let f = &facts[0];
@@ -368,10 +407,18 @@ mod tests {
                 "relay() { events=\"commit\"; publish || true; }\n",
             )],
         );
-        let mut e = execution(vec![ProfileArg::Literal("check.sh".into())]);
+        // The script is a requested choice, so the parameter path runs end to end.
+        let mut e = execution(vec![ProfileArg::Choice {
+            param: "script".into(),
+            one_of: vec!["check.sh".into()],
+        }]);
         let p = e.profiles.get_mut("outcomes").expect("profile");
         p.compare_base = true;
-        let (facts, gaps) = run_profiles(&snap, &e);
+        let check = CheckRequest {
+            profile: "outcomes".into(),
+            params: BTreeMap::from([("script".into(), "check.sh".into())]),
+        };
+        let (facts, gaps) = run_profiles(&snap, &e, &[check]);
         assert!(gaps.is_empty(), "{gaps:?}");
         let f = &facts[0];
         assert_eq!(
