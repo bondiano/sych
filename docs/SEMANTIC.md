@@ -239,6 +239,9 @@ execute repository code and work without project setup:
 |---|---|---|---|
 | ruff | `.py`, `.pyi` | `check --output-format sarif --no-cache --exit-zero --force-exclude` | `pyproject.toml`, `ruff.toml`, `.ruff.toml`; without them — ruff default rules |
 | oxlint | `.js/.jsx/.mjs/.cjs/.ts/.tsx/.mts/.cts` — also in a JS project without a TypeScript backend | `--format sarif` | `.oxlintrc.json`; if `jsPlugins` or `oxlint.config.*` (JS/TS) appear anywhere in the tree, the project config is not read (`--disable-nested-config -c {}`); this is a limitation |
+| sqruff | `.sql` | `lint --format sarif` (release builds have no Python templaters: jinja/dbt templates are not rendered) | `.sqruff`, `.sqlfluff`, `pyproject.toml`; dialect from them, else ANSI |
+| mago | `.php` | `--no-extensions --no-version-check lint --reporting-format sarif` — extension hosts from the config are unsandboxed processes and are never started; `analyze` is not run (it needs `vendor/`) | `mago.{toml,yaml,yml,json}`, `mago.dist.*` |
+| jarl | `.r`, `.R` | `check --output-format sarif`; with an empty `PATH` it finds no `Rscript`, so package-specific rules (which would start R in the project) are skipped | `jarl.toml`, `.jarl.toml` |
 | actionlint | `.github/workflows/*.y(a)ml` | `-shellcheck= -pyflakes= -format '{{json .}}'` | `.github/actionlint.y(a)ml` |
 | zizmor | workflows, `action.y(a)ml`, `.github/dependabot.yml` | `--offline --format sarif` | `zizmor.yml`, `.github/zizmor.yml` |
 
