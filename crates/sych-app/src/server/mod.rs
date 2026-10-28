@@ -215,6 +215,7 @@ pub async fn serve(
                     axum::serve(listener, routes).await?;
                     anyhow::bail!("metrics listener stopped");
                 }
+
                 pending::<anyhow::Result<()>>().await
             };
             let result = tokio::select! {
