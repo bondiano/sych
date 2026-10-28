@@ -143,6 +143,52 @@ fn invented_references_never_confirm() {
 }
 
 #[test]
+fn a_shared_first_anchor_keeps_the_most_severe_in_either_order() {
+    let reader = Reader::new();
+    let (context, _) = context(&reader);
+    let low = |id| {
+        verdict(
+            id,
+            Severity::Low,
+            Support::SemanticArgument,
+            &[anchor("ref-1", 2, 4)],
+        )
+    };
+    let high = |id| {
+        verdict(
+            id,
+            Severity::High,
+            Support::StaticTrace,
+            &[anchor("ref-1", 2, 4), anchor("ref-2", 1, 2)],
+        )
+    };
+    for verdicts in [
+        [low("cand-1"), high("cand-2")],
+        [high("cand-1"), low("cand-2")],
+    ] {
+        let output: VerifyOutput =
+            serde_json::from_value(json!({"verdicts": verdicts, "context_requests": []}))
+                .expect("verdicts");
+        let verified = validate_verdicts(
+            &output,
+            candidates(&reader, &context, 2),
+            &context,
+            &reader,
+            &[],
+            "unit",
+        );
+        assert_eq!(verified.findings.len(), 2, "both reach the merge");
+        assert_eq!(
+            verified.findings[0].fingerprint,
+            verified.findings[1].fingerprint
+        );
+        let merged = merge_overlapping(verified.findings);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].severity, Severity::High);
+    }
+}
+
+#[test]
 fn overlapping_findings_merge_into_the_most_severe() {
     let reader = Reader::new();
     let (context, _) = context(&reader);

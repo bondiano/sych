@@ -109,18 +109,23 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         for &i in assessed {
             let (planned, ob) = (linked[i], format!("ob-{}", i + 1));
             let record = match &assessments {
-                Ok(list) => match list.iter().find(|a| a.obligation_id == ob) {
-                    Some(a) => self.checked(validate_assessment(
-                        a.clone(),
-                        planned,
-                        &ob,
-                        &context,
-                        self.snap,
-                    )),
-                    None => {
-                        not_assessed(planned, "MODEL_FAILED", &format!("{ob} was not assessed"))
+                Ok(list) => {
+                    let mut found = list.iter().filter(|a| a.obligation_id == ob);
+                    match (found.next(), found.next()) {
+                        (Some(a), None) => self.checked(validate_assessment(
+                            a.clone(),
+                            planned,
+                            &ob,
+                            &context,
+                            self.snap,
+                        )),
+                        _ => not_assessed(
+                            planned,
+                            "MODEL_FAILED",
+                            &format!("{ob} has no single assessment"),
+                        ),
                     }
-                },
+                }
                 Err(failure) => failed(planned, failure),
             };
             out.assessments.push(record.assessment.clone());
@@ -248,15 +253,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         }
 
         out.candidates.extend(verified.candidates);
-        for finding in verified.findings {
-            if !out
-                .findings
-                .iter()
-                .any(|f| f.fingerprint == finding.fingerprint)
-            {
-                out.findings.push(finding);
-            }
-        }
+        out.findings.extend(verified.findings);
     }
 
     /// One verifier call over `candidates`: the answered asks and the validated verdicts.

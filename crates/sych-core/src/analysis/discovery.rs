@@ -191,26 +191,42 @@ impl ContextAsk {
         };
         let result = ops.run(&operation);
         let reason = format!("answer to: {}", self.question.replace('\n', " "));
-        let refs = result.refs.iter().take(max_refs).count();
-        for r in result.refs.iter().take(max_refs) {
+        let refs = result.refs.len().min(max_refs);
+        let (mut status, mut limitations) = (result.status, result.limitations);
+        if refs < result.refs.len() {
+            if status == OpStatus::CompleteForQuery {
+                status = OpStatus::Partial;
+            }
+
+            limitations.push(format!("{refs} of {} matches shown", result.refs.len()));
+        }
+
+        for r in &result.refs[..refs] {
             context.add_span(r, &reason, ops.reader);
         }
         // An empty complete answer is evidence too: "nothing reads it" can refute a claim; an
         // incomplete one shows nothing either way.
-        if result.refs.is_empty() {
-            context.blocks.push(DataBlock {
-                label: reason,
-                content: match result.status {
-                    OpStatus::CompleteForQuery => "no matches".to_owned(),
-                    status => format!("no answer ({status:?}): absence is not shown"),
-                },
-            });
+        let mut body = match (refs, status) {
+            (0, OpStatus::CompleteForQuery) => "no matches".to_owned(),
+            (0, status) => format!("no answer ({status:?}): absence is not shown"),
+            (n, OpStatus::CompleteForQuery) => format!("{n} matches shown: the whole answer"),
+            (n, status) => {
+                format!("{n} matches shown ({status:?}): absence of others is not shown")
+            }
+        };
+        for limitation in &limitations {
+            body.push('\n');
+            body.push_str(limitation);
         }
+        context.blocks.push(DataBlock {
+            label: reason,
+            content: body,
+        });
 
         Answered {
-            status: Some(result.status),
+            status: Some(status),
             refs,
-            limitations: result.limitations,
+            limitations,
         }
     }
 }

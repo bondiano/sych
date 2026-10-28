@@ -26,14 +26,16 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
 1. **Assessment** — required ones first, then by descending risk; this is the verification reserve: discovery cannot
    spend the budget the obligations need. If a discovery batch (item 3) shows an obligation's verification packet
    in full (each of its spans lies within the batch spans, nothing required is excluded), the assessment
-   runs in the same call as discovery: `review@5` returns `assessments` and hypotheses, and such calls
-   run first. For a small PR this is one call instead of assessment + discovery. The remaining obligations
-   each get a separate `assessment@4`. An assessment missing from the `review@5` reply is `UNKNOWN/MODEL_FAILED`
-   ("ob-N was not assessed"). An obligation whose verification packet was split into chunks gets one
+   runs in the same call as discovery: `review@5` returns `assessments` and hypotheses. For a small PR this is
+   one call instead of assessment + discovery. The remaining obligations each get a separate `assessment@4`.
+   Combined and separate calls share one queue in that obligation order (a combined call ranks by its most
+   important obligation). An obligation without exactly one assessment in the `review@5` reply is
+   `UNKNOWN/MODEL_FAILED` ("ob-N has no single assessment"); a criterion without exactly one result is `UNKNOWN`. An obligation whose verification packet was split into chunks gets one
    `assessment@4` per chunk; `context_limited` merges them per rule: a violation in any chunk stands, then an
    unknown, then support. The packet holding a required span that fits no chunk (`REQUIRED_OVER_BUDGET`) gets
    no call, and the obligation stays `UNKNOWN/CONTEXT_LIMIT` unless another chunk shows a violation.
-2. **Risk audit** (`risk_audit@5`) — for HIGH/CRITICAL risk obligations, a separate search over the obligation's verification packet.
+2. **Risk audit** (`risk_audit@5`) — for HIGH/CRITICAL risk obligations, a separate search over each chunk of the
+   obligation's verification packet.
    It does not see the discovery output and runs even when discovery is empty; this is not a promise of
    statistical independence of errors.
 3. **Discovery** (`discovery@6`) — over the discovery packets of review units with the list of their obligations. Adjacent

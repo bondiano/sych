@@ -227,8 +227,30 @@ async fn a_review_that_skips_the_assessment_leaves_it_unknown() {
     assert_eq!(reason(&outcome.assessments[0].status), "MODEL_FAILED");
     assert_eq!(
         outcome.record.assessments[0].problems,
-        ["ob-1 was not assessed"]
+        ["ob-1 has no single assessment"]
     );
+}
+
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "scripted answers share the provider signature"
+)]
+fn review_assessing_twice(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
+    let mut violated = supported(request);
+    violated["proposed_status"] = json!("VIOLATED");
+    violated["criterion_results"][0]["status"] = json!("NOT_MET");
+    Ok(reply(
+        &json!({"assessments": [supported(request), violated], "candidates": [],
+            "context_requests": [], "unresolved_questions": []})
+        .to_string(),
+    ))
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_review_that_assesses_an_obligation_twice_leaves_it_unknown() {
+    let (outcome, calls) = run(review_assessing_twice, Budgets::default()).await;
+    assert_eq!(calls[0], "review");
+    assert_eq!(reason(&outcome.assessments[0].status), "MODEL_FAILED");
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -452,4 +474,51 @@ async fn a_pass_denied_beside_an_unsettled_sibling_is_retried() {
     );
     assert_eq!(parallel_calls, sequential_calls);
     assert_eq!(parallel.record.passes.len(), sequential.record.passes.len());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn every_chunk_of_a_split_obligation_gets_its_risk_audit() {
+    // Each file fits a request alone, both together do not: the rule's verification
+    // context becomes one chunk per file.
+    let config = "schema_version: 1\ncontext:\n  initial_tokens_per_unit: 60\n  max_tokens_per_request: 60\n";
+    let (outcome, _) = run_on(
+        repo_with(true, &[(".sych/config.yaml", config)]),
+        supported_and_empty,
+        Budgets::default(),
+        1,
+        true,
+    )
+    .await;
+    let shown = |template: &str| -> Vec<&Vec<usize>> {
+        let passes = outcome.record.passes.iter();
+        passes
+            .filter(|p| p.template.starts_with(template))
+            .map(|p| &p.packets)
+            .collect()
+    };
+    assert_eq!(shown("assessment").len(), 2, "split into two chunks");
+    assert_eq!(shown("risk_audit"), shown("assessment"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_required_standalone_assessment_goes_before_an_optional_combined_review() {
+    // The required rule spans both units, so no single batch shows it whole; the optional
+    // one covers only `lib/` and is assessed inside that unit's review call.
+    let optional = "\n  - id: FORMAT-01\n    version: 1\n    title: Money keeps its sign\n    kind: invariant\n    required: false\n    severity_on_violation: low\n    owner: backend\n    applies_to:\n      paths: [\"lib/**\"]\n    statement: money() keeps the sign of n.\n";
+    let rules = RULES.replace("[\"src/**\"]", "[\"src/**\", \"lib/**\"]") + optional;
+    let mut budgets = Budgets::default();
+    budgets.analysis.max_attempts = Some(1);
+    let (_, calls) = run_on(
+        repo_with(true, &[(".sych/rules.yaml", &rules)]),
+        supported_and_empty,
+        budgets,
+        1,
+        true,
+    )
+    .await;
+    assert_eq!(
+        calls,
+        ["obligation_assessment"],
+        "the one attempt goes to the required rule"
+    );
 }

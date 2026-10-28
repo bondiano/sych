@@ -136,12 +136,13 @@ pub fn validate(
     let mut criteria = Vec::new();
     for (i, criterion) in planned.criteria.iter().enumerate() {
         let id = format!("c-{}", i + 1);
-        let Some(result) = output
+        // A repeated id is a contradiction the reducer could not see; it stays unknown.
+        let mut found = output
             .criterion_results
             .iter()
-            .find(|r| r.criterion_id == id)
-        else {
-            problems.push(format!("CRITERIA_INCOMPLETE: no result for {id}"));
+            .filter(|r| r.criterion_id == id);
+        let (Some(result), None) = (found.next(), found.next()) else {
+            problems.push(format!("CRITERIA_INCOMPLETE: no single result for {id}"));
             criteria.push(CriterionRecord {
                 criterion: criterion.clone(),
                 status: CriterionStatus::Unknown,

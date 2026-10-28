@@ -80,7 +80,7 @@ flowchart TD
 - **Участок:** [verify.rs:166–175,249–259](../crates/sych-core/src/analysis/verify.rs#L166-L175), [passes.rs:250–258](../crates/sych-app/src/analysis/passes.rs#L250-L258), [parts.rs:65–74](../crates/sych-app/src/analysis/parts.rs#L65-L74).
 - **Проблема:** fingerprint зависит от категории и первого anchor, но не severity. Первый finding выигрывает до общего `merge_overlapping`, который как раз умеет выбирать наиболее серьёзный. Одинаковая first-wins политика продублирована в трёх местах.
 - **Проверка:** на реальном pinned Git snapshot два admissible verdicts с одним первым anchor, `LOW → HIGH`, стали `[CONFIRMED, CONFIRMED]`; итоговый список после `merge_overlapping` содержал единственный `LOW`. Для `HIGH` были переданы два anchor и `STATIC_TRACE`.
-- [ ] **Минимальное исправление:** убрать ранние first-wins фильтры и сводить findings существующим severity-aware merge либо централизовать в нём разрешение одинаковых fingerprints. Проверить оба порядка и объединение разных passes.
+- [x] **Минимальное исправление:** убрать ранние first-wins фильтры и сводить findings существующим severity-aware merge либо централизовать в нём разрешение одинаковых fingerprints. Проверить оба порядка и объединение разных passes.
 - **Если оставить:** `[INFERENCE]` при отсутствии отдельной `VIOLATED` obligation значимая проблема может исчезнуть из итоговой recommendation. [Текущий merge test](../crates/sych-core/tests/analysis/verify.rs#L146-L177) использует разные первые anchors и поэтому не ловит дефект.
 
 ### 4. P1 — Повторяющийся criterion ID скрывает противоречивую оценку
@@ -88,7 +88,7 @@ flowchart TD
 - **Участок:** [assess.rs:135–185,280–296](../crates/sych-core/src/analysis/assess.rs#L135-L185); аналогичный выбор первого assessment по `ob-N` есть в [passes.rs:109–127](../crates/sych-app/src/analysis/passes.rs#L109-L127).
 - **Проблема:** для каждого `c-N` берётся первый элемент через `.find`. Проверка неизвестных IDs не проверяет уникальность известных. Второй ответ с `UNKNOWN`, `NOT_MET` или неверными references не участвует в решении.
 - **Проверка:** схемно допустимый `SUPPORTED` с двумя `c-1`: `MET` с настоящим anchor, затем `NOT_MET`, был принят `validate_assessment` как `SUPPORTED`. Полный combined-review случай с повтором `ob-N` отдельно не исполнялся.
-- [ ] **Минимальное исправление:** требовать ровно один результат для каждого ожидаемого criterion и obligation; неоднозначный ответ оставлять `UNKNOWN`. Уже есть подходящий образец проверки cardinality в [verifier](../crates/sych-core/src/analysis/verify.rs#L121-L130).
+- [x] **Минимальное исправление:** требовать ровно один результат для каждого ожидаемого criterion и obligation; неоднозначный ответ оставлять `UNKNOWN`. Уже есть подходящий образец проверки cardinality в [verifier](../crates/sych-core/src/analysis/verify.rs#L121-L130).
 - **Если оставить:** противоречивый model output может закрыть обязательную проверку. Reducer уже не видит отброшенный второй ответ и не может восстановить неопределённость.
 
 ### 5. P1 — `RELEASED` освобождает не только деньги, но и лимит попыток
@@ -128,7 +128,7 @@ flowchart TD
 - **Участок:** [discovery.rs:178–214](../crates/sych-core/src/analysis/discovery.rs#L178-L214), [ops.rs:222–232](../crates/sych-core/src/broker/ops.rs#L222-L232), [analysis MAX_REFS_PER_ANSWER](../crates/sych-app/src/analysis/mod.rs#L31-L32).
 - **Проблема:** broker search может вернуть полный набор до десяти совпадений; `ContextAsk::answer` показывает только первые три, сохраняя исходный status и limitations. Для непустого ответа отдельный блок с полнотой операции вообще не добавляется.
 - **Проверка:** реальный поиск по pinned Git tree вернул четыре refs. В model context попали три, `Answered.status` остался `COMPLETE_FOR_QUERY`, `limitations=[]`.
-- [ ] **Минимальное исправление:** учитывать дополнительное усечение при формировании answer и всегда показывать status/limitations операции. Нельзя использовать неполный показанный набор как доказательство отсутствия; автоматически объявлять весь review partial при любом частичном lookup необязательно.
+- [x] **Минимальное исправление:** учитывать дополнительное усечение при формировании answer и всегда показывать status/limitations операции. Нельзя использовать неполный показанный набор как доказательство отсутствия; автоматически объявлять весь review partial при любом частичном lookup необязательно.
 - **Если оставить:** `[INFERENCE]` скрытый четвёртый caller может менять вывод verifier. Артефакт также создаёт неверное впечатление полноты показанного ответа.
 
 ### 10. P2 — После chunking risk audit проверяет только первый verification packet
@@ -136,7 +136,7 @@ flowchart TD
 - **Участок:** [analysis/mod.rs:251–258,356–363](../crates/sych-app/src/analysis/mod.rs#L251-L258), [audit context](../crates/sych-app/src/analysis/mod.rs#L293-L315), [assessment all-chunks path](../crates/sych-app/src/analysis/passes.rs#L31-L38).
 - **Проблема:** broker умеет делить verification context одной obligation на несколько packets. Assessment обходит все chunks, а risk audit вызывает helper с `.next()` и получает только первый. Это неполное обновление caller при изменении cardinality «один → несколько».
 - **Доказательство:** статическая цепочка от `verification_packets` к `verification_packet` и единственному `audit(index)`. Runtime сценарий с несколькими audit chunks не исполнялся.
-- [ ] **Минимальное исправление:** планировать audit всех verification chunks через существующий механизм; невозможность обработать chunk отражать явно. Нужен сценарий с дефектом только во втором chunk, а не ещё один тест discovery batching.
+- [x] **Минимальное исправление:** планировать audit всех verification chunks через существующий механизм; невозможность обработать chunk отражать явно. Нужен сценарий с дефектом только во втором chunk, а не ещё один тест discovery batching.
 - **Если оставить:** `[INFERENCE]` часть HIGH/CRITICAL obligation не получает заявленный независимый поиск. Пропущенная задача не попадёт в gaps, поскольку вообще не создана.
 
 ### 11. P2 — Combined review выполняется раньше более важного standalone assessment
@@ -145,7 +145,7 @@ flowchart TD
 - **Проблема:** obligations сортируются required-first, но фактическая очередь сначала получает все combined-review tasks в порядке batches и лишь затем standalone assessments. Combined task имеет доступ к полному assessment budget.
 - **Сценарий:** optional local obligation помещается в combined packet; required HIGH obligation на несколько units требует standalone assessment; `max_attempts=1`, `max_parallel_calls=1`. `[INFERENCE]` единственная попытка уходит optional task, required становится `UNKNOWN/BUDGET_EXHAUSTED`.
 - **Доказательство:** порядок построения и исполнения tasks прослежен по исходникам. Такой mixed-task runtime сценарий не запускался. UNKNOWN здесь не теряется: нарушается заявленный приоритет расходования бюджета.
-- [ ] **Минимальное исправление:** сортировать общую очередь assessment-bearing tasks, combined и standalone вместе, по required/risk относящихся к ним obligations.
+- [x] **Минимальное исправление:** сортировать общую очередь assessment-bearing tasks, combined и standalone вместе, по required/risk относящихся к ним obligations.
 - **Если оставить:** при тесном бюджете система проверяет менее важную часть раньше обязательной; корректный механизм reserve не компенсирует неверный порядок задач.
 
 ### 12. P2 — API idempotency не включает идентификатор целевого ресурса
