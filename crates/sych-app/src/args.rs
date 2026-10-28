@@ -94,6 +94,9 @@ pub enum EvalCommands {
     /// Review a labelled quality suite with a real model profile and score it against the
     /// labels; makes paid or quota-counted calls within the configured budgets
     Measure(EvalMeasureArguments),
+    /// Put saved `eval measure` reports of the same cases and config side by side (baselines
+    /// A/B/C, repeats) with the cases whose outcome differs; never calls a model
+    Compare(EvalCompareArguments),
 }
 
 #[derive(Subcommand)]
@@ -334,6 +337,15 @@ pub enum PipelineVariant {
     A,
     B,
     C,
+}
+
+#[derive(clap::Args)]
+pub struct EvalCompareArguments {
+    /// `eval measure` reports, in the order they are shown
+    #[arg(required = true, num_args = 2..)]
+    pub reports: Vec<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
 }
 
 #[derive(clap::Args)]

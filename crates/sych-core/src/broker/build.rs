@@ -120,6 +120,10 @@ pub fn build_packets(input: &BrokerInput<'_>, reader: &dyn SnapshotReader) -> Ve
     let mut state = RunState::default();
     let mut packets = Vec::new();
     for unit in &input.plan.scope.units {
+        if unit.paths.iter().all(|p| generated(input.manifest, p)) {
+            continue;
+        }
+
         let request = request(
             input,
             &[unit],
@@ -192,6 +196,11 @@ fn request(
     }
 }
 
+/// Declared unread by the planner (`GENERATED`): its hunks are never packed as context.
+fn generated(manifest: &DiffManifest, path: &RepoPath) -> bool {
+    file_for(manifest, path).is_some_and(|f| f.generated)
+}
+
 pub(super) fn file_for<'a>(manifest: &'a DiffManifest, path: &RepoPath) -> Option<&'a FileChange> {
     manifest.files.iter().find(|f| {
         f.new
@@ -227,7 +236,7 @@ fn packet(
         .collect();
     let mut requests = 0;
     for path in units.iter().flat_map(|u| &u.paths) {
-        let Some(file) = file_for(input.manifest, path) else {
+        let Some(file) = file_for(input.manifest, path).filter(|f| !f.generated) else {
             continue;
         };
         for side in [SourceSide::DiffBase, SourceSide::Head] {

@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 
 use sych_core::broker::{
     BrokerInput, EvidencePacket, Limits, OpStatus, Operation, Ops, PacketResolution, Priority,
-    REQUIRED_OVER_BUDGET, Relation, SymbolRef, build_packets, context_gaps, context_limited,
+    Purpose, REQUIRED_OVER_BUDGET, Relation, SymbolRef, build_packets, context_gaps,
+    context_limited,
 };
 use sych_core::config::{PolicyFiles, RepositoryPolicy, ServerConfig};
 use sych_core::effects::EffectLedger;
@@ -366,6 +367,38 @@ fn construct_absorbs_the_hunk_and_links_caller_and_test() {
     assert_eq!(
         discovery.usage.semantic_items, 4,
         "the not-applicable query costs nothing"
+    );
+}
+
+#[test]
+fn a_generated_file_is_never_packed_or_reported_over_budget() {
+    let mut generated = manifest();
+    generated.files[0].generated = true;
+    let (plan, packets) = run_on(
+        &generated,
+        limits(),
+        &[],
+        &[],
+        &EffectLedger::default(),
+        &[],
+    );
+    assert!(plan.scope.excluded.iter().any(|e| e.reason == "GENERATED"));
+    assert!(
+        packets
+            .iter()
+            .all(|p| p.request.purpose != Purpose::Discovery),
+        "a unit of generated files only gets no discovery packet"
+    );
+    assert!(
+        packets
+            .iter()
+            .flat_map(|p| p
+                .fragments
+                .iter()
+                .map(|f| &f.code_ref)
+                .chain(p.excluded.iter().map(|e| &e.code_ref)))
+            .all(|r| r.path != path("src/store.rs")),
+        "no hunk of it is shown or left over budget"
     );
 }
 
