@@ -305,3 +305,42 @@ async fn ledger_survives_reopen() {
         .expect("ledger");
     assert!(matches!(denied, Err(Denied::Money { .. })));
 }
+
+#[tokio::test]
+async fn a_follow_up_cap_is_per_session() {
+    let (_dir, storage, run) = setup().await;
+    let caps = Limits {
+        run: Budget {
+            max_cost_micro_usd: Some(MicroUsd(500)),
+            ..Budget::default()
+        },
+        daily_money: None,
+        monthly_money: Some(MicroUsd(10_000)),
+    };
+    let ask = || Reservation {
+        purpose: Purpose::Followup,
+        ..reservation(run, 400)
+    };
+    let reserve = |r: Reservation, scope: Option<&'static str>| {
+        let storage = &storage;
+        async move {
+            storage
+                .reserve_scoped(&r, &caps, scope)
+                .await
+                .expect("ledger")
+        }
+    };
+    assert_eq!(reserve(ask(), Some("followup:t:a")).await, Ok(()));
+    let spent = reserve(ask(), Some("followup:t:a")).await;
+    assert!(matches!(spent, Err(Denied::Money { .. })), "{spent:?}");
+    assert_eq!(
+        reserve(ask(), Some("followup:t:b")).await,
+        Ok(()),
+        "another reader's session has its own cap"
+    );
+    assert_eq!(
+        reserve(reservation(run, 400), None).await,
+        Ok(()),
+        "analysis spends outside every session"
+    );
+}

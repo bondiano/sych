@@ -34,6 +34,9 @@ pub enum Commands {
     /// Generate a guided tour of a saved run with a model profile and store it; never reviews
     /// again. `tour show|reveal|complete|dismiss` read a stored one without a model
     Tour(TourArguments),
+    /// Ask about one stop of a stored tour: a comprehension question calls the model under the
+    /// session's own follow-up budget; the answer is private and never evidence
+    Ask(AskArguments),
     /// Harness evaluation against fixtures
     #[command(subcommand)]
     Eval(EvalCommands),
@@ -338,6 +341,35 @@ pub struct TourRevealArguments {
     pub tour: TourRef,
     #[arg(long)]
     pub step: String,
+}
+
+#[derive(clap::Args)]
+pub struct AskArguments {
+    #[command(flatten)]
+    pub tour: TourRef,
+    #[arg(long)]
+    pub step: String,
+    /// The question; for `fact-request`, your own statement of the missing fact
+    #[arg(long)]
+    pub question: String,
+    #[arg(long, value_enum, default_value = "comprehension")]
+    pub kind: AskKind,
+    /// The repository the run reviewed: code is read from its pinned blobs
+    #[arg(long, default_value = ".")]
+    pub repo: PathBuf,
+    /// `roles` or one model profile; follow-up has its own budget (`budgets.followup_session`)
+    #[arg(long, value_parser = ModelSelection::parse, default_value = "roles")]
+    pub models: ModelSelection,
+}
+
+/// Spec §21.6: only a comprehension question calls the model.
+#[derive(Clone, Copy, clap::ValueEnum)]
+pub enum AskKind {
+    Comprehension,
+    /// Records your statement with author and time; it is not evidence
+    FactRequest,
+    /// A scoped waiver; refused locally, it is the repository owner's on the server
+    RiskDecision,
 }
 
 #[derive(clap::Args)]

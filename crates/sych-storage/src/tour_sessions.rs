@@ -2,6 +2,7 @@
 //! session is one actor's row; nothing here touches the tour artifact or the result.
 
 use sqlx::Row;
+use sych_core::analysis::followup::Exchange;
 use sych_core::tour::{SessionState, TourSession};
 use sych_core::{RunId, Timestamp, TourId};
 
@@ -116,5 +117,49 @@ impl Storage {
         .execute(self.pool())
         .await?;
         Ok(())
+    }
+
+    /// One exchange of a session; only its actor reads it back.
+    pub async fn add_exchange(
+        &self,
+        tenant_id: &str,
+        run: RunId,
+        exchange: &Exchange,
+    ) -> Result<(), StorageError> {
+        sqlx::query(
+            "INSERT INTO tour_exchanges (id, tenant_id, tour_id, actor, run_id, body, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&exchange.id)
+        .bind(tenant_id)
+        .bind(exchange.tour_id.to_string())
+        .bind(&exchange.actor)
+        .bind(run.to_string())
+        .bind(serde_json::to_string(exchange)?)
+        .bind(exchange.at.as_second())
+        .execute(self.pool())
+        .await?;
+        Ok(())
+    }
+
+    /// The actor's own exchanges on a tour, oldest first; never another actor's.
+    pub async fn exchanges(
+        &self,
+        tenant_id: &str,
+        tour: TourId,
+        actor: &str,
+    ) -> Result<Vec<Exchange>, StorageError> {
+        let rows = sqlx::query(
+            "SELECT body FROM tour_exchanges WHERE tenant_id = ? AND tour_id = ? AND actor = ?
+             ORDER BY created_at, id",
+        )
+        .bind(tenant_id)
+        .bind(tour.to_string())
+        .bind(actor)
+        .fetch_all(self.pool())
+        .await?;
+        rows.iter()
+            .map(|r| Ok(serde_json::from_str(&r.get::<String, _>(0))?))
+            .collect()
     }
 }

@@ -71,6 +71,26 @@ sych tour complete --run RUN    # or: sych tour dismiss --run RUN
   the tour artifact, the result, its recommendation, obligations or a waiver, and progress and answers are never
   published to the PR.
 
+### Asking about a stop
+
+```sh
+sych ask --run RUN --step stop-1 --question "What happens on a retry?" --config sych.yaml [--repo .] [--models PROFILE]
+sych ask --run RUN --step stop-1 --kind fact-request --question "The consumer deduplicates by order id"
+```
+
+- `comprehension` (the default) calls the model under `budgets.followup_session`, counted per session (tour and reader),
+  apart from the run's analysis and tour budgets. It sees the stop's code, the review's statements about the stop and
+  the overview, and may ask for one round of typed context queries; never the whole repository or anyone else's
+  questions. With the budget spent, `ask` exits 3 and records nothing.
+- The answer is an explanation, not evidence. A defect it claims that the review did not report is a hypothesis: it goes
+  through the regular verifier and is shown as `CONFIRMED | REJECTED | UNRESOLVED`, but it never becomes a finding of
+  this review or a comment; a rerun reviews the code again.
+- `fact-request` records your own statement with author and time and calls no model; it is not evidence and does not
+  change an accepted requirement.
+- `risk-decision` is refused locally (exit 4): a scoped waiver is the repository owner's decision, made on the server
+  (`POST /v1/waivers`) or in the accepted `.sych/rules.yaml`, and it never rewrites `UNKNOWN` or `VIOLATED`.
+- Your questions and replies are private to your session; `sych tour show` lists them again without a model.
+
 ## Fake responses
 
 Without `--fake-responses` the fake adapter assesses nothing: applicable obligations stay `UNKNOWN/NOT_ASSESSED`.

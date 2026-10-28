@@ -466,3 +466,11 @@ The stored tour is read by `sych tour show|reveal|complete|dismiss` (M5.2, [LOCA
 no model, a personal session, `STALE` on a moved head, "source unavailable" once the source is pruned. The server
 serves the same tour and a session per API client at `/v1/runs/:id/tour` ([SERVER.md](SERVER.md)), with `code_refs`
 instead of source text.
+
+**Follow-up (M5.3)** — `sych ask` ([LOCAL_REVIEW.md](LOCAL_REVIEW.md#asking-about-a-stop)): `followup@1`, role reviewer,
+`Purpose::Followup` with the ledger scope `followup:<tour>:<actor>`, so `budgets.followup_session` caps one session
+(`model_attempts.scope`) while the tenant day and month pools stay shared. The prompt holds the stop's spans, the
+review's findings and obligations of the stop and the overview; context requests are answered once through the broker's
+typed operations (`ContextAsk::answer`, shared with analysis). Hypotheses pass the discovery checks and then the regular
+verifier (`verify@5`, role verifier) under the same session budget; they stay in the exchange (`tour_exchanges`, one
+actor's rows) and never reach the `ReviewResult`, the `TourArtifact` or a publication.

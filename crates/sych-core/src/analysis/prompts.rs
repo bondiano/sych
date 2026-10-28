@@ -40,7 +40,7 @@ fn criteria_text(obligation: &PlannedObligation) -> String {
     criteria
 }
 
-const CANDIDATES_CONTRACT: &str = "Each candidate has category (DEFECT, RULE_VIOLATION, \
+pub(super) const CANDIDATES_CONTRACT: &str = "Each candidate has category (DEFECT, RULE_VIOLATION, \
     IMPROVEMENT, NIT), claim, conditions, causal_chain, consequence, anchors, evidence_ids, \
     obligation_ids (ob-N or empty), proposed_severity and disproof_question. A context request \
     has a concrete question and one typed operation (read_lines, find_references, find_callers, \
@@ -70,7 +70,7 @@ const ANCHORS: &str = "Anchors name a handed-out span and lines inside it: \
     least one anchor; one without anchors is discarded. Evidence ids are the `ev-N` listed in \
     the task. Use no other ids, paths or hashes.";
 
-fn shared_rules(context: &Context) -> Vec<String> {
+pub(super) fn shared_rules(context: &Context) -> Vec<String> {
     [
         "Claims must follow from the shown source; say UNKNOWN or leave a question when they do not.",
         "Do not claim that any test, build or command was run; nothing was executed.",
@@ -121,7 +121,7 @@ fn obligations_text(obligations: &[&PlannedObligation]) -> String {
 /// shortcut: a contract is cut at a fixed size; give it its own budgeted span when contracts grow.
 const CONTRACT_BYTES: usize = 4000;
 
-fn task(intro: &str, context: &Context, rest: &str) -> String {
+pub(super) fn task(intro: &str, context: &Context, rest: &str) -> String {
     format!(
         "{intro}\n\n# Evidence ids\n{}\n{rest}",
         context.evidence_index()

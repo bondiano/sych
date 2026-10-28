@@ -12,6 +12,7 @@ pub mod ci;
 pub mod config;
 pub mod eval;
 pub mod fake;
+pub mod followup;
 pub mod output;
 pub mod probe;
 pub mod quality;

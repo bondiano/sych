@@ -9,6 +9,7 @@ use std::process::ExitCode;
 
 use serde::Serialize;
 use sych_adapters::git::{Git, LocalSnapshot};
+use sych_core::analysis::followup::{Exchange, Reply};
 use sych_core::tour::{self, SessionState, TourArtifact, TourSession, TourStep};
 use sych_core::{ComparisonMode, RunId, SnapshotReader, SourceSnapshot, Timestamp, TourId};
 use sych_storage::{Storage, StorageError, TENANT_LOCAL, tour_role};
@@ -20,7 +21,7 @@ use crate::snapshot;
 use crate::storage::{block_on, load_store_config, saved_report};
 
 /// The only reader of a local store.
-const LOCAL_ACTOR: &str = "local";
+pub(crate) const LOCAL_ACTOR: &str = "local";
 
 #[derive(Serialize)]
 struct Shown {
@@ -31,6 +32,8 @@ struct Shown {
     stale: bool,
     /// Locations whose source was pruned or garbage-collected.
     source_unavailable: Vec<String>,
+    /// This reader's own questions and replies, read back without a model.
+    exchanges: Vec<Exchange>,
 }
 
 #[derive(Serialize)]
@@ -41,14 +44,14 @@ struct Revealed<'a> {
     session: &'a TourSession,
 }
 
-fn run_id(text: &str) -> anyhow::Result<RunId> {
+pub(crate) fn run_id(text: &str) -> anyhow::Result<RunId> {
     Ok(RunId(text.parse().map_err(|_| {
         Failure::invalid(format!("`{text}` is not a run id"))
     })?))
 }
 
 /// The tour and this reader's session (a new one when absent), read from the store.
-async fn load(
+pub(crate) async fn load(
     storage: &Storage,
     run: RunId,
     r: &TourRef,
@@ -111,7 +114,10 @@ pub fn run(action: &TourCommands) -> anyhow::Result<ExitCode> {
 }
 
 /// The run's snapshot re-read from `repo` at its pinned commits, when it still can be.
-fn pinned(report_snapshot: Option<&SourceSnapshot>, repo: &Path) -> Option<LocalSnapshot> {
+pub(crate) fn pinned(
+    report_snapshot: Option<&SourceSnapshot>,
+    repo: &Path,
+) -> Option<LocalSnapshot> {
     let saved = report_snapshot?;
     snapshot::capture(&Comparison {
         repo: repo.to_owned(),
@@ -127,6 +133,15 @@ fn pinned(report_snapshot: Option<&SourceSnapshot>, repo: &Path) -> Option<Local
 fn show(r: &TourRef, repo: &Path, brief: bool) -> anyhow::Result<ExitCode> {
     let report = saved_report(r.config.as_deref(), &r.run)?;
     let (t, session, ()) = with_session(r, |_, s| Ok((s, ())))?;
+    let store = load_store_config(r.config.as_deref())?;
+    let exchanges = block_on(async {
+        let storage = Storage::open(&store).await?;
+        anyhow::Ok(
+            storage
+                .exchanges(TENANT_LOCAL, t.tour_id, LOCAL_ACTOR)
+                .await?,
+        )
+    })??;
     let snap = pinned(report.snapshot.as_ref(), repo);
     let head = Git::open(repo)
         .and_then(|g| g.stdout(["rev-parse", "HEAD"]))
@@ -162,11 +177,26 @@ fn show(r: &TourRef, repo: &Path, brief: bool) -> anyhow::Result<ExitCode> {
             write_step(&mut text, step, reader, &mut source_unavailable);
         }
     }
+    if !brief && !exchanges.is_empty() {
+        let _ = writeln!(text, "## Your questions (private, not evidence)\n");
+        for e in &exchanges {
+            let reply = match &e.reply {
+                Reply::Explanation { text, .. } | Reply::HumanStatement { text } => text,
+            };
+            let _ = writeln!(
+                text,
+                "- {} {:?}: {}\n  {reply}",
+                e.step_id, e.kind, e.question
+            );
+        }
+    }
+
     let out = Shown {
         tour: tour::for_session(t, &session),
         session,
         stale,
         source_unavailable,
+        exchanges,
     };
     emit_as(&out, || text, &r.out)?;
     Ok(ExitCode::SUCCESS)

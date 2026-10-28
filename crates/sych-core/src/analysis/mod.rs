@@ -5,6 +5,7 @@
 mod assess;
 mod context;
 mod discovery;
+pub mod followup;
 pub mod prompts;
 pub mod tour_prompt;
 mod verify;
@@ -15,8 +16,8 @@ pub use assess::{
 };
 pub use context::{Anchor, Context, packet_evidence};
 pub use discovery::{
-    AskOperation, CANDIDATE_OVERFLOW, CandidateDraft, ContextAsk, Discovered, DiscoveryOutput,
-    MAX_CONTEXT_ASKS, RejectedDraft, ReviewOutput, context_asks, obligation_id,
+    Answered, AskOperation, CANDIDATE_OVERFLOW, CandidateDraft, ContextAsk, Discovered,
+    DiscoveryOutput, MAX_CONTEXT_ASKS, RejectedDraft, ReviewOutput, context_asks, obligation_id,
     validate as validate_discovery,
 };
 pub use verify::{

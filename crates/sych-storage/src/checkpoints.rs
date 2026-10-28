@@ -23,6 +23,7 @@ pub struct RunLedger<'a> {
     run: &'a RunHandle,
     now: fn() -> Timestamp,
     lost: RefCell<Option<String>>,
+    scope: Option<String>,
 }
 
 impl<'a> RunLedger<'a> {
@@ -32,6 +33,16 @@ impl<'a> RunLedger<'a> {
             run,
             now,
             lost: RefCell::default(),
+            scope: None,
+        }
+    }
+
+    /// Run caps count only the attempts of `scope` (one follow-up session).
+    #[must_use]
+    pub fn scoped(self, scope: String) -> Self {
+        Self {
+            scope: Some(scope),
+            ..self
         }
     }
 }
@@ -46,7 +57,10 @@ impl Ledger for RunLedger<'_> {
             return Err(LedgerError(reason));
         }
 
-        Ledger::reserve(self.storage, reservation, limits).await
+        self.storage
+            .reserve_scoped(reservation, limits, self.scope.as_deref())
+            .await
+            .map_err(|e| LedgerError(e.to_string()))
     }
 
     async fn settle(

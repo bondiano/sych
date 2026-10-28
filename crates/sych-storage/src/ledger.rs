@@ -46,6 +46,17 @@ impl Storage {
         r: &Reservation,
         limits: &Limits,
     ) -> Result<Result<(), Denied>, StorageError> {
+        self.reserve_scoped(r, limits, None).await
+    }
+
+    /// [`Self::reserve_attempt`] whose run caps count only the attempts of `scope`, e.g. one
+    /// follow-up session; the tenant day and month pools stay shared.
+    pub async fn reserve_scoped(
+        &self,
+        r: &Reservation,
+        limits: &Limits,
+        scope: Option<&str>,
+    ) -> Result<Result<(), Denied>, StorageError> {
         let day = utc(r.at, "%Y-%m-%d");
         let month = utc(r.at, "%Y-%m");
         let billing = tag(&r.route.billing)?;
@@ -53,10 +64,10 @@ impl Storage {
         // Only the constant expressions above are interpolated; values are bound.
         let row = sqlx::query(AssertSqlSafe(format!(
             "SELECT
-                 coalesce(sum(run_id = ?1 AND purpose = ?2 AND state <> 'RELEASED'), 0),
-                 coalesce(sum(CASE WHEN run_id = ?1 AND purpose = ?2 THEN {MONEY} END), 0),
-                 coalesce(sum(CASE WHEN run_id = ?1 AND purpose = ?2 THEN {INPUT} END), 0),
-                 coalesce(sum(CASE WHEN run_id = ?1 AND purpose = ?2 THEN {OUTPUT} END), 0),
+                 coalesce(sum(run_id = ?1 AND purpose = ?2 AND scope IS ?8 AND state <> 'RELEASED'), 0),
+                 coalesce(sum(CASE WHEN run_id = ?1 AND purpose = ?2 AND scope IS ?8 THEN {MONEY} END), 0),
+                 coalesce(sum(CASE WHEN run_id = ?1 AND purpose = ?2 AND scope IS ?8 THEN {INPUT} END), 0),
+                 coalesce(sum(CASE WHEN run_id = ?1 AND purpose = ?2 AND scope IS ?8 THEN {OUTPUT} END), 0),
                  coalesce(sum(CASE WHEN day = ?3 THEN {MONEY} END), 0),
                  coalesce(sum({MONEY}), 0),
                  coalesce(max(provider = ?6 AND billing_kind = ?7 AND billing_mismatch = 1), 0)
@@ -69,6 +80,7 @@ impl Storage {
         .bind(&month)
         .bind(&r.route.provider)
         .bind(tag(&BillingKind::SubscriptionQuota)?)
+        .bind(scope)
         .fetch_one(&mut *tx)
         .await?;
         let fees = sqlx::query(
@@ -119,8 +131,9 @@ impl Storage {
         sqlx::query(
             "INSERT INTO model_attempts (id, tenant_id, run_id, purpose, kind, template, profile,
                  provider, requested_model, billing_kind, enforcement, day, month,
-                 reserved_micro_usd, input_tokens_bound, output_tokens_bound, state, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RESERVED', ?)",
+                 reserved_micro_usd, input_tokens_bound, output_tokens_bound, state, created_at,
+                 scope)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RESERVED', ?, ?)",
         )
         .bind(r.attempt_id.to_string())
         .bind(&r.tenant_id)
@@ -139,6 +152,7 @@ impl Storage {
         .bind(int(r.input_tokens))
         .bind(opt(r.output_tokens))
         .bind(r.at.as_second())
+        .bind(scope)
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;
