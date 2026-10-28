@@ -122,11 +122,12 @@ fn request_error(e: &RequestError) -> ApiError {
 }
 
 /// Runs a mutating handler once per `Idempotency-Key`; a repeat replays the stored answer and a
-/// reused key with another body is 409.
+/// reused key with another target `resource` (the path parameters) or body is 409.
 pub(super) async fn idempotent<F, Fut>(
     app: &App,
     caller: &Caller,
     endpoint: &'static str,
+    resource: &str,
     headers: &HeaderMap,
     body: &[u8],
     handle: F,
@@ -151,7 +152,7 @@ where
         caller.0.name.as_str(),
         endpoint,
     );
-    let digest = sha256(body).to_string();
+    let digest = sha256(&[resource.as_bytes(), b"\0", body].concat()).to_string();
     match app
         .storage
         .idempotency_begin(scope, key, &digest, now(app))
@@ -161,7 +162,7 @@ where
         Idempotency::Conflict => Err(status(
             StatusCode::CONFLICT,
             "IDEMPOTENCY_CONFLICT",
-            "the key was used with another body",
+            "the key was used with another resource or body",
         )),
         Idempotency::InProgress => Err(status(
             StatusCode::CONFLICT,
@@ -226,6 +227,7 @@ pub async fn create_review(
         &app,
         &caller,
         "POST /v1/reviews",
+        "",
         &headers,
         &body,
         || async {
@@ -335,6 +337,7 @@ pub async fn cancel_run(
         &app,
         &caller,
         "POST /v1/runs/:id/cancel",
+        &id,
         &headers,
         &body,
         || async {
@@ -385,6 +388,7 @@ pub async fn rerun(
         &app,
         &caller,
         "POST /v1/changes/:id/reruns",
+        &id.to_string(),
         &headers,
         &body,
         || async {
@@ -442,6 +446,7 @@ pub async fn feedback(
         &app,
         &caller,
         "POST /v1/findings/:id/feedback",
+        &id.to_string(),
         &headers,
         &body,
         || async {
@@ -551,6 +556,7 @@ pub async fn waiver(
         &app,
         &caller,
         "POST /v1/waivers",
+        "",
         &headers,
         &body,
         || async {

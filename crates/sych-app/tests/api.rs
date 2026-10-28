@@ -219,6 +219,20 @@ async fn cancellation_stops_active_runs_and_keeps_committed_ones() {
     )
     .await;
     let active = second["run_id"].as_str().expect("run").to_owned();
+    let (status, reused) = call(
+        &url,
+        "POST",
+        &format!("/v1/runs/{active}/cancel"),
+        Some("writer"),
+        Some("c1"),
+        &json!({}),
+    )
+    .await;
+    assert_eq!(
+        (status, reused["error"]["code"].as_str()),
+        (StatusCode::CONFLICT, Some("IDEMPOTENCY_CONFLICT")),
+        "a key never replays the answer about another run: {reused}"
+    );
     let (status, cancelled) = call(
         &url,
         "POST",

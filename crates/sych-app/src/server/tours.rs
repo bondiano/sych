@@ -164,7 +164,8 @@ async fn change_session(
     let run_view = visible_run(app, caller, id).await?;
     let run = run_of(&run_view)?;
     let tour = tour_id(app, caller, run, Some(tour)).await?;
-    idempotent(app, caller, endpoint, headers, body, || async {
+    let resource = format!("{id}/{tour}");
+    idempotent(app, caller, endpoint, &resource, headers, body, || async {
         let (t, session) = open(app, caller, run, tour).await?;
         let session = change(&t, session)?;
         app.storage
