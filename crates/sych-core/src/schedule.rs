@@ -4,6 +4,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::config::CheckRequest;
 use crate::scm::ScmErrorKind;
 
 /// Default CI wait before a run continues with gaps (spec §17.1).
@@ -37,6 +38,9 @@ pub struct RunInputs {
     /// An advisory check run is published too; off by default (spec §18.7).
     #[serde(default)]
     pub checks: bool,
+    /// Execution profiles the request asked for; empty runs every allowed one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub targeted: Vec<CheckRequest>,
 }
 
 impl RunInputs {
@@ -130,6 +134,7 @@ pub fn decide(
         trigger,
         publish: false,
         checks: false,
+        targeted: Vec::new(),
     };
     if !state.open {
         let reason = if state.merged { "MERGED" } else { "CLOSED" };
@@ -236,6 +241,7 @@ mod tests {
                 trigger: Trigger::Changed,
                 publish: false,
                 checks: false,
+                targeted: Vec::new(),
             },
             active,
             frozen,

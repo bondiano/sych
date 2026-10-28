@@ -33,14 +33,20 @@ is rejected without printing the value itself.
   (`memory_mb` 2048, `cpu_millis` 2000, `pids` 512 by default). A request can only pick listed values and cannot add
   arguments; neither the model nor the repository writes a command line.
 
-  When enabled, every allowed profile runs once per review on the pinned head: the head is materialized into a fresh
+  When enabled, every allowed profile runs once per review without parameters, unless the review request names
+  checks: `checks: [{profile, params}]` in `POST /v1/reviews` or `sych review --check PROFILE[:PARAM=VALUE,...]`
+  (repeatable) runs only those, each argv still built by the server's profile; a check is named `<profile>{"<param>":"<value>",…}`
+  in its job, gaps and runner. A new generation from a push or a
+  rerun takes no checks and runs every allowed profile; a successor for CI that arrived after the freeze keeps its
+  parent's checks. A check runs on the pinned head: the head is materialized into a fresh
   workspace (secrets, symlinks, submodules and tool configs left out), mounted as the only volume of a docker
   container with `--network none`, `--cap-drop ALL`, `--read-only`, no-new-privileges and the limits; the environment
   carries no Sych secret. Docker is the only backend for repository code. The stdout is imported as a CI report bound
-  to the head (`TrustClass::DerivedLocal`, binding `ENVIRONMENT`, runner `<profile> in <image>`); a non-zero exit is a
+  to the head (`TrustClass::DerivedLocal`, binding `ENVIRONMENT`, runner `<check> in <image>`, the check named as above); a non-zero exit is a
   result, not an error. A refused (`disabled`, `not allowed`, `missing` or `invalid` parameter) or failed run is a
-  task gap `EXECUTION_REFUSED` / `EXECUTION_FAILED`, never a passed check. No request supplies parameters yet, so a
-  profile with choices is refused as missing them.
+  task gap `EXECUTION_REFUSED` / `EXECUTION_FAILED`, never a passed check; a profile with choices that runs without a
+  request is refused as missing them. A quality eval case may carry its own `execution: {profiles, checks}`, used
+  instead of the suite config's and validated by `sych eval validate`.
 
   A failure/retry/cancel/unmount check prints `sych_manifest` with `assertions: [{name, expected: [event], observed:
   [event]}]`: an assertion passes only when the recorded event order equals the expected one; without `observed` it is

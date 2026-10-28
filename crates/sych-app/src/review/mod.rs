@@ -111,7 +111,11 @@ fn derived_facts(
     let mut ci = ci::import(snap, &args.ci_facts, args.ci_manifest.as_deref())?;
     ci.extend(args.ci_imported.iter().cloned());
     // Off unless the server allows profiles; a refused or failed check is a task gap.
-    let (executed, refused) = execution::run_profiles(snap, &effective.server.execution);
+    let profiles = args
+        .execution
+        .as_ref()
+        .unwrap_or(&effective.server.execution);
+    let (executed, refused) = execution::run_profiles(snap, profiles, &args.checks);
     ci.extend(executed);
     let ci_gaps = args
         .ci_gaps

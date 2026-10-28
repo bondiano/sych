@@ -17,7 +17,9 @@ use std::process::ExitCode;
 use serde::{Deserialize, Serialize};
 use sych_adapters::git::LocalSnapshot;
 use sych_adapters::syntax;
-use sych_core::config::{RepositoryPolicy, ServerConfig};
+use sych_core::config::{
+    CheckRequest, Execution, ExecutionProfile, RepositoryPolicy, ServerConfig,
+};
 use sych_core::{RepoPath, SchemaVersion, SourceSide, SyntaxFacts, SyntaxKind};
 use tempfile::TempDir;
 
@@ -118,6 +120,26 @@ struct RepositoryFixture {
     head_ref: String,
 }
 
+/// Targeted checks of one case: its own profiles, all allowed, instead of the suite config's.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CaseExecution {
+    profiles: BTreeMap<String, ExecutionProfile>,
+    /// Requested runs with their parameters; empty runs every profile without parameters.
+    #[serde(default)]
+    checks: Vec<CheckRequest>,
+}
+
+impl CaseExecution {
+    fn config(&self) -> Execution {
+        Execution {
+            enabled: true,
+            allowed_profiles: self.profiles.keys().cloned().collect(),
+            profiles: self.profiles.clone(),
+        }
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct QualityCase {
@@ -136,6 +158,8 @@ struct QualityCase {
     repository_fixture: Option<RepositoryFixture>,
     /// CI reports by file name, bound to the case head.
     ci: Option<BTreeMap<String, String>>,
+    /// Execution profiles run on the case head (docker), bound like CI reports.
+    execution: Option<CaseExecution>,
     expected: Expected,
 }
 
@@ -170,6 +194,22 @@ fn label_problems(case: &QualityCase) -> Vec<String> {
 
     if case.profiles.is_empty() {
         out.push("no review profiles".into());
+    }
+
+    if let Some(x) = &case.execution {
+        let config = x.config();
+        out.extend(
+            config
+                .problems()
+                .into_iter()
+                .map(|(field, message)| format!("{field}: {message}")),
+        );
+        out.extend(
+            x.checks
+                .iter()
+                .filter_map(|c| config.command(&c.profile, &c.params).err())
+                .map(|e| format!("execution.checks: {e}")),
+        );
     }
 
     let defects = e.findings.iter().filter(|f| f.category == "defect").count();
