@@ -12,6 +12,7 @@ use sych_core::{
     is_secret_path, line_range, sha256,
 };
 
+use super::attributes::mark_generated;
 use super::parse::{self, RawEntry};
 use super::policy::read_policy_files;
 use super::reader::BlobCache;
@@ -86,6 +87,7 @@ impl LocalSnapshot {
             .map(|entry| file_change(&git, algorithm, entry, request.max_blob_bytes))
             .collect::<Result<Vec<_>, _>>()?;
         files.sort_by(|a, b| sort_key(a).cmp(sort_key(b)));
+        mark_generated(&git, &trees.target_tip, &mut files)?;
 
         let manifest = DiffManifest {
             schema_version: SchemaVersion,

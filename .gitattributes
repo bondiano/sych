@@ -2,3 +2,4 @@
 *.docx binary
 schemas/*.schema.json linguist-generated=true
 schemas/openapi.json linguist-generated=true
+docs/examples/**/*.json linguist-generated=true
