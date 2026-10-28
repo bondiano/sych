@@ -1,5 +1,6 @@
 //! Local Git snapshot service (spec §6).
 
+mod attributes;
 mod command;
 mod fetch;
 mod parse;

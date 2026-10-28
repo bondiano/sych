@@ -310,6 +310,41 @@ fn same_inputs_give_the_same_snapshot_id() {
 }
 
 #[test]
+fn linguist_generated_comes_from_the_target_tip_only() {
+    let dir = repo();
+    let d = dir.path();
+    write(
+        d,
+        ".gitattributes",
+        b"data/*.json linguist-generated=true\n",
+    );
+    commit(d, "base");
+    git(d, &["checkout", "-q", "-b", "feature"]);
+    write(
+        d,
+        ".gitattributes",
+        b"data/*.json linguist-generated=true\nsrc/*.rs linguist-generated\n",
+    );
+    write(d, "data/report.json", b"{}\n");
+    write(d, "src/lib.rs", b"pub fn hidden() {}\n");
+    commit(d, "feature");
+    let snap = capture(d, "main", "feature", None).expect("snapshot");
+    let generated = |p: &str| {
+        snap.manifest
+            .files
+            .iter()
+            .find(|f| f.new.as_ref().is_some_and(|s| s.path == path(p)))
+            .expect(p)
+            .generated
+    };
+    assert!(generated("data/report.json"));
+    assert!(
+        !generated("src/lib.rs"),
+        "the change's own attributes are not trusted"
+    );
+}
+
+#[test]
 fn no_op_change_has_an_explicit_empty_manifest() {
     let dir = repo();
     write(dir.path(), "a.txt", b"a\n");

@@ -18,6 +18,9 @@ sych explain --run RUN_ID --obligation EFFECT-01 --format markdown
 
 - `--base` is the target ref: policy is taken only from its tip, and the diff is computed from the `merge-base`; `--diff-base` sets
   an exact two-dot comparison.
+- A changed file is not read, but stays in scope as excluded `GENERATED`, when its first kilobyte carries a marker
+  (`@generated`, `DO NOT EDIT`, `Code generated`) or the target tip's `.gitattributes` sets `linguist-generated` for it.
+  As with policy, a change's own `.gitattributes` does not count, so a change cannot hide its code from review.
 - `--format json|markdown` (JSON by default); `--output PATH` writes a file and creates the directory, otherwise stdout.
 - `--semantic on|off` (`on` by default): for Rust, TS/JS, Go and Python (ty) files, pinned language
   servers; the same switch runs the pinned linters ruff, oxlint, sqruff (SQL), mago (PHP), jarl (R), clj-kondo (Clojure), actionlint and
