@@ -1,3 +1,7 @@
 {"schema_version": 1,
  "commands": [{"name": "cargo test --all-features", "exit_code": 101}],
- "tests": [{"name": "saves", "suite": "store", "file": "tests/lib_test.rs", "status": "PASSED", "message": null}]}
+ "tests": [{"name": "saves", "suite": "store", "file": "tests/lib_test.rs", "status": "PASSED", "message": null}],
+ "assertions": [
+  {"name": "retry after crash", "expected": ["attempt", "crash", "attempt", "publish"], "observed": ["attempt", "crash", "attempt", "publish"]},
+  {"name": "publish after commit", "expected": ["commit", "publish"], "observed": ["publish", "commit"]},
+  {"name": "cancel unmounts", "expected": ["cancel", "unmount"]}]}

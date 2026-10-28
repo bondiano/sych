@@ -1,8 +1,8 @@
 //! Targeted checks (spec §22.4, roadmap M3.8): off by default. When an admin enables it, a
 //! command comes only from an approved profile, an absolute executable with arguments that
 //! are literals or a choice from a closed list; neither the model nor the repository writes
-//! a command line. This module is the authorization boundary; no runner ships yet, so
-//! existing CI reports remain the evidence.
+//! a command line. This module is the authorization boundary; the docker runner is
+//! `sych_adapters::execution`.
 
 use std::collections::BTreeMap;
 
@@ -43,6 +43,10 @@ pub struct ExecutionProfile {
     pub cpu_millis: u32,
     #[serde(default = "pids")]
     pub pids: u32,
+    /// Also run on the diff base and name every outcome that differs on the head, so a
+    /// failure/retry/cancel trace shows what the change broke rather than what was broken.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub compare_base: bool,
 }
 
 const fn memory_mb() -> u32 {
@@ -172,6 +176,13 @@ impl Execution {
                 ));
             }
 
+            if p.compare_base && p.report.is_none() {
+                out.push((
+                    format!("execution.profiles.{name}.compare_base"),
+                    "needs a report to compare",
+                ));
+            }
+
             if p.timeout_seconds == 0 {
                 out.push((
                     format!("execution.profiles.{name}.timeout_seconds"),
@@ -236,6 +247,7 @@ mod tests {
                 p.executable = "go".into();
                 p.timeout_seconds = 0;
                 p.pids = 0;
+                p.compare_base = true;
             })
             .expect("profile");
         let fields: Vec<String> = e.problems().into_iter().map(|(f, _)| f).collect();
@@ -246,6 +258,7 @@ mod tests {
                 "execution.profiles.go-test.image",
                 "execution.profiles.go-test.executable",
                 "execution.profiles.go-test",
+                "execution.profiles.go-test.compare_base",
                 "execution.profiles.go-test.timeout_seconds",
             ]
         );

@@ -40,7 +40,14 @@ is rejected without printing the value itself.
   to the head (`TrustClass::DerivedLocal`, binding `ENVIRONMENT`, runner `<profile> in <image>`); a non-zero exit is a
   result, not an error. A refused (`disabled`, `not allowed`, `missing` or `invalid` parameter) or failed run is a
   task gap `EXECUTION_REFUSED` / `EXECUTION_FAILED`, never a passed check. No request supplies parameters yet, so a
-  profile with choices is refused as missing them. Without runtime evidence the verifier keeps a bounded static
+  profile with choices is refused as missing them.
+
+  A failure/retry/cancel/unmount check prints `sych_manifest` with `assertions: [{name, expected: [event], observed:
+  [event]}]`: an assertion passes only when the recorded event order equals the expected one; without `observed` it is
+  `SKIPPED` (not run, never a pass), so a matching return value alone proves nothing. With `compare_base: true` (needs
+  `report`) the profile also runs on the diff base in its own workspace; every head outcome whose status differs is
+  named `BASE_DIFFERS: <suite>/<name> is <base> on the diff base and <head> on the head`, and a base that could not run is
+  `BASE_NOT_RUN`. The base run only labels the head report; it is never evidence of its own. Without runtime evidence the verifier keeps a bounded static
   argument or a concrete `UNKNOWN`; generating new tests is optional and never done by the tour reader.
 
   ```yaml

@@ -118,6 +118,17 @@ fn every_format_normalizes_with_its_limits() {
         TestStatus::Failed,
         "exit 101 is a failure"
     );
+    let assertions: Vec<_> = outcomes
+        .tests
+        .iter()
+        .filter(|t| t.suite == "assertion")
+        .map(|t| t.status)
+        .collect();
+    assert_eq!(
+        assertions,
+        [TestStatus::Passed, TestStatus::Failed, TestStatus::Skipped],
+        "an event order is compared whole; nothing recorded is not a pass"
+    );
     assert!(
         outcomes
             .limitations

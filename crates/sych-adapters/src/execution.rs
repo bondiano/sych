@@ -2,6 +2,7 @@
 //! materialized into a fresh workspace, in docker with no network, bounded memory, CPU and
 //! processes, and no secrets in its environment or mounts. Its stdout is imported as a CI
 //! report bound to the head; a refusal or a failure to run is a gap, never a passed check.
+//! With `compare_base` it also runs on the diff base, which only labels head outcomes.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -9,8 +10,8 @@ use std::io;
 use std::path::Path;
 use std::time::Duration;
 
-use sych_core::config::Execution;
-use sych_core::{CiFacts, CiGap, CiManifest, SchemaVersion, SourceSide};
+use sych_core::config::{Execution, ExecutionProfile};
+use sych_core::{CiFacts, CiGap, CiManifest, CiTest, SchemaVersion, SourceSide};
 
 use crate::ci;
 use crate::git::LocalSnapshot;
@@ -36,6 +37,13 @@ pub fn run_profiles(snapshot: &LocalSnapshot, execution: &Execution) -> (Vec<CiF
     (facts, gaps)
 }
 
+/// What one run of a profile on one side left behind.
+struct Ran {
+    stdout: String,
+    exit: Option<String>,
+    left_out: usize,
+}
+
 fn run_one(
     snapshot: &LocalSnapshot,
     execution: &Execution,
@@ -54,14 +62,88 @@ fn run_one(
     let Some(profile) = execution.profiles.get(name) else {
         return Err(gap("EXECUTION_REFUSED", "profile is not defined".into()));
     };
-    let io = |e: io::Error| gap("EXECUTION_FAILED", e.to_string());
+    let ran = run_side(snapshot, profile, &argv, name, SourceSide::Head)
+        .map_err(|e| gap("EXECUTION_FAILED", e))?;
+    let Some(format) = profile.report else {
+        return Ok(None);
+    };
+    let manifest = CiManifest {
+        schema_version: SchemaVersion,
+        job: format!("execution:{name}"),
+        tested_oid: snapshot.snapshot.head.hex().to_owned(),
+        toolchain: profile.image.clone(),
+        target: "docker".into(),
+        features: Vec::new(),
+    };
+    let import = |text: &str| {
+        ci::import_as(
+            snapshot,
+            &format!("{name}.out"),
+            text,
+            Some(&manifest),
+            Some(format),
+            None,
+        )
+        .map_err(|e| gap("CI_REPORT_MALFORMED", e.to_string()))
+    };
+    let mut facts = import(&ran.stdout)?;
+    facts.runner = Some(format!("{name} in {}", profile.image));
+    facts.limitations.extend(ran.exit);
+    if ran.left_out > 0 {
+        facts.limitations.push(format!(
+            "{} paths of the head were not in the check's workspace (secrets, links, \
+             submodules, tool configs or size)",
+            ran.left_out
+        ));
+    }
+
+    if profile.compare_base {
+        // The base run only labels head outcomes; it is never evidence of its own.
+        let base = run_side(snapshot, profile, &argv, name, SourceSide::DiffBase)
+            .and_then(|r| import(&r.stdout).map_err(|g| g.detail));
+        match base {
+            Ok(base) => facts.limitations.extend(differs(&base.tests, &facts.tests)),
+            Err(e) => facts
+                .limitations
+                .push(format!("BASE_NOT_RUN: {e}; head outcomes are not compared")),
+        }
+    }
+
+    Ok(Some(facts))
+}
+
+/// Head outcomes whose status on the diff base was different, by suite and name.
+fn differs(base: &[CiTest], head: &[CiTest]) -> Vec<String> {
+    head.iter()
+        .filter_map(|h| {
+            let b = base
+                .iter()
+                .find(|b| b.suite == h.suite && b.name == h.name)?;
+            (b.status != h.status).then(|| {
+                format!(
+                    "BASE_DIFFERS: {}/{} is {:?} on the diff base and {:?} on the head",
+                    h.suite, h.name, b.status, h.status
+                )
+            })
+        })
+        .collect()
+}
+
+fn run_side(
+    snapshot: &LocalSnapshot,
+    profile: &ExecutionProfile,
+    argv: &[String],
+    name: &str,
+    side: SourceSide,
+) -> Result<Ran, String> {
+    let io = |e: io::Error| e.to_string();
     let dir = tempfile::tempdir().map_err(io)?;
     let root = dir.path().canonicalize().map_err(io)?;
     let workspace = root.join("src");
     fs::create_dir(&workspace).map_err(io)?;
     let written = snapshot
-        .materialize(SourceSide::Head, &workspace, MAX_BLOB_BYTES)
-        .map_err(|e| gap("EXECUTION_FAILED", e.to_string()))?;
+        .materialize(side, &workspace, MAX_BLOB_BYTES)
+        .map_err(|e| e.to_string())?;
     let stdout = root.join("stdout");
     let (program, rest) = argv.split_first().expect("argv starts with the executable");
     let job = Job {
@@ -84,40 +166,17 @@ fn run_one(
     let exit = match sandbox::run_isolated(&profile.image, &job, &isolation, &stdout) {
         Ok(()) => None,
         Err(SandboxError::Exited { status, .. }) => Some(format!("{name} exited with {status}")),
-        Err(e) => return Err(gap("EXECUTION_FAILED", e.to_string())),
+        Err(e) => return Err(e.to_string()),
     };
-    let Some(format) = profile.report else {
-        return Ok(None);
-    };
-    let text = fs::read_to_string(&stdout).map_err(io)?;
-    let manifest = CiManifest {
-        schema_version: SchemaVersion,
-        job: format!("execution:{name}"),
-        tested_oid: snapshot.snapshot.head.hex().to_owned(),
-        toolchain: profile.image.clone(),
-        target: "docker".into(),
-        features: Vec::new(),
-    };
-    let mut facts = ci::import_as(
-        snapshot,
-        &format!("{name}.out"),
-        &text,
-        Some(&manifest),
-        Some(format),
-        None,
-    )
-    .map_err(|e| gap("CI_REPORT_MALFORMED", e.to_string()))?;
-    facts.runner = Some(format!("{name} in {}", profile.image));
-    facts.limitations.extend(exit);
-    let left_out = written.skipped.len() + written.tool_configs.len() + written.over_budget;
-    if left_out > 0 {
-        facts.limitations.push(format!(
-            "{left_out} paths of the head were not in the check's workspace (secrets, links, \
-             submodules, tool configs or size)"
-        ));
-    }
-
-    Ok(Some(facts))
+    Ok(Ran {
+        stdout: if profile.report.is_some() {
+            fs::read_to_string(&stdout).map_err(io)?
+        } else {
+            String::new()
+        },
+        exit,
+        left_out: written.skipped.len() + written.tool_configs.len() + written.over_budget,
+    })
 }
 
 #[cfg(test)]
@@ -125,13 +184,17 @@ mod tests {
     use std::collections::BTreeMap;
     use std::process::Command;
 
-    use sych_core::CiFormat;
-    use sych_core::config::{ExecutionProfile, ProfileArg};
+    use sych_core::config::ProfileArg;
+    use sych_core::{CiFormat, TestStatus};
 
     use super::*;
     use crate::git::SnapshotRequest;
 
     fn snapshot(dir: &Path) -> LocalSnapshot {
+        snapshot_of(dir, &[("a.txt", "a\n")], &[("a.txt", "b\n")])
+    }
+
+    fn snapshot_of(dir: &Path, base: &[(&str, &str)], head: &[(&str, &str)]) -> LocalSnapshot {
         let git = |args: &[&str]| {
             let ok = Command::new("git")
                 .current_dir(dir)
@@ -149,13 +212,19 @@ mod tests {
                 .success();
             assert!(ok, "git {args:?}");
         };
+        let write = |files: &[(&str, &str)]| {
+            for (path, text) in files {
+                fs::write(dir.join(path), text).expect("write");
+            }
+        };
         git(&["init", "-q", "-b", "main"]);
-        fs::write(dir.join("a.txt"), "a\n").expect("write");
+        write(base);
         git(&["add", "-A"]);
         git(&["commit", "-q", "-m", "base"]);
         git(&["branch", "target"]);
-        fs::write(dir.join("a.txt"), "b\n").expect("write");
-        git(&["commit", "-qam", "head"]);
+        write(head);
+        git(&["add", "-A"]);
+        git(&["commit", "-qm", "head"]);
         LocalSnapshot::capture(&SnapshotRequest {
             repo: dir,
             base: "target",
@@ -176,6 +245,7 @@ mod tests {
             memory_mb: 256,
             cpu_millis: 500,
             pids: 64,
+            compare_base: false,
         };
         Execution {
             enabled: true,
@@ -229,5 +299,76 @@ mod tests {
                 .as_deref()
                 .is_some_and(|r| r.starts_with("outcomes in alpine"))
         );
+    }
+
+    #[test]
+    fn an_outcome_that_differs_from_the_base_is_named() {
+        let t = |name: &str, status| CiTest {
+            name: name.into(),
+            suite: "assertion".into(),
+            file: None,
+            status,
+            message: None,
+        };
+        let base = [
+            t("retry", TestStatus::Passed),
+            t("order", TestStatus::Passed),
+        ];
+        let head = [
+            t("retry", TestStatus::Failed),
+            t("order", TestStatus::Passed),
+            t("new", TestStatus::Failed),
+        ];
+        assert_eq!(
+            differs(&base, &head),
+            ["BASE_DIFFERS: assertion/retry is Passed on the diff base and Failed on the head"]
+        );
+    }
+
+    /// The retry/outbox trace of eval case go-outbox-goroutine: the base retries a publish after
+    /// a crash, the head drops it. Needs docker: `cargo test -p sych-adapters -- --ignored execution`.
+    #[test]
+    #[ignore = "needs docker"]
+    fn a_retry_trace_on_base_and_head_names_the_broken_event_order() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let check = "events=; crashed=; \
+             publish() { if [ -z \"$crashed\" ]; then crashed=1; events=\"$events crash\"; return 1; fi; events=\"$events publish\"; }\n\
+             . ./relay.sh\n\
+             relay\n\
+             json=$(printf '%s\\n' $events | sed 's/.*/\"&\"/' | paste -sd, -)\n\
+             printf '{\"schema_version\":1,\"assertions\":[{\"name\":\"publish retried after a crash\",\"expected\":[\"commit\",\"crash\",\"publish\"],\"observed\":[%s]}]}' \"$json\"\n";
+        let snap = snapshot_of(
+            dir.path(),
+            &[
+                ("check.sh", check),
+                (
+                    "relay.sh",
+                    "relay() { events=\"commit\"; publish || publish; }\n",
+                ),
+            ],
+            &[(
+                "relay.sh",
+                "relay() { events=\"commit\"; publish || true; }\n",
+            )],
+        );
+        let mut e = execution(vec![ProfileArg::Literal("check.sh".into())]);
+        let p = e.profiles.get_mut("outcomes").expect("profile");
+        p.compare_base = true;
+        let (facts, gaps) = run_profiles(&snap, &e);
+        assert!(gaps.is_empty(), "{gaps:?}");
+        let f = &facts[0];
+        assert_eq!(
+            f.tests[0].status,
+            TestStatus::Failed,
+            "{:?}",
+            f.tests[0].message
+        );
+        assert!(
+            f.limitations.iter().any(|l| l
+                == "BASE_DIFFERS: assertion/publish retried after a crash is Passed on the diff base and Failed on the head"),
+            "{:?}",
+            f.limitations
+        );
+        assert!(f.bound_to(&snap.snapshot));
     }
 }
