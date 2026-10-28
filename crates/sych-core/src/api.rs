@@ -5,6 +5,7 @@ use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
+use crate::tour::{TourArtifact, TourSession};
 use crate::{ReviewResult, Timestamp};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -52,6 +53,24 @@ pub struct RerunRequest {
     pub profile: Option<String>,
     #[serde(default)]
     pub publish: bool,
+}
+
+/// `GET /v1/runs/:id/tour` and the session calls: the tour as the caller's session sees it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct TourView {
+    /// Answers not revealed in this session are blanked.
+    pub tour: TourArtifact,
+    /// The caller's own progress; never published and never an approval.
+    pub session: TourSession,
+    /// A newer revision or generation of the change exists; the tour still shows what was reviewed.
+    pub stale: bool,
+}
+
+/// `POST /v1/runs/:id/tours/:tour/reveal`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RevealRequest {
+    pub step_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -164,6 +183,8 @@ pub fn openapi() -> Value {
     let feedback = component::<FeedbackRequest>(&mut c, "FeedbackRequest");
     let waiver = component::<WaiverRequest>(&mut c, "WaiverRequest");
     let publication = component::<PublicationStatus>(&mut c, "PublicationStatus");
+    let tour = component::<TourView>(&mut c, "TourView");
+    let reveal = component::<RevealRequest>(&mut c, "RevealRequest");
     let error = component::<ErrorEnvelope>(&mut c, "ErrorEnvelope");
     let errors = |codes: &[u16]| -> Map<String, Value> {
         codes
@@ -217,6 +238,10 @@ pub fn openapi() -> Value {
             "/v1/findings/{id}/feedback": {"post": op("Structured feedback", Some(&feedback), 201, &created, true, &[400, 401, 403, 404, 409, 503])},
             "/v1/waivers": {"post": op("A scoped waiver", Some(&waiver), 201, &created, true, &[400, 401, 403, 404, 409, 503])},
             "/v1/publications/{id}": {"get": op("Delivery, relevance and reconciliation state", None, 200, &publication, false, &[401, 403, 404, 503])},
+            "/v1/runs/{id}/tour": {"get": op("The newest stored tour (or `?tour=`) as the caller's session sees it", None, 200, &tour, false, &[400, 401, 403, 404, 409, 503])},
+            "/v1/runs/{id}/tours/{tour}/reveal": {"post": op("Reveal one step's answer in the caller's session", Some(&reveal), 200, &tour, true, &[400, 401, 403, 404, 409, 503])},
+            "/v1/runs/{id}/tours/{tour}/complete": {"post": op("Complete the caller's session; not an approval", None, 200, &tour, true, &[400, 401, 403, 404, 409, 503])},
+            "/v1/runs/{id}/tours/{tour}/dismiss": {"post": op("Dismiss the caller's session", None, 200, &tour, true, &[400, 401, 403, 404, 409, 503])},
         }
     })
 }
