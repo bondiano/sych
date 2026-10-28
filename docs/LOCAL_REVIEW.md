@@ -50,6 +50,27 @@ sych explain --run RUN_ID --obligation EFFECT-01 --format markdown
 Output examples: [review.json](examples/local-review/review.json), [review.md](examples/local-review/review.md),
 [explain.md](examples/local-review/explain.md).
 
+## Reading a tour
+
+`sych tour --run RUN --config sych.yaml` generates a tour with a model and stores it ([ANALYSIS.md](ANALYSIS.md)). A
+stored tour is read without a model or a config:
+
+```sh
+sych tour show --run RUN [--tour ID] [--repo .] [--brief] [--format markdown]   # starts your session
+sych tour reveal --run RUN --step stop-1                                        # the answer of a step's question
+sych tour complete --run RUN    # or: sych tour dismiss --run RUN
+```
+
+- The newest tour of the run is used unless `--tour` names one. Code comes from the run's pinned blobs, read from
+  `--repo`, never from the model's text. When the repository has moved past the reviewed head, the tour is `STALE`, but it
+  keeps the code the review saw. Once the source snapshot is pruned or the blobs are gone, each location is listed as
+  "source unavailable" (`source_unavailable` in JSON) and is not dropped.
+- An answer stays hidden in `show` until you `reveal` it. The session goes `IN_PROGRESS → COMPLETED | DISMISSED`, and a
+  finished session only reads.
+- **Completing a tour is not an approval.** A session is your personal progress (`tour_sessions`): it never changes
+  the tour artifact, the result, its recommendation, obligations or a waiver, and progress and answers are never
+  published to the PR.
+
 ## Fake responses
 
 Without `--fake-responses` the fake adapter assesses nothing: applicable obligations stay `UNKNOWN/NOT_ASSESSED`.

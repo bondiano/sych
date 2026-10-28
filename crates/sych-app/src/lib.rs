@@ -22,6 +22,7 @@ pub mod server;
 pub mod snapshot;
 pub mod storage;
 pub mod tour;
+pub mod tour_reader;
 
 pub use command::run_command;
 

@@ -453,4 +453,6 @@ an invalid tour (a stop it invented or skipped, a reference that does not resolv
 was wrong, then `FAILED`. A valid tour is stored as artifact `tour:<tour_id>` of the run (`ArtifactKind::Tour`) and
 printed with code read from the blobs; the output reports attempts and their cost.
 
-Not yet: the CLI reader with sessions (M5.2).
+The stored tour is read by `sych tour show|reveal|complete|dismiss` (M5.2, [LOCAL_REVIEW.md](LOCAL_REVIEW.md#reading-a-tour)):
+no model, a personal session, `STALE` on a moved head, "source unavailable" once the source is pruned. Not yet: the
+server tour/session API.

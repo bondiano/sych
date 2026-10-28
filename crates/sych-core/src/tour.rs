@@ -259,11 +259,12 @@ pub fn validate(
     problems
 }
 
-/// The lines a step shows, read from the pinned blobs.
-pub fn render(step: &TourStep, reader: &dyn SnapshotReader) -> Vec<(CodeRef, String)> {
+/// The lines a step shows, read from the pinned blobs; `None` when the source is no longer
+/// available (pruned or GC'd), which the reader says instead of dropping the location.
+pub fn render(step: &TourStep, reader: &dyn SnapshotReader) -> Vec<(CodeRef, Option<String>)> {
     step.code_refs
         .iter()
-        .filter_map(|r| reader.read_span(r).ok().map(|s| (r.clone(), s.text)))
+        .map(|r| (r.clone(), reader.read_span(r).ok().map(|s| s.text)))
         .collect()
 }
 
@@ -310,4 +311,54 @@ pub fn next(state: &TourState, event: TourEvent) -> TourState {
 /// A tour of an older revision is `STALE`; it stays readable and is never rewritten.
 pub fn stale(tour: &TourArtifact, current_revision: u64) -> bool {
     tour.review_revision != current_revision
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum SessionState {
+    InProgress,
+    Completed,
+    Dismissed,
+}
+
+/// One actor's progress through one tour (spec §21.8). It never changes the artifact, the
+/// recommendation, obligations or any approval, and it is not published.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct TourSession {
+    pub tour_id: TourId,
+    pub actor: String,
+    pub state: SessionState,
+    /// Steps whose answer was revealed, in order.
+    pub revealed: Vec<String>,
+}
+
+impl TourSession {
+    pub fn start(tour_id: TourId, actor: &str) -> Self {
+        Self {
+            tour_id,
+            actor: actor.to_owned(),
+            state: SessionState::InProgress,
+            revealed: Vec::new(),
+        }
+    }
+
+    /// Records a revealed answer; a finished session only reads.
+    #[must_use]
+    pub fn reveal(mut self, step_id: &str) -> Self {
+        if self.state == SessionState::InProgress && !self.revealed.iter().any(|s| s == step_id) {
+            self.revealed.push(step_id.to_owned());
+        }
+
+        self
+    }
+
+    /// `IN_PROGRESS → COMPLETED | DISMISSED`; a finished session stays as it is.
+    pub fn finish(self, to: SessionState) -> Result<Self, String> {
+        match (self.state, to) {
+            (SessionState::InProgress, SessionState::Completed | SessionState::Dismissed) => {
+                Ok(Self { state: to, ..self })
+            }
+            (from, to) => Err(format!("a {from:?} session cannot become {to:?}")),
+        }
+    }
 }

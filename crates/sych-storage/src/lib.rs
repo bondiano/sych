@@ -19,6 +19,7 @@ mod publish;
 mod recreate;
 mod retention;
 mod scheduler;
+mod tour_sessions;
 
 use std::io;
 use std::path::PathBuf;
@@ -44,6 +45,7 @@ pub use outbox::Operation;
 pub use publish::{MAX_PUBLISH_ATTEMPTS, PublishClaim, Uncertain, Unresolved};
 pub use retention::RecordPrune;
 pub use scheduler::ChangeRow;
+pub use tour_sessions::tour_role;
 
 static MIGRATOR: Migrator = sqlx::migrate!("../../migrations/sqlite");
 
