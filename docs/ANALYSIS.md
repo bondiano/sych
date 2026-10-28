@@ -70,6 +70,10 @@ builds the `CodeRef` itself through the snapshot reader with a hash check.
 A further DATA block lists every hunk of each changed file the spans show (`-start,count +start,count` and the lines
 removed and added), so the model can tell that a shown hunk is its file's whole change: for example, that a test
 file only gained lines, which `TEST-INTEGRITY` otherwise could not settle from the spans alone.
+An obligation about the tests themselves (the shipped `TEST-INTEGRITY`) also gets the removed lines of every changed
+test and CI file, shown or not, read verbatim from BASE (up to 40 lines per file, the rest counted), and
+"0 lines removed" for a file that only gained lines: a weakened assertion or gate is visible even when the file's
+spans did not fit the packet.
 
 The packet's source spans are stored as derived evidence `source` (`SOURCE_OBSERVATION`): `COMPLETE_FOR_QUERY` for
 exactly these spans if no required span was excluded, otherwise `PARTIAL`. The packet gaps are its limitations.
