@@ -127,13 +127,13 @@ fn linters_run_on_changed_files_in_an_empty_environment() {
             .any(|l| l.contains("configuration changed"))
     );
 
-    for (linter, file) in [(3, "db/q.sql"), (4, "src/a.php"), (5, "R/a.R")] {
+    for (linter, file) in [(2, "db/q.sql"), (3, "src/a.php"), (4, "R/a.R")] {
         let d = &facts[linter].diagnostics[0];
         assert_eq!((d.path.as_str(), d.line), (file, 2));
         assert!(d.code_ref.is_some(), "{file} anchored on head");
     }
 
-    let actionlint = &facts[6];
+    let actionlint = &facts[5];
     assert_eq!(actionlint.diagnostics[0].path, ".github/workflows/ci.yml");
     assert!(actionlint.diagnostics[0].code_ref.is_some());
 }
