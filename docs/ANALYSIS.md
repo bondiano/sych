@@ -407,6 +407,59 @@ the blobs. The run showed the same lines twice in stop 2 (the obligation's refer
 
 **Spend** of this round on real models: about $0.95 (1 072 attempts) by the ledger, under the $5 cap.
 
+## Baselines A/B/C on the full feature set (M5.5)
+
+The development suite has grown to 126 cases (Rust, TS/React, Go, Python, migrations, Terraform, Kubernetes, routing/
+billing/privacy, clean, nitpick and real commits); 125 ran, `real-sych-context-broker` was skipped without an archived
+Sych clone. One run of each variant on the same cases and config (`config_sha256` in each report), `cheap_api`, the
+personal example's budgets, 2026-10-28:
+
+```sh
+sych eval measure --suite eval/quality/dev --config examples/personal/sych.yaml --models cheap_api \
+  --variant a|b|c --repo vkusori=PATH --output report.json
+sych eval compare a.json b.json c.json --output comparison.json
+```
+
+| | A | B | C |
+|---|---|---|---|
+| labelled defects found (recall) | 49/49 | 40/49 | 42/49 |
+| correctness findings at labelled locations (precision) | 74/137 (54%) | 53/76 (70%) | 51/72 (71%) |
+| safe cases with any correctness finding | 38/67 | 19/67 | 17/67 |
+| the same without tolerated remarks and overrated nits | 31/67 | 12/67 | 13/67 |
+| `UNKNOWN` cases kept unresolved | 0/9 | 6/9 | 4/9 |
+| obligations matched | 20/26 | 19/26 | 20/26 |
+| labelled nitpicks hit | 12/16 | 4/16 | 5/16 |
+| missed defects a dropped candidate reached (`verifier_dropped`) | — | 6 | 7 |
+| reviews short of `COMPLETE_FOR_SCOPE` | 32 | 33 | 32 |
+| attempts / cost of the whole review | 141 / $0.120 | 292 / $0.280 | 394 / $0.348 |
+
+Reports: [A](examples/quality/m5.5-dev-cheap_api-a.json), [B](examples/quality/m5.5-dev-cheap_api-b.json),
+[C](examples/quality/m5.5-dev-cheap_api-c.json), [comparison](examples/quality/m5.5-dev-cheap_api-compare.json): 73 of
+125 cases have a different outcome in at least one variant.
+
+What this run shows, within this development sample and one model:
+
+- The verifier and the context trade recall for noise as in M1.8: B and C lose 7–9 of 49 defects and cut false
+  remarks on safe cases from 31 to 12–13, precision from 54% to 70%.
+- Most of B's and C's misses are not search misses: in 6 of 9 (B) and 7 of 7 (C) a candidate anchored on the labelled
+  defect existed, and the verifier rejected it or left it unresolved. The verifier is the place to look for recall.
+- C over B: the high-risk search adds 2 defects and costs 24% more; `UNKNOWN` kept 4 vs. 6 of 9. On one run this
+  is within the variation below.
+- A closes every `UNKNOWN` case with an answer; the verifier is what keeps them open.
+
+**Repeats** of the ten cases where B and C disagreed (C, 3 runs each, [report](examples/quality/m5.5-repeats-cheap_api-c.json),
+82 attempts, $0.074): `go-ssrf-unsafe` and `ts-ssrf-unsafe` — found 3 of 3 (C missed `go-ssrf-unsafe` in the main run);
+`react-form-submit-unsafe`, `rust-async-cancellation-unsafe`, `rust-blocking-in-async-unsafe` and
+`rust-serde-contract-unsafe` — found 2 of 3, and every miss is a `verifier_dropped` candidate; `react-stale-response-safe` —
+false remark 3 of 3, `rust-lock-across-await-safe` — 1 of 3; `rust-log-secrets-unknown` — `UNKNOWN` kept 2 of 3;
+`ts-dynamic-dispatch-unknown` — closed 0 of 3 without a finding, the obligation answered instead of left `UNKNOWN`. So a
+single-run difference of one or two defects between B and C is noise, and the verifier's dropping of true candidates
+is the variation itself.
+- Not measured here: delivery and anchors on a real pull request (the GitHub self-review of M2.9 records those),
+  tour and follow-up cost (`budgets.tour`, `budgets.followup_session`, reported by `sych tour` and `sych ask`), and
+  the active human time of reading a review. The holdout is still unlabelled, so these numbers are not a quality
+  estimate; acceptance criteria and the usefulness decision are the owner's.
+
 ## Limitations
 
 - Independent passes run in parallel, with no more than `budgets.analysis.max_parallel_calls` (default 2) calls
