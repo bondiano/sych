@@ -384,7 +384,7 @@ recall and kept UNKNOWNs rose and precision held, at twice the cost: the wider w
 **Isolated runner (M3.8).** `execution.profiles` with `image: …@sha256:…` run on docker only: the head is
 materialised into a temporary directory and the profile's argv runs with `--network none`, memory, CPU and pid
 limits, no credentials; its report is imported like a CI report and bound to the head as `DerivedLocal` evidence
-with the runner `<profile> in <image>`. Local smoke with a Go test profile: the container had no network interface
+with the runner `<check> in <image>`. Local smoke with a Go test profile: the container had no network interface
 (`net=0`), the report bound to the head and reached the obligation. A refused or failing profile is a gap
 (`EXECUTION_REFUSED` / `EXECUTION_FAILED`), never a pass.
 
@@ -393,8 +393,9 @@ base and the head. Real docker run (`cargo test -p sych-adapters -- --ignored ex
 2026-10-28): a relay that retries `publish` after an injected crash on the base and drops it on the head. The base
 records `commit, crash, publish` (passed); the head records `commit, crash`, so the assertion is `FAILED` and the
 report names `BASE_DIFFERS: assertion/publish retried after a crash is Passed on the diff base and Failed on the
-head`, bound to the head. Not yet: such a profile in the quality suite's eval config (no eval case enables execution),
-and request parameters for profiles with choices.
+head`, bound to the head. The same trace is the quality case `relay-retry-trace-unsafe`: its own profile takes the
+script as a `one_of` choice, which the case's request fills (`execution.checks`); reviews and the API pass checks the
+same way (`--check`, `checks` in `POST /v1/reviews`).
 
 **Real tour.** `sych review` of the `mig-drop-column-unsafe` repository (one HIGH finding: the migration drops
 `orders.status` while `orders/read.go` still selects it; `MIG-RESTART` UNKNOWN), then `sych tour --run …`: `READY`

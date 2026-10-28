@@ -77,7 +77,7 @@ pub fn rerun(args: &RerunArguments) -> anyhow::Result<ExitCode> {
             },
         );
         engine
-            .manual(args.change, &client.name, false, deep)
+            .manual(args.change, &client.name, false, deep, Vec::new())
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))
     })??;

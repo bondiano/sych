@@ -2,6 +2,7 @@
 //! the provider, the request becomes an explicit manual generation, and nothing is published
 //! unless both the request and the connection allow it.
 
+use sych_core::config::CheckRequest;
 use sych_core::schedule::{MAX_RETRIES, RunInputs, Trigger};
 use sych_core::scm::{ScmError, ScmErrorKind};
 use sych_storage::{RunHandle, StorageError};
@@ -23,6 +24,7 @@ pub enum RequestError {
 impl Engine {
     /// A manual generation of PR `number`: `deep` asks for the deep profile, `publish` for an
     /// advisory publication (only where the connection publishes).
+    #[allow(clippy::too_many_arguments)] // one review request
     pub async fn request_review(
         &self,
         connection: &str,
@@ -31,6 +33,7 @@ impl Engine {
         actor: &str,
         publish: bool,
         deep: bool,
+        checks: Vec<CheckRequest>,
     ) -> Result<RunHandle, RequestError> {
         let conn = self
             .conns
@@ -54,7 +57,7 @@ impl Engine {
             .storage
             .ensure_change(&conn.binding, &repo, number)
             .await?;
-        self.manual(change, actor, publish, deep).await
+        self.manual(change, actor, publish, deep, checks).await
     }
 
     /// A manual generation of a known change with the same inputs as now on the provider.
@@ -64,6 +67,7 @@ impl Engine {
         actor: &str,
         publish: bool,
         deep: bool,
+        targeted: Vec<CheckRequest>,
     ) -> Result<RunHandle, RequestError> {
         let storage = &self.app.storage;
         let change = storage.change(change_id).await?;
@@ -93,6 +97,7 @@ impl Engine {
             },
             publish: publish && conn.config.publish,
             checks: publish && conn.config.publish && conn.config.checks,
+            targeted,
         };
         let deadline = (self.now)().as_second() + JOB_SECONDS;
         Ok(storage
