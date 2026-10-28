@@ -398,7 +398,10 @@ async fn a_session_cap_survives_the_month_boundary() {
         .reserve_scoped(&ask("2026-11-01T00:00:01Z"), &caps, scope)
         .await
         .expect("ledger");
-    assert!(matches!(november, Err(Denied::Money { .. })), "{november:?}");
+    assert!(
+        matches!(november, Err(Denied::Money { .. })),
+        "{november:?}"
+    );
     assert_eq!(
         storage
             .reserve_scoped(&ask("2026-11-01T00:00:02Z"), &caps, Some("followup:t:b"))
