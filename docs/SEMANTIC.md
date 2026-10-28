@@ -18,10 +18,10 @@ verified against the pinned SHA-256, unpacked into a temporary directory and ato
 | Rust | rust-analyzer `2026-10-19` (GitHub release) | the single pinned one | linux, macos × x86_64, aarch64 |
 | TS/JS/React | TypeScript 7 native `tsc --lsp --stdio` (npm `@typescript/typescript-<platform>`) | exact `typescript` version from `pnpm-lock.yaml` (all importers, multi-document pnpm 11+) or `package-lock.json` | same |
 | Go | gopls `v0.24.0`, built with the pinned Go `1.27.3` (go.dev/dl, SHA-256) | the single pinned one | same |
-| Python | none: basic M3 fallback — syntax facts without a language server | — | — |
+| Python | ty `0.0.93` `ty server` (GitHub release, musl on Linux) with `untrustedWorkspace: true`, plus the syntax facts below | the single pinned one | same |
 
-Linters are pinned the same way (GitHub release, SHA-256 from the release digest): ruff `0.17.2`, oxlint `1.89.0`,
-actionlint `1.7.12`, zizmor `1.31.1`; see [Pinned linters](#pinned-linters).
+Linters are pinned the same way (GitHub release, SHA-256 from the release digest): ruff `0.17.2`, oxlint `1.89.0`, sqruff `0.43.0`,
+mago `1.59.0`, jarl `0.7.1`, actionlint `1.7.12`, zizmor `1.31.1`; see [Pinned linters](#pinned-linters).
 
 gopls is not published as binaries, hence `archive: go-module`: Sych downloads the pinned Go, verifies the `h1:`
 hash of the `golang.org/x/tools/gopls@v0.24.0` module (`sha256` in the manifest is its hex) via `go mod download -json`,
@@ -181,14 +181,15 @@ Changed `dynamic_dispatch`, `monkey_patch`, `runtime_registration` yield the `DY
 Python import with `subject: unresolved` yields `IMPORT_UNRESOLVED`; both, like `CFG_INACTIVE`, prevent an obligation from being
 `SUPPORTED`. An empty AST or search result does not prove the absence of dynamic dependencies.
 
-### Python: basic M3 fallback and what is deferred to M6
+### Python: ty
 
-Currently Python has only the syntax facts above, a literal search for wrapper definitions, and import of ready-made
-typecheck/lint/test reports through the common CI contract (JUnit, SARIF, Cobertura, LCOV). The semantic backend for Python is
-`UNSUPPORTED` with the reason «no language server before roadmap M6», and in the packet this is the gap `semantic backend Unsupported`.
-Not included until a separate M6 decision based on measured need: a language server (pyright/basedpyright/pylsp),
-references/callers/implementations, receiver type inference, resolution of dependency imports, installation of Python
-dependencies, and any execution of project code or analyzer plugins.
+Python files get the syntax facts above and the ty language server: symbols, references, implementations, call hierarchy,
+definitions and pull diagnostics (type errors) of changed files. ty starts as an untrusted workspace, so it runs no external
+command (no `uv` workspace discovery); its configuration is `pyproject.toml` `[tool.ty]` or `ty.toml`, else ty defaults.
+Dependencies are never installed: a pip or uv install builds sdists through the project's build backend, which runs
+repository code. Third-party imports therefore stay unresolved (the limitation `dependencies are not installed`), and their
+types, callers and implementations are missing, not absent. Ready-made typecheck/lint/test reports are still imported
+through the common CI contract (JUnit, SARIF, Cobertura, LCOV).
 
 ## Effect ledger
 
@@ -312,7 +313,7 @@ such a span over budget is excluded as `BUDGET`, leaves the gap `REFUTING_OVER_B
 `packet resolution`: `UNAVAILABLE` — nothing was read; `PARTIAL` — there are gaps (no facts for a Rust/TS file,
 backend `UNSUPPORTED/FAILED`, unresolved locations, query limit, required content over budget, sources in languages
 without a backend — `NO_SEMANTIC_BACKEND` for Java, Kotlin, Scala, Clojure, Elixir, Gleam, Ruby, PHP, C/C++, Zig, R,
-SQL, C# and Swift; Python — `UNSUPPORTED` until M6; changed CSS/HTML without browser/accessibility/visual reports — `NO_VISUAL_EVIDENCE`); otherwise `SATISFIED`. This is the sufficiency of what was collected, not the truth of the obligation.
+SQL, C# and Swift; changed CSS/HTML without browser/accessibility/visual reports — `NO_VISUAL_EVIDENCE`); otherwise `SATISFIED`. This is the sufficiency of what was collected, not the truth of the obligation.
 
 §9.4 typed operations (`sych_core::broker::Operation`, a closed enum without extra fields): `read_span`, `read_symbol`,
 `find_definition`, `find_references`, `find_implementations`, `find_callers`, `find_callees`,

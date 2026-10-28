@@ -230,7 +230,7 @@
           ]
         },
         {
-          "description": "Syntax facts only until a measured need for a language server (roadmap M6).",
+          "description": "ty, plus tree-sitter syntax facts.",
           "type": "string",
           "const": "python"
         }

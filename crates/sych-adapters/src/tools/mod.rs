@@ -442,6 +442,7 @@ mod tests {
             }
         }
         assert!(sole_pinned("rust-analyzer").is_ok());
+        assert!(sole_pinned("ty").is_ok());
         assert!(sole_pinned("go").is_ok());
         for linter in [
             "ruff",
