@@ -64,7 +64,7 @@ flowchart TD
 - **Участок:** `lint::collect` материализует HEAD и запускает pinned binary. [lint/mod.rs:313–327](../crates/sych-adapters/src/lint/mod.rs#L313-L327), [lint/run.rs:18–37](../crates/sych-adapters/src/lint/run.rs#L18-L37).
 - **Проблема:** относительные repository paths добавляются к argv без `./` или разделителя опций. Путь вида `--output-file=/absolute/owned-canary.py` допустим в Git tree и выбирается как Python-файл. Ruff воспринимает его как параметр, а не как исходник. Empty HOME/PATH не ограничивает запись в файловую систему.
 - **Проверка:** реальный `lint::collect` с Ruff **0.17.2**, совпадающим с pinned version, переписал специально созданный файл за пределами materialized workspace и поместил туда SARIF. Lint facts стали `FAILED`, потому что stdout больше не содержал отчёт. Использовались только временные файлы этого ревью; произвольное выполнение кода не проверялось и не заявляется.
-- [ ] **Минимальное исправление:** в общей сборке argv передавать все repository paths с `./` либо как абсолютные пути внутри workspace. Это не зависит от различий поддержки `--` у линтеров. Добавить regression с option-like filename и запретом изменения внешнего canary.
+- [x] **Минимальное исправление:** в общей сборке argv передавать все repository paths с `./` либо как абсолютные пути внутри workspace. Это не зависит от различий поддержки `--` у линтеров. Добавить regression с option-like filename и запретом изменения внешнего canary.
 - **Если оставить:** автор PR сможет управлять опциями host tool; воспроизведённая операция позволяет перезаписывать доступный reviewer-процессу путь. Существующие [lint tests](../crates/sych-adapters/tests/lint.rs) используют обычные имена и этот сценарий не покрывают.
 
 ### 2. P1 — Redaction не обрабатывает заголовки DATA-блоков
@@ -72,7 +72,7 @@ flowchart TD
 - **Участок:** syntax detail становится `reason_selected`, затем `DataBlock.label`. [observations.rs:176–205](../crates/sych-core/src/broker/observations.rs#L176-L205), [context.rs:110–157](../crates/sych-core/src/analysis/context.rs#L110-L157), [contract.rs:102–115](../crates/sych-core/src/model/contract.rs#L102-L115).
 - **Проблема:** `Prompt::messages` маскирует только `block.content`; label проходит лишь замену newline и `>`. Исходный литерал или diagnostic text в причине выбора fragment обходит единую точку очистки model egress.
 - **Проверка:** в отдельном Git fixture выражение `std::env::var("<искусственный ghp-canary>").ok();` прошло настоящий syntax → broker → context. Built-in redactor распознал canary, но два label сохранили его, и итоговый `Prompt::messages` содержал исходную строку. Семантика была выключена; внешний provider не вызывался.
-- [ ] **Минимальное исправление:** применять тот же redactor к label в `Prompt::messages`, затем выполнять delimiter sanitization. Проверять полный исходящий message, а не только body каждого блока.
+- [x] **Минимальное исправление:** применять тот же redactor к label в `Prompt::messages`, затем выполнять delimiter sanitization. Проверять полный исходящий message, а не только body каждого блока.
 - **Если оставить:** распознаваемый секрет из проверяемого кода/диагностики может уйти внешней модели, хотя в самом source span он замаскирован. Это обход существующего правила, а не обычное ограничение эвристического secret detection; доступ к секретам окружения этим сценарием не доказан.
 
 ### 3. P1 — Раннее удаление дубликатов теряет более серьёзный finding

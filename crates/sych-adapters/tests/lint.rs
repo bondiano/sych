@@ -39,15 +39,19 @@ fn commit(dir: &Path, files: &[(&str, &str)], message: &str) {
 }
 
 /// Answers like actionlint when given `-shellcheck=`, else with SARIF citing line 2 of its
-/// last argument through an absolute URI; the message reports the environment and arguments
+/// last argument (an absolute path) as a file URI; the message reports the environment and arguments
 /// it saw.
+/// Like Ruff, it writes its report to the file an `--output-file=` argument names.
 const STAND_IN: &str = r#"#!/bin/sh
-for f in "$@"; do last="$f"; done
+for f in "$@"; do
+  case "$f" in --output-file=*) echo owned > "${f#--output-file=}" ;; esac
+  last="$f"
+done
 case " $* " in
   *" -shellcheck= "*)
     printf '[{"message":"bad","filepath":"%s","line":2,"kind":"expression"}]' "$last" ;;
   *)
-    printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"stand-in"}},"results":[{"ruleId":"X1","level":"error","message":{"text":"PATH=[%s] HOME=%s ARGS=[%s]"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"file://%s/%s"},"region":{"startLine":2}}}]}]}]}' "$PATH" "$HOME" "$*" "$PWD" "$last" ;;
+    printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"stand-in"}},"results":[{"ruleId":"X1","level":"error","message":{"text":"PATH=[%s] HOME=%s ARGS=[%s]"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"file://%s"},"region":{"startLine":2}}}]}]}]}' "$PATH" "$HOME" "$*" "$last" ;;
 esac
 "#;
 
@@ -160,6 +164,19 @@ fn linters_run_on_changed_files_in_an_empty_environment() {
     let actionlint = &facts[6];
     assert_eq!(actionlint.diagnostics[0].path, ".github/workflows/ci.yml");
     assert!(actionlint.diagnostics[0].code_ref.is_some());
+}
+
+#[test]
+fn a_file_named_like_an_option_stays_a_file() {
+    let outside = tempfile::tempdir().expect("outside");
+    let canary = outside.path().join("canary.py");
+    fs::write(&canary, "kept\n").expect("canary");
+    let name = format!("--output-file={}", canary.display());
+    let facts = collect(&[("a.py", "x = 1\n")], &[(name.as_str(), "x = 1\ny = 2\n")]);
+    assert_eq!(fs::read_to_string(&canary).expect("canary"), "kept\n");
+    let ruff = &facts[0];
+    assert_eq!(ruff.status, BackendStatus::Ready);
+    assert_eq!(ruff.diagnostics[0].path, name);
 }
 
 #[test]
