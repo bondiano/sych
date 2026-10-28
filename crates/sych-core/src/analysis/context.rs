@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize};
 use crate::broker::{EvidencePacket, Priority, REQUIRED_OVER_BUDGET};
 use crate::model::DataBlock;
 use crate::{
-    BindingKind, CodeRef, Completeness, Evidence, EvidenceBinding, EvidenceId, EvidenceKind,
-    Producer, ReviewLanguage, SchemaVersion, SnapshotReader, SourceSide, SourceSnapshot, Timestamp,
-    TrustClass, Validity, canonical_sha256, derived_uuid,
+    BindingKind, CodeRef, Completeness, DiffManifest, Evidence, EvidenceBinding, EvidenceId,
+    EvidenceKind, Producer, ReviewLanguage, SchemaVersion, SnapshotReader, SourceSide,
+    SourceSnapshot, Timestamp, TrustClass, Validity, canonical_sha256, derived_uuid,
 };
 
 /// Lines inside one handed-out span; the model never writes paths or hashes.
@@ -125,6 +125,45 @@ impl Context {
             self.blocks.push(DataBlock {
                 label: "known gaps of this context".into(),
                 content: packet.gaps.join("\n"),
+            });
+        }
+    }
+
+    /// Every hunk of the changed files that the spans show, so a model can tell a shown hunk
+    /// is its file's whole change: lines no hunk lists are unchanged.
+    pub fn add_changes(&mut self, manifest: &DiffManifest) {
+        let mut content = String::new();
+        for file in &manifest.files {
+            let sides: Vec<_> = file.old.iter().chain(&file.new).map(|s| &s.path).collect();
+            if !self.refs.values().any(|r| sides.contains(&&r.path)) {
+                continue;
+            }
+
+            let mut names: Vec<&str> = sides.iter().map(|p| p.as_str()).collect();
+            names.dedup();
+            let removed: u32 = file.hunks.iter().map(|h| h.old_lines).sum();
+            let added: u32 = file.hunks.iter().map(|h| h.new_lines).sum();
+            let _ = write!(
+                content,
+                "{} {:?}: {removed} lines removed, {added} added;",
+                names.join(" -> "),
+                file.status
+            );
+            for h in &file.hunks {
+                let _ = write!(
+                    content,
+                    " -{},{} +{},{}",
+                    h.old_start, h.old_lines, h.new_start, h.new_lines
+                );
+            }
+            content.push('\n');
+        }
+        if !content.is_empty() {
+            self.blocks.push(DataBlock {
+                label: "every hunk of the shown changed files (BASE -start,count +start,count); \
+                        other lines of these files are unchanged"
+                    .into(),
+                content,
             });
         }
     }
