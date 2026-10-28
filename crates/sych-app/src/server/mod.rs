@@ -13,6 +13,7 @@ pub mod mirrors;
 mod publisher;
 pub mod requests;
 pub mod smoke;
+mod tours;
 mod worker;
 
 use std::collections::BTreeMap;
@@ -142,6 +143,10 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/findings/{id}/feedback", post(api::feedback))
         .route("/v1/waivers", post(api::waiver))
         .route("/v1/publications/{id}", get(api::publication))
+        .route("/v1/runs/{id}/tour", get(tours::get_tour))
+        .route("/v1/runs/{id}/tours/{tour}/reveal", post(tours::reveal))
+        .route("/v1/runs/{id}/tours/{tour}/complete", post(tours::complete))
+        .route("/v1/runs/{id}/tours/{tour}/dismiss", post(tours::dismiss))
         .layer(DefaultBodyLimit::max(API_BODY_LIMIT));
     Router::new()
         .route("/hooks/github/{connection}", post(hooks::github))

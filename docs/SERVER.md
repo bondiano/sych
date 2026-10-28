@@ -458,6 +458,8 @@ repository (`connection/owner/name` or `*`); a foreign repository — 404. Mutat
 | `POST /v1/findings/:id/feedback` | triage | 201; `FALSE_POSITIVE`/`WONT_FIX` → `DISMISSED` |
 | `POST /v1/waivers` | maintainer | 201; scoped, with an expiry or a condition |
 | `GET /v1/publications/:id` | reader | delivery, relevance, remote id, error |
+| `GET /v1/runs/:id/tour[?tour=]` | reader | the newest (or named) tour as the caller's own session sees it: unrevealed answers blanked, `stale` once the result revision or the change's generation moved on; source is not included, only `code_refs`; a pruned tour — 409 `TOUR_UNAVAILABLE` |
+| `POST /v1/runs/:id/tours/:tour/reveal\|complete\|dismiss` | reader | the caller's session (the actor is the API client), never published and never an approval; `reveal` takes `{step_id}`; finishing a finished session — 409 `SESSION_FINISHED` |
 | `POST /hooks/github/:connection` | webhook signature | see M2.1 |
 | `GET /health/live` | — | the process is alive; does not depend on the model |
 | `GET /health/ready` | — | the DB responds and the artifact store is writable; without config or secrets |
