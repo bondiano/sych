@@ -2,7 +2,6 @@
 //! snapshots: separate base/head workspaces, rename and Unicode anchors, deleted constructs,
 //! unsupported capabilities and empty answers.
 
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{env, fs};
@@ -14,6 +13,8 @@ use sych_adapters::tools::PinnedTool;
 use sych_core::config::Tooling;
 use sych_core::{BackendStatus, Completeness, QueryStatus, RepoPath, SemanticFacts, SourceSide};
 use tempfile::TempDir;
+
+mod common;
 
 fn git(dir: &Path, args: &[&str]) {
     let out = Command::new("git")
@@ -87,12 +88,8 @@ fn scenario() -> TempDir {
 fn server(capabilities: &serde_json::Value) -> TempDir {
     let dir = tempfile::tempdir().expect("tempdir");
     let script = dir.path().join("fake_lsp.py");
-    fs::copy(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake_lsp.py"),
-        &script,
-    )
-    .expect("copy server");
-    fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).expect("chmod");
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake_lsp.py");
+    common::write_executable(&script, &fs::read_to_string(fixture).expect("server"));
     fs::write(dir.path().join("caps.json"), capabilities.to_string()).expect("caps");
     dir
 }
