@@ -386,7 +386,15 @@ materialised into a temporary directory and the profile's argv runs with `--netw
 limits, no credentials; its report is imported like a CI report and bound to the head as `DerivedLocal` evidence
 with the runner `<profile> in <image>`. Local smoke with a Go test profile: the container had no network interface
 (`net=0`), the report bound to the head and reached the obligation. A refused or failing profile is a gap
-(`EXECUTION_REFUSED` / `EXECUTION_FAILED`), never a pass. Not yet: a targeted failure/retry profile per rule.
+(`EXECUTION_REFUSED` / `EXECUTION_FAILED`), never a pass.
+
+**Targeted retry trace (M3.8).** Event assertions in `sych_manifest` and `compare_base` run one profile on the diff
+base and the head. Real docker run (`cargo test -p sych-adapters -- --ignored execution`, alpine pinned by digest,
+2026-10-28): a relay that retries `publish` after an injected crash on the base and drops it on the head. The base
+records `commit, crash, publish` (passed); the head records `commit, crash`, so the assertion is `FAILED` and the
+report names `BASE_DIFFERS: assertion/publish retried after a crash is Passed on the diff base and Failed on the
+head`, bound to the head. Not yet: such a profile in the quality suite's eval config (no eval case enables execution),
+and request parameters for profiles with choices.
 
 **Real tour.** `sych review` of the `mig-drop-column-unsafe` repository (one HIGH finding: the migration drops
 `orders.status` while `orders/read.go` still selects it; `MIG-RESTART` UNKNOWN), then `sych tour --run …`: `READY`
