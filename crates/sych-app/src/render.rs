@@ -76,7 +76,7 @@ pub fn json<T: Serialize>(value: &T) -> Result<String, serde_json::Error> {
 
 /// Inline Markdown text: one line, no raw HTML, no active Markdown syntax, no control codes.
 /// Block markers (`#`, `-`, `+`, `1.`) only act at the start, where list items place the text.
-fn md(text: &str) -> String {
+pub(crate) fn md(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut leading_digits = true;
     for (i, c) in text.chars().enumerate() {

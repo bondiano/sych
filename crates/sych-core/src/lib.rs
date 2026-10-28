@@ -11,6 +11,7 @@ mod evidence;
 mod finding;
 mod freeze;
 mod generic;
+pub mod handoff;
 pub use generic::{generic_rule_ids, is_migration_path};
 mod glob;
 mod hash;

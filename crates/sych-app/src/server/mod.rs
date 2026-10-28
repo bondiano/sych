@@ -7,6 +7,7 @@ mod ci;
 mod engine;
 mod error;
 pub mod findings;
+mod handoff;
 mod hooks;
 pub mod metrics;
 pub mod mirrors;
@@ -144,6 +145,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/findings/{id}/feedback", post(api::feedback))
         .route("/v1/waivers", post(api::waiver))
         .route("/v1/publications/{id}", get(api::publication))
+        .route("/v1/runs/{id}/handoff", post(handoff::handoff))
         .route("/v1/runs/{id}/tour", get(tours::get_tour))
         .route("/v1/runs/{id}/tours/{tour}/reveal", post(tours::reveal))
         .route("/v1/runs/{id}/tours/{tour}/complete", post(tours::complete))

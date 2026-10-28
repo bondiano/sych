@@ -13,6 +13,7 @@ pub mod config;
 pub mod eval;
 pub mod fake;
 pub mod followup;
+pub mod handoff;
 pub mod output;
 pub mod probe;
 pub mod quality;

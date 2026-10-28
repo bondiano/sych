@@ -7,8 +7,9 @@ use serde_json::{Map, Value, json};
 
 use crate::analysis::followup::Exchange;
 use crate::config::CheckRequest;
+use crate::handoff::Handoff;
 use crate::tour::{QuestionKind, TourArtifact, TourSession};
-use crate::{ReviewResult, Timestamp};
+use crate::{FindingId, ReviewResult, SourceSnapshotId, Timestamp};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -93,6 +94,16 @@ pub struct QuestionRequest {
     /// Only with `RISK_DECISION`, which needs the maintainer role.
     #[serde(default)]
     pub waiver: Option<WaiverTerms>,
+}
+
+/// `POST /v1/runs/:id/handoff`: the run's own findings to export (spec §21.7).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct HandoffRequest {
+    pub finding_ids: Vec<FindingId>,
+    /// Refused unless the run reviewed this snapshot.
+    #[serde(default)]
+    pub source_snapshot_id: Option<SourceSnapshotId>,
 }
 
 /// What a waiver accepts, for which paths and until when.
@@ -221,6 +232,8 @@ pub fn openapi() -> Value {
     let reveal = component::<RevealRequest>(&mut c, "RevealRequest");
     let question = component::<QuestionRequest>(&mut c, "QuestionRequest");
     let exchange = component::<Exchange>(&mut c, "Exchange");
+    let handoff_request = component::<HandoffRequest>(&mut c, "HandoffRequest");
+    let handoff = component::<Handoff>(&mut c, "Handoff");
     let error = component::<ErrorEnvelope>(&mut c, "ErrorEnvelope");
     let errors = |codes: &[u16]| -> Map<String, Value> {
         codes
@@ -289,6 +302,7 @@ pub fn openapi() -> Value {
             "/v1/runs/{id}/tours/{tour}/reveal": {"post": op("Reveal one step's answer in the caller's session", Some(&reveal), 200, &tour, true, &[400, 401, 403, 404, 409, 503])},
             "/v1/runs/{id}/tours/{tour}/complete": {"post": op("Complete the caller's session; not an approval", None, 200, &tour, true, &[400, 401, 403, 404, 409, 503])},
             "/v1/runs/{id}/tours/{tour}/dismiss": {"post": op("Dismiss the caller's session", None, 200, &tour, true, &[400, 401, 403, 404, 409, 503])},
+            "/v1/runs/{id}/handoff": {"post": op("Export selected findings for a separate author workflow; no model, no change", Some(&handoff_request), 200, &handoff, false, &[400, 401, 403, 404, 409, 503])},
             "/v1/runs/{id}/tours/{tour}/questions": {"post": op("A bounded follow-up on one step; private, never evidence", Some(&question), 201, &exchange, true, &[400, 401, 403, 404, 409, 503])},
         }
     })
