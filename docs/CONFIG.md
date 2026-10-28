@@ -42,7 +42,7 @@ is rejected without printing the value itself.
   workspace (secrets, symlinks, submodules and tool configs left out), mounted as the only volume of a docker
   container with `--network none`, `--cap-drop ALL`, `--read-only`, no-new-privileges and the limits; the environment
   carries no Sych secret. Docker is the only backend for repository code. The stdout is imported as a CI report bound
-  to the head (`TrustClass::DerivedLocal`, binding `ENVIRONMENT`, runner `<profile> in <image>`); a non-zero exit is a
+  to the head (`TrustClass::DerivedLocal`, binding `ENVIRONMENT`, runner `<check> in <image>`, the check named as above); a non-zero exit is a
   result, not an error. A refused (`disabled`, `not allowed`, `missing` or `invalid` parameter) or failed run is a
   task gap `EXECUTION_REFUSED` / `EXECUTION_FAILED`, never a passed check; a profile with choices that runs without a
   request is refused as missing them. A quality eval case may carry its own `execution: {profiles, checks}`, used

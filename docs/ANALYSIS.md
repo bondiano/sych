@@ -384,7 +384,7 @@ recall and kept UNKNOWNs rose and precision held, at twice the cost: the wider w
 **Isolated runner (M3.8).** `execution.profiles` with `image: …@sha256:…` run on docker only: the head is
 materialised into a temporary directory and the profile's argv runs with `--network none`, memory, CPU and pid
 limits, no credentials; its report is imported like a CI report and bound to the head as `DerivedLocal` evidence
-with the runner `<profile> in <image>`. Local smoke with a Go test profile: the container had no network interface
+with the runner `<check> in <image>`. Local smoke with a Go test profile: the container had no network interface
 (`net=0`), the report bound to the head and reached the obligation. A refused or failing profile is a gap
 (`EXECUTION_REFUSED` / `EXECUTION_FAILED`), never a pass.
 

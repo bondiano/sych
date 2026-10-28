@@ -28,7 +28,8 @@ pub fn run_profiles(
     checks: &[CheckRequest],
 ) -> (Vec<CiFacts>, Vec<CiGap>) {
     let (mut facts, mut gaps) = (Vec::new(), Vec::new());
-    if !execution.enabled {
+    // A requested check on a disabled server is refused below, so the request leaves a gap.
+    if !execution.enabled && checks.is_empty() {
         return (facts, gaps);
     }
 
@@ -295,6 +296,17 @@ mod tests {
         let off = Execution::default();
         let (facts, gaps) = run_profiles(&snap, &off, &[]);
         assert!(facts.is_empty() && gaps.is_empty());
+        let asked = CheckRequest {
+            profile: "outcomes".into(),
+            params: BTreeMap::new(),
+        };
+        let (facts, gaps) = run_profiles(&snap, &off, &[asked]);
+        assert!(facts.is_empty());
+        assert_eq!(
+            (gaps[0].code.as_str(), gaps[0].detail.as_str()),
+            ("EXECUTION_REFUSED", "execution is disabled on this server"),
+            "a requested check is never dropped silently"
+        );
 
         let needs_param = execution(vec![ProfileArg::Choice {
             param: "flags".into(),
