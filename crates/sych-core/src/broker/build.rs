@@ -42,8 +42,8 @@ impl Limits {
 
     /// Smaller request budgets when the packets would send more than the run's input cap:
     /// each shown span goes out about twice (search, then verification of what it found).
-    /// What no longer fits is cut by priority with the usual gaps. Down to a quarter; past
-    /// that the run cap itself refuses the rest.
+    /// What no longer fits is cut by priority with the usual gaps. Down to a quarter, and never
+    /// below the largest required span; past that the run cap itself refuses the rest.
     #[must_use]
     pub fn fit_run(self, packets: &[EvidencePacket], run_input_tokens: u32) -> Option<Self> {
         let demand = 2 * packets
