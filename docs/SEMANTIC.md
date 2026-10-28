@@ -21,7 +21,7 @@ verified against the pinned SHA-256, unpacked into a temporary directory and ato
 | Python | ty `0.0.93` `ty server` (GitHub release, musl on Linux) with `untrustedWorkspace: true`, plus the syntax facts below | the single pinned one | same |
 
 Linters are pinned the same way (GitHub release, SHA-256 from the release digest): ruff `0.17.2`, oxlint `1.89.0`, sqruff `0.43.0`,
-mago `1.59.0`, jarl `0.7.1`, actionlint `1.7.12`, zizmor `1.31.1`; see [Pinned linters](#pinned-linters).
+mago `1.59.0`, jarl `0.7.1`, clj-kondo `2026.10.26`, actionlint `1.7.12`, zizmor `1.31.1`; see [Pinned linters](#pinned-linters).
 
 gopls is not published as binaries, hence `archive: go-module`: Sych downloads the pinned Go, verifies the `h1:`
 hash of the `golang.org/x/tools/gopls@v0.24.0` module (`sha256` in the manifest is its hex) via `go mod download -json`,
@@ -245,6 +245,7 @@ execute repository code and work without project setup:
 | oxlint | `.js/.jsx/.mjs/.cjs/.ts/.tsx/.mts/.cts` — also in a JS project without a TypeScript backend | `--format sarif` | `.oxlintrc.json`; if `jsPlugins` or `oxlint.config.*` (JS/TS) appear anywhere in the tree, the project config is not read (`--disable-nested-config -c {}`); this is a limitation |
 | sqruff | `.sql` | `lint --format sarif` (release builds have no Python templaters: jinja/dbt templates are not rendered) | `.sqruff`, `.sqlfluff`, `pyproject.toml`; dialect from them, else ANSI |
 | mago | `.php` | `--no-extensions --no-version-check lint --reporting-format sarif` — extension hosts from the config are unsandboxed processes and are never started; `analyze` is not run (it needs `vendor/`) | `mago.{toml,yaml,yml,json}`, `mago.dist.*` |
+| clj-kondo | `.clj`, `.cljs`, `.cljc` | `--repro --cache false --config '{:output {:format :sarif}}' --config-dir <empty> --lint` (zip release; static build on x86_64 Linux) | none: the project's `.clj-kondo` is never read, because its hooks and imported configs run repository Clojure; when it exists, a limitation says default rules were used |
 | jarl | `.r`, `.R` | `check --output-format sarif`; with an empty `PATH` it finds no `Rscript`, so package-specific rules (which would start R in the project) are skipped | `jarl.toml`, `.jarl.toml` |
 | actionlint | `.github/workflows/*.y(a)ml` | `-shellcheck= -pyflakes= -format '{{json .}}'` | `.github/actionlint.y(a)ml` |
 | zizmor | workflows, `action.y(a)ml`, `.github/dependabot.yml` | `--offline --format sarif` | `zizmor.yml`, `.github/zizmor.yml` |
@@ -267,6 +268,17 @@ Ruby — get no pinned backend and stay `NO_SEMANTIC_BACKEND`: running jdtls, Me
 means running the project's build. Their evidence is the project's own CI reports (detekt, ktlint, Credo, RuboCop and
 SpotBugs write SARIF; test runners write JUnit), imported like any CI report, or an execution profile on an image that
 already holds the dependencies, since a check runs without network ([CONFIG.md](CONFIG.md)).
+
+Four more stay without a language server for the same reason or a missing build (checked against their releases,
+2026-10-28), with the same CI and execution-profile routes:
+
+- Gleam: `gleam lsp` downloads Hex and git dependencies on start (network), offers push diagnostics only, and
+  `gleam check` builds dependencies with rebar3/mix.
+- Zig: zls runs `build.zig` through its build runner whenever a `zig` is found; without one it only checks syntax.
+- C/C++: clangd has no linux-aarch64 release and needs a `compile_commands.json` from the project's build;
+  clang-tidy ships only inside the full LLVM release (gigabytes, no macOS x86_64 build).
+- Clojure (server): clojure-lsp runs the project's classpath command (`lein`, `clojure`, `bb`), and the repository's
+  `.lsp/config.edn` overrides what a client sets; Clojure gets the clj-kondo linter only.
 
 ## Semantic cache
 

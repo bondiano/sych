@@ -1,13 +1,13 @@
 //! Pinned linters on the head's changed files (spec §10.6): ruff for Python, oxlint for
 //! JS/TS (also where no TypeScript backend applies), sqruff for SQL, mago for PHP, jarl for R,
-//! actionlint and zizmor for GitHub workflows. Each is a single verified binary that reads source and its own config but never
+//! clj-kondo for Clojure, actionlint and zizmor for GitHub workflows. Each is a single verified binary that reads source and its own config but never
 //! executes repository code: it runs on a materialized head with an empty `PATH` and `HOME`,
 //! no network options, and a time bound.
 
 mod run;
 
-use std::fs;
 use std::path::Path;
+use std::{fs, io};
 
 use serde_json::json;
 use sych_core::{
@@ -54,7 +54,7 @@ fn action_or_workflow(path: &str) -> bool {
         || matches!(path, ".github/dependabot.yml" | ".github/dependabot.yaml")
 }
 
-const LINTERS: [Linter; 7] = [
+const LINTERS: [Linter; 8] = [
     Linter {
         tool: "ruff",
         selects: |p| ext(p, &["py", "pyi"]),
@@ -115,6 +115,21 @@ const LINTERS: [Linter; 7] = [
         // Package-specific rules would start `Rscript` from the project root; with an empty
         // `PATH` jarl finds no R and skips them.
         args: &["check", "--output-format", "sarif"],
+    },
+    Linter {
+        tool: "clj-kondo",
+        selects: |p| ext(p, &["clj", "cljs", "cljc"]),
+        // The project's `.clj-kondo` is never read: its hooks run repository Clojure.
+        configs: &[],
+        format: Format::Sarif,
+        // `--config-dir` (an empty Sych-owned directory) and `--lint` are added at run time.
+        args: &[
+            "--repro",
+            "--cache",
+            "false",
+            "--config",
+            "{:output {:format :sarif}}",
+        ],
     },
     Linter {
         tool: "actionlint",
@@ -296,20 +311,16 @@ fn run_linter(
     }
 
     let mut args: Vec<String> = linter.args.iter().map(|a| (*a).to_owned()).collect();
-    if linter.tool == "oxlint" && run::oxlint_runs_code(root) {
-        let isolated = scratch.join("oxlintrc.json");
-        if fs::write(&isolated, "{}").is_ok() {
-            args.extend([
-                "--disable-nested-config".into(),
-                "-c".into(),
-                isolated.display().to_string(),
-            ]);
-            facts.limitations.push(
-                "the project's oxlint configuration loads JS plugins or a JS config, which would \
-                 run repository code: default rules were used instead"
-                    .into(),
-            );
-        }
+    if let Err(err) = isolate(
+        linter.tool,
+        root,
+        scratch,
+        &mut args,
+        &mut facts.limitations,
+    ) {
+        facts.status = BackendStatus::Failed;
+        facts.limitations.push(format!("{}: {err}", linter.tool));
+        return;
     }
 
     args.extend(files.iter().map(|f| (*f).to_owned()));
@@ -356,6 +367,51 @@ fn run_linter(
             ));
         }
     }
+}
+
+/// Arguments that keep a linter off project code its configuration would run, each with the
+/// limitation it costs.
+fn isolate(
+    tool: &str,
+    root: &Path,
+    scratch: &Path,
+    args: &mut Vec<String>,
+    limitations: &mut Vec<String>,
+) -> io::Result<()> {
+    if tool == "oxlint" && run::oxlint_runs_code(root) {
+        let isolated = scratch.join("oxlintrc.json");
+        if fs::write(&isolated, "{}").is_ok() {
+            args.extend([
+                "--disable-nested-config".into(),
+                "-c".into(),
+                isolated.display().to_string(),
+            ]);
+            limitations.push(
+                "the project's oxlint configuration loads JS plugins or a JS config, which would \
+                 run repository code: default rules were used instead"
+                    .into(),
+            );
+        }
+    }
+
+    if tool == "clj-kondo" {
+        let empty = scratch.join("clj-kondo-config");
+        fs::create_dir_all(&empty)?;
+        args.extend([
+            "--config-dir".into(),
+            empty.display().to_string(),
+            "--lint".into(),
+        ]);
+        if root.join(".clj-kondo").is_dir() {
+            limitations.push(
+                "the project's .clj-kondo configuration was not read: its hooks and imported \
+                 configs run repository code; default rules were used instead"
+                    .into(),
+            );
+        }
+    }
+
+    Ok(())
 }
 
 /// SARIF through the CI reader, so locations and limits follow one implementation.
