@@ -448,7 +448,7 @@ PostgreSQL (M4).
 **`/v1`** requires `Authorization: Bearer <token>` of a configured client (constant-time comparison) and access to the
 repository (`connection/owner/name` or `*`); a foreign repository — 404. Mutating requests require an
 `Idempotency-Key` (scope tenant + actor + endpoint, TTL 24 h): a repeat returns the stored response with
-`reused: true`, the same key with a different body — 409 `IDEMPOTENCY_CONFLICT`, an unfinished first request — 409
+`reused: true`, the same key with a different body or target resource (path parameters) — 409 `IDEMPOTENCY_CONFLICT`, an unfinished first request — 409
 `REQUEST_IN_PROGRESS`. Run/publication uniqueness does not depend on the key TTL.
 
 | Endpoint | Role | Response |

@@ -62,32 +62,41 @@ pub async fn ask(
     };
     let run = run_of(&run_view)?;
     let tour = tour_id(&app, &caller, run, Some(&tour)).await?;
-    idempotent(&app, &caller, ENDPOINT, &headers, &body, || async {
-        let (t, _) = open(&app, &caller, run, tour).await?;
-        let step = followup::step(&t, &request.step_id).map_err(invalid)?;
-        let reply = match (request.kind, terms) {
-            (QuestionKind::RiskDecision, Some(terms)) => Reply::RiskDecision {
-                waiver_id: record_waiver(&app, &caller, run_view.change_id, terms).await?,
-                rule_id: terms.rule_id.clone(),
-            },
-            (QuestionKind::FactRequest, _) => Reply::HumanStatement {
-                text: request.question.clone(),
-            },
-            _ => explain(&app, &caller, &run_view, (&t, step), &request.question).await?,
-        };
-        let exchange = followup::exchange(
-            (&t, step),
-            &caller.0.name,
-            (request.kind, &request.question),
-            now(&app),
-            reply,
-        );
-        app.storage
-            .add_exchange(&caller.0.tenant_id, run, &exchange)
-            .await
-            .map_err(|e| storage_error(&e))?;
-        Ok((StatusCode::CREATED, to_value(&exchange)?))
-    })
+    let resource = format!("{id}/{tour}");
+    idempotent(
+        &app,
+        &caller,
+        ENDPOINT,
+        &resource,
+        &headers,
+        &body,
+        || async {
+            let (t, _) = open(&app, &caller, run, tour).await?;
+            let step = followup::step(&t, &request.step_id).map_err(invalid)?;
+            let reply = match (request.kind, terms) {
+                (QuestionKind::RiskDecision, Some(terms)) => Reply::RiskDecision {
+                    waiver_id: record_waiver(&app, &caller, run_view.change_id, terms).await?,
+                    rule_id: terms.rule_id.clone(),
+                },
+                (QuestionKind::FactRequest, _) => Reply::HumanStatement {
+                    text: request.question.clone(),
+                },
+                _ => explain(&app, &caller, &run_view, (&t, step), &request.question).await?,
+            };
+            let exchange = followup::exchange(
+                (&t, step),
+                &caller.0.name,
+                (request.kind, &request.question),
+                now(&app),
+                reply,
+            );
+            app.storage
+                .add_exchange(&caller.0.tenant_id, run, &exchange)
+                .await
+                .map_err(|e| storage_error(&e))?;
+            Ok((StatusCode::CREATED, to_value(&exchange)?))
+        },
+    )
     .await
 }
 
