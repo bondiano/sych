@@ -11,7 +11,8 @@
 **Sych** (Russian *сыч*, the little owl) is a code reviewer with a deterministic Rust core and bounded model calls.
 The engine decides what must be checked, collects evidence and computes the verdict; models only propose
 hypotheses and assessments inside fixed budgets. Every finding cites exact code, every gap is reported as
-`UNKNOWN` instead of silence, and the same inputs give the same result.
+`UNKNOWN` instead of silence. Planning and the verdict are deterministic for the same facts and assessments; model
+answers are not, so a fresh review of the same diff can differ.
 
 ## What it does
 

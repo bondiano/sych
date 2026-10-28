@@ -255,9 +255,10 @@ impl ServerConfig {
         let mut p = Problems::new(file);
         let w = &self.workers;
         p.check(
-            w.concurrency > 0,
+            // shortcut: the engine runs one claim loop; raise the cap when it spawns `concurrency` loops.
+            w.concurrency == 1,
             "workers.concurrency",
-            "must be greater than zero",
+            "must be 1: the worker runs a single claim loop",
         );
         p.check(
             w.heartbeat_seconds > 0 && w.heartbeat_seconds < w.lease_seconds,

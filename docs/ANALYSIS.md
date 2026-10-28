@@ -387,7 +387,7 @@ What the runs showed and what changed:
 
 **Whole development suite** after the M3 cases and the 48 KB window (main with #32, before #33/#34; one run,
 variant C, [report](examples/quality/dev-cheap_api-c-m3.json); the two real-commit cases need local checkouts and were
-skipped): 121 cases, no errors, defects found 42/48 (recall 0.88), labelled correctness findings 58/88 (precision
+skipped): 123 cases, no errors, defects found 42/48 (recall 0.88), labelled correctness findings 58/88 (precision
 0.66), a correctness remark on 25 of 66 safe cases (16 of them false), UNKNOWN preserved 4/9, obligations as labelled
 16/26, nits matched 4/16; 386 model attempts, $0.327. Against the M1.8 C baseline (34/39, 39/61, 22/58, 2/6, $0.168)
 recall and kept UNKNOWNs rose and precision held, at twice the cost: the wider window sends more code per attempt.
