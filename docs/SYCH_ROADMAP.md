@@ -96,7 +96,7 @@ flowchart TD
 - **Участок:** [ledger.rs:65–108](../crates/sych-storage/src/ledger.rs#L65-L108), [gateway.rs:182–202](../crates/sych-core/src/model/gateway.rs#L182-L202).
 - **Проблема:** production SQL считает `run_attempts` только для `state <> 'RELEASED'`. Отказ после Sych-initiated запроса, классифицированный как `dispatched=false`, освобождает денежный резерв и одновременно исчезает из счётчика попыток. Fallback использует тот же ledger.
 - **Проверка:** на настоящем SQLite store при `max_attempts=1` выполнены reserve → `Settlement::Released` → второй reserve того же run. Второй получил `Ok(())`. Внешние HTTP вызовы для проверки не понадобились.
-- [ ] **Минимальное исправление:** не исключать released attempts из счётчика попыток; деньги освобождать по-прежнему. Перенести [существующий router cap scenario](../crates/sych-core/tests/router.rs#L208-L228) на реальный SQLite ledger: его in-memory реализация сейчас считает все rows и скрывает расхождение.
+- [x] **Минимальное исправление:** не исключать released attempts из счётчика попыток; деньги освобождать по-прежнему. Перенести [существующий router cap scenario](../crates/sych-core/tests/router.rs#L208-L228) на реальный SQLite ledger: его in-memory реализация сейчас считает все rows и скрывает расхождение.
 - **Если оставить:** `[INFERENCE]` цепочка отказов/fallback выполняет больше запросов, чем разрешает hard attempt cap. Превышение денежного tenant cap этим сценарием не доказано.
 
 ### 6. P1 — Lease обслуживается только на стадии analysis и не по настроенному интервалу
@@ -112,7 +112,7 @@ flowchart TD
 - **Участок:** [ledger.rs:60–82](../crates/sych-storage/src/ledger.rs#L60-L82), [followup scoped ledger](../crates/sych-app/src/followup.rs#L309-L321).
 - **Проблема:** общий `WHERE tenant_id = ? AND month = ?` ограничивает не только месячный pool, но и aggregates для run/purpose/scope: деньги, attempts и tokens. Долгоживущая follow-up session сохраняет identity между месяцами, её лимит при этом не должен начинаться заново.
 - **Проверка:** один run и scope `followup:tour:actor`, cap 500 micro-USD. Два резерва по 400 внутри октября: второй отвергнут по run money. Такой же второй резерв на `2026-11-01T00:00:01Z`, после первого на `2026-10-31T23:59:59Z`: принят. Использован production SQLite ledger.
-- [ ] **Минимальное исправление:** считать lifetime run/purpose/scope отдельно от day/month aggregates в той же write transaction. Дополнить [per-session cap test](../crates/sych-storage/tests/ledger.rs#L310-L346) переходом календарного месяца.
+- [x] **Минимальное исправление:** считать lifetime run/purpose/scope отдельно от day/month aggregates в той же write transaction. Дополнить [per-session cap test](../crates/sych-storage/tests/ledger.rs#L310-L346) переходом календарного месяца.
 - **Если оставить:** run/session получает повторный бюджет. Месячный tenant pool должен сбрасываться и сам по себе этим сценарием не обходится.
 
 ### 8. P2 — Job retry deadline короче разрешённого ожидания CI

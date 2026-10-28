@@ -233,6 +233,33 @@ async fn settlement_is_idempotent_and_unknown_holds_the_reservation() {
 }
 
 #[tokio::test]
+async fn a_released_attempt_still_counts_against_the_attempt_cap() {
+    let (_dir, storage, run) = setup().await;
+    let caps = Limits {
+        run: Budget {
+            max_attempts: Some(1),
+            ..Budget::default()
+        },
+        ..limits(1_000, 10_000)
+    };
+    let first = reservation(run, 100);
+    storage
+        .reserve_attempt(&first, &caps)
+        .await
+        .expect("ledger")
+        .expect("fits");
+    storage
+        .settle_attempt(first.attempt_id, &Settlement::Released, at(61))
+        .await
+        .expect("settle");
+    let second = storage
+        .reserve_attempt(&reservation(run, 100), &caps)
+        .await
+        .expect("ledger");
+    assert_eq!(second, Err(Denied::Attempts { cap: 1 }));
+}
+
+#[tokio::test]
 async fn subscription_fee_is_charged_once_per_month_against_the_pool() {
     let (_dir, storage, run) = setup().await;
     let caps = limits(1_000, 1_000);
@@ -342,5 +369,42 @@ async fn a_follow_up_cap_is_per_session() {
         reserve(reservation(run, 400), None).await,
         Ok(()),
         "analysis spends outside every session"
+    );
+}
+
+#[tokio::test]
+async fn a_session_cap_survives_the_month_boundary() {
+    let (_dir, storage, run) = setup().await;
+    let caps = Limits {
+        run: Budget {
+            max_cost_micro_usd: Some(MicroUsd(500)),
+            ..Budget::default()
+        },
+        daily_money: None,
+        monthly_money: Some(MicroUsd(10_000)),
+    };
+    let ask = |at: &str| Reservation {
+        purpose: Purpose::Followup,
+        at: at.parse().expect("timestamp"),
+        ..reservation(run, 400)
+    };
+    let scope = Some("followup:t:a");
+    let october = storage
+        .reserve_scoped(&ask("2026-10-31T23:59:59Z"), &caps, scope)
+        .await
+        .expect("ledger");
+    assert_eq!(october, Ok(()));
+    let november = storage
+        .reserve_scoped(&ask("2026-11-01T00:00:01Z"), &caps, scope)
+        .await
+        .expect("ledger");
+    assert!(matches!(november, Err(Denied::Money { .. })), "{november:?}");
+    assert_eq!(
+        storage
+            .reserve_scoped(&ask("2026-11-01T00:00:02Z"), &caps, Some("followup:t:b"))
+            .await
+            .expect("ledger"),
+        Ok(()),
+        "the monthly pool itself starts again"
     );
 }
