@@ -102,11 +102,16 @@ pub(crate) fn bind(planned: &mut PlannedObligation, plans: &[(&TerraformPlan, bo
                 Some(ReplaceOrder::CreateBeforeDelete) => " (create before delete)",
                 None => "",
             };
+            // "Intended" alone cannot be checked against code; what keeps the data can.
             format!(
-                "Plan: {} {}{order}; forced by {:?}; unknown after apply {:?}. The deletion or \
-             replacement is intended.",
-                c.address,
+                "The plan (imported for this head, not in the snapshot) will {} {}{order}, \
+                 forced by {:?}; unknown after apply {:?}. MET only if the changed configuration \
+                 shows the loss is handled: the resource holds no data, or create_before_destroy, \
+                 prevent_destroy, a snapshot/restore or moved block keeps it; NOT_MET if a \
+                 stateful resource is destroyed with nothing that keeps its data; anchor the \
+                 changed lines that force it.",
                 c.actions.join("/"),
+                c.address,
                 c.replace_paths,
                 c.unknown_after,
             )
