@@ -124,6 +124,12 @@ fn generic_rules_activate_only_on_their_changes() {
     );
     let tests = rule(&p, "TEST-INTEGRITY").expect("test integrity");
     assert_eq!(tests.applicability, Applicability::Applies);
+    assert!(
+        p.obligations
+            .iter()
+            .any(|o| o.obligation.id == tests.id && o.about_tests),
+        "the shipped rule takes test files as evidence"
+    );
     assert!(rule(&p, "TF-CHANGE").is_none() && rule(&p, "EFFECT-01").is_none());
 }
 
@@ -150,6 +156,10 @@ fn profiles_enable_generic_rules_and_a_repository_rule_replaces_its_twin() {
     );
     let ids: Vec<_> = p.obligations.iter().map(|o| &o.rule_title).collect();
     assert_eq!(ids, ["Order event"], "one TEST-INTEGRITY, the repository's");
+    assert!(
+        !p.obligations[0].about_tests,
+        "a repository twin is not exempt"
+    );
 }
 
 #[test]

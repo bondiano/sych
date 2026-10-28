@@ -1,9 +1,11 @@
 //! Labelled quality suite (spec §27.2–27.3). `sych eval validate` is deterministic: it proves
 //! the labels are well-formed and anchored — every evidence location resolves to an exact
 //! `CodeRef` and the expected syntax shapes are present — not that any model finds them.
-//! `sych eval measure` ([`measure`]) reviews the cases with a real model profile.
+//! `sych eval measure` ([`measure`]) reviews the cases with a real model profile;
+//! `sych eval compare` ([`compare`]) puts saved measurements side by side.
 
 mod ci;
+pub mod compare;
 mod measure;
 mod score;
 

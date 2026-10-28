@@ -5,12 +5,13 @@
 //! from the listed titles. The numbers are measurements; acceptance criteria are the owner's.
 
 use std::collections::BTreeMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use sych_core::config::RunMode;
 
 use serde::Serialize;
-use sych_core::{Candidate, ReviewResult};
+use sych_core::{Candidate, ReviewResult, VerificationStatus, sha256};
 use tempfile::TempDir;
 
 use super::score::{RunReport, Totals, candidate_remarks, remarks, score};
@@ -47,6 +48,8 @@ struct Report {
     variant: &'static str,
     semantic: bool,
     runs_per_case: u32,
+    /// SHA-256 of the `--config` file: reports compare only under the same budgets.
+    config_sha256: String,
     skipped: Vec<String>,
     totals: Totals,
     by_language: BTreeMap<String, Totals>,
@@ -124,6 +127,11 @@ pub fn measure(args: &MeasureArguments<'_>) -> anyhow::Result<ExitCode> {
         variant: args.variant,
         semantic: args.semantic == Switch::On,
         runs_per_case: args.runs,
+        config_sha256: sha256(
+            &fs::read(args.config)
+                .map_err(|e| Failure::invalid(format!("{}: {e}", args.config.display())))?,
+        )
+        .to_string(),
         skipped: Vec::new(),
         totals: Totals::default(),
         by_language: BTreeMap::new(),
@@ -133,12 +141,15 @@ pub fn measure(args: &MeasureArguments<'_>) -> anyhow::Result<ExitCode> {
         for run in 1..=args.runs {
             let (error, measured) = match review_case(case, &repos, args) {
                 Ok(Some((result, candidates))) => {
-                    let remarks = if args.verify {
-                        remarks(&result)
+                    let (remarks, dropped) = if args.verify {
+                        let dropped = candidates
+                            .iter()
+                            .filter(|c| c.verification_status != VerificationStatus::Confirmed);
+                        (remarks(&result), candidate_remarks(dropped))
                     } else {
-                        candidate_remarks(&candidates)
+                        (candidate_remarks(&candidates), Vec::new())
                     };
-                    (None, Some(score(case, &result, &remarks)))
+                    (None, Some(score(case, &result, &remarks, &dropped)))
                 }
                 Ok(None) => {
                     report

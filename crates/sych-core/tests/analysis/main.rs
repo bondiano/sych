@@ -183,6 +183,7 @@ fn obligation(criteria: &[&str]) -> PlannedObligation {
         severity_on_violation: Some(Severity::High),
         exceptions: Vec::new(),
         contracts: Vec::new(),
+        about_tests: false,
     }
 }
 
@@ -309,6 +310,27 @@ fn reason(status: &ObligationStatus) -> &str {
 }
 
 #[test]
+fn the_hunks_of_shown_changed_files_are_listed_and_others_are_not() {
+    let reader = Reader::new();
+    let (mut ctx, _) = context(&reader);
+    let mut manifest: DiffManifest = serde_json::from_str(include_str!(
+        "../../../../fixtures/publication/diff-manifest.json"
+    ))
+    .expect("manifest");
+    let file = &mut manifest.files[0];
+    for side in file.old.iter_mut().chain(file.new.iter_mut()) {
+        side.path = path("src/order.ts");
+    }
+    ctx.add_changes(&manifest);
+    let block = ctx.blocks.last().expect("changes block");
+    assert!(block.label.starts_with("every hunk"), "{}", block.label);
+    assert_eq!(
+        block.content,
+        "src/order.ts Modified: 5 lines removed, 7 added; -41,5 +41,7\n"
+    );
+}
+
+#[test]
 fn assessment_statuses_follow_the_criteria() {
     let reader = Reader::new();
     let (context, source) = context(&reader);
@@ -365,6 +387,29 @@ fn assessment_statuses_follow_the_criteria() {
         vec![test_only("c-1"), test_only("c-2")],
     ));
     assert_eq!(reason(&oracle.status), "TEST_ORACLE_ONLY");
+    let mut integrity = planned.clone();
+    integrity.obligation.rule_id = "TEST-INTEGRITY".into();
+    let on_tests = |p: &PlannedObligation| {
+        let output = assessment(
+            ProposedStatus::Supported,
+            vec![test_only("c-1"), test_only("c-2")],
+        );
+        let status = validate_assessment(output, p, "ob-1", &context, &reader)
+            .assessment
+            .status;
+        reason(&status).to_owned()
+    };
+    assert_eq!(
+        on_tests(&integrity),
+        "TEST_ORACLE_ONLY",
+        "the id alone exempts nothing"
+    );
+    integrity.about_tests = true;
+    assert_eq!(
+        on_tests(&integrity),
+        "SUPPORTED",
+        "test files are the evidence of the shipped rule about tests"
+    );
 
     let mut no_basis = assessment(ProposedStatus::NotApplicable, Vec::new());
     no_basis.applicability = Applicability::DoesNotApply;
