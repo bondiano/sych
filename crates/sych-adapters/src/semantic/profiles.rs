@@ -334,6 +334,9 @@ mod tests {
         fs::write(root.path().join("pyproject.toml"), "[project]\n").expect("write");
         let p = python(root.path()).expect("profile");
         assert_eq!(p.build_configuration["config"], "pyproject.toml");
+        fs::write(root.path().join("ty.toml"), "").expect("write");
+        let p = python(root.path()).expect("profile");
+        assert_eq!(p.build_configuration["config"], "pyproject.toml, ty.toml");
     }
 
     #[test]
