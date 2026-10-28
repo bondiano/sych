@@ -12,7 +12,7 @@ mod finding;
 mod freeze;
 mod generic;
 pub mod handoff;
-pub use generic::{generic_rule_ids, is_migration_path};
+pub use generic::{generic_rule_ids, is_migration_path, is_test_path};
 mod glob;
 mod hash;
 pub mod kubernetes;

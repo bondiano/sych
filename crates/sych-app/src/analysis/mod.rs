@@ -391,6 +391,16 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             self.snap,
         );
         context.add_changes(&self.snap.manifest);
+        let obligation = self.packets[index].request.obligation_id;
+        if self
+            .plan
+            .obligations
+            .iter()
+            .any(|o| Some(o.obligation.id) == obligation && o.about_tests)
+        {
+            context.add_test_removals(&self.snap.manifest, self.snap);
+        }
+
         context
     }
 
@@ -416,7 +426,11 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                     .iter()
                     .any(|u| units.contains(u))
             })
-            .collect();
+            .collect::<Vec<&PlannedObligation>>();
+        if linked.iter().any(|o| o.about_tests) {
+            context.add_test_removals(&self.snap.manifest, self.snap);
+        }
+
         (context, linked)
     }
 

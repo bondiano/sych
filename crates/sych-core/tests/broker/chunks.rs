@@ -119,6 +119,50 @@ fn a_violation_shown_in_a_chunk_stands_beside_an_over_budget_span() {
     ));
 }
 
+#[test]
+fn merged_spans_stay_within_the_span_line_limit() {
+    let reader = Reader::new();
+    let none = EffectLedger::default();
+    let short = Limits {
+        max_span_lines: 3,
+        ..limits()
+    };
+    let (_, packets) = run_on(&manifest(), short, &[facts(&reader)], &[], &none, &[]);
+    let fragments: Vec<_> = packets.iter().flat_map(|p| &p.fragments).collect();
+    assert!(!fragments.is_empty());
+    for f in fragments {
+        let r = &f.code_ref;
+        assert!(
+            r.end_line - r.start_line < 3,
+            "{}:{}-{}",
+            r.path,
+            r.start_line,
+            r.end_line
+        );
+    }
+}
+
+#[test]
+fn a_run_cap_never_shrinks_requests_below_the_largest_required_span() {
+    let reader = Reader::new();
+    let two = two_files();
+    let largest = *required_tokens(&reader, &two).iter().max().expect("spans");
+    let none = EffectLedger::default();
+    let (_, packets) = run_on(&two, limits(), &[facts(&reader)], &[], &none, &[]);
+    let wide = Limits {
+        unit_tokens: largest * 2,
+        request_tokens: largest * 2,
+        ..limits()
+    };
+    let fitted = wide.fit_run(&packets, 1).expect("over the run cap");
+    assert!(
+        fitted.unit_tokens >= largest,
+        "{} < {largest}",
+        fitted.unit_tokens
+    );
+    assert!(fitted.request_tokens >= largest);
+}
+
 /// A second changed file in the same unit: two required spans for the guard.
 fn two_files() -> DiffManifest {
     let mut two = manifest();

@@ -191,6 +191,11 @@ pub(crate) fn pack() -> Vec<GenericRule> {
     ]
 }
 
+/// A test, fixture or CI file: what `TEST-INTEGRITY` is about.
+pub fn is_test_path(path: &RepoPath) -> bool {
+    any_glob(TEST_PATHS, path)
+}
+
 fn any_glob(globs: &[&str], path: &RepoPath) -> bool {
     globs.iter().any(|g| glob_match(g, path.as_str()))
 }

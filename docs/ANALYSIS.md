@@ -72,6 +72,10 @@ builds the `CodeRef` itself through the snapshot reader with a hash check.
 A further DATA block lists every hunk of each changed file the spans show (`-start,count +start,count` and the lines
 removed and added), so the model can tell that a shown hunk is its file's whole change: for example, that a test
 file only gained lines, which `TEST-INTEGRITY` otherwise could not settle from the spans alone.
+An obligation about the tests themselves (the shipped `TEST-INTEGRITY`) also gets the removed lines of every changed
+test and CI file, shown or not, read verbatim from BASE (up to 40 lines per file, the rest counted), and
+"0 lines removed" for a file that only gained lines: a weakened assertion or gate is visible even when the file's
+spans did not fit the packet.
 
 The packet's source spans are stored as derived evidence `source` (`SOURCE_OBSERVATION`): `COMPLETE_FOR_QUERY` for
 exactly these spans if no required span was excluded, otherwise `PARTIAL`. The packet gaps are its limitations.
@@ -488,7 +492,7 @@ is the variation itself.
   problems instead of all of them. The money cap stays the guard.
 - Context compression. Packets whose shown bytes, sent about twice (search, then verify), exceed
   `budgets.analysis.max_input_tokens` are rebuilt with request budgets scaled down in proportion, to a quarter
-  at most; what no longer fits is cut by priority with the usual `BUDGET`/`REQUIRED_OVER_BUDGET` gaps. A supporting
+  at most and never below the largest required span, so each one still fits a chunk of its own; what no longer fits is cut by priority with the usual `BUDGET`/`REQUIRED_OVER_BUDGET` gaps. A supporting
   construct over budget keeps its first line (`transformation: signature`, excluded as `SIGNATURE_ONLY`) instead of
   disappearing.
 - The model is nondeterministic: the same run can yield `UNKNOWN` if it did not attach an anchor to a criterion; this is
