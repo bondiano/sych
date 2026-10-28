@@ -224,6 +224,86 @@
           "sha256": "72ae63bb85b67229c06242f04195cb43927e9fab5f43803c6434dc701a517d61"
         }
       }
+    },
+    {
+      "name": "sqruff",
+      "version": "0.43.0",
+      "archive": "tar-gzip",
+      "binary": "sqruff",
+      "targets": {
+        "aarch64-linux": {
+          "url": "https://github.com/quarylabs/sqruff/releases/download/v0.43.0/sqruff-linux-aarch64-musl.tar.gz",
+          "sha256": "6697cda8f6f8d90ba6556b5c8043b33c23e86834460d9bab3c0e61b9caa14bfe"
+        },
+        "x86_64-linux": {
+          "url": "https://github.com/quarylabs/sqruff/releases/download/v0.43.0/sqruff-linux-x86_64-musl.tar.gz",
+          "sha256": "2a73f94dac935898d039c56bd414774f6deaf199827d650945eb7ea7940b7f11"
+        },
+        "aarch64-macos": {
+          "url": "https://github.com/quarylabs/sqruff/releases/download/v0.43.0/sqruff-darwin-aarch64.tar.gz",
+          "sha256": "7852030f4d5868700cb88c035c5374f7078c11b61f76bc4dca062dd3f7c9f628"
+        },
+        "x86_64-macos": {
+          "url": "https://github.com/quarylabs/sqruff/releases/download/v0.43.0/sqruff-darwin-x86_64.tar.gz",
+          "sha256": "39c9b72f50c2902a76d0ea0321b27e104da9584da315ee3f141261b6b2b66488"
+        }
+      }
+    },
+    {
+      "name": "mago",
+      "version": "1.59.0",
+      "archive": "tar-gzip",
+      "binary": "mago",
+      "targets": {
+        "aarch64-linux": {
+          "url": "https://github.com/carthage-software/mago/releases/download/1.59.0/mago-1.59.0-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "899efebb08173ddc98846437686709036b46d29996ed3316ff4a4e129e217837",
+          "binary": "mago-1.59.0-aarch64-unknown-linux-musl/mago"
+        },
+        "x86_64-linux": {
+          "url": "https://github.com/carthage-software/mago/releases/download/1.59.0/mago-1.59.0-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "c536aa948ff1dbcd4f12200088a01f61ca0ea426e92128255b657a797645ec00",
+          "binary": "mago-1.59.0-x86_64-unknown-linux-musl/mago"
+        },
+        "aarch64-macos": {
+          "url": "https://github.com/carthage-software/mago/releases/download/1.59.0/mago-1.59.0-aarch64-apple-darwin.tar.gz",
+          "sha256": "fdbd2e069fed69475dc9884cc7aae86e9a38f9e635be410de63d9a013512e147",
+          "binary": "mago-1.59.0-aarch64-apple-darwin/mago"
+        },
+        "x86_64-macos": {
+          "url": "https://github.com/carthage-software/mago/releases/download/1.59.0/mago-1.59.0-x86_64-apple-darwin.tar.gz",
+          "sha256": "13959b6b4154394d949df5ee388924defa8181084911a524eb8da3984b27ac2f",
+          "binary": "mago-1.59.0-x86_64-apple-darwin/mago"
+        }
+      }
+    },
+    {
+      "name": "jarl",
+      "version": "0.7.1",
+      "archive": "tar-gzip",
+      "binary": "jarl",
+      "targets": {
+        "aarch64-linux": {
+          "url": "https://github.com/etiennebacher/jarl/releases/download/0.7.1/jarl-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "097a71c9a9182836747ee6be6b4376d4ca8efad77e65b471bc0bd668415a65ce",
+          "binary": "jarl-aarch64-unknown-linux-musl/jarl"
+        },
+        "x86_64-linux": {
+          "url": "https://github.com/etiennebacher/jarl/releases/download/0.7.1/jarl-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "5e8795f497a3653e166ea92846f5575bd1e91748252b0546a1e8e35365071194",
+          "binary": "jarl-x86_64-unknown-linux-musl/jarl"
+        },
+        "aarch64-macos": {
+          "url": "https://github.com/etiennebacher/jarl/releases/download/0.7.1/jarl-aarch64-apple-darwin.tar.gz",
+          "sha256": "7012ed5fabe118769a43b93e9a197a44cb7d21756f7e80beb9235efa1bc3b834",
+          "binary": "jarl-aarch64-apple-darwin/jarl"
+        },
+        "x86_64-macos": {
+          "url": "https://github.com/etiennebacher/jarl/releases/download/0.7.1/jarl-x86_64-apple-darwin.tar.gz",
+          "sha256": "32b79a5466b0477a28b9fdaf150fe5371478b710eaa9b14df0e5716fedb7e0fd",
+          "binary": "jarl-x86_64-apple-darwin/jarl"
+        }
+      }
     }
   ]
 }

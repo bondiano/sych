@@ -77,6 +77,9 @@ fn linters_run_on_changed_files_in_an_empty_environment() {
         ("pyproject.toml", "[tool.ruff]\n"),
         ("app/a.py", "x = 1\ny = 2\n"),
         ("web/a.js", "let a;\nlet b;\n"),
+        ("db/q.sql", "select 1;\nselect 2;\n"),
+        ("src/a.php", "<?php\n$a = 1;\n"),
+        ("R/a.R", "x <- 1\ny <- 2\n"),
         (".github/workflows/ci.yml", "on: push\njobs: {}\n"),
         ("docs/readme.md", "text\n"),
     ];
@@ -84,6 +87,9 @@ fn linters_run_on_changed_files_in_an_empty_environment() {
         ("pyproject.toml", "[tool.ruff]\nselect = []\n"),
         ("app/a.py", "x = 1\ny = 3\n"),
         ("web/a.js", "let a;\nlet c;\n"),
+        ("db/q.sql", "select 1;\nselect 3;\n"),
+        ("src/a.php", "<?php\n$a = 2;\n"),
+        ("R/a.R", "x <- 1\ny <- 3\n"),
         (
             ".github/workflows/ci.yml",
             "on: pull_request_target\njobs: {}\n",
@@ -92,7 +98,18 @@ fn linters_run_on_changed_files_in_an_empty_environment() {
     ];
     let facts = collect(&base, &head);
     let tools: Vec<&str> = facts.iter().map(|f| f.producer.name.as_str()).collect();
-    assert_eq!(tools, ["ruff", "oxlint", "actionlint", "zizmor"]);
+    assert_eq!(
+        tools,
+        [
+            "ruff",
+            "oxlint",
+            "sqruff",
+            "mago",
+            "jarl",
+            "actionlint",
+            "zizmor"
+        ]
+    );
     assert!(facts.iter().all(|f| f.status == BackendStatus::Ready));
 
     let ruff = &facts[0];
@@ -110,7 +127,13 @@ fn linters_run_on_changed_files_in_an_empty_environment() {
             .any(|l| l.contains("configuration changed"))
     );
 
-    let actionlint = &facts[2];
+    for (linter, file) in [(2, "db/q.sql"), (3, "src/a.php"), (4, "R/a.R")] {
+        let d = &facts[linter].diagnostics[0];
+        assert_eq!((d.path.as_str(), d.line), (file, 2));
+        assert!(d.code_ref.is_some(), "{file} anchored on head");
+    }
+
+    let actionlint = &facts[5];
     assert_eq!(actionlint.diagnostics[0].path, ".github/workflows/ci.yml");
     assert!(actionlint.diagnostics[0].code_ref.is_some());
 }
