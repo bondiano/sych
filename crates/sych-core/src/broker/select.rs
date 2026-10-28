@@ -33,15 +33,22 @@ struct Merged {
     completeness: Completeness,
 }
 
-/// Overlapping or adjacent spans of one file and side become one span.
-fn merge(mut candidates: Vec<Candidate>) -> Vec<Merged> {
+/// Overlapping or adjacent spans of one file and side become one span of at most
+/// `max_lines`; past that the rest of an overlapping span starts a new one, so a long change
+/// stays in pieces that each fit a request.
+fn merge(mut candidates: Vec<Candidate>, max_lines: u32) -> Vec<Merged> {
     candidates.sort_by(|a, b| (a.side, &a.path, a.start).cmp(&(b.side, &b.path, b.start)));
     let mut out: Vec<Merged> = Vec::new();
-    for c in candidates {
+    for mut c in candidates {
+        let last = out.last().filter(|m| m.side == c.side && m.path == c.path);
+        let touches = last.is_some_and(|m| c.start <= m.end.saturating_add(1));
+        let fits = last.is_some_and(|m| c.end <= m.end || c.end - m.start < max_lines);
+        if let Some(m) = last.filter(|m| touches && !fits && c.start <= m.end) {
+            c.start = m.end + 1;
+        }
+
         match out.last_mut() {
-            Some(m)
-                if m.side == c.side && m.path == c.path && c.start <= m.end.saturating_add(1) =>
-            {
+            Some(m) if touches && fits => {
                 m.end = m.end.max(c.end);
                 m.priority = m.priority.min(c.priority);
                 if !m.reasons.contains(&c.reason) {
@@ -77,6 +84,11 @@ fn fragment_id(r: &CodeRef) -> String {
     sha256(key.as_bytes()).hex()[..12].to_owned()
 }
 
+fn is_prose(path: &str) -> bool {
+    path.rsplit_once('.')
+        .is_some_and(|(_, ext)| matches!(ext, "md" | "mdx" | "markdown" | "txt" | "rst" | "adoc"))
+}
+
 /// Packets one obligation's required spans may be split into; the rest is over budget.
 const MAX_CHUNKS: usize = 4;
 
@@ -100,7 +112,7 @@ pub(super) fn select(
     queries: Vec<QueryRecord>,
     mut gaps: Vec<String>,
     requests: u32,
-    max_files: u32,
+    (max_files, max_span_lines): (u32, u32),
 ) -> Vec<EvidencePacket> {
     let links: Vec<RawLink> = candidates
         .iter()
@@ -110,8 +122,9 @@ pub(super) fn select(
                 .map(|(path, line, rel)| (c.side, path, line, c.path.clone(), c.start, rel))
         })
         .collect();
-    let mut merged = merge(candidates);
-    merged.sort_by_key(|m| m.priority);
+    let mut merged = merge(candidates, max_span_lines);
+    // Code before prose of the same priority: a tight budget drops the notes first.
+    merged.sort_by_key(|m| (m.priority, is_prose(m.path.as_str())));
     let budget = request.remaining_budget;
     // A verification packet whose required spans do not fit together is split (spec §9.3);
     // discovery keeps one packet per unit.
