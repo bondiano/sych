@@ -116,46 +116,6 @@ async fn signed(s: &Server, delivery: &str, body: &[u8]) -> (StatusCode, Value) 
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn private_metrics_do_not_relax_the_public_peer_allowlist() {
-    use axum::extract::{ConnectInfo, State};
-    use axum::routing::get;
-    use std::net::SocketAddr;
-    use sych_app::server::metrics;
-
-    let server = start(1 << 20).await;
-    let denied = metrics::metrics(
-        State(Arc::clone(&server.app)),
-        ConnectInfo(SocketAddr::from(([192, 0, 2, 1], 12345))),
-    )
-    .await;
-    assert_eq!(denied, Err(StatusCode::FORBIDDEN));
-
-    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
-    let url = format!("http://{}", listener.local_addr().expect("address"));
-    let routes = axum::Router::new()
-        .route("/metrics", get(metrics::scrape))
-        .with_state(server.app);
-    let task = tokio::spawn(async move { axum::serve(listener, routes).await });
-    let client = reqwest::Client::new();
-    let response = client
-        .get(format!("{url}/metrics"))
-        .send()
-        .await
-        .expect("scrape");
-    assert_eq!(response.status(), StatusCode::OK);
-    let text = response.text().await.expect("metrics");
-    assert!(text.contains("sych_artifact_bytes 0"));
-    assert!(!text.contains(SECRET));
-    let response = client
-        .get(format!("{url}/v1/runs/1"))
-        .send()
-        .await
-        .expect("request");
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    task.abort();
-}
-
-#[tokio::test(flavor = "current_thread")]
 async fn a_signed_delivery_is_durable_before_2xx_and_a_repeat_is_recognized() {
     let s = start(1 << 20).await;
     let body = pull_request("o/r");

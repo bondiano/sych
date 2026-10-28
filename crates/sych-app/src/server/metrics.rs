@@ -195,11 +195,6 @@ pub async fn metrics(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    scrape(State(app)).await
-}
-
-/// The dedicated listener is private by deployment policy, not by forwarded client IP.
-pub async fn scrape(State(app): State<Arc<App>>) -> Result<String, StatusCode> {
     let m = app
         .storage
         .metrics((app.now)())

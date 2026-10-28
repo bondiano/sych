@@ -467,16 +467,6 @@ repository (`connection/owner/name` or `*`); a foreign repository — 404. Mutat
 | `GET /health/ready` | — | the DB responds and the artifact store is writable; without config or secrets |
 | `GET /metrics` | address from `metrics_allow` | Prometheus text; otherwise 403 |
 
-For Kubernetes scraping, `SYCH_METRICS_BIND=0.0.0.0:9464` enables a **separate private**
-listener serving only `GET /metrics`; unset means no additional listener. An invalid or
-occupied socket fails startup. This listener has no application API or peer allowlist:
-restrict it to Prometheus with a NetworkPolicy and never attach a public ingress.
-The main listener's `/metrics` still requires `metrics_allow`, so a proxy cannot bypass
-that check using forwarded headers. It exports the same bounded storage/webhook metrics,
-without tokens, paths or payload labels. In petinfra the **Sych** folder contains
-**Operations / reviewer** and **Backend logs**. A real local `sych api` smoke checked
-private scrape/readiness and that application routes are absent from the metrics listener.
-
 Errors — `{"error": {code, message, retryable, correlation_id, details}}`: 400 `INVALID_REQUEST`, 401
 `UNAUTHENTICATED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`, 409 conflicts, 413, 429 `RATE_LIMITED`, 503
 `DEPENDENCY_UNAVAILABLE`; without tokens, prompts, sources or stack traces.
