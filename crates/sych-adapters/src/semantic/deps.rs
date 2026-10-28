@@ -67,9 +67,9 @@ pub fn prepare(
         Language::Typescript => pnpm(root, tooling, resolve, state_dir),
         Language::Rust => cargo(root, tooling, state_dir),
         Language::Go => go(root, tooling, resolve, state_dir),
-        Language::Python => Err(DepsError::Unsupported(
-            "Python dependencies are not installed: there is no language server to use them".into(),
-        )),
+        // A pip or uv install builds sdists through the project's build backend, which runs
+        // repository code; not installing is the policy, not an unavailable tool.
+        Language::Python => return Ok(not_installed(None)),
     };
     match (attempt, tooling.sandbox.on_unavailable) {
         (Ok(prepared), _) => Ok(prepared),

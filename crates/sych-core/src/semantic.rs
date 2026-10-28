@@ -22,7 +22,7 @@ pub enum Language {
     Rust,
     Typescript,
     Go,
-    /// Syntax facts only until a measured need for a language server (roadmap M6).
+    /// ty, plus tree-sitter syntax facts.
     Python,
 }
 

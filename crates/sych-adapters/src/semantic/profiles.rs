@@ -46,12 +46,40 @@ pub fn profile(language: Language, root: &Path) -> Result<Profile, ToolError> {
         Language::Rust => rust(root),
         Language::Typescript => typescript(root),
         Language::Go => go(root),
-        Language::Python => Err(ToolError::Unsupported(
-            "Python has no language server before roadmap M6: the M3 fallback is tree-sitter \
-             syntax facts and imported reports"
-                .into(),
-        )),
+        Language::Python => python(root),
     }
+}
+
+fn python(root: &Path) -> Result<Profile, ToolError> {
+    let config: Vec<&str> = ["pyproject.toml", "ty.toml"]
+        .into_iter()
+        .filter(|c| root.join(c).is_file())
+        .collect();
+    let build_configuration = BTreeMap::from([
+        ("dependencies".to_owned(), "not installed".to_owned()),
+        (
+            "config".to_owned(),
+            if config.is_empty() {
+                "ty defaults".to_owned()
+            } else {
+                config.join(", ")
+            },
+        ),
+    ]);
+    Ok(Profile {
+        tool: tools::sole_pinned("ty")?,
+        args: &["server"],
+        // An untrusted workspace starts no external command (no `uv` workspace discovery);
+        // ty offers pull diagnostics to a client without dynamic registration.
+        init_options: json!({"untrustedWorkspace": true}),
+        wait_quiescent: false,
+        build_configuration,
+        limitations: vec![format!(
+            "{NOT_INSTALLED}: third-party imports stay unresolved, so their types, callers and \
+             implementations are missing"
+        )],
+        env: Vec::new(),
+    })
 }
 
 fn go(root: &Path) -> Result<Profile, ToolError> {
@@ -293,6 +321,19 @@ mod tests {
     fn npm_reads_installed_typescript() {
         let lock = r#"{"packages": {"node_modules/typescript": {"version": "5.9.3"}}}"#;
         assert_eq!(npm_typescript(lock), BTreeSet::from(["5.9.3".to_owned()]));
+    }
+
+    #[test]
+    fn python_runs_ty_untrusted_and_names_its_config() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let p = python(root.path()).expect("profile");
+        assert_eq!((p.tool.name.as_str(), p.args), ("ty", &["server"][..]));
+        assert_eq!(p.init_options, json!({"untrustedWorkspace": true}));
+        assert_eq!(p.build_configuration["config"], "ty defaults");
+        assert!(p.limitations[0].starts_with(NOT_INSTALLED));
+        fs::write(root.path().join("pyproject.toml"), "[project]\n").expect("write");
+        let p = python(root.path()).expect("profile");
+        assert_eq!(p.build_configuration["config"], "pyproject.toml");
     }
 
     #[test]
