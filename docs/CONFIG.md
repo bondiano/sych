@@ -46,7 +46,8 @@ is rejected without printing the value itself.
   [event]}]`: an assertion passes only when the recorded event order equals the expected one; without `observed` it is
   `SKIPPED` (not run, never a pass), so a matching return value alone proves nothing. With `compare_base: true` (needs
   `report`) the profile also runs on the diff base in its own workspace; every head outcome whose status differs is
-  named `BASE_DIFFERS: <suite>/<name> is <base> on the diff base and <head> on the head`, and a base that could not run is
+  named `BASE_DIFFERS: <suite>/<name> is <base> on the diff base and <head> on the head` (a non-zero base exit or paths left
+  out of the base workspace are named `BASE: …` beside it), and a base that could not run is
   `BASE_NOT_RUN`. The base run only labels the head report; it is never evidence of its own. Without runtime evidence the verifier keeps a bounded static
   argument or a concrete `UNKNOWN`; generating new tests is optional and never done by the tour reader.
 

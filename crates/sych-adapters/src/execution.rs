@@ -99,10 +99,25 @@ fn run_one(
 
     if profile.compare_base {
         // The base run only labels head outcomes; it is never evidence of its own.
-        let base = run_side(snapshot, profile, &argv, name, SourceSide::DiffBase)
-            .and_then(|r| import(&r.stdout).map_err(|g| g.detail));
+        let base = run_side(snapshot, profile, &argv, name, SourceSide::DiffBase).and_then(|r| {
+            let facts = import(&r.stdout).map_err(|g| g.detail)?;
+            Ok((r, facts))
+        });
         match base {
-            Ok(base) => facts.limitations.extend(differs(&base.tests, &facts.tests)),
+            Ok((ran, base)) => {
+                // A difference may come from an incomplete base workspace, so that is named too.
+                facts
+                    .limitations
+                    .extend(ran.exit.map(|e| format!("BASE: {e}")));
+                if ran.left_out > 0 {
+                    facts.limitations.push(format!(
+                        "BASE: {} paths of the diff base were not in the check's workspace",
+                        ran.left_out
+                    ));
+                }
+
+                facts.limitations.extend(differs(&base.tests, &facts.tests));
+            }
             Err(e) => facts
                 .limitations
                 .push(format!("BASE_NOT_RUN: {e}; head outcomes are not compared")),
@@ -340,6 +355,8 @@ mod tests {
         let snap = snapshot_of(
             dir.path(),
             &[
+                // A secret is never materialized, on either side.
+                (".env", "TOKEN=x\n"),
                 ("check.sh", check),
                 (
                     "relay.sh",
@@ -366,6 +383,13 @@ mod tests {
         assert!(
             f.limitations.iter().any(|l| l
                 == "BASE_DIFFERS: assertion/publish retried after a crash is Passed on the diff base and Failed on the head"),
+            "{:?}",
+            f.limitations
+        );
+        assert!(
+            f.limitations
+                .iter()
+                .any(|l| l == "BASE: 1 paths of the diff base were not in the check's workspace"),
             "{:?}",
             f.limitations
         );
