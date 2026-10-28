@@ -59,19 +59,11 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
 }
 
 impl Outcome {
-    /// Appends one pass's part; a finding another pass already confirmed is kept once.
+    /// Appends one pass's part; same-location findings are merged at the end, most severe kept.
     pub(super) fn absorb(&mut self, part: Outcome) {
         self.assessments.extend(part.assessments);
         self.candidates.extend(part.candidates);
-        for finding in part.findings {
-            if !self
-                .findings
-                .iter()
-                .any(|f| f.fingerprint == finding.fingerprint)
-            {
-                self.findings.push(finding);
-            }
-        }
+        self.findings.extend(part.findings);
         let (r, p) = (&mut self.record, part.record);
         r.passes.extend(p.passes);
         r.assessments.extend(p.assessments);

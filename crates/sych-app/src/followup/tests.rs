@@ -196,7 +196,11 @@ fn a_follow_up_sees_its_stop_and_one_round_of_context() {
         "only the stop's span: {:?}",
         shown[0].data
     );
-    assert_eq!(shown[1].data.len(), 2, "plus the answered request");
+    assert_eq!(
+        shown[1].data.len(),
+        3,
+        "plus the answered span and its status"
+    );
     assert!(shown[0].task.contains("what if publish fails?"));
 }
 

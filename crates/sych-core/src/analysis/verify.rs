@@ -165,16 +165,7 @@ pub fn validate(
 
         let mut finding = finding(candidate, verdict, anchors, evidence_ids, scope);
         finding.suggested_change = change(verdict, context, reader, &mut finding.limitations);
-        if findings
-            .iter()
-            .any(|f| f.fingerprint == finding.fingerprint)
-        {
-            candidate
-                .limitations
-                .push("engine: duplicate of a finding already confirmed in this run".into());
-            continue;
-        }
-
+        // Same-location findings are resolved once, most severe first, by `merge_overlapping`.
         findings.push(finding);
     }
     Verified {

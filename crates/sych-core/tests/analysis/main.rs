@@ -9,6 +9,7 @@ use sych_core::analysis::{
     ProposedStatus, unseen_violation, validate_assessment, validate_discovery,
 };
 use sych_core::broker::EvidencePacket;
+mod answers;
 mod verify;
 
 use sych_core::{
@@ -94,12 +95,21 @@ impl SnapshotReader for Reader {
 
     fn search(
         &self,
-        _: SourceSide,
-        _: &str,
+        side: SourceSide,
+        literal: &str,
         _: &[RepoPath],
-        _: usize,
+        limit: usize,
     ) -> Result<Vec<CodeRef>, ReadError> {
-        Ok(Vec::new())
+        let mut hits = Vec::new();
+        for ((s, p), text) in &self.0 {
+            for (i, line) in (1..).zip(text.lines()) {
+                if *s == side && line.contains(literal) {
+                    hits.push(self.code_ref(side, p, i, i)?);
+                }
+            }
+        }
+        hits.truncate(limit);
+        Ok(hits)
     }
 
     fn diff(&self, _: &SourceSnapshotId) -> Result<DiffManifest, ReadError> {
@@ -327,6 +337,32 @@ fn the_hunks_of_shown_changed_files_are_listed_and_others_are_not() {
     assert_eq!(
         block.content,
         "src/order.ts Modified: 5 lines removed, 7 added; -41,5 +41,7\n"
+    );
+}
+
+#[test]
+fn a_repeated_criterion_id_is_not_settled_by_its_first_answer() {
+    let reader = Reader::new();
+    let (context, _) = context(&reader);
+    let planned = obligation(&["returns 0 when items is undefined", "never throws"]);
+    let met = |id| criterion(id, CriterionStatus::Met, vec![anchor("ref-1", 2, 4)]);
+    let output = assessment(
+        ProposedStatus::Supported,
+        vec![
+            met("c-1"),
+            criterion("c-1", CriterionStatus::NotMet, vec![anchor("ref-2", 2, 2)]),
+            met("c-2"),
+        ],
+    );
+    let record = validate_assessment(output, &planned, "ob-1", &context, &reader);
+    assert_ne!(reason(&record.assessment.status), "SUPPORTED");
+    assert!(
+        record
+            .problems
+            .iter()
+            .any(|p| p.contains("no single result for c-1")),
+        "{:?}",
+        record.problems
     );
 }
 

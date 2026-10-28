@@ -53,6 +53,11 @@ pub fn git(dir: &Path, args: &[&str]) {
 }
 
 pub fn repo(second_unit: bool) -> TempDir {
+    repo_with(second_unit, &[])
+}
+
+/// [`repo`] whose target tip also has the `policy` files, written over the default rules.
+pub fn repo_with(second_unit: bool, policy: &[(&str, &str)]) -> TempDir {
     let dir = tempfile::tempdir().expect("tempdir");
     let d = dir.path();
     git(d, &["init", "-q", "-b", "main"]);
@@ -65,6 +70,9 @@ pub fn repo(second_unit: bool) -> TempDir {
         RULES.to_owned()
     };
     fs::write(d.join(".sych/rules.yaml"), rules).expect("rules");
+    for (path, text) in policy {
+        fs::write(d.join(path), text).expect("policy file");
+    }
     fs::write(d.join("src/order.ts"), BASE).expect("base");
     git(d, &["add", "-A"]);
     git(d, &["commit", "-q", "-m", "base"]);
