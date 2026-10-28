@@ -32,7 +32,7 @@ pub enum Commands {
     /// Explain one obligation of a saved run with the evidence it cites; never runs analysis
     Explain(ExplainArguments),
     /// Generate a guided tour of a saved run with a model profile and store it; never reviews
-    /// again
+    /// again. `tour show|reveal|complete|dismiss` read a stored one without a model
     Tour(TourArguments),
     /// Harness evaluation against fixtures
     #[command(subcommand)]
@@ -268,12 +268,15 @@ pub struct ExplainArguments {
 }
 
 #[derive(clap::Args)]
+#[command(args_conflicts_with_subcommands = true, subcommand_negates_reqs = true)]
 pub struct TourArguments {
-    #[arg(long)]
-    pub run: String,
+    #[command(subcommand)]
+    pub action: Option<TourCommands>,
+    #[arg(long, required = true)]
+    pub run: Option<String>,
     /// Server config with the model profiles and the store
-    #[arg(long)]
-    pub config: PathBuf,
+    #[arg(long, required = true)]
+    pub config: Option<PathBuf>,
     /// The repository the run reviewed; its snapshot is captured again and must match
     #[arg(long, default_value = ".")]
     pub repo: PathBuf,
@@ -282,6 +285,52 @@ pub struct TourArguments {
     pub models: ModelSelection,
     #[command(flatten)]
     pub out: Output,
+}
+
+/// Reading a stored tour: no model call, and progress stays in the reader's own session.
+#[derive(clap::Subcommand)]
+pub enum TourCommands {
+    /// Print a stored tour (the newest of the run unless --tour) and start the session
+    Show(TourShowArguments),
+    /// Print the answer of a step's question and record it in the session
+    Reveal(TourRevealArguments),
+    /// Mark the session completed; this is not an approval and is not published
+    Complete(TourRef),
+    /// Mark the session dismissed; the tour and the review stay as they are
+    Dismiss(TourRef),
+}
+
+#[derive(clap::Args)]
+pub struct TourRef {
+    #[arg(long)]
+    pub run: String,
+    /// One tour of the run; the newest when omitted
+    #[arg(long)]
+    pub tour: Option<String>,
+    #[arg(long)]
+    pub config: Option<PathBuf>,
+    #[command(flatten)]
+    pub out: Output,
+}
+
+#[derive(clap::Args)]
+pub struct TourShowArguments {
+    #[command(flatten)]
+    pub tour: TourRef,
+    /// The repository the run reviewed: code is read from its pinned blobs
+    #[arg(long, default_value = ".")]
+    pub repo: PathBuf,
+    /// Only the overview and the stops' titles
+    #[arg(long)]
+    pub brief: bool,
+}
+
+#[derive(clap::Args)]
+pub struct TourRevealArguments {
+    #[command(flatten)]
+    pub tour: TourRef,
+    #[arg(long)]
+    pub step: String,
 }
 
 #[derive(clap::Args)]

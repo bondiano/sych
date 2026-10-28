@@ -7,7 +7,8 @@ Implements roadmap M0.5: §8.2, §20 and §24.4 of the specification.
 - **SQLite** (`sych-storage`): WAL, `synchronous=FULL`, one connection — one writer and one worker.
   Tables `changes`, `runs`, `artifacts`, `run_artifacts`; ledger — `model_attempts`, `subscription_fees`;
   server (M2) — `repositories`, `inbox_events`, `change_intents`, `jobs`, `change_events`, `publication_objects`,
-  `publication_operations`, `audit_events` ([SERVER.md](SERVER.md)). Nested domain
+  `publication_operations`, `audit_events` ([SERVER.md](SERVER.md)); `tour_sessions` — one reader's progress through a
+  stored tour, no shared state ([LOCAL_REVIEW.md](LOCAL_REVIEW.md#reading-a-tour)). Nested domain
   objects are not decomposed into SQL.
 - **Artifacts**: canonical JSON in a local directory, keyed by the SHA-256 of the bytes, with the path partitioned by tenant/access scope.
   The file is written to a temporary file, `fsync`ed, then `rename`d; the hash is verified on every read.

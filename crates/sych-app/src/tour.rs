@@ -16,14 +16,14 @@ use sych_core::config::{Role, RunMode};
 use sych_core::model::{AttemptRecord, DataBlock, Limits, Prompt, Purpose};
 use sych_core::tour::{self, TourArtifact, TourEvent, TourPlan, TourState};
 use sych_core::{ComparisonMode, MicroUsd, ReviewResult, RunId, SnapshotReader, Timestamp};
-use sych_storage::{ArtifactKind, RunLedger, Storage, TENANT_LOCAL};
+use sych_storage::{ArtifactKind, RunLedger, Storage, TENANT_LOCAL, tour_role};
 
 use crate::args::{Comparison, ModelSelection, TourArguments};
 use crate::backend::{self, ResolveError};
 use crate::errors::Failure;
 use crate::output::emit_as;
 use crate::storage::{block_on, load_store_config, saved_report};
-use crate::{config, snapshot};
+use crate::{config, snapshot, tour_reader};
 
 /// Code shown to the guide; the rest of a long stop is cut, the reader still renders it all.
 const MAX_SPAN_CHARS: usize = 6_000;
@@ -108,28 +108,7 @@ fn markdown(out: &TourOutput, reader: &LocalSnapshot) -> String {
         t.overview.important_unknowns.len()
     );
     for step in &t.steps {
-        let _ = writeln!(
-            text,
-            "## {}: {}\n\n{}\n\n{}\n",
-            step.id, step.title, step.purpose, step.explanation
-        );
-        for (r, code) in tour::render(step, reader) {
-            let _ = writeln!(
-                text,
-                "`{}:{}-{}`\n```\n{}```\n",
-                r.path, r.start_line, r.end_line, code
-            );
-        }
-        for e in &step.example_snippets {
-            let _ = writeln!(
-                text,
-                "{} (not from the repository):\n```\n{}\n```\n",
-                e.label, e.text
-            );
-        }
-        if let Some(q) = &step.question {
-            let _ = writeln!(text, "> {:?}: {}\n", q.kind, q.text);
-        }
+        tour_reader::write_step(&mut text, step, Some(reader), &mut Vec::new());
     }
     let _ = writeln!(
         text,
@@ -153,8 +132,11 @@ pub fn run(args: &TourArguments) -> anyhow::Result<ExitCode> {
         ModelSelection::Roles => None,
         ModelSelection::Profile(name) => Some(name.as_str()),
     };
-    let effective = config::effective(Some(&args.config), Some(&args.repo))?;
-    let report = saved_report(Some(&args.config), &args.run)?;
+    let (Some(run), Some(config)) = (&args.run, &args.config) else {
+        return Err(Failure::invalid("a tour needs --run and --config").into());
+    };
+    let effective = config::effective(Some(config), Some(&args.repo))?;
+    let report = saved_report(Some(config), run)?;
     let result = report.review_result;
     let saved = report
         .snapshot
@@ -171,22 +153,16 @@ pub fn run(args: &TourArguments) -> anyhow::Result<ExitCode> {
     }
 
     let server = &effective.server;
-    let routing = backend::routing(
-        &args.config,
-        server,
-        selected,
-        false,
-        RunMode::PersonalLocal,
-    )
-    .map_err(|e| match e {
-        ResolveError::Invalid(e) | ResolveError::Credentials(e) => Failure::invalid(e),
-    })?;
+    let routing = backend::routing(config, server, selected, false, RunMode::PersonalLocal)
+        .map_err(|e| match e {
+            ResolveError::Invalid(e) | ResolveError::Credentials(e) => Failure::invalid(e),
+        })?;
     let plan = tour::plan(
         &result,
         effective.repository.config.tour.target_steps as usize,
     );
     let run: RunId = result.run_id;
-    let store = load_store_config(Some(&args.config))?;
+    let store = load_store_config(Some(config))?;
     let out = block_on(async {
         let storage = Storage::open(&store).await?;
         let handle = storage.run_handle(TENANT_LOCAL, run).await?;
@@ -210,7 +186,7 @@ pub fn run(args: &TourArguments) -> anyhow::Result<ExitCode> {
             storage
                 .put_artifact(
                     &handle,
-                    &format!("tour:{}", t.tour_id),
+                    &tour_role(t.tour_id),
                     ArtifactKind::Tour,
                     t,
                     Timestamp::now(),

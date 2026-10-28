@@ -3,8 +3,8 @@
 //! and staleness without mutation.
 
 use sych_core::tour::{
-    ExampleSnippet, MAX_ATTEMPTS, RENDERER_VERSION, TourArtifact, TourEvent, TourState, TourStep,
-    next, plan, render, stale, validate,
+    ExampleSnippet, MAX_ATTEMPTS, RENDERER_VERSION, SessionState, TourArtifact, TourEvent,
+    TourSession, TourState, TourStep, next, plan, render, stale, validate,
 };
 use sych_core::{
     CodeRef, DiffManifest, FindingCategory, FindingId, GitHashAlgorithm, GitObjectId, ReadError,
@@ -153,7 +153,33 @@ fn a_valid_tour_renders_lines_from_the_blob() {
     let t = tour(&r);
     assert!(validate(&t, &r, &reader).is_empty());
     let shown = render(&t.steps[0], &reader);
-    assert_eq!(shown[0].1, "func Create() error {\n\treturn nil\n");
+    assert_eq!(
+        shown[0].1.as_deref(),
+        Some("func Create() error {\n\treturn nil\n")
+    );
+    // A pruned or GC'd source keeps the location and says it is unavailable.
+    let gone = Reader(SourceSnapshotId(sha256(b"other")));
+    assert_eq!(render(&t.steps[0], &gone)[0].1, None);
+}
+
+#[test]
+fn a_session_finishes_once_and_only_records_progress() {
+    let s = TourSession::start(TourId::new_v7(), "dev")
+        .reveal("stop-1")
+        .reveal("stop-1");
+    assert_eq!(s.revealed, ["stop-1"]);
+    let done = s.clone().finish(SessionState::Completed).expect("complete");
+    assert!(done.clone().finish(SessionState::Dismissed).is_err());
+    assert!(done.clone().finish(SessionState::InProgress).is_err());
+    assert_eq!(
+        done.clone().reveal("stop-2").revealed,
+        ["stop-1"],
+        "a finished session only reads"
+    );
+    assert_eq!(
+        s.finish(SessionState::Dismissed).expect("dismiss").state,
+        SessionState::Dismissed
+    );
 }
 
 #[test]
