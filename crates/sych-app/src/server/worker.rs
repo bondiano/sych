@@ -17,15 +17,14 @@ use sych_storage::Claim;
 use tokio::sync::{oneshot, watch};
 use tokio::time;
 
-use super::ci::Head;
-use super::engine::Engine;
+use super::ci::{Collected, Head};
+use super::engine::{AFTER_EVIDENCE_SECONDS, Engine};
 use super::mirrors;
 use crate::args::{Comparison, ExitPolicy, Output, ReviewArguments};
 use crate::render::Format;
 use crate::review;
 
 const FETCH_TIMEOUT: Duration = Duration::from_secs(120);
-const HEARTBEAT: Duration = Duration::from_secs(15);
 
 /// What the PREPARE step found at the target tip's policy.
 struct Prepared {
@@ -100,7 +99,49 @@ impl Engine {
         Ok(true)
     }
 
+    /// The whole claim is held: preparation under [`Self::holding`], analysis in
+    /// [`Self::analyze`].
     async fn work(&self, claim: &Claim) -> anyhow::Result<()> {
+        match self.holding(claim, self.prepare(claim)).await? {
+            Some(args) => self.analyze(claim, args).await,
+            None => Ok(()),
+        }
+    }
+
+    /// Runs `step` while heartbeats keep the lease; `None` when the lease is lost first, since
+    /// another worker may already hold the job. Both are polled together: `step` may hold the
+    /// store's only connection while a heartbeat waits for it.
+    async fn holding<T>(
+        &self,
+        claim: &Claim,
+        step: impl Future<Output = anyhow::Result<Option<T>>>,
+    ) -> anyhow::Result<Option<T>> {
+        let lost = async {
+            loop {
+                time::sleep(self.heartbeat).await;
+                let now = (self.now)();
+                if !self
+                    .app
+                    .storage
+                    .heartbeat(&claim.fence, self.lease_seconds, now)
+                    .await?
+                {
+                    return anyhow::Ok(());
+                }
+            }
+        };
+        tokio::select! {
+            out = step => out,
+            lost = lost => {
+                lost?;
+                tracing::warn!(run = %claim.run.id, "lease lost; abandoning preparation");
+                Ok(None)
+            }
+        }
+    }
+
+    /// Fetches, pins and collects CI; the arguments of the analysis when it is due now.
+    async fn prepare(&self, claim: &Claim) -> anyhow::Result<Option<ReviewArguments>> {
         let storage = &self.app.storage;
         let change = storage.change(claim.change_id).await?;
         let conn = self.conns.get(&change.connection_id).ok_or_else(|| {
@@ -112,7 +153,8 @@ impl Engine {
             Err(e) => {
                 return self
                     .retry_or_fail(claim, e.kind, e.retry_after_seconds, &e.to_string())
-                    .await;
+                    .await
+                    .map(|()| None);
             }
         };
         let url = format!(
@@ -124,7 +166,8 @@ impl Engine {
             // A fork head may be gone; anything else at the transport is worth a retry.
             return self
                 .retry_or_fail(claim, ScmErrorKind::Transient, None, &e.to_string())
-                .await;
+                .await
+                .map(|()| None);
         }
 
         if let Err(e) = mirrors::touch(&mirror, (self.now)().as_second()) {
@@ -147,6 +190,17 @@ impl Engine {
             None => Some(now + i64::from(prepared.wait_seconds)),
         };
         let expected = json!({ "expected": ids });
+        if let Some(deadline) = deadline {
+            // Retries stay possible after the whole CI wait the policy allows.
+            storage
+                .extend_deadline(
+                    &claim.fence,
+                    deadline + AFTER_EVIDENCE_SECONDS,
+                    (self.now)(),
+                )
+                .await?;
+        }
+
         let current = storage
             .prepare_run(
                 &claim.fence,
@@ -159,7 +213,7 @@ impl Engine {
             )
             .await?;
         if !current {
-            return Ok(());
+            return Ok(None);
         }
 
         let collected = Head {
@@ -177,32 +231,22 @@ impl Engine {
                 .release(&claim.fence, deadline, None, (self.now)())
                 .await?;
             tracing::info!(run = %claim.run.id, deadline, "waiting for evidence");
-            return Ok(());
+            return Ok(None);
         }
 
-        let imported: Vec<_> = collected
-            .facts
-            .iter()
-            .filter_map(|f| f.origin.as_ref())
-            .map(|o| {
-                json!({"report": o.report_path, "run": o.run_id, "attempt": o.run_attempt,
-                "job": o.job_id, "artifact": o.artifact_id, "binding": o.binding})
-            })
-            .collect();
-        let missing: Vec<&str> = collected.gaps.iter().map(|g| g.report.as_str()).collect();
-        let sources = json!({"expected": ids, "imported": imported, "gaps": collected.gaps, "missing": missing});
+        let sources = frozen_sources(&ids, &collected);
         if !storage
             .freeze(&claim.fence, &claim.run.id, &sources, (self.now)())
             .await?
         {
-            return Ok(());
+            return Ok(None);
         }
 
         let mut args = args;
         args.ci_gaps = collected.gaps.iter().map(ToString::to_string).collect();
         args.ci_imported = collected.facts;
         args.waivers = self.waivers(change.id, now).await?;
-        self.analyze(claim, args).await
+        Ok(Some(args))
     }
 
     async fn waivers(&self, change: i64, at: i64) -> anyhow::Result<Vec<(String, RuleException)>> {
@@ -225,7 +269,7 @@ impl Engine {
         let outcome = loop {
             tokio::select! {
                 outcome = &mut done_rx => break outcome?,
-                () = time::sleep(HEARTBEAT) => {
+                () = time::sleep(self.heartbeat) => {
                     let alive = self.app.storage.heartbeat(&claim.fence, self.lease_seconds, (self.now)()).await?;
                     if !alive {
                         tracing::warn!(run = %claim.run.id, "lease lost; cancelling analysis");
@@ -269,6 +313,21 @@ impl Engine {
 }
 
 /// Expected CI reports whose `applies_to` matches a changed path (spec §15.2); default wait.
+/// What a frozen run records about its CI sources: expected, imported and missing.
+fn frozen_sources(ids: &[&str], collected: &Collected) -> serde_json::Value {
+    let imported: Vec<_> = collected
+        .facts
+        .iter()
+        .filter_map(|f| f.origin.as_ref())
+        .map(|o| {
+            json!({"report": o.report_path, "run": o.run_id, "attempt": o.run_attempt,
+            "job": o.job_id, "artifact": o.artifact_id, "binding": o.binding})
+        })
+        .collect();
+    let missing: Vec<&str> = collected.gaps.iter().map(|g| g.report.as_str()).collect();
+    json!({"expected": ids, "imported": imported, "gaps": collected.gaps, "missing": missing})
+}
+
 fn expected_sources(pinned: &review::Pinned) -> Prepared {
     let ci = &pinned.effective.repository.config.ci;
     let paths: Vec<&str> = pinned
