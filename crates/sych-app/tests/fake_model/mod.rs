@@ -31,6 +31,8 @@ fn answer(schema: &str) -> Value {
             both
         }
         "candidate_verdicts" => json!({"verdicts": [], "context_requests": []}),
+        "followup" => json!({"answer": "The caller gets the error.", "anchors": [],
+            "hypotheses": [], "context_requests": []}),
         _ => empty,
     }
 }

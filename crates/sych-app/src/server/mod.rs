@@ -11,6 +11,7 @@ mod hooks;
 pub mod metrics;
 pub mod mirrors;
 mod publisher;
+mod questions;
 pub mod requests;
 pub mod smoke;
 mod tours;
@@ -147,6 +148,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/runs/{id}/tours/{tour}/reveal", post(tours::reveal))
         .route("/v1/runs/{id}/tours/{tour}/complete", post(tours::complete))
         .route("/v1/runs/{id}/tours/{tour}/dismiss", post(tours::dismiss))
+        .route("/v1/runs/{id}/tours/{tour}/questions", post(questions::ask))
         .layer(DefaultBodyLimit::max(API_BODY_LIMIT));
     Router::new()
         .route("/hooks/github/{connection}", post(hooks::github))
