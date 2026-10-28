@@ -42,8 +42,8 @@ impl Limits {
 
     /// Smaller request budgets when the packets would send more than the run's input cap:
     /// each shown span goes out about twice (search, then verification of what it found).
-    /// What no longer fits is cut by priority with the usual gaps. Down to a quarter; past
-    /// that the run cap itself refuses the rest.
+    /// What no longer fits is cut by priority with the usual gaps. Down to a quarter, and never
+    /// below the largest required span; past that the run cap itself refuses the rest.
     #[must_use]
     pub fn fit_run(self, packets: &[EvidencePacket], run_input_tokens: u32) -> Option<Self> {
         let demand = 2 * packets
@@ -55,10 +55,19 @@ impl Limits {
             return None;
         }
 
+        // Never below the largest required span: each one must still fit a chunk of its own.
+        let largest = packets
+            .iter()
+            .flat_map(|p| &p.fragments)
+            .filter(|f| f.priority == Priority::Required)
+            .map(|f| f.tokens)
+            .max()
+            .unwrap_or(0);
         let scale = |t: u32| {
             u32::try_from(u64::from(t) * cap / demand)
                 .unwrap_or(t)
                 .max(t / 4)
+                .max(largest.min(t))
         };
         Some(Self {
             unit_tokens: scale(self.unit_tokens),
@@ -314,9 +323,9 @@ fn packet(
             &mut gaps,
         );
     }
-    let max_files = input.limits.max_files;
+    let limits = (input.limits.max_files, input.limits.max_span_lines);
     select(
-        reader, state, request, candidates, queries, gaps, requests, max_files,
+        reader, state, request, candidates, queries, gaps, requests, limits,
     )
 }
 
@@ -354,16 +363,21 @@ fn diff_candidates(
     for hunk in &file.hunks {
         let (start, count) = hunk.on(side);
         let last = start.saturating_add(count.max(1)).saturating_sub(1);
-        let context = (
-            start.saturating_sub(HUNK_CONTEXT_LINES).max(1),
-            last.saturating_add(HUNK_CONTEXT_LINES).min(line_count),
-        );
-        if context.0 <= context.1 {
+        let before = start.saturating_sub(HUNK_CONTEXT_LINES).max(1);
+        let after = last.saturating_add(HUNK_CONTEXT_LINES).min(line_count);
+        // Only the lines around the change: the changed lines are required spans of their
+        // own, and a context span over them would glue a long change back into one span.
+        let context = if count == 0 {
+            vec![(before, after)]
+        } else {
+            vec![(before, start.saturating_sub(1)), (last + 1, after)]
+        };
+        for (from, to) in context.into_iter().filter(|(from, to)| from <= to) {
             out.push(Candidate {
                 side,
                 path: path.clone(),
-                start: context.0,
-                end: context.1,
+                start: from,
+                end: to,
                 priority: Priority::Supporting,
                 reason: format!("hunk context ({})", side_name(side)),
                 evidence: None,

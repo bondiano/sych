@@ -490,7 +490,7 @@ is the variation itself.
   problems instead of all of them. The money cap stays the guard.
 - Context compression. Packets whose shown bytes, sent about twice (search, then verify), exceed
   `budgets.analysis.max_input_tokens` are rebuilt with request budgets scaled down in proportion, to a quarter
-  at most; what no longer fits is cut by priority with the usual `BUDGET`/`REQUIRED_OVER_BUDGET` gaps. A supporting
+  at most and never below the largest required span, so each one still fits a chunk of its own; what no longer fits is cut by priority with the usual `BUDGET`/`REQUIRED_OVER_BUDGET` gaps. A supporting
   construct over budget keeps its first line (`transformation: signature`, excluded as `SIGNATURE_ONLY`) instead of
   disappearing.
 - The model is nondeterministic: the same run can yield `UNKNOWN` if it did not attach an anchor to a criterion; this is
