@@ -326,6 +326,44 @@ pub fn validate(
     found
 }
 
+/// Searches for what could refute candidates the verifier left open without asking: the
+/// identifiers each claim names in backticks (two per candidate, four in all), where a guard
+/// or validator elsewhere is most likely found.
+pub fn refuting_asks(open: &[Candidate]) -> Vec<ContextAsk> {
+    let identifier = |t: &&str| {
+        (3..=64).contains(&t.len())
+            && t.chars().any(char::is_alphabetic)
+            && t.chars().all(|c| c.is_alphanumeric() || "_:.-".contains(c))
+    };
+    let mut queries: Vec<&str> = Vec::new();
+    for candidate in open {
+        let named = candidate
+            .claim
+            .split('`')
+            .skip(1)
+            .step_by(2)
+            .filter(identifier);
+        for query in named
+            .filter(|q| !queries.contains(q))
+            .take(2)
+            .collect::<Vec<_>>()
+        {
+            queries.push(query);
+        }
+    }
+    queries
+        .into_iter()
+        .take(4)
+        .map(|query| ContextAsk {
+            question: format!("where else is `{query}` set, checked or validated?"),
+            operation: AskOperation::SearchSource {
+                side: SourceSide::Head,
+                query: query.to_owned(),
+            },
+        })
+        .collect()
+}
+
 /// The asks of one answer that are answered, at most `MAX_CONTEXT_ASKS`, and why the rest
 /// are not.
 pub fn context_asks(requests: Vec<ContextAsk>) -> (Vec<ContextAsk>, Vec<String>) {

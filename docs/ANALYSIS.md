@@ -42,7 +42,9 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    packets are merged into one call as long as their tokens fit in `context.max_tokens_per_request`: for a
    small PR this is one discovery instead of a call per unit.
 4. **Verify** (`verify@5`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
-   requests. A confirmed verdict may carry `suggested_change`, the full new text of lines of a shown HEAD span; the
+   requests. When the verifier leaves candidates `UNRESOLVED` without asking anything, the engine itself searches HEAD
+   for the identifiers their claims name in backticks (two per candidate, four per call) and runs the second round
+   on those answers: a validator or guard outside the diff can then refute the claim. A confirmed verdict may carry `suggested_change`, the full new text of lines of a shown HEAD span; the
    engine drops it, not the finding, when it names anything else. The inline comment offers it as a GitHub
    suggestion when it covers exactly the commented lines, otherwise as a code block.
 
