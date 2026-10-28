@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 use std::env;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -112,6 +113,9 @@ pub async fn serve_seq(
 pub fn host_sh() -> PathBuf {
     env::split_paths(&env::var_os("PATH").unwrap_or_default())
         .map(|dir| dir.join("sh"))
-        .find(|sh| sh.is_file())
+        .find(|sh| {
+            sh.metadata()
+                .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+        })
         .expect("a POSIX sh on PATH")
 }
