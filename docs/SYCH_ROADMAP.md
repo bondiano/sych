@@ -153,7 +153,7 @@ flowchart TD
 - **Участок:** [api.rs:149–188](../crates/sych-app/src/server/api.rs#L149-L188), [cancel handler](../crates/sych-app/src/server/api.rs#L324-L355), [storage replay](../crates/sych-storage/src/api.rs#L89-L126).
 - **Проблема:** identity состоит из tenant, actor, шаблона endpoint и key; digest считается только от body. `/v1/runs/A/cancel` и `/v1/runs/B/cancel` с одинаковым key и `{}` оказываются одной операцией.
 - **Проверка:** запущен настоящий `sych api` на loopback с временной SQLite и искусственной writer identity. Cancel A вернул 200/CANCELLED. Cancel B с тем же key вернул 200, `reused: true` и **run_id A**; отдельный GET B показал `QUEUED`. Сервер остановлен через SIGINT, exit0.
-- [ ] **Минимальное исправление:** включить конкретный URI/ресурс в fingerprint запроса либо в idempotency scope; применить ко всем parameterized mutating routes, включая rerun, feedback и tour actions/questions. Повтор для другого ресурса должен быть отдельной операцией или конфликтом, не replay чужого результата.
+- [x] **Минимальное исправление:** включить конкретный URI/ресурс в fingerprint запроса либо в idempotency scope; применить ко всем parameterized mutating routes, включая rerun, feedback и tour actions/questions. Повтор для другого ресурса должен быть отдельной операцией или конфликтом, не replay чужого результата.
 - **Если оставить:** клиент получает успешный ответ не о запрошенном действии, а второй run продолжает работу. Authorization проверяется до replay; обход доступа этим сценарием не выявлен.
 
 ## 3. Оценка решения и пределы гарантий
