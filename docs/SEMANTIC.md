@@ -57,7 +57,10 @@ entry with a checksum verified against upstream (npm `integrity`, GitHub release
    so the negotiated position encoding (recorded in `position_encoding`) does not affect them.
 
 Every symbol has a `path_class` (`PRODUCTION | TEST | GENERATED | CONFIG | BUILD`) derived from the path name and
-the generated flag from the diff manifest. Rust `build_configuration` lists the editions and declared features
+the generated flag from the diff manifest. Names cover the ecosystems Sych reviews: manifests and lockfiles of Cargo,
+npm/pnpm, Go, Python, Mix, Gleam, Bundler, Composer, Maven, deps.edn/Leiningen, Zig and renv are `CONFIG`; Gradle, sbt,
+`build.zig`, CMake, Make and Meson are `BUILD`; `*_test`, `*_spec` and `test_*` stems, JVM `*Test`/`*Spec` classes and
+`spec/`, `testthat/` directories are `TEST`. Rust `build_configuration` lists the editions and declared features
 of each package (`features:<package>`); only default features and host cfg are analyzed. TS
 `build_configuration` lists each `tsconfig*.json` of the side (`tsconfig:<path>`: `extends`, project
 `references`, aliases from `paths`, `composite`; JSONC with comments and trailing commas), packages
@@ -255,6 +258,12 @@ unchanged lines do not enter the packet. A linter that could not be downloaded o
 into the packet of any language and supplement TEST-INTEGRITY. ESLint, clippy, golangci-lint, mypy/pyright are not run:
 they execute the project's config/plugins or require a build; their reports are accepted from CI (SARIF, cargo JSON, etc.).
 
+Languages whose servers and linters need their runtime and build — Java, Kotlin and Scala (JVM), Elixir (BEAM) and
+Ruby — get no pinned backend and stay `NO_SEMANTIC_BACKEND`: running jdtls, Metals, ElixirLS or RuboCop with plugins
+means running the project's build. Their evidence is the project's own CI reports (detekt, ktlint, Credo, RuboCop and
+SpotBugs write SARIF; test runners write JUnit), imported like any CI report, or an execution profile on an image that
+already holds the dependencies, since a check runs without network ([CONFIG.md](CONFIG.md)).
+
 ## Semantic cache
 
 Side facts are cached in `$SYCH_TOOLS_DIR/../semantic` (default `~/.cache/sych/semantic`). The key is the
@@ -299,7 +308,8 @@ such a span over budget is excluded as `BUDGET`, leaves the gap `REFUTING_OVER_B
 
 `packet resolution`: `UNAVAILABLE` — nothing was read; `PARTIAL` — there are gaps (no facts for a Rust/TS file,
 backend `UNSUPPORTED/FAILED`, unresolved locations, query limit, required content over budget, sources in languages
-without a backend — Java, Kotlin, Ruby, C/C++, etc.; Python — `UNSUPPORTED` until M6; changed CSS/HTML without browser/accessibility/visual reports — `NO_VISUAL_EVIDENCE`); otherwise `SATISFIED`. This is the sufficiency of what was collected, not the truth of the obligation.
+without a backend — `NO_SEMANTIC_BACKEND` for Java, Kotlin, Scala, Clojure, Elixir, Gleam, Ruby, PHP, C/C++, Zig, R,
+SQL, C# and Swift; Python — `UNSUPPORTED` until M6; changed CSS/HTML without browser/accessibility/visual reports — `NO_VISUAL_EVIDENCE`); otherwise `SATISFIED`. This is the sufficiency of what was collected, not the truth of the obligation.
 
 §9.4 typed operations (`sych_core::broker::Operation`, a closed enum without extra fields): `read_span`, `read_symbol`,
 `find_definition`, `find_references`, `find_implementations`, `find_callers`, `find_callees`,
