@@ -6,7 +6,7 @@ use sych_app::args::{
     AuthCommands, CacheCommands, Cli, Commands, ConfigCommands, DbCommands, EvalCommands,
 };
 use sych_app::commands::{
-    auth_chatgpt, cache_prune, config_init, config_validate, db_migrate, doctor, eval_measure,
+    ask, auth_chatgpt, cache_prune, config_init, config_validate, db_migrate, doctor, eval_measure,
     eval_run, eval_validate, explain, reconcile, review, run_action, semantic, serve, show, tour,
 };
 use sych_app::run_command;
@@ -34,6 +34,7 @@ fn main() -> ExitCode {
         Commands::Show(args) => run_command("show", || show::run(&args)),
         Commands::Explain(args) => run_command("explain", || explain::run(&args)),
         Commands::Tour(args) => run_command("tour", || tour::run(&args)),
+        Commands::Ask(args) => run_command("ask", || ask::run(&args)),
         Commands::Doctor(args) => run_command("doctor", || doctor::run(&args)),
         Commands::Config(ConfigCommands::Init(args)) => {
             run_command("config init", || config_init::run(&args))

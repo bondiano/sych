@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use super::assess::AssessmentOutput;
 use super::context::{Anchor, Context};
-use crate::broker::{Operation, SymbolRef};
+use crate::broker::{OpStatus, Operation, Ops, SymbolRef};
+use crate::model::DataBlock;
 use crate::{
     Candidate, CandidateId, CandidateOrigin, FindingCategory, ObligationId, RepoPath, Severity,
     SnapshotReader, SourceSide, VerificationStatus, derived_uuid,
@@ -162,6 +163,55 @@ impl AskOperation {
                 limit: ASK_LIMIT,
             },
         })
+    }
+}
+
+/// What answering one ask added to a context.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Answered {
+    /// `None` when the ask did not become an operation.
+    pub status: Option<OpStatus>,
+    pub refs: usize,
+    pub limitations: Vec<String>,
+}
+
+impl ContextAsk {
+    /// Answers through the broker's typed operations: at most `max_refs` spans join `context`,
+    /// or a block says what the query showed.
+    pub fn answer(&self, ops: &Ops<'_>, context: &mut Context, max_refs: usize) -> Answered {
+        let operation = match self.operation.to_operation(ops.reader) {
+            Ok(operation) => operation,
+            Err(problem) => {
+                return Answered {
+                    status: None,
+                    refs: 0,
+                    limitations: vec![problem],
+                };
+            }
+        };
+        let result = ops.run(&operation);
+        let reason = format!("answer to: {}", self.question.replace('\n', " "));
+        let refs = result.refs.iter().take(max_refs).count();
+        for r in result.refs.iter().take(max_refs) {
+            context.add_span(r, &reason, ops.reader);
+        }
+        // An empty complete answer is evidence too: "nothing reads it" can refute a claim; an
+        // incomplete one shows nothing either way.
+        if result.refs.is_empty() {
+            context.blocks.push(DataBlock {
+                label: reason,
+                content: match result.status {
+                    OpStatus::CompleteForQuery => "no matches".to_owned(),
+                    status => format!("no answer ({status:?}): absence is not shown"),
+                },
+            });
+        }
+
+        Answered {
+            status: Some(result.status),
+            refs,
+            limitations: result.limitations,
+        }
     }
 }
 

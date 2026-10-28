@@ -5,9 +5,9 @@ use sych_core::analysis::{
     DiscoveryOutput, ReviewOutput, Verified, VerifyOutput, context_asks, not_assessed, prompts,
     unseen_violation, validate_assessment, validate_discovery, validate_verdicts,
 };
-use sych_core::broker::{OpStatus, Ops, REQUIRED_OVER_BUDGET, unseen_spans};
+use sych_core::broker::{Ops, REQUIRED_OVER_BUDGET, unseen_spans};
 use sych_core::config::Role;
-use sych_core::model::{DataBlock, Ledger, ModelProvider, Prompt, RoutedOutcome, TaskFailure};
+use sych_core::model::{Ledger, ModelProvider, Prompt, RoutedOutcome, TaskFailure};
 use sych_core::{Candidate, ObligationId, PlannedObligation, VerificationStatus};
 
 use super::{AskAnswer, Engine, MAX_REFS_PER_ANSWER, Outcome, Pass, PassStatus};
@@ -177,39 +177,15 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             reader: self.snap,
         };
         for ask in asks {
-            let mut answer = AskAnswer {
+            let answered = ask.answer(&ops, context, MAX_REFS_PER_ANSWER);
+            out.record.answers.push(AskAnswer {
                 packet: index,
                 question: ask.question.clone(),
                 operation: ask.operation.clone(),
-                status: None,
-                refs: 0,
-                limitations: Vec::new(),
-            };
-            match ask.operation.to_operation(self.snap) {
-                Err(problem) => answer.limitations.push(problem),
-                Ok(operation) => {
-                    let result = ops.run(&operation);
-                    answer.status = Some(result.status);
-                    answer.limitations = result.limitations;
-                    let reason = format!("answer to: {}", ask.question.replace('\n', " "));
-                    for r in result.refs.iter().take(MAX_REFS_PER_ANSWER) {
-                        context.add_span(r, &reason, self.snap);
-                        answer.refs += 1;
-                    }
-                    // An empty complete answer is evidence too: "nothing reads it" can refute a
-                    // claim; an incomplete one shows nothing either way.
-                    if result.refs.is_empty() {
-                        context.blocks.push(DataBlock {
-                            label: reason,
-                            content: match result.status {
-                                OpStatus::CompleteForQuery => "no matches".to_owned(),
-                                status => format!("no answer ({status:?}): absence is not shown"),
-                            },
-                        });
-                    }
-                }
-            }
-            out.record.answers.push(answer);
+                status: answered.status,
+                refs: answered.refs,
+                limitations: answered.limitations,
+            });
         }
     }
 
