@@ -2329,6 +2329,18 @@
     },
     "/v1/runs/{id}/tour": {
       "get": {
+        "parameters": [
+          {
+            "description": "a tour id of this run; the newest when omitted",
+            "in": "query",
+            "name": "tour",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

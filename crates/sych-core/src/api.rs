@@ -225,6 +225,17 @@ pub fn openapi() -> Value {
         o
     };
     let created = json!({"type": "object"});
+    let mut get_tour = op(
+        "The newest stored tour (or `?tour=`) as the caller's session sees it",
+        None,
+        200,
+        &tour,
+        false,
+        &[400, 401, 403, 404, 409, 503],
+    );
+    get_tour["parameters"] = json!([{"name": "tour", "in": "query", "required": false,
+        "description": "a tour id of this run; the newest when omitted",
+        "schema": {"type": "string", "format": "uuid"}}]);
     json!({
         "openapi": "3.1.0",
         "info": {"title": "Sych", "version": env!("CARGO_PKG_VERSION")},
@@ -238,7 +249,7 @@ pub fn openapi() -> Value {
             "/v1/findings/{id}/feedback": {"post": op("Structured feedback", Some(&feedback), 201, &created, true, &[400, 401, 403, 404, 409, 503])},
             "/v1/waivers": {"post": op("A scoped waiver", Some(&waiver), 201, &created, true, &[400, 401, 403, 404, 409, 503])},
             "/v1/publications/{id}": {"get": op("Delivery, relevance and reconciliation state", None, 200, &publication, false, &[401, 403, 404, 503])},
-            "/v1/runs/{id}/tour": {"get": op("The newest stored tour (or `?tour=`) as the caller's session sees it", None, 200, &tour, false, &[400, 401, 403, 404, 409, 503])},
+            "/v1/runs/{id}/tour": {"get": get_tour},
             "/v1/runs/{id}/tours/{tour}/reveal": {"post": op("Reveal one step's answer in the caller's session", Some(&reveal), 200, &tour, true, &[400, 401, 403, 404, 409, 503])},
             "/v1/runs/{id}/tours/{tour}/complete": {"post": op("Complete the caller's session; not an approval", None, 200, &tour, true, &[400, 401, 403, 404, 409, 503])},
             "/v1/runs/{id}/tours/{tour}/dismiss": {"post": op("Dismiss the caller's session", None, 200, &tour, true, &[400, 401, 403, 404, 409, 503])},
