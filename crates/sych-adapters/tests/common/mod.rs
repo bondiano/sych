@@ -1,5 +1,10 @@
-//! Loopback HTTP stubs shared by the adapter fixtures; each suite uses some of them.
+//! Loopback HTTP stubs and stand-in helpers shared by the adapter fixtures; each suite uses
+//! some of them.
 #![allow(dead_code)]
+
+use std::env;
+use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -100,4 +105,17 @@ pub async fn serve_seq(
         seen
     });
     (root, endpoint, handle)
+}
+
+/// The first `sh` on the test's `PATH`, for stand-in shebangs: on NixOS `/bin/sh` is a wrapper
+/// that loads the system environment back into an emptied one, which would hide what the
+/// adapter actually passes.
+pub fn host_sh() -> PathBuf {
+    env::split_paths(&env::var_os("PATH").unwrap_or_default())
+        .map(|dir| dir.join("sh"))
+        .find(|sh| {
+            sh.metadata()
+                .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+        })
+        .expect("a POSIX sh on PATH")
 }

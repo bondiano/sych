@@ -11,6 +11,8 @@ use sych_adapters::lint;
 use sych_adapters::tools::PinnedTool;
 use sych_core::{BackendStatus, LintFacts};
 
+mod common;
+
 fn git(dir: &Path, args: &[&str]) {
     let out = Command::new("git")
         .current_dir(dir)
@@ -42,7 +44,7 @@ fn commit(dir: &Path, files: &[(&str, &str)], message: &str) {
 /// last argument (an absolute path) as a file URI; the message reports the environment and arguments
 /// it saw.
 /// Like Ruff, it writes its report to the file an `--output-file=` argument names.
-const STAND_IN: &str = r#"#!/bin/sh
+const STAND_IN: &str = r#"
 for f in "$@"; do
   case "$f" in --output-file=*) echo owned > "${f#--output-file=}" ;; esac
   last="$f"
@@ -70,7 +72,8 @@ fn collect(base: &[(&str, &str)], head: &[(&str, &str)]) -> Vec<LintFacts> {
     .expect("snapshot");
     let bin = tempfile::tempdir().expect("bin");
     let script: PathBuf = bin.path().join("linter");
-    fs::write(&script, STAND_IN).expect("script");
+    let shebang = format!("#!{}", common::host_sh().display());
+    fs::write(&script, shebang + STAND_IN).expect("script");
     fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).expect("chmod");
     let resolve = move |_: &'static PinnedTool, _: &str| Ok(script.clone());
     lint::collect(&snapshot, &resolve)
