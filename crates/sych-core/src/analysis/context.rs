@@ -15,6 +15,9 @@ use crate::{
     SourceSnapshot, Timestamp, TrustClass, Validity, canonical_sha256, derived_uuid,
 };
 
+/// Removed lines of one test or CI file shown verbatim; the rest is only counted.
+const MAX_REMOVED_LINES: u32 = 40;
+
 /// Lines inside one handed-out span; the model never writes paths or hashes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -163,6 +166,64 @@ impl Context {
                 label: "every hunk of the shown changed files (BASE -start,count +start,count); \
                         other lines of these files are unchanged"
                     .into(),
+                content,
+            });
+        }
+    }
+
+    /// The lines every changed test or CI file loses, shown or not: a removed assertion or
+    /// gate is visible verbatim, and a file without removals says so.
+    pub fn add_test_removals(&mut self, manifest: &DiffManifest, reader: &dyn SnapshotReader) {
+        let mut content = String::new();
+        for file in &manifest.files {
+            let sides = file.old.iter().chain(&file.new);
+            let Some(path) = sides.map(|s| &s.path).find(|p| crate::is_test_path(p)) else {
+                continue;
+            };
+
+            let removed: u32 = file.hunks.iter().map(|h| h.old_lines).sum();
+            let _ = writeln!(content, "{path}: {removed} lines removed");
+            let Some(old) = &file.old else { continue };
+            let mut shown = 0;
+            for h in file.hunks.iter().filter(|h| h.old_lines > 0) {
+                let end = h.old_start + h.old_lines - 1;
+                let take = h.old_lines.min(MAX_REMOVED_LINES - shown);
+                if take == 0 {
+                    break;
+                }
+
+                match reader
+                    .code_ref(
+                        SourceSide::DiffBase,
+                        &old.path,
+                        h.old_start,
+                        h.old_start + take - 1,
+                    )
+                    .and_then(|r| reader.read_span(&r))
+                {
+                    Ok(span) => {
+                        for line in span.text.lines() {
+                            let _ = writeln!(content, "- {line}");
+                        }
+                    }
+                    Err(err) => {
+                        let _ =
+                            writeln!(content, "  lines {}-{end} unreadable: {err}", h.old_start);
+                    }
+                }
+                shown += take;
+            }
+            if removed > shown {
+                let _ = writeln!(
+                    content,
+                    "  {} more removed lines not shown",
+                    removed - shown
+                );
+            }
+        }
+        if !content.is_empty() {
+            self.blocks.push(DataBlock {
+                label: "removed lines of every changed test and CI file (BASE)".into(),
                 content,
             });
         }

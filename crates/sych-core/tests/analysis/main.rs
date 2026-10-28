@@ -10,6 +10,7 @@ use sych_core::analysis::{
 };
 use sych_core::broker::EvidencePacket;
 mod answers;
+mod removals;
 mod verify;
 
 use sych_core::{
