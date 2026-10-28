@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::context::{Anchor, Context};
 use crate::{
     Applicability, Assessment, CodeRef, EvidenceId, ObligationId, ObligationStatus, PathClass,
-    PlannedObligation, SnapshotReader, SourceSide, classify,
+    PlannedObligation, SnapshotReader, SourceSide, TEST_INTEGRITY, classify,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -288,8 +288,11 @@ fn decide(
             unknown("CONTRADICTORY_ASSESSMENT")
         }
         ProposedStatus::Supported if incomplete || !all_met => unknown("CRITERIA_NOT_MET"),
-        // A test the author wrote is not the accepted requirement (INV-19).
-        ProposedStatus::Supported if test_oracle_only(criteria) => {
+        // A test the author wrote is not the accepted requirement (INV-19), unless the
+        // requirement is about the tests themselves.
+        ProposedStatus::Supported
+            if planned.obligation.rule_id != TEST_INTEGRITY && test_oracle_only(criteria) =>
+        {
             problems.push("every MET criterion rests on test files only".into());
             unknown("TEST_ORACLE_ONLY")
         }
