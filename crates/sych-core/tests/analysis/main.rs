@@ -183,6 +183,7 @@ fn obligation(criteria: &[&str]) -> PlannedObligation {
         severity_on_violation: Some(Severity::High),
         exceptions: Vec::new(),
         contracts: Vec::new(),
+        about_tests: false,
     }
 }
 
@@ -388,20 +389,26 @@ fn assessment_statuses_follow_the_criteria() {
     assert_eq!(reason(&oracle.status), "TEST_ORACLE_ONLY");
     let mut integrity = planned.clone();
     integrity.obligation.rule_id = "TEST-INTEGRITY".into();
-    let about_tests = validate_assessment(
-        assessment(
+    let on_tests = |p: &PlannedObligation| {
+        let output = assessment(
             ProposedStatus::Supported,
             vec![test_only("c-1"), test_only("c-2")],
-        ),
-        &integrity,
-        "ob-1",
-        &context,
-        &reader,
-    );
+        );
+        let status = validate_assessment(output, p, "ob-1", &context, &reader)
+            .assessment
+            .status;
+        reason(&status).to_owned()
+    };
     assert_eq!(
-        reason(&about_tests.assessment.status),
+        on_tests(&integrity),
+        "TEST_ORACLE_ONLY",
+        "the id alone exempts nothing"
+    );
+    integrity.about_tests = true;
+    assert_eq!(
+        on_tests(&integrity),
         "SUPPORTED",
-        "test files are the evidence of a rule about tests"
+        "test files are the evidence of the shipped rule about tests"
     );
 
     let mut no_basis = assessment(ProposedStatus::NotApplicable, Vec::new());

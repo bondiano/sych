@@ -29,7 +29,7 @@ pub(crate) struct GenericRule {
 }
 
 /// The rule whose subject is the tests themselves, so test files are its evidence.
-pub const TEST_INTEGRITY: &str = "TEST-INTEGRITY";
+pub(crate) const TEST_INTEGRITY: &str = "TEST-INTEGRITY";
 const MIGRATION: &[&str] = &["**/migrations/**", "**/migrate/**", "**/*.sql"];
 const TEST_PATHS: &[&str] = &[
     "**/tests/**",

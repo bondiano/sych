@@ -31,6 +31,10 @@ pub struct PlannedObligation {
     /// The rule's contract documents from the trusted policy: path, content hash and text.
     #[serde(default)]
     pub contracts: Vec<(RepoPath, Sha256Digest, String)>,
+    /// The shipped `TEST-INTEGRITY` rule, whose subject is the tests, so test files are its
+    /// evidence. Never set for a repository rule, whatever its id.
+    #[serde(default)]
+    pub about_tests: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -362,6 +366,7 @@ fn obligation(
         severity_on_violation: rule.severity_on_violation.map(Severity::from),
         exceptions: exceptions(rule, matched),
         contracts: Vec::new(),
+        about_tests: false,
     }
 }
 
@@ -423,6 +428,7 @@ fn obligations(
             .collect();
         (!matched.is_empty()).then(|| {
             let mut planned = obligation(snapshot, &g.rule, &matched, false);
+            planned.about_tests = g.rule.id == generic::TEST_INTEGRITY;
             migration::bind(&mut planned, &matrix, &facts.schema_refs, matrix_evidence);
             terraform::bind(&mut planned, &plans);
             kubernetes::bind(&mut planned, &rendered);
