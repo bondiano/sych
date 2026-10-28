@@ -2,9 +2,10 @@
 //! some of them.
 #![allow(dead_code)]
 
-use std::env;
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::{env, fs};
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -118,4 +119,19 @@ pub fn host_sh() -> PathBuf {
                 .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
         })
         .expect("a POSIX sh on PATH")
+}
+
+/// Installs an executable a test runs right away. A child `cp` writes it, so this process never
+/// holds it open for writing: a sibling test forking meanwhile would inherit that descriptor
+/// until its exec, and running the file would fail with `ETXTBSY`.
+pub fn write_executable(path: &Path, text: &str) {
+    let source = path.with_extension("source");
+    fs::write(&source, text).expect("source");
+    let copied = Command::new("cp")
+        .arg(&source)
+        .arg(path)
+        .status()
+        .expect("cp");
+    assert!(copied.success(), "cp to {}", path.display());
+    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).expect("chmod");
 }

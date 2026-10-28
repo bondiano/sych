@@ -3,7 +3,6 @@
 //! stand-in executable that records what it was given.
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use serde_json::json;
@@ -151,9 +150,9 @@ fn stand_in(dir: &Path, version: &str) -> PathBuf {
     fs::write(&reply, fixture("ok.jsonl")).expect("reply");
     let script = dir.join("pi");
     let seen = dir.join("seen");
-    fs::write(
+    common::write_executable(
         &script,
-        format!(
+        &format!(
             "#!{sh}\n\
              if [ \"$1\" = --version ]; then echo {version}; exit 0; fi\n\
              printf '%s\\n' \"$@\" > {seen}.args\n\
@@ -166,9 +165,7 @@ fn stand_in(dir: &Path, version: &str) -> PathBuf {
             seen = seen.display(),
             reply = reply.display()
         ),
-    )
-    .expect("script");
-    fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).expect("chmod");
+    );
     script
 }
 

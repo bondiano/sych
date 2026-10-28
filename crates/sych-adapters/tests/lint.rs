@@ -1,7 +1,6 @@
 //! Pinned linters through a scripted stand-in on a real Git snapshot: the empty environment,
 //! absolute locations mapped to repository paths, exact anchors and a changed linter config.
 
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{env, fs};
@@ -73,8 +72,7 @@ fn collect(base: &[(&str, &str)], head: &[(&str, &str)]) -> Vec<LintFacts> {
     let bin = tempfile::tempdir().expect("bin");
     let script: PathBuf = bin.path().join("linter");
     let shebang = format!("#!{}", common::host_sh().display());
-    fs::write(&script, shebang + STAND_IN).expect("script");
-    fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).expect("chmod");
+    common::write_executable(&script, &(shebang + STAND_IN));
     let resolve = move |_: &'static PinnedTool, _: &str| Ok(script.clone());
     lint::collect(&snapshot, &resolve)
 }
