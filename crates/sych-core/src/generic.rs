@@ -28,6 +28,8 @@ pub(crate) struct GenericRule {
     pub trigger: Trigger,
 }
 
+/// The rule whose subject is the tests themselves, so test files are its evidence.
+pub(crate) const TEST_INTEGRITY: &str = "TEST-INTEGRITY";
 const MIGRATION: &[&str] = &["**/migrations/**", "**/migrate/**", "**/*.sql"];
 const TEST_PATHS: &[&str] = &[
     "**/tests/**",
@@ -175,7 +177,7 @@ pub(crate) fn pack() -> Vec<GenericRule> {
         ),
         generic(
             rule(
-                "TEST-INTEGRITY",
+                TEST_INTEGRITY,
                 "Important checks are not weakened",
                 Medium,
                 "A change to assertions, skips, fixtures or CI gates does not quietly weaken an important check.",

@@ -65,6 +65,9 @@ hash. Each packet span is shown with line numbers under a local id `ref-N`; evid
 source spans of this prompt), obligations are `ob-N`, criteria are `c-N`, candidates are `cand-N`. The model does not write
 paths, hashes or evidence ids: an anchor is `{ref_id, start_line, end_line}` within a given span, and the engine
 builds the `CodeRef` itself through the snapshot reader with a hash check.
+A further DATA block lists every hunk of each changed file the spans show (`-start,count +start,count` and the lines
+removed and added), so the model can tell that a shown hunk is its file's whole change: for example, that a test
+file only gained lines, which `TEST-INTEGRITY` otherwise could not settle from the spans alone.
 
 The packet's source spans are stored as derived evidence `source` (`SOURCE_OBSERVATION`): `COMPLETE_FOR_QUERY` for
 exactly these spans if no required span was excluded, otherwise `PARTIAL`. The packet gaps are its limitations.
