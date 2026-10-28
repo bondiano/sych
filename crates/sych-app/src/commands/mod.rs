@@ -12,6 +12,7 @@ pub mod eval_measure;
 pub mod eval_run;
 pub mod eval_validate;
 pub mod explain;
+pub mod handoff;
 pub mod reconcile;
 pub mod review;
 pub mod run_action;

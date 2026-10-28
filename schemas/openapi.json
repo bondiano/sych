@@ -601,6 +601,191 @@
         "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$",
         "type": "string"
       },
+      "Handoff": {
+        "properties": {
+          "coverage": {
+            "$ref": "#/$defs/Coverage"
+          },
+          "finding_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/HandoffFinding"
+            },
+            "type": "array"
+          },
+          "format": {
+            "type": "string"
+          },
+          "gaps": {
+            "description": "What the review could not establish; a fix does not settle it.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "policy_snapshot_id": {
+            "$ref": "#/$defs/PolicySnapshotId"
+          },
+          "procedure": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "result_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "review_revision": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "schema_version": {
+            "$ref": "#/$defs/SchemaVersion"
+          },
+          "source_snapshot_id": {
+            "$ref": "#/$defs/SourceSnapshotId"
+          }
+        },
+        "required": [
+          "schema_version",
+          "format",
+          "run_id",
+          "result_id",
+          "review_revision",
+          "source_snapshot_id",
+          "policy_snapshot_id",
+          "finding_ids",
+          "findings",
+          "coverage",
+          "gaps",
+          "procedure"
+        ],
+        "title": "Handoff",
+        "type": "object"
+      },
+      "HandoffFinding": {
+        "properties": {
+          "anchors": {
+            "items": {
+              "$ref": "#/$defs/CodeRef"
+            },
+            "type": "array"
+          },
+          "category": {
+            "$ref": "#/$defs/FindingCategory"
+          },
+          "consequence": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "fix_criterion": {
+            "description": "What a fix must make true; the new head's review checks it again.",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/$defs/Requirement"
+            },
+            "type": "array"
+          },
+          "severity": {
+            "$ref": "#/$defs/Severity"
+          },
+          "suggested_action": {
+            "type": "string"
+          },
+          "support": {
+            "$ref": "#/$defs/Support"
+          },
+          "title": {
+            "type": "string"
+          },
+          "triggering_conditions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "category",
+          "severity",
+          "support",
+          "explanation",
+          "triggering_conditions",
+          "consequence",
+          "anchors",
+          "evidence_ids",
+          "requirements",
+          "suggested_action",
+          "fix_criterion",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "HandoffRequest": {
+        "additionalProperties": false,
+        "description": "`POST /v1/runs/:id/handoff`: the run's own findings to export (spec §21.7).",
+        "properties": {
+          "finding_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "source_snapshot_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SourceSnapshotId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Refused unless the run reviewed this snapshot."
+          }
+        },
+        "required": [
+          "finding_ids"
+        ],
+        "title": "HandoffRequest",
+        "type": "object"
+      },
       "Lifecycle": {
         "enum": [
           "OPEN",
@@ -1047,6 +1232,95 @@
       "RepoPath": {
         "minLength": 1,
         "type": "string"
+      },
+      "Requirement": {
+        "description": "A requirement a finding violates or depends on, with the review's status for it.",
+        "oneOf": [
+          {
+            "properties": {
+              "status": {
+                "const": "SUPPORTED",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "status": {
+                "const": "VIOLATED",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "next_evidence_needed": {
+                "type": "string"
+              },
+              "reason_code": {
+                "type": "string"
+              },
+              "status": {
+                "const": "UNKNOWN",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "reason_code",
+              "next_evidence_needed"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "basis": {
+                "description": "Checkable basis of non-applicability.",
+                "type": "string"
+              },
+              "status": {
+                "const": "NOT_APPLICABLE",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "basis"
+            ],
+            "type": "object"
+          }
+        ],
+        "properties": {
+          "acceptance_criterion": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "rule_version": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rule_id",
+          "rule_version",
+          "question",
+          "acceptance_criterion"
+        ],
+        "type": "object"
       },
       "RerunRequest": {
         "additionalProperties": false,
@@ -2504,6 +2778,98 @@
           }
         ],
         "summary": "Cancel an active run; committed results keep their state"
+      }
+    },
+    "/v1/runs/{id}/handoff": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandoffRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Handoff"
+                }
+              }
+            },
+            "description": "Export selected findings for a separate author workflow; no model, no change"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Export selected findings for a separate author workflow; no model, no change"
       }
     },
     "/v1/runs/{id}/result": {

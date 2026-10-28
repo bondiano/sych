@@ -92,6 +92,37 @@ sych ask --run RUN --step stop-1 --kind fact-request --question "The consumer de
   `.sych/rules.yaml`, and it never rewrites `UNKNOWN` or `VIOLATED`.
 - Your questions and replies are private to your session; `sych tour show` lists them again without a model.
 
+## Handing off a fix
+
+```sh
+sych handoff --run RUN --finding FINDING_ID [--finding ID …] [--snapshot sha256:…] --format markdown --output fix-handoff.md
+```
+
+The package (`handoff@1`, [schema](../schemas/handoff.schema.json); `POST /v1/runs/:id/handoff` on the server) is built
+from the stored result alone: the same run and ids give the same package. It contains:
+
+- the run, result revision, source and policy snapshots, and the selected finding ids;
+- per finding: severity, category and support, conditions, consequence, anchors, evidence ids, the requirements it
+  violates or depends on (rule, version, acceptance criterion, the review's status), the fix criterion
+  (`validation_expectation`), the suggested action and its limitations;
+- the gaps a fix does not settle: partial coverage, required `UNKNOWN` obligations, unreviewed paths, open questions;
+- the procedure the author follows: propose a plan and files, wait for consent, then change and verify, and push the
+  new head for a new review instead of marking anything resolved.
+
+A finding of another run is refused, as is a run that did not review `--snapshot` (exit 2; 400 `FOREIGN_FINDING` and 409
+`SNAPSHOT_MISMATCH` on the server). `handoff` starts no agent, calls no model, edits no source, changes no stored row and
+publishes nothing. The author's agent runs separately, with its own model, credentials and budget; Sych's reviewer
+credentials and `budgets.*` never pay for it. An approval in that workflow looks like:
+
+```text
+agent: Plan for 694a24e1: publish order-created inside the transaction in backend/orders/store.go (Save) and add a
+       test that a failed publish rolls the order back. Files: backend/orders/store.go, backend/orders/store_test.go.
+user:  Approved; do not touch the migration.
+agent: Changed both files; `go test ./backend/orders/...` passes. Pushed 4b0c78f for a new review.
+```
+
+The pushed head is a new review: the dependent checks run again and the old finding gets its new state from that review.
+
 ## Fake responses
 
 Without `--fake-responses` the fake adapter assesses nothing: applicable obligations stay `UNKNOWN/NOT_ASSESSED`.

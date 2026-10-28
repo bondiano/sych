@@ -1,0 +1,359 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Handoff",
+  "type": "object",
+  "properties": {
+    "coverage": {
+      "$ref": "#/$defs/Coverage"
+    },
+    "finding_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/HandoffFinding"
+      }
+    },
+    "format": {
+      "type": "string"
+    },
+    "gaps": {
+      "description": "What the review could not establish; a fix does not settle it.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "policy_snapshot_id": {
+      "$ref": "#/$defs/PolicySnapshotId"
+    },
+    "procedure": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "result_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "review_revision": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    },
+    "source_snapshot_id": {
+      "$ref": "#/$defs/SourceSnapshotId"
+    }
+  },
+  "required": [
+    "schema_version",
+    "format",
+    "run_id",
+    "result_id",
+    "review_revision",
+    "source_snapshot_id",
+    "policy_snapshot_id",
+    "finding_ids",
+    "findings",
+    "coverage",
+    "gaps",
+    "procedure"
+  ],
+  "$defs": {
+    "CodeRef": {
+      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
+      "type": "object",
+      "properties": {
+        "blob_oid": {
+          "$ref": "#/$defs/GitObjectId"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "end_line": {
+          "description": "1-based, inclusive.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "path": {
+          "$ref": "#/$defs/RepoPath"
+        },
+        "side": {
+          "$ref": "#/$defs/SourceSide"
+        },
+        "snapshot_id": {
+          "$ref": "#/$defs/SourceSnapshotId"
+        },
+        "start_line": {
+          "description": "1-based, inclusive.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "side",
+        "path",
+        "blob_oid",
+        "start_line",
+        "end_line",
+        "content_sha256"
+      ]
+    },
+    "Coverage": {
+      "type": "string",
+      "enum": [
+        "COMPLETE_FOR_SCOPE",
+        "PARTIAL",
+        "UNAVAILABLE"
+      ]
+    },
+    "FindingCategory": {
+      "type": "string",
+      "enum": [
+        "DEFECT",
+        "RULE_VIOLATION",
+        "IMPROVEMENT",
+        "NIT"
+      ]
+    },
+    "GitObjectId": {
+      "type": "string",
+      "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
+    },
+    "HandoffFinding": {
+      "type": "object",
+      "properties": {
+        "anchors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CodeRef"
+          }
+        },
+        "category": {
+          "$ref": "#/$defs/FindingCategory"
+        },
+        "consequence": {
+          "type": "string"
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "fix_criterion": {
+          "description": "What a fix must make true; the new head's review checks it again.",
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Requirement"
+          }
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "suggested_action": {
+          "type": "string"
+        },
+        "support": {
+          "$ref": "#/$defs/Support"
+        },
+        "title": {
+          "type": "string"
+        },
+        "triggering_conditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "category",
+        "severity",
+        "support",
+        "explanation",
+        "triggering_conditions",
+        "consequence",
+        "anchors",
+        "evidence_ids",
+        "requirements",
+        "suggested_action",
+        "fix_criterion",
+        "limitations"
+      ]
+    },
+    "PolicySnapshotId": {
+      "description": "Content-derived identity of a [`crate::PolicySnapshot`].",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "RepoPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Requirement": {
+      "description": "A requirement a finding violates or depends on, with the review's status for it.",
+      "type": "object",
+      "properties": {
+        "acceptance_criterion": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        },
+        "rule_id": {
+          "type": "string"
+        },
+        "rule_version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "SUPPORTED"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "const": "VIOLATED"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "next_evidence_needed": {
+              "type": "string"
+            },
+            "reason_code": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "const": "UNKNOWN"
+            }
+          },
+          "required": [
+            "status",
+            "reason_code",
+            "next_evidence_needed"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "basis": {
+              "description": "Checkable basis of non-applicability.",
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "const": "NOT_APPLICABLE"
+            }
+          },
+          "required": [
+            "status",
+            "basis"
+          ]
+        }
+      ],
+      "required": [
+        "rule_id",
+        "rule_version",
+        "question",
+        "acceptance_criterion"
+      ]
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "Severity": {
+      "type": "string",
+      "enum": [
+        "INFO",
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "CRITICAL"
+      ]
+    },
+    "Sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "SourceSide": {
+      "type": "string",
+      "enum": [
+        "DIFF_BASE",
+        "HEAD",
+        "TARGET_TIP"
+      ]
+    },
+    "SourceSnapshotId": {
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "$ref": "#/$defs/Sha256Digest"
+    },
+    "Support": {
+      "description": "Kind of support; independent of severity.",
+      "type": "string",
+      "enum": [
+        "EXECUTED_COUNTEREXAMPLE",
+        "STATIC_TRACE",
+        "SEMANTIC_ARGUMENT",
+        "EXPLICIT_RULE",
+        "PREFERENCE"
+      ]
+    }
+  }
+}

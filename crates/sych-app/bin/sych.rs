@@ -7,7 +7,8 @@ use sych_app::args::{
 };
 use sych_app::commands::{
     ask, auth_chatgpt, cache_prune, config_init, config_validate, db_migrate, doctor, eval_measure,
-    eval_run, eval_validate, explain, reconcile, review, run_action, semantic, serve, show, tour,
+    eval_run, eval_validate, explain, handoff, reconcile, review, run_action, semantic, serve,
+    show, tour,
 };
 use sych_app::run_command;
 use sych_app::server::Role;
@@ -35,6 +36,7 @@ fn main() -> ExitCode {
         Commands::Explain(args) => run_command("explain", || explain::run(&args)),
         Commands::Tour(args) => run_command("tour", || tour::run(&args)),
         Commands::Ask(args) => run_command("ask", || ask::run(&args)),
+        Commands::Handoff(args) => run_command("handoff", || handoff::run(&args)),
         Commands::Doctor(args) => run_command("doctor", || doctor::run(&args)),
         Commands::Config(ConfigCommands::Init(args)) => {
             run_command("config init", || config_init::run(&args))

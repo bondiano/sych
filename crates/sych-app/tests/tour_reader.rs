@@ -286,3 +286,113 @@ fn a_run_id_is_checked_and_the_generator_still_needs_its_flags() {
         "--run and --config are required"
     );
 }
+
+/// Every file under `dir` with its bytes; `SQLite` rewrites its own files on open, so the
+/// database is compared through `show` instead.
+fn stored(dir: &Path) -> Vec<(PathBuf, Vec<u8>)> {
+    let mut all: Vec<_> = files(dir)
+        .into_iter()
+        .filter(|p| !p.to_string_lossy().contains("sych.db"))
+        .map(|p| {
+            let bytes = fs::read(&p).expect("read");
+            (p, bytes)
+        })
+        .collect();
+    all.sort();
+    all
+}
+
+#[test]
+fn a_handoff_is_reproducible_consent_first_and_changes_no_file() {
+    let (repo, data) = (repo(), TempDir::new().expect("tempdir"));
+    let (d, r) = (data.path(), repo.path().to_str().expect("utf-8"));
+    assert_eq!(sych(d, &["db", "migrate"]).status.code(), Some(0));
+    let fake = d.join("fake.yaml");
+    fs::write(&fake, FAKE).expect("write");
+    let saved = ok(&sych(
+        d,
+        &[
+            "review",
+            "--repo",
+            r,
+            "--base",
+            "target",
+            "--models",
+            "fake",
+            "--fake-responses",
+            fake.to_str().expect("path"),
+        ],
+    ));
+    let result: ReviewResult =
+        serde_json::from_value(saved["review_result"].clone()).expect("result");
+    let (run, id) = (result.run_id.to_string(), result.findings[0].id.to_string());
+    let (store_before, repo_before) = (stored(d), stored(repo.path()));
+    let shown_before = ok(&sych(d, &["show", "--run", &run]));
+
+    let args = [
+        "handoff",
+        "--run",
+        &run,
+        "--finding",
+        &id,
+        "--format",
+        "markdown",
+    ];
+    let first = sych(d, &args);
+    assert_eq!(
+        first.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let text = String::from_utf8(first.stdout.clone()).expect("utf-8");
+    assert!(
+        text.contains("## Procedure") && text.contains("explicit consent"),
+        "{text}"
+    );
+    assert!(
+        text.contains("EFFECT-01 v1 (VIOLATED)") && text.contains("**Fix criterion:**"),
+        "{text}"
+    );
+    assert_eq!(sych(d, &args).stdout, first.stdout, "reproducible");
+    assert_eq!(
+        (stored(d), stored(repo.path())),
+        (store_before, repo_before),
+        "no artifact or source file changed"
+    );
+    assert_eq!(
+        ok(&sych(d, &["show", "--run", &run])),
+        shown_before,
+        "the run is unchanged"
+    );
+
+    let foreign = sych(
+        d,
+        &[
+            "handoff",
+            "--run",
+            &run,
+            "--finding",
+            "0192f000-0000-7000-8000-000000000000",
+        ],
+    );
+    assert_eq!(
+        foreign.status.code(),
+        Some(2),
+        "a foreign finding is refused"
+    );
+    let other = format!("sha256:{}", "0".repeat(64));
+    let moved = sych(
+        d,
+        &[
+            "handoff",
+            "--run",
+            &run,
+            "--finding",
+            &id,
+            "--snapshot",
+            &other,
+        ],
+    );
+    assert_eq!(moved.status.code(), Some(2), "another snapshot is refused");
+}
