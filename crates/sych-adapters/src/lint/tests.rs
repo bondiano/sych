@@ -14,6 +14,10 @@ fn each_linter_selects_its_files() {
     assert_eq!(picks("app/a.py"), ["ruff"]);
     assert_eq!(picks("web/a.js"), ["oxlint"]);
     assert_eq!(picks("web/a.tsx"), ["oxlint"]);
+    assert_eq!(picks("db/migrations/1.sql"), ["sqruff"]);
+    assert_eq!(picks("src/Order.php"), ["mago"]);
+    assert_eq!(picks("R/orders.R"), ["jarl"]);
+    assert_eq!(picks("R/orders.r"), ["jarl"]);
     assert_eq!(picks(".github/workflows/ci.yml"), ["actionlint", "zizmor"]);
     assert_eq!(picks("tools/setup/action.yaml"), ["zizmor"]);
     assert!(picks("README.md").is_empty() && picks("config.yml").is_empty());

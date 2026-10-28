@@ -1,6 +1,6 @@
 //! Pinned linters on the head's changed files (spec §10.6): ruff for Python, oxlint for
-//! JS/TS (also where no TypeScript backend applies), actionlint and zizmor for GitHub
-//! workflows. Each is a single verified binary that reads source and its own config but never
+//! JS/TS (also where no TypeScript backend applies), sqruff for SQL, mago for PHP, jarl for R,
+//! actionlint and zizmor for GitHub workflows. Each is a single verified binary that reads source and its own config but never
 //! executes repository code: it runs on a materialized head with an empty `PATH` and `HOME`,
 //! no network options, and a time bound.
 
@@ -54,7 +54,7 @@ fn action_or_workflow(path: &str) -> bool {
         || matches!(path, ".github/dependabot.yml" | ".github/dependabot.yaml")
 }
 
-const LINTERS: [Linter; 4] = [
+const LINTERS: [Linter; 7] = [
     Linter {
         tool: "ruff",
         selects: |p| ext(p, &["py", "pyi"]),
@@ -75,6 +75,46 @@ const LINTERS: [Linter; 4] = [
         configs: &[".oxlintrc.json"],
         format: Format::Sarif,
         args: &["--format", "sarif"],
+    },
+    Linter {
+        tool: "sqruff",
+        selects: |p| ext(p, &["sql"]),
+        configs: &[".sqruff", ".sqlfluff", "pyproject.toml"],
+        format: Format::Sarif,
+        args: &["lint", "--format", "sarif"],
+    },
+    Linter {
+        tool: "mago",
+        selects: |p| ext(p, &["php"]),
+        configs: &[
+            "mago.toml",
+            "mago.yaml",
+            "mago.yml",
+            "mago.json",
+            "mago.dist.toml",
+            "mago.dist.yaml",
+            "mago.dist.yml",
+            "mago.dist.json",
+        ],
+        format: Format::Sarif,
+        // Extension hosts in the project config are unsandboxed processes; `lint` is syntax
+        // and style only, `analyze` would need the project's `vendor/`.
+        args: &[
+            "--no-extensions",
+            "--no-version-check",
+            "lint",
+            "--reporting-format",
+            "sarif",
+        ],
+    },
+    Linter {
+        tool: "jarl",
+        selects: |p| ext(p, &["r", "R"]),
+        configs: &["jarl.toml", ".jarl.toml"],
+        format: Format::Sarif,
+        // Package-specific rules would start `Rscript` from the project root; with an empty
+        // `PATH` jarl finds no R and skips them.
+        args: &["check", "--output-format", "sarif"],
     },
     Linter {
         tool: "actionlint",

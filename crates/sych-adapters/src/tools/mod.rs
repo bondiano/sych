@@ -444,7 +444,15 @@ mod tests {
         assert!(sole_pinned("rust-analyzer").is_ok());
         assert!(sole_pinned("ty").is_ok());
         assert!(sole_pinned("go").is_ok());
-        for linter in ["ruff", "oxlint", "actionlint", "zizmor"] {
+        for linter in [
+            "ruff",
+            "oxlint",
+            "sqruff",
+            "mago",
+            "jarl",
+            "actionlint",
+            "zizmor",
+        ] {
             assert!(sole_pinned(linter).is_ok(), "{linter}");
         }
         assert!(sole_pinned("gopls").is_ok_and(|t| t.module.is_some()));
