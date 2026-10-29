@@ -13,3 +13,9 @@ expected:
   findings: []
   forbidden_claims:
     - "the effect has no dependency array by mistake, or the ref now lags behind and the exit timer calls a stale onDismiss"
+  # True but outside this change: the exit timer handle of 19ca179d0 is still never cleared here.
+  tolerated:
+    - semantic_target: "exitRef keeps the exit timer handle after the dismissal, so a later swipe in the always-mounted toast region is ignored"
+      evidence_locations:
+        - { side: HEAD, path: apps/pwa/src/shared/lib/hooks/use-swipe-dismiss.ts, start_line: 76, end_line: 76 }
+        - { side: HEAD, path: apps/pwa/src/shared/lib/hooks/use-swipe-dismiss.ts, start_line: 101, end_line: 101 }
