@@ -1,0 +1,20 @@
+schema_version: 1
+id: vkusori-signin-consent-resume-unsafe
+split: holdout
+language: typescript
+pair: vkusori-signin-consent-resume
+variant: unsafe
+profiles: [correctness]
+rationale: "A tap that needs the pd consent stores the provider in pendingSignInAtom, but the same still-mounted buttons subscribe to that atom and resume it at once. The resumed try fails without consent, clears the pending provider and uses up the one-time resume, so nothing goes on when the user comes back from the consent screen."
+repository_fixture:
+  repo: vkusori
+  base_ref: "bc0938d0354dcc26800f8b84691478b4ba51e22c~1"
+  head_ref: "bc0938d0354dcc26800f8b84691478b4ba51e22c"
+expected:
+  findings:
+    - category: defect
+      semantic_target: "SignInOptions resumes a pending sign-in that it set itself, so the pending provider is consumed before the consent screen is answered"
+      required_condition: "a provider tap fails with ConsentRequired while the SignInOptions buttons stay mounted: setPending(provider) re-renders them, the pending effect calls resume, which retries without consent and then sets the pending provider back to null"
+      evidence_locations:
+        - { side: HEAD, path: apps/pwa/src/features/account/ui/sign-in-options/SignInOptions.tsx, start_line: 75, end_line: 76 }
+        - { side: HEAD, path: apps/pwa/src/features/account/ui/sign-in-options/SignInOptions.tsx, start_line: 92, end_line: 94 }

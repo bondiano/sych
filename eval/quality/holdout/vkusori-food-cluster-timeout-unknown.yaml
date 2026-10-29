@@ -1,0 +1,14 @@
+schema_version: 1
+id: vkusori-food-cluster-timeout-unknown
+split: holdout
+language: elixir
+variant: unknown
+profiles: [correctness]
+rationale: "Each judge batch now gets a 5-minute wall-clock limit and build/1 first marks every running clusters run as failed. A second build cannot overlap a running one (ClustersWorker is a unique Oban job), so what stays open is whether healthy batches fit in 5 minutes."
+repository_fixture:
+  repo: vkusori
+  base_ref: "707ba48a20fae64f743fc8a67f916ae95ff69bfe~1"
+  head_ref: "707ba48a20fae64f743fc8a67f916ae95ff69bfe"
+expected:
+  findings: []
+  unknown: "Whether 5 minutes is enough for a healthy batch of 40 pairs judged with concurrency 4, or healthy batches get killed and counted as judge_error: that depends on the judge's latency, which neither the diff nor the repository shows."

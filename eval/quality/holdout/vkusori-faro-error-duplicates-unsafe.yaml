@@ -1,0 +1,20 @@
+schema_version: 1
+id: vkusori-faro-error-duplicates-unsafe
+split: holdout
+language: typescript
+pair: vkusori-faro-error-duplicates
+variant: unsafe
+profiles: [correctness]
+rationale: "Caught failures are now forwarded to Faro through the observability adapter, but every report is pushed, including window errors and unhandled rejections that Faro's ErrorsInstrumentation already captures, so those reach Faro twice."
+repository_fixture:
+  repo: vkusori
+  base_ref: "fcadf8d6cc2607c832feca5163be4ec6d0d6f737~1"
+  head_ref: "fcadf8d6cc2607c832feca5163be4ec6d0d6f737"
+expected:
+  findings:
+    - category: defect
+      semantic_target: "captureFaroError pushes every adapter report to Faro, without leaving out the global sources Faro's own instrumentation already reports"
+      required_condition: "a report with source window or promise (an uncaught error or unhandled rejection) while Faro is enabled: it is sent once by ErrorsInstrumentation and again by the adapter"
+      evidence_locations:
+        - { side: HEAD, path: apps/pwa/src/app/observability/deferred-faro.ts, start_line: 20, end_line: 29 }
+        - { side: HEAD, path: apps/pwa/src/app/observability/deferred-sentry.ts, start_line: 32, end_line: 32 }

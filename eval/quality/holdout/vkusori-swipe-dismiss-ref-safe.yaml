@@ -1,0 +1,15 @@
+schema_version: 1
+id: vkusori-swipe-dismiss-ref-safe
+split: holdout
+language: typescript
+variant: safe
+profiles: [correctness, nitpicks]
+rationale: "The dismiss callback ref is now updated in an effect without dependencies, which runs after every commit, so the timer always calls the callback of the committed render."
+repository_fixture:
+  repo: vkusori
+  base_ref: "280d692b1c0b1adfb26c2bc565296c9cb8589226~1"
+  head_ref: "280d692b1c0b1adfb26c2bc565296c9cb8589226"
+expected:
+  findings: []
+  forbidden_claims:
+    - "the effect has no dependency array by mistake, or the ref now lags behind and the exit timer calls a stale onDismiss"

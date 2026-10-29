@@ -1,0 +1,18 @@
+schema_version: 1
+id: vkusori-swipe-dismiss-ref-nit
+split: holdout
+language: typescript
+variant: safe
+profiles: [correctness, nitpicks]
+rationale: "The new swipe-to-dismiss hook keeps the latest onDismiss in a ref by assigning it during render. That breaks React's rule to update refs after commit (the fix came from a lint rule); no practical consequence is shown, so it is a nit, not a defect."
+repository_fixture:
+  repo: vkusori
+  base_ref: "19ca179d00700488b5e20a4fa13ec7560f3f4851~1"
+  head_ref: "19ca179d00700488b5e20a4fa13ec7560f3f4851"
+expected:
+  findings:
+    - category: nitpick
+      semantic_target: "useSwipeDismiss writes the dismiss callback ref during render; React's rules ask to update refs after commit (in an effect)"
+      required_condition: "always: the write runs on every render, including renders React discards"
+      evidence_locations:
+        - { side: HEAD, path: apps/pwa/src/shared/lib/hooks/use-swipe-dismiss.ts, start_line: 53, end_line: 54 }

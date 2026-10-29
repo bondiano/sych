@@ -1,0 +1,16 @@
+schema_version: 1
+id: vkusori-faro-error-duplicates-safe
+split: holdout
+language: typescript
+pair: vkusori-faro-error-duplicates
+variant: safe
+profiles: [correctness]
+rationale: "The adapter skips window and promise reports, which Faro's ErrorsInstrumentation already sends, so each global error reaches Faro once; caught React/Effect and startup failures still go through the adapter."
+repository_fixture:
+  repo: vkusori
+  base_ref: "00d52812ae0c573715a30f638ae0d88e952d0244~1"
+  head_ref: "00d52812ae0c573715a30f638ae0d88e952d0244"
+expected:
+  findings: []
+  forbidden_claims:
+    - "uncaught window errors and unhandled rejections no longer reach Faro at all"
