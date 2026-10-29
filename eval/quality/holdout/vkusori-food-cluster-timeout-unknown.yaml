@@ -1,0 +1,14 @@
+schema_version: 1
+id: vkusori-food-cluster-timeout-unknown
+split: holdout
+language: elixir
+variant: unknown
+profiles: [correctness]
+rationale: "Each judge batch now gets a 5-minute wall-clock limit and build/1 first marks every running clusters run as failed. Whether that is right depends on how long healthy batches take and on whether two builds can ever overlap, neither of which the diff shows."
+repository_fixture:
+  repo: vkusori
+  base_ref: "707ba48a20fae64f743fc8a67f916ae95ff69bfe~1"
+  head_ref: "707ba48a20fae64f743fc8a67f916ae95ff69bfe"
+expected:
+  findings: []
+  unknown: "Whether a second build can start while one is still running (the caller's job uniqueness or queue concurrency is not in the diff), in which case interrupted/0 marks a live run as failed; and whether 5 minutes is enough for a healthy batch of 40 pairs judged with concurrency 4, or healthy batches get killed and counted as judge_error."

@@ -1,0 +1,16 @@
+schema_version: 1
+id: vkusori-signin-consent-resume-safe
+split: holdout
+language: typescript
+pair: vkusori-signin-consent-resume
+variant: safe
+profiles: [correctness]
+rationale: "The buttons now resume only the provider that was pending when they mounted (captured once in useState), so the buttons that sent the user to the consent screen no longer take the pending sign-in back themselves."
+repository_fixture:
+  repo: vkusori
+  base_ref: "0222aa17a79b2a7e235f2c705f222457282a75b0~1"
+  head_ref: "0222aa17a79b2a7e235f2c705f222457282a75b0"
+expected:
+  findings: []
+  forbidden_claims:
+    - "calling useAtomValue inside the useState argument breaks the rules of hooks or is called conditionally"

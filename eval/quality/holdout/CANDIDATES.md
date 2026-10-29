@@ -8,6 +8,29 @@ How a fix commit becomes a case: the fix itself is a `safe` case (or an `unknown
 the bug, found with `git log -L` or `git blame` on the fixed lines, is the `unsafe` case. Both use
 `repository_fixture` with `base_ref: <commit>~1` and `head_ref: <commit>`.
 
+## Labelled so far
+
+Drafted by an agent that did not read `../dev`, prompts, rules or the analysis code; the owner reviews them.
+
+| case pair / id | variant | commit | source |
+|---|---|---|---|
+| vkusori-swipe-dismiss-ref | unsafe / safe | 19ca179d0 / 280d692b1 | introducer listed below; the fix is not |
+| vkusori-signin-consent-resume | unsafe / safe | bc0938d03 / 0222aa17a | not listed: small fix and small introducer found by blame |
+| vkusori-faro-error-duplicates | unsafe / safe | fcadf8d6c / 00d52812a | not listed: small fix and small introducer found by blame |
+| vkusori-with-resolvers-safe | safe | 8cfa192de | listed; no pair, see below |
+| vkusori-storage-open-retry-safe | safe | 7cd85f890 | listed; no pair, see below |
+| vkusori-food-cluster-timeout-unknown | unknown | 707ba48a2 | listed |
+| vkusori-reminder-plan-generation-unknown | unknown | 55c82f785 | listed |
+
+The commits outside these tables were not checked against `../dev` (that would mean reading it): the owner checks that
+bc0938d03, 0222aa17a, fcadf8d6c, 00d52812a and 280d692b1 are not development cases.
+
+Dropped as pairs, because the commit that introduced the bug is large or the bug does not show in its diff:
+7cd85f890 and 8cfa192de (both introduced in 03d8f9b64, ~1270 lines; the service worker half in 7c026d7a3, ~1130),
+01d77a1f7 (d18e27efe, ~3700), 81782b26f (FSD move 7aced1d29, 1179 files), c73c7d0c7 (4efabdac3, ~36 000),
+a4cccb7ef (371eaf4dd, ~850), 452de6460 (an omitted skeleton variant, a layout jump that no diff shows).
+c2ac3f3c6 is a planned follow-up of a deliberate shortcut, not a fix, and was left out.
+
 ## Vkusori: TS/React (supported now)
 
 | commit | files | lines | subject |

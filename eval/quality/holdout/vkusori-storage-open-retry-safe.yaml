@@ -1,0 +1,15 @@
+schema_version: 1
+id: vkusori-storage-open-retry-safe
+split: holdout
+language: typescript
+variant: safe
+profiles: [correctness]
+rationale: "The outer retry of the whole platform start is removed: the shared database already retries its open while the previous owner's OPFS handles are released, so a worker that fails for good now reaches recovery after about 10 attempts instead of 100."
+repository_fixture:
+  repo: vkusori
+  base_ref: "7cd85f89094c5c23ece2de14ec8b8e9baf5d255e~1"
+  head_ref: "7cd85f89094c5c23ece2de14ec8b8e9baf5d255e"
+expected:
+  findings: []
+  forbidden_claims:
+    - "without the outer retry a start right after a reload fails while the previous tab still holds the OPFS handles"
