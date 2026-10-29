@@ -555,7 +555,7 @@ defects were missed again in this run.
 
 ## Holdout, second run
 
-Nine cases in `eval/quality/holdout`: the five left after the move and two new owner-reviewed pairs
+Nine cases in `eval/quality/holdout`: the five left after the move and two new owner-reviewed pairs (four cases)
 (`vkusori-screen-lead-under-sheet`, `vkusori-guest-profile-identities`). One run of variant C, `cheap_api`, with
 the anchor change: 28 model attempts, $0.069, no errors ([report](examples/quality/holdout-cheap_api-c-2.json)).
 
