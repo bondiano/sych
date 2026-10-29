@@ -523,6 +523,36 @@ consent defect a candidate reached the labelled lines and the verifier dropped i
 as `COMPLETE_FOR_SCOPE`, with open questions about the new test rather than about the batch latency. Nine cases
 and one run are too few for a quality acceptance; they show where the pipeline loses defects.
 
+### The two misses, diagnosed
+
+Both cases, three more runs each of variant C on `cheap_api` (19 attempts, $0.035): the labelled defect was found
+once in six runs.
+
+- Faro (`vkusori-faro-error-duplicates-unsafe`): discovery proposed no candidate in any run. In two runs the
+  required TEST-INTEGRITY assessment was also thrown away as `INVALID_REFERENCE`. It cited `faro.test.ts` lines
+  135–137 under `ref-19` (123–131), but the context showed those lines in the next span, `ref-20` (133–139).
+  Since then a reference resolves through any shown span of the same file and side that contains its lines.
+  Lines no span shows are still rejected. With that change, three more runs gave `COMPLETE_FOR_SCOPE` and still
+  no candidate: the missing discovery is the model's miss, and no deterministic change addresses it.
+- Sign-in (`vkusori-signin-consent-resume-unsafe`): found once. In the other two runs the labelled chain, where the
+  pending effect resumes in the same mount, ended as an UNRESOLVED candidate. The open question was whether
+  `onConsentRequired` unmounts the buttons. The verifier rejected a neighbouring claim (a `resumeStarted` ref
+  that is never reset). No change was made for this case.
+
+Both cases moved to `eval/quality/dev`, since the pipeline was changed from them.
+
+One run of the development suite with the change (130 cases, the four moved ones included; 394 attempts,
+$0.388; one error, `real-sych-context-broker`, whose base needs Sych's archival clone)
+([report](examples/quality/dev-cheap_api-c-anchor.json)), beside the archived M3 run of the smaller suite:
+
+| | defects found | correctness findings at labelled locations | safe runs with a false finding | UNKNOWN kept |
+|---|---|---|---|---|
+| with the change | 47/51 | 57/84 | 15/69 | 5/9 |
+| M3 ([report](examples/quality/dev-cheap_api-c-m3.json)) | 42/48 | 58/88 | 16/66 | 4/9 |
+
+Neither run was repeated and the suites differ, so this shows no regression, not an improvement. Both moved
+defects were missed again in this run.
+
 ## Limitations
 
 - Independent passes run in parallel, with no more than `budgets.analysis.max_parallel_calls` (default 2) calls

@@ -1,6 +1,6 @@
 schema_version: 1
 id: vkusori-faro-error-duplicates-safe
-split: holdout
+split: development
 language: typescript
 pair: vkusori-faro-error-duplicates
 variant: safe

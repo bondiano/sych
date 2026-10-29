@@ -9,6 +9,7 @@ use sych_core::analysis::{
     ProposedStatus, unseen_violation, validate_assessment, validate_discovery,
 };
 use sych_core::broker::EvidencePacket;
+mod anchors;
 mod answers;
 mod removals;
 mod verify;
@@ -128,12 +129,20 @@ fn source_evidence() -> Evidence {
 
 /// A packet showing base 1-6, head 1-3 and the head test (`ref-1`, `ref-2`, `ref-3`).
 fn context(reader: &Reader) -> (Context, Evidence) {
-    let fragments: Vec<_> = [
-        reader.at(SourceSide::DiffBase, "src/order.ts", 1, 6),
-        reader.at(SourceSide::Head, "src/order.ts", 1, 3),
-        reader.at(SourceSide::Head, "src/order.test.ts", 1, 3),
-    ]
-    .iter()
+    context_of(
+        reader,
+        &[
+            reader.at(SourceSide::DiffBase, "src/order.ts", 1, 6),
+            reader.at(SourceSide::Head, "src/order.ts", 1, 3),
+            reader.at(SourceSide::Head, "src/order.test.ts", 1, 3),
+        ],
+    )
+}
+
+/// A packet showing `spans` as `ref-1`, `ref-2`, … in order.
+fn context_of(reader: &Reader, spans: &[CodeRef]) -> (Context, Evidence) {
+    let fragments: Vec<_> = spans
+        .iter()
     .enumerate()
     .map(|(i, r)| {
         json!({"id": format!("f{i}"), "code_ref": r, "priority": "REQUIRED",
