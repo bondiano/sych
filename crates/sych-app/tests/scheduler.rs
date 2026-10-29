@@ -322,6 +322,37 @@ async fn a_slow_preparation_keeps_its_lease() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn a_second_worker_cannot_claim_a_job_still_preparing() {
+    let w = world(None).await;
+    let head = w.branch("src/b.rs");
+    w.open_pull(&head, &w.base, false);
+    w.pr_event("d-1", "opened", &head).await;
+    w.schedule(6).await;
+    lock(&w.fake).token_delay = Some(Duration::from_millis(300));
+    advance(7_200);
+    // A second worker reaps and claims at every tick while the first one is still fetching.
+    let rival = async {
+        let mut taken = Vec::new();
+        for _ in 0..4 {
+            time::sleep(Duration::from_millis(50)).await;
+            advance(30);
+            let reaped = w.app.storage.reap(now()).await.expect("reap");
+            let claim = w.app.storage.claim("w2", 60, now()).await.expect("claim");
+            taken.push((reaped, claim.is_some()));
+        }
+        taken
+    };
+    let (worked, taken) = tokio::join!(w.engine.work_once(), rival);
+    assert!(worked.expect("work"));
+    assert_eq!(taken, [(0, false); 4], "the heartbeat keeps the lease");
+    assert_eq!(w.states().await, ["COMPLETED"]);
+    assert!(
+        !w.engine.work_once().await.expect("work"),
+        "nothing left to claim"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn a_repeated_ci_report_after_its_run_used_it_is_not_significant() {
     let w = world(Some(CI_POLICY)).await;
     let head = w.branch("src/b.rs");
