@@ -1,6 +1,8 @@
 //! Scoring of one reviewed case against its labels, and the totals over runs.
 
-use sych_core::{Candidate, CodeRef, Coverage, FindingCategory, Recommendation, ReviewResult};
+use sych_core::{
+    Candidate, CodeRef, Coverage, FindingCategory, ObligationStatus, Recommendation, ReviewResult,
+};
 
 use serde::Serialize;
 
@@ -13,6 +15,10 @@ struct FindingBrief {
     title: String,
     at: Vec<String>,
     labelled: bool,
+    /// Indexes into `Measured::labels` this finding overlaps: candidates for `eval judge`.
+    /// Nitpick labels are not indexed, though they make `labelled` true: by meaning a
+    /// correctness finding on a nit is an overrated nit, never a matched defect.
+    labels: Vec<usize>,
 }
 
 #[derive(Serialize)]
@@ -139,6 +145,12 @@ pub(super) struct Measured {
     obligations: Vec<ObligationCheck>,
     /// `unknown` cases: no correctness finding and something left UNKNOWN or partial.
     unknown_kept: Option<bool>,
+    /// Labelled defects and rule violations by meaning, in label order: what `eval judge` matches.
+    labels: Vec<String>,
+    /// `unknown` cases: what the review left open, to judge it against the labelled unknown.
+    /// Wider than `unknown_kept`, which keeps its earlier meaning so reports stay comparable:
+    /// unresolved questions alone do not make it true.
+    left_open: Vec<String>,
     findings: Vec<FindingBrief>,
     model_attempts: u32,
     cost_known_micro_usd: u64,
@@ -259,6 +271,28 @@ fn verifier_dropped(
     hits(&missed, &dropped)
 }
 
+/// UNKNOWN obligations, unresolved questions and unreviewed paths, as the review stated them.
+fn open_questions(result: &ReviewResult) -> Vec<String> {
+    let unknown = result.obligations.iter().filter_map(|o| match &o.status {
+        ObligationStatus::Unknown {
+            reason_code,
+            next_evidence_needed,
+        } => Some(format!(
+            "{} UNKNOWN ({reason_code}): {} — needs {next_evidence_needed}",
+            o.rule_id, o.question
+        )),
+        _ => None,
+    });
+    let gaps = result
+        .excluded_or_unreviewed
+        .iter()
+        .map(|g| format!("{}: {}", g.path, g.reason));
+    unknown
+        .chain(result.unresolved_questions.iter().cloned())
+        .chain(gaps)
+        .collect()
+}
+
 /// `dropped`: candidates the verifier rejected or left unresolved; empty without a verifier.
 pub(super) fn score(
     case: &QualityCase,
@@ -274,6 +308,11 @@ pub(super) fn score(
         .iter()
         .flat_map(|f| &f.evidence_locations)
         .collect();
+    let (expected_nits, expected): (Vec<_>, Vec<_>) = case
+        .expected
+        .findings
+        .iter()
+        .partition(|f| f.category == "nitpick");
     let findings: Vec<FindingBrief> = remarks
         .iter()
         .map(|f| FindingBrief {
@@ -288,6 +327,9 @@ pub(super) fn score(
                 .anchors
                 .iter()
                 .any(|a| labels.iter().any(|l| overlaps(a, l))),
+            labels: (0..expected.len())
+                .filter(|&i| hits(&[expected[i]], &[f]) > 0)
+                .collect(),
         })
         .collect();
     let correctness_findings: Vec<_> = remarks.iter().filter(|f| correctness(f.category)).collect();
@@ -295,11 +337,6 @@ pub(super) fn score(
         .iter()
         .filter(|f| !correctness(f.category))
         .collect();
-    let (expected_nits, expected): (Vec<_>, Vec<_>) = case
-        .expected
-        .findings
-        .iter()
-        .partition(|f| f.category == "nitpick");
     let matched = hits(&expected, &correctness_findings);
     let (overrated_nits, tolerated) = not_false(case, &expected_nits, &correctness_findings);
     let obligations: Vec<ObligationCheck> = case
@@ -345,6 +382,15 @@ pub(super) fn score(
         obligations,
         unknown_kept: (case.variant == CaseDisposition::Unknown)
             .then_some(correctness_findings.is_empty() && left_open),
+        labels: expected
+            .iter()
+            .map(|e| format!("{} — {}", e.semantic_target, e.required_condition))
+            .collect(),
+        left_open: if case.variant == CaseDisposition::Unknown {
+            open_questions(result)
+        } else {
+            Vec::new()
+        },
         findings,
         model_attempts: usage.model_attempts,
         cost_known_micro_usd: usage.cost.known.0,
@@ -386,6 +432,10 @@ mod tests {
     fn a_finding_matches_a_label_by_overlapping_location_only() {
         let hit = score_of(&case("unsafe", 45, 50), &result());
         assert_eq!((hit.matched_expected, hit.labelled_findings), (1, 1));
+        assert_eq!(
+            (hit.findings[0].labels.as_slice(), hit.labels.len()),
+            (&[0][..], 1)
+        );
         assert_eq!(hit.obligations[0].actual, hit.obligations[0].expected);
         let miss = score_of(&case("unsafe", 48, 50), &result());
         assert_eq!((miss.matched_expected, miss.labelled_findings), (0, 0));

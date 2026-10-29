@@ -1,8 +1,9 @@
 //! `sych eval measure` (spec §27.4–27.5): every case of a labelled suite is reviewed with a
 //! real model profile through the ordinary review path and its durable ledger, so the run,
 //! day and month budgets hold across the whole suite. A finding matches a label when one of
-//! its anchors overlaps a labelled evidence location — a proxy for meaning the owner checks
-//! from the listed titles. The numbers are measurements; acceptance criteria are the owner's.
+//! its anchors overlaps a labelled evidence location — a proxy for meaning; `eval judge`
+//! rescores the report by the owner's judgments. The numbers are measurements; acceptance
+//! criteria are the owner's.
 
 use std::collections::BTreeMap;
 use std::fs;
