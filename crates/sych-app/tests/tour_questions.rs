@@ -107,6 +107,24 @@ async fn questions_are_private_and_a_waiver_needs_a_maintainer() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "unknown step");
+
+    let (_, other_tour, _) = store_tour(&w).await;
+    let fact = json!({"step_id": step, "kind": "FACT_REQUEST",
+        "question": "consumers deduplicate by order id"});
+    let (status, conflict) = call(
+        &url,
+        "POST",
+        &format!("/v1/runs/{run}/tours/{other_tour}/questions"),
+        Some("reader"),
+        Some("f1"),
+        &fact,
+    )
+    .await;
+    assert_eq!(
+        (status, conflict["error"]["code"].as_str()),
+        (StatusCode::CONFLICT, Some("IDEMPOTENCY_CONFLICT")),
+        "a question key never replays the exchange of another tour: {conflict}"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]

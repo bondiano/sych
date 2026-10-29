@@ -9,6 +9,7 @@ mod fake_github;
 mod http;
 mod world;
 
+use fake_github::{lock, pull_json};
 use http::{call, listen, store_tour};
 use world::{commit_result, world};
 
@@ -250,12 +251,38 @@ async fn cancellation_stops_active_runs_and_keeps_committed_ones() {
         !w.engine.work_once().await.expect("work"),
         "nothing to claim"
     );
+
+    lock(&w.fake).pulls.insert(8, pull_json(8, &head, &w.base));
+    let (status, _) = call(
+        &url,
+        "POST",
+        "/v1/reviews",
+        Some("writer"),
+        Some("b"),
+        &review("8"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED);
+    let (status, reused) = call(
+        &url,
+        "POST",
+        "/v1/changes/2/reruns",
+        Some("writer"),
+        Some("r1"),
+        &json!({}),
+    )
+    .await;
+    assert_eq!(
+        (status, reused["error"]["code"].as_str()),
+        (StatusCode::CONFLICT, Some("IDEMPOTENCY_CONFLICT")),
+        "a rerun key never replays the run of another change: {reused}"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn feedback_and_waivers_need_their_roles_and_metrics_stay_bounded() {
     let w = world(None).await;
-    commit_result(&w, 1).await;
+    commit_result(&w, 2).await;
     w.engine.lineage_once().await.expect("lineage");
     let url = listen(&w).await;
     let fb =
@@ -283,6 +310,20 @@ async fn feedback_and_waivers_need_their_roles_and_metrics_stay_bounded() {
     assert_eq!(
         w.app.storage.findings_of(1).await.expect("findings")[0].state,
         "DISMISSED"
+    );
+    let (status, reused) = call(
+        &url,
+        "POST",
+        "/v1/findings/2/feedback",
+        Some("writer"),
+        Some("f"),
+        &fb,
+    )
+    .await;
+    assert_eq!(
+        (status, reused["error"]["code"].as_str()),
+        (StatusCode::CONFLICT, Some("IDEMPOTENCY_CONFLICT")),
+        "a feedback key never replays the judgement of another finding: {reused}"
     );
 
     let waiver = json!({"change_id": 1, "rule_id": "EFFECT-01", "paths": ["src/**"], "reason": "window",
@@ -413,6 +454,22 @@ async fn a_tour_session_is_personal_hides_answers_and_finishes_once() {
     let (_, again) = get("reader", format!("/v1/runs/{run}/tour")).await;
     assert_eq!(again["session"]["state"].as_str(), Some("COMPLETED"));
     assert_eq!(reveals(&again)[0], "the caller", "kept after finishing");
+
+    let (_, other_tour, _) = store_tour(&w).await;
+    let (status, reused) = call(
+        &url,
+        "POST",
+        &format!("/v1/runs/{run}/tours/{other_tour}/reveal"),
+        Some("reader"),
+        Some("r1"),
+        &json!({"step_id": step}),
+    )
+    .await;
+    assert_eq!(
+        (status, reused["error"]["code"].as_str()),
+        (StatusCode::CONFLICT, Some("IDEMPOTENCY_CONFLICT")),
+        "a session key never replays the view of another tour: {reused}"
+    );
 
     // A newer generation leaves the tour readable and `STALE`.
     fake_github::lock(&w.fake)
