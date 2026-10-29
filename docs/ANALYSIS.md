@@ -492,6 +492,11 @@ the review left open (`left_open`).
 sych eval judge report.json --judgments judgments.yaml
 ```
 
+`left_open` also lists unresolved questions, which `unknown_kept` ignores; the flag keeps its old
+meaning so new reports compare with archived ones, and an unknown counts by meaning only when both hold. A
+correctness finding on a nitpick label counts as labelled by location (as before) but is no judgment
+candidate: by meaning it is an overrated nit.
+
 A location match or a kept unknown that nobody judged is listed in `unjudged` and does not count by meaning.
 Nitpicks and obligations stay scored by location and status. Reports written before `labels` existed cannot be
 judged.

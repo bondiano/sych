@@ -16,6 +16,8 @@ struct FindingBrief {
     at: Vec<String>,
     labelled: bool,
     /// Indexes into `Measured::labels` this finding overlaps: candidates for `eval judge`.
+    /// Nitpick labels are not indexed, though they make `labelled` true: by meaning a
+    /// correctness finding on a nit is an overrated nit, never a matched defect.
     labels: Vec<usize>,
 }
 
@@ -146,6 +148,8 @@ pub(super) struct Measured {
     /// Labelled defects and rule violations by meaning, in label order: what `eval judge` matches.
     labels: Vec<String>,
     /// `unknown` cases: what the review left open, to judge it against the labelled unknown.
+    /// Wider than `unknown_kept`, which keeps its earlier meaning so reports stay comparable:
+    /// unresolved questions alone do not make it true.
     left_open: Vec<String>,
     findings: Vec<FindingBrief>,
     model_attempts: u32,
