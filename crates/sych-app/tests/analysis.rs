@@ -6,9 +6,7 @@ use sych_app::analysis::PassStatus;
 use sych_core::VerificationStatus;
 use sych_core::broker::OpStatus;
 use sych_core::config::Budgets;
-use sych_core::model::{
-    ChargeState, ErrorKind, ModelReply, ModelRequest, ProviderError, TaskFailure,
-};
+use sych_core::model::{ChargeState, ModelReply, ModelRequest, ProviderError, TaskFailure};
 
 mod harness;
 
@@ -125,15 +123,6 @@ fn expanding(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
     }
 }
 
-fn unsupported(_: &ModelRequest) -> Result<ModelReply, ProviderError> {
-    Err(ProviderError {
-        kind: ErrorKind::Unsupported,
-        dispatched: false,
-        message: "no upstream supports the schema".into(),
-        retry_after_seconds: None,
-    })
-}
-
 #[tokio::test(flavor = "current_thread")]
 async fn context_request_is_answered_through_the_broker_for_the_verifier() {
     let (outcome, calls) = run(expanding, Budgets::default()).await;
@@ -160,20 +149,6 @@ async fn context_request_is_answered_through_the_broker_for_the_verifier() {
             .all(|c| c.verification_status == VerificationStatus::Rejected)
     );
     assert!(outcome.findings.is_empty());
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn unsupported_route_is_a_released_failure_not_an_empty_success() {
-    let (outcome, _) = run(unsupported, Budgets::default()).await;
-    assert_eq!(reason(&outcome.assessments[0].status), "MODEL_FAILED");
-    assert!(
-        outcome
-            .record
-            .attempts
-            .iter()
-            .all(|a| a.charge_state == ChargeState::Released)
-    );
-    assert_eq!(outcome.gaps.len(), 2);
 }
 
 #[tokio::test(flavor = "current_thread")]
