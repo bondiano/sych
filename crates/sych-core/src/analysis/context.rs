@@ -296,21 +296,36 @@ impl Context {
         self.refs.get(ref_id)
     }
 
-    /// The exact `CodeRef` of lines inside a handed-out span, hashed by the reader.
+    /// The exact `CodeRef` of lines inside a handed-out span, hashed by the reader. Lines that
+    /// lie outside the named span but inside another shown span of the same file and side were
+    /// still shown, so they resolve through that span.
     pub fn anchor(&self, anchor: &Anchor, reader: &dyn SnapshotReader) -> Result<CodeRef, String> {
-        let span = self
+        let named = self
             .refs
             .get(&anchor.ref_id)
             .ok_or_else(|| format!("unknown ref id `{}`", anchor.ref_id))?;
-        if anchor.start_line > anchor.end_line
-            || anchor.start_line < span.start_line
-            || anchor.end_line > span.end_line
-        {
-            return Err(format!(
-                "lines {}-{} are outside {} ({}-{})",
-                anchor.start_line, anchor.end_line, anchor.ref_id, span.start_line, span.end_line
-            ));
-        }
+        let shows = |s: &CodeRef| {
+            anchor.start_line <= anchor.end_line
+                && s.start_line <= anchor.start_line
+                && anchor.end_line <= s.end_line
+        };
+        let span = if shows(named) {
+            named
+        } else {
+            self.refs
+                .values()
+                .find(|s| s.side == named.side && s.path == named.path && shows(s))
+                .ok_or_else(|| {
+                    format!(
+                        "lines {}-{} are outside {} ({}-{})",
+                        anchor.start_line,
+                        anchor.end_line,
+                        anchor.ref_id,
+                        named.start_line,
+                        named.end_line
+                    )
+                })?
+        };
 
         reader
             .code_ref(span.side, &span.path, anchor.start_line, anchor.end_line)

@@ -1,6 +1,6 @@
 schema_version: 1
 id: vkusori-signin-consent-resume-unsafe
-split: holdout
+split: development
 language: typescript
 pair: vkusori-signin-consent-resume
 variant: unsafe

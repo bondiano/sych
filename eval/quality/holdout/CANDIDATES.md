@@ -18,8 +18,6 @@ Drafted by an agent that did not read `../dev`, prompts, rules or the analysis c
 | case pair / id | variant | commit | source |
 |---|---|---|---|
 | vkusori-swipe-dismiss-ref-unsafe / -safe | unsafe with a nitpick / safe | 19ca179d0 / 280d692b1 | introducer listed below; the fix is not; not a pair: 280d692b1 fixes only the nit. The defect label was added after the first run reported it |
-| vkusori-signin-consent-resume | unsafe / safe | bc0938d03 / 0222aa17a | not listed: small fix and small introducer found by blame |
-| vkusori-faro-error-duplicates | unsafe / safe | fcadf8d6c / 00d52812a | not listed: small fix and small introducer found by blame |
 | vkusori-with-resolvers-safe | safe | 8cfa192de | listed; no pair, see below |
 | vkusori-storage-open-retry-safe | safe | 7cd85f890 | listed; no pair, see below |
 | vkusori-food-cluster-timeout-unknown | unknown | 707ba48a2 | listed |
@@ -29,6 +27,10 @@ Drafted by an agent that did not read `../dev`, prompts, rules or the analysis c
 The commits outside these tables were not checked against `../dev` (that would mean reading it): the owner checks that
 bc0938d03, 0222aa17a, fcadf8d6c, 00d52812a, 280d692b1, 14802709c, e31c97148, a349b4fba and 03e09e1db are not
 development cases.
+
+Moved to `../dev` after the first run: `vkusori-signin-consent-resume` (bc0938d03 / 0222aa17a) and
+`vkusori-faro-error-duplicates` (fcadf8d6c / 00d52812a). Their misses were diagnosed and the pipeline was
+changed from them, so they no longer measure independently.
 
 Dropped on review: 55c82f785 as an `unknown` case, because the repository answers what the diff does not
 (the sync hook runs in the push transaction under the user's lock, taken first), so it is not undecidable.
