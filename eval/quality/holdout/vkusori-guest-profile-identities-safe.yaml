@@ -1,0 +1,16 @@
+schema_version: 1
+id: vkusori-guest-profile-identities-safe
+split: holdout
+language: typescript
+pair: vkusori-guest-profile-identities
+variant: safe
+profiles: [correctness]
+rationale: "profileNameAtom reads identitiesAtom only when the session holds a registered user, so a guest's profile header asks the server nothing; a registered user's typed name still wins, and the provider's name still comes from the identities."
+repository_fixture:
+  repo: vkusori
+  base_ref: "03e09e1db2aea35bcc2bad5b2f524a7f13b5943d~1"
+  head_ref: "03e09e1db2aea35bcc2bad5b2f524a7f13b5943d"
+expected:
+  findings: []
+  forbidden_claims:
+    - "a registered user's provider name (Telegram's or another provider's) is no longer shown in the profile header"
