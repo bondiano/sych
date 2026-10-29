@@ -2,9 +2,8 @@ schema_version: 1
 id: vkusori-swipe-dismiss-ref-safe
 split: holdout
 language: typescript
-pair: vkusori-swipe-dismiss-ref
 variant: safe
-profiles: [correctness]
+profiles: [correctness, nitpicks]
 rationale: "The dismiss callback ref is now updated in an effect without dependencies, which runs after every commit, so the timer always calls the callback of the committed render."
 repository_fixture:
   repo: vkusori

@@ -14,16 +14,18 @@ Drafted by an agent that did not read `../dev`, prompts, rules or the analysis c
 
 | case pair / id | variant | commit | source |
 |---|---|---|---|
-| vkusori-swipe-dismiss-ref | unsafe / safe | 19ca179d0 / 280d692b1 | introducer listed below; the fix is not |
+| vkusori-swipe-dismiss-ref-nit / -safe | safe with a nitpick / safe | 19ca179d0 / 280d692b1 | introducer listed below; the fix is not |
 | vkusori-signin-consent-resume | unsafe / safe | bc0938d03 / 0222aa17a | not listed: small fix and small introducer found by blame |
 | vkusori-faro-error-duplicates | unsafe / safe | fcadf8d6c / 00d52812a | not listed: small fix and small introducer found by blame |
 | vkusori-with-resolvers-safe | safe | 8cfa192de | listed; no pair, see below |
 | vkusori-storage-open-retry-safe | safe | 7cd85f890 | listed; no pair, see below |
 | vkusori-food-cluster-timeout-unknown | unknown | 707ba48a2 | listed |
-| vkusori-reminder-plan-generation-unknown | unknown | 55c82f785 | listed |
 
 The commits outside these tables were not checked against `../dev` (that would mean reading it): the owner checks that
 bc0938d03, 0222aa17a, fcadf8d6c, 00d52812a and 280d692b1 are not development cases.
+
+Dropped on review: 55c82f785 as an `unknown` case, because the repository answers what the diff does not
+(the sync hook runs in the push transaction under the user's lock, taken first), so it is not undecidable.
 
 Dropped as pairs, because the commit that introduced the bug is large or the bug does not show in its diff:
 7cd85f890 and 8cfa192de (both introduced in 03d8f9b64, ~1270 lines; the service worker half in 7c026d7a3, ~1130),
