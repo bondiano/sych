@@ -40,7 +40,7 @@ use tokio::signal;
 use tokio::sync::watch;
 use tokio::task::{self, LocalSet};
 
-pub use engine::{Conn, Engine, ReviewSettings, binding};
+pub use engine::{Conn, Engine, JOB_SLACK_SECONDS, ReviewSettings, binding};
 pub use error::ApiError;
 pub use metrics::Counters;
 

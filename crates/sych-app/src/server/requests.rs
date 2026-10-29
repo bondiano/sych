@@ -7,7 +7,7 @@ use sych_core::schedule::{MAX_RETRIES, RunInputs, Trigger};
 use sych_core::scm::{ScmError, ScmErrorKind};
 use sych_storage::{RunHandle, StorageError};
 
-use super::engine::{Engine, JOB_SECONDS, scm_state};
+use super::engine::{Engine, scm_state};
 
 #[derive(Debug, thiserror::Error)]
 pub enum RequestError {
@@ -99,7 +99,7 @@ impl Engine {
             checks: publish && conn.config.publish && conn.config.checks,
             targeted,
         };
-        let deadline = (self.now)().as_second() + JOB_SECONDS;
+        let deadline = (self.now)().as_second() + self.job_seconds();
         Ok(storage
             .generate(change_id, &inputs, deadline, MAX_RETRIES + 1, (self.now)())
             .await?)
