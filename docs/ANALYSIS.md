@@ -501,6 +501,28 @@ A location match or a kept unknown that nobody judged is listed in `unjudged` an
 Nitpicks and obligations stay scored by location and status. Reports written before `labels` existed cannot be
 judged.
 
+## Holdout, first run
+
+Nine owner-reviewed cases in `eval/quality/holdout` (Vkusori TS/React and one Elixir `unknown` case), one run of
+variant C, `cheap_api`, the personal example's budgets: 27 model attempts, $0.057, no errors
+([report](examples/quality/holdout-cheap_api-c.json)).
+
+| | defects found | correctness findings at labelled locations | safe cases with a false finding | UNKNOWN kept | nits matched |
+|---|---|---|---|---|---|
+| labels as measured | 0/2 | 0/1 | 1/6 | 0/1 | 0/1 |
+| after relabelling one case | 1/3 | 1/1 | 0/5 | 0/1 | 0/1 |
+
+The one correctness finding was a real defect the labels had missed: in `19ca179d0` the swipe's exit timer
+handle is never cleared, so after one animated swipe the always-mounted toast region ignores every later swipe.
+That case (`vkusori-swipe-dismiss-ref-unsafe`, measured as `-nit`) was relabelled from the model's answer, so
+the second row is not independent of this run; the first row is. The second row is scored by hand: the
+finding's anchors (lines 74 and 99) overlap the new label.
+
+What the run shows: the review saw no candidate for the duplicated Faro report (one call); for the sign-in
+consent defect a candidate reached the labelled lines and the verifier dropped it; the `unknown` case was closed
+as `COMPLETE_FOR_SCOPE`, with open questions about the new test rather than about the batch latency. Nine cases
+and one run are too few for a quality acceptance; they show where the pipeline loses defects.
+
 ## Limitations
 
 - Independent passes run in parallel, with no more than `budgets.analysis.max_parallel_calls` (default 2) calls

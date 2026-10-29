@@ -17,7 +17,7 @@ Drafted by an agent that did not read `../dev`, prompts, rules or the analysis c
 
 | case pair / id | variant | commit | source |
 |---|---|---|---|
-| vkusori-swipe-dismiss-ref-nit / -safe | safe with a nitpick / safe | 19ca179d0 / 280d692b1 | introducer listed below; the fix is not |
+| vkusori-swipe-dismiss-ref-unsafe / -safe | unsafe with a nitpick / safe | 19ca179d0 / 280d692b1 | introducer listed below; the fix is not; not a pair: 280d692b1 fixes only the nit. The defect label was added after the first run reported it |
 | vkusori-signin-consent-resume | unsafe / safe | bc0938d03 / 0222aa17a | not listed: small fix and small introducer found by blame |
 | vkusori-faro-error-duplicates | unsafe / safe | fcadf8d6c / 00d52812a | not listed: small fix and small introducer found by blame |
 | vkusori-with-resolvers-safe | safe | 8cfa192de | listed; no pair, see below |
