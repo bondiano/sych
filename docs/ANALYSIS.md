@@ -553,6 +553,23 @@ $0.388; one error, `real-sych-context-broker`, whose base needs Sych's archival 
 Neither run was repeated and the suites differ, so this shows no regression, not an improvement. Both moved
 defects were missed again in this run.
 
+## Holdout, second run
+
+Nine cases in `eval/quality/holdout`: the five left after the move and two new owner-reviewed pairs
+(`vkusori-screen-lead-under-sheet`, `vkusori-guest-profile-identities`). One run of variant C, `cheap_api`, with
+the anchor change: 28 model attempts, $0.069, no errors ([report](examples/quality/holdout-cheap_api-c-2.json)).
+
+| defects found | correctness findings at labelled locations | safe cases with a false finding | UNKNOWN kept | nits matched |
+|---|---|---|---|---|
+| 1/3 | 1/3 | 1/5 | 0/1 | 0/1 |
+
+The one defect found is the swipe exit timer, whose label came from the first run's answer. Of the defects
+labelled without the model, none of the two new ones was found, so this independent count is again 0/2.
+`vkusori-screen-lead-under-sheet-unsafe` got no finding. `vkusori-guest-profile-identities-unsafe` got one
+unlabelled correctness finding (a failed `File.arrayBuffer()` leaves the photo button loading) that nobody has
+judged yet. The false finding on a safe case is on `vkusori-swipe-dismiss-ref-safe` (the effect split). Still
+too few cases and runs for a quality acceptance.
+
 ## Limitations
 
 - Independent passes run in parallel, with no more than `budgets.analysis.max_parallel_calls` (default 2) calls
