@@ -292,6 +292,7 @@ pub async fn run_reusing(
         )
         .await
         .expect("run");
+    let syntax = sych_adapters::syntax::collect(&snap, &policy.effects);
     let packets = build_packets(
         &BrokerInput {
             run_id: handle.id,
@@ -301,7 +302,7 @@ pub async fn run_reusing(
             plan: &plan,
             manifest: &snap.manifest,
             facts: &[],
-            syntax: &[],
+            syntax: &syntax,
             ci: &[],
             head_compiled: false,
             ledger: &EffectLedger::default(),
