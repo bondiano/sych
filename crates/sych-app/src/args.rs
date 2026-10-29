@@ -97,6 +97,9 @@ pub enum EvalCommands {
     /// Put saved `eval measure` reports of the same cases and config side by side (baselines
     /// A/B/C, repeats) with the cases whose outcome differs; never calls a model
     Compare(EvalCompareArguments),
+    /// Rescore a saved `eval measure` report by the owner's judgments of which label each
+    /// correctness finding states; shows location and meaning scores; never calls a model
+    Judge(EvalJudgeArguments),
 }
 
 #[derive(Subcommand)]
@@ -344,6 +347,17 @@ pub struct EvalCompareArguments {
     /// `eval measure` reports, in the order they are shown
     #[arg(required = true, num_args = 2..)]
     pub reports: Vec<PathBuf>,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+
+#[derive(clap::Args)]
+pub struct EvalJudgeArguments {
+    /// `eval measure` report
+    pub report: PathBuf,
+    /// YAML list of `{case, run, finding, label}` and `{case, run, unknown_kept}` judgments
+    #[arg(long)]
+    pub judgments: PathBuf,
     #[arg(long)]
     pub output: Option<PathBuf>,
 }
