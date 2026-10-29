@@ -1,5 +1,6 @@
-//! The outgoing prompt on a real snapshot and broker: a secret in a changed file's name and
-//! content never leaves in a DATA header or body, and a context cut by budget says so.
+//! The outgoing prompt on a real snapshot, syntax pass and broker: a secret in a changed file's
+//! name and content never leaves in a DATA header or body, a context cut by budget says so, and a
+//! risky shape the syntax pass found names itself in its span's label.
 
 use std::cell::RefCell;
 use std::fs;
@@ -65,4 +66,28 @@ async fn a_context_cut_by_budget_names_its_gaps_in_the_prompt() {
         .split("<<<DATA ")
         .find(|block| block.contains(" known gaps of this context"));
     assert!(gaps.is_some_and(|g| !g.trim().is_empty()), "{seen}");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_risky_shape_the_syntax_pass_found_labels_its_span_in_the_prompt() {
+    let dir = repo(false);
+    let d = dir.path();
+    fs::write(
+        d.join("src/Poll.tsx"),
+        "import { useEffect } from \"react\";\n\nexport function Poll({ tick }) {\n  useEffect(() => {\n    setInterval(tick, 1000);\n  }, [tick]);\n  return null;\n}\n",
+    )
+    .expect("file");
+    git(d, &["add", "-A"]);
+    git(d, &["commit", "-q", "-m", "poll"]);
+    run_on(dir, recording, Budgets::default(), 14_000, true).await;
+    let seen = SEEN.with(|s| s.borrow().join("\n"));
+    let label = seen
+        .lines()
+        .find(|l| l.starts_with("<<<DATA ") && l.contains("src/Poll.tsx"))
+        .unwrap_or_default();
+    // The span is also a diff hunk, so the label leads with `required:`; the reason is kept.
+    assert!(
+        label.contains("syntax unpaired_timer: useEffect: setInterval without clearInterval"),
+        "{seen}"
+    );
 }
