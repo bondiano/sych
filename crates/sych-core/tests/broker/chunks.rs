@@ -1,7 +1,9 @@
 //! A required guard whose spans do not fit one request is split into chunks; the chunks'
 //! assessments merge into one verdict per rule.
 
-use sych_core::broker::{EvidencePacket, Limits, Priority, REQUIRED_OVER_BUDGET, context_limited};
+use sych_core::broker::{
+    EvidencePacket, Limits, Priority, REQUIRED_OVER_BUDGET, context_gaps, context_limited,
+};
 use sych_core::effects::EffectLedger;
 use sych_core::{Assessment, ChangeStatus, DiffManifest, ObligationStatus, SourceSide};
 
@@ -161,6 +163,49 @@ fn a_run_cap_never_shrinks_requests_below_the_largest_required_span() {
         fitted.unit_tokens
     );
     assert!(fitted.request_tokens >= largest);
+}
+
+#[test]
+fn a_discovery_unit_over_budget_is_split_without_dropping_required_spans() {
+    let reader = Reader::new();
+    let two = two_files();
+    let none = EffectLedger::default();
+    let discovery = |packets: &[EvidencePacket]| -> Vec<EvidencePacket> {
+        packets
+            .iter()
+            .filter(|p| p.request.obligation_id.is_none())
+            .cloned()
+            .collect()
+    };
+    let (_, whole) = run_on(&two, limits(), &[facts(&reader)], &[], &none, &[]);
+    let required: Vec<u32> = discovery(&whole)
+        .iter()
+        .flat_map(|p| &p.fragments)
+        .filter(|f| f.priority == Priority::Required)
+        .map(|f| f.tokens)
+        .collect();
+    let largest = *required.iter().max().expect("spans");
+    assert!(largest < required.iter().sum(), "they do not fit together");
+    let tight = Limits {
+        unit_tokens: largest,
+        request_tokens: largest,
+        ..limits()
+    };
+    let (_, packets) = run_on(&two, tight, &[facts(&reader)], &[], &none, &[]);
+    let chunks = discovery(&packets);
+    assert!(chunks.len() > 1, "{} chunks", chunks.len());
+    assert!(chunks.iter().all(|p| p.usage.tokens <= largest));
+    assert!(
+        context_gaps(&packets).is_empty(),
+        "{:?}",
+        context_gaps(&packets)
+    );
+    let shown = chunks
+        .iter()
+        .flat_map(|p| &p.fragments)
+        .filter(|f| f.priority == Priority::Required)
+        .count();
+    assert_eq!(shown, required.len(), "every required span is shown once");
 }
 
 #[test]

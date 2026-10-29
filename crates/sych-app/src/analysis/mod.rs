@@ -435,11 +435,13 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     }
 
     fn title(&self, batch: &[usize]) -> String {
-        batch
+        let mut questions: Vec<&str> = batch
             .iter()
             .map(|&i| self.packets[i].request.question.as_str())
-            .collect::<Vec<_>>()
-            .join("\n")
+            .collect();
+        // The chunks of one unit ask the same question.
+        questions.dedup();
+        questions.join("\n")
     }
 
     /// Whether every span of the obligation's verification packet lies inside the batch's
