@@ -166,7 +166,7 @@ flowchart TD
 
 ### Детерминизм — только при одинаковых полных входах
 
-Детерминированы планирование, проверка структурированных ответов и редукция при одинаковых facts, assessments и времени оценки waivers. Один Git diff не гарантирует одинаковый новый review: модели недетерминированы, IDs и timestamps создаются заново, внешняя evidence меняется. README-формулировку «the same inputs give the same result» следует читать в этих границах; [ANALYSIS.md](ANALYSIS.md#limitations) уже оговаривает недетерминизм модели.
+Детерминированы планирование, проверка структурированных ответов и редукция при одинаковых facts, assessments и времени оценки waivers. Один Git diff не гарантирует одинаковый новый review: модели недетерминированы, IDs и timestamps создаются заново, внешняя evidence меняется. **Статус:** формулировка «the same inputs give the same result» из README убрана; [ANALYSIS.md](ANALYSIS.md#limitations) оговаривает недетерминизм модели.
 
 Полнота scope и истинность вывода — разные свойства. `CONFIRMED` означает принятие по локальной verification policy, не доказательство поведения всей программы. `COMPLETE_FOR_SCOPE` не даёт права закрыть PR при известной неоднозначности, потерянной до reducer.
 
@@ -182,7 +182,7 @@ flowchart TD
 | Safe runs с ложным finding | 16 / 66 |
 | Сохранённые UNKNOWN cases | 4 / 9 |
 
-Число runs взято из JSON; текст `ANALYSIS.md` рядом с этим артефактом называет 121. Эти измерения не повторялись в данном ревью и не относятся к свежему запуску базового commit.
+Число runs взято из JSON; `ANALYSIS.md` теперь тоже называет 123. Эти измерения не повторялись в данном ревью и не относятся к свежему запуску базового commit.
 
 Scoring сопоставляет координаты, не смысл причинной цепочки; `unknown_kept` также не доказывает сохранение именно размеченной неопределённости. В holdout нет размеченных YAML cases. Поэтому результаты полезны для разработки, но не подтверждают независимую quality acceptance текущих моделей и правил: [scoring](../crates/sych-app/src/quality/score.rs#L190-L308), [holdout contract](../eval/quality/holdout/README.md).
 
@@ -193,6 +193,18 @@ Scoring сопоставляет координаты, не смысл прич�
 **Статус:** first-wins merge сведён в `merge_overlapping`, cardinality «ровно один результат» одинакова в assessment, combined review и verifier (#59). Job deadline после evidence берётся из `budgets.analysis.active_deadline_seconds` плюс transport slack, а не из литерала 300.
 
 Большая часть нужных regression-сценариев должна проверять **стык настоящих компонентов**, а не ещё один удобный stand-in: SQLite ledger с router cap contract, syntax/broker с полным outgoing prompt, несколько chunks с audit scheduler, HTTP URI с persisted idempotency. Наличие зелёного suite не опровергает воспроизведённые расхождения.
+
+**Статус стыков (2026-10-29).** Модель во всех app-тестах — scripted stand-in (`crates/sych-app/tests/harness`); GitHub — loopback stand-in.
+
+| Стык | Тест на настоящих компонентах | Остаётся |
+|---|---|---|
+| SQLite ledger + router cap | `sych-app/tests/router_ledger.rs::a_released_attempt_uses_up_the_attempt_cap_of_the_sqlite_ledger`; storage: `sych-storage/tests/ledger.rs::a_released_attempt_still_counts_against_the_attempt_cap`, `::a_session_cap_survives_the_month_boundary` | граница UTC-месяца через router/`RunLedger::scoped` не проверена: harness берёт `Timestamp::now` |
+| broker → outgoing prompt | `sych-app/tests/outgoing_prompt.rs`: секрет в имени и коде изменённого файла не уходит ни в DATA header, ни в тело; урезанный бюджетом контекст передаёт блок `known gaps of this context` | harness передаёт broker `syntax: &[]`: метки с причинами из syntax facts сквозь prompt не проверены |
+| несколько chunks + risk audit | `sych-app/tests/analysis.rs::every_chunk_of_a_split_obligation_gets_its_risk_audit` | доказано расписание, не слияние risk-результатов по chunks |
+| HTTP URI + idempotency | `sych-app/tests/api.rs::cancellation_stops_active_runs_and_keeps_committed_ones` (тот же ключ на другом run → 409) | rerun, feedback, вопросы tour и sessions без теста повторного ключа на другом ресурсе |
+| linter argv | `sych-adapters/tests/lint.rs::a_file_named_like_an_option_stays_a_file` | исполняемый линтер — stand-in по замыслу |
+| lease и job deadline | `sych-app/tests/scheduler.rs::a_slow_preparation_keeps_its_lease`, `::the_job_deadline_follows_the_configured_analysis_deadline` | нет конкурирующего claim во время подготовки |
+| merge и exactly-one | `sych-core/tests/analysis/verify.rs::a_shared_first_anchor_keeps_the_most_severe_in_either_order`, `.../main.rs::a_repeated_criterion_id_is_not_settled_by_its_first_answer` | на уровне engine не проверены слияние двух пересекающихся verdicts и повтор criterion id |
 
 ## 4. Исходные проверки ревью
 
