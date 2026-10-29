@@ -471,6 +471,31 @@ is the variation itself.
   the active human time of reading a review. The holdout is still unlabelled, so these numbers are not a quality
   estimate; acceptance criteria and the usefulness decision are the owner's.
 
+## Scoring by meaning
+
+`eval measure` matches a finding to a label when their anchors overlap. The numbers above are location
+matches: a finding that states a different defect on the labelled lines counts, and the right defect anchored
+one line off does not. `unknown_kept` only means that there is no correctness finding and something stayed open.
+
+`eval judge` rescores a saved report by the owner's judgments and shows both scores. Each finding in the report
+lists the labels it overlaps (`labels`, indexes into the run's `labels`). For `unknown` cases the run also lists what
+the review left open (`left_open`).
+
+```yaml
+# judgments.yaml: a correctness finding states label N (null: none), or an unknown run kept the labelled question
+- { case: vkusori-x-unsafe, run: 1, finding: 0, label: 0 }
+- { case: vkusori-x-unsafe, run: 1, finding: 2, label: null }
+- { case: vkusori-y-unknown, run: 1, unknown_kept: false }
+```
+
+```sh
+sych eval judge report.json --judgments judgments.yaml
+```
+
+A location match or a kept unknown that nobody judged is listed in `unjudged` and does not count by meaning.
+Nitpicks and obligations stay scored by location and status. Reports written before `labels` existed cannot be
+judged.
+
 ## Limitations
 
 - Independent passes run in parallel, with no more than `budgets.analysis.max_parallel_calls` (default 2) calls

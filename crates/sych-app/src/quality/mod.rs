@@ -2,10 +2,12 @@
 //! the labels are well-formed and anchored — every evidence location resolves to an exact
 //! `CodeRef` and the expected syntax shapes are present — not that any model finds them.
 //! `sych eval measure` ([`measure`]) reviews the cases with a real model profile;
-//! `sych eval compare` ([`compare`]) puts saved measurements side by side.
+//! `sych eval compare` ([`compare`]) puts saved measurements side by side;
+//! `sych eval judge` ([`judge`]) rescores one by the owner's judgments of meaning.
 
 mod ci;
 pub mod compare;
+pub mod judge;
 mod measure;
 mod score;
 
