@@ -126,6 +126,9 @@ pub struct Budget {
     pub active_deadline_seconds: Option<u32>,
 }
 
+/// Default `budgets.analysis.active_deadline_seconds`.
+pub const ANALYSIS_DEADLINE_SECONDS: u32 = 300;
+
 /// Defaults are the `economical` caps of spec §17.1.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
@@ -152,7 +155,7 @@ impl Default for Budgets {
                 max_input_tokens: Some(512_000),
                 max_output_tokens: Some(24_000),
                 max_parallel_calls: Some(2),
-                active_deadline_seconds: Some(300),
+                active_deadline_seconds: Some(ANALYSIS_DEADLINE_SECONDS),
                 ..cost(600_000)
             },
             tour: Budget {

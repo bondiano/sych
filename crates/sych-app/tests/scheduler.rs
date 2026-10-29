@@ -17,6 +17,7 @@ mod world;
 
 use fake_github::{lock, pull_json};
 use sych_app::server::JOB_SLACK_SECONDS;
+use sych_core::config::ANALYSIS_DEADLINE_SECONDS;
 use world::{advance, commit, now, world, world_server};
 
 #[tokio::test(flavor = "current_thread")]
@@ -144,12 +145,22 @@ async fn a_long_ci_wait_leaves_room_to_retry_after_it() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn the_job_deadline_follows_the_configured_analysis_deadline() {
-    let w = world_server(
-        Some(CI_POLICY),
-        None,
-        "budgets:\n  analysis:\n    active_deadline_seconds: 900\n",
-    )
-    .await;
+    let configured = "budgets:\n  analysis:\n    active_deadline_seconds: 900\n";
+    assert_eq!(
+        job_after_evidence(configured).await,
+        900 + JOB_SLACK_SECONDS
+    );
+    // An analysis budget without its own deadline keeps the default bound.
+    let unset = "budgets:\n  analysis:\n    max_attempts: 12\n";
+    assert_eq!(
+        job_after_evidence(unset).await,
+        i64::from(ANALYSIS_DEADLINE_SECONDS) + JOB_SLACK_SECONDS
+    );
+}
+
+/// How long after its evidence deadline the job of a CI-waiting run may still retry.
+async fn job_after_evidence(server: &str) -> i64 {
+    let w = world_server(Some(CI_POLICY), None, server).await;
     let head = w.branch("src/b.rs");
     w.open_pull(&head, &w.base, false);
     w.pr_event("d-1", "opened", &head).await;
@@ -164,12 +175,7 @@ async fn the_job_deadline_follows_the_configured_analysis_deadline() {
         .await
         .expect("claim")
         .expect("due at the evidence deadline");
-    let evidence = claim.evidence_deadline.expect("waited for CI");
-    assert_eq!(
-        claim.deadline,
-        evidence + 900 + JOB_SLACK_SECONDS,
-        "{claim:?}"
-    );
+    claim.deadline - claim.evidence_deadline.expect("waited for CI")
 }
 
 #[tokio::test(flavor = "current_thread")]

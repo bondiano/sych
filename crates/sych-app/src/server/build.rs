@@ -11,7 +11,9 @@ use std::time::Duration;
 use anyhow::Context;
 use sych_adapters::github::{AppKey, Github};
 use sych_core::Timestamp;
-use sych_core::config::{ApiClient, ApiRole, Budgets, Mode, RunMode, ServerConfig};
+use sych_core::config::{
+    ANALYSIS_DEADLINE_SECONDS, ApiClient, ApiRole, Mode, RunMode, ServerConfig,
+};
 use sych_storage::{Storage, StoreConfig};
 use uuid::Uuid;
 
@@ -93,13 +95,13 @@ pub fn engine(app: Arc<App>, conns: BTreeMap<String, Conn>, c: EngineConfig<'_>)
         },
         owner: format!("worker-{}", Uuid::now_v7()),
         lease_seconds: i64::from(c.server.workers.lease_seconds),
+        // An analysis budget without a deadline runs unbounded; its job keeps the default bound.
         after_evidence_seconds: i64::from(
             c.server
                 .budgets
                 .analysis
                 .active_deadline_seconds
-                .or(Budgets::default().analysis.active_deadline_seconds)
-                .unwrap_or_default(),
+                .unwrap_or(ANALYSIS_DEADLINE_SECONDS),
         ) + JOB_SLACK_SECONDS,
         heartbeat: Duration::from_secs(u64::from(c.server.workers.heartbeat_seconds)),
         public_base_url: c.server.http.public_base_url.clone(),
