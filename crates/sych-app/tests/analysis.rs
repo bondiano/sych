@@ -227,7 +227,7 @@ async fn a_review_that_skips_the_assessment_leaves_it_unknown() {
     assert_eq!(reason(&outcome.assessments[0].status), "MODEL_FAILED");
     assert_eq!(
         outcome.record.assessments[0].problems,
-        ["ob-1 has no single assessment"]
+        ["ob-1 has no single assessment; the answer assessed []"]
     );
 }
 
