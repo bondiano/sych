@@ -18,7 +18,7 @@ use tokio::sync::{oneshot, watch};
 use tokio::time;
 
 use super::ci::{Collected, Head};
-use super::engine::{AFTER_EVIDENCE_SECONDS, Engine};
+use super::engine::Engine;
 use super::mirrors;
 use crate::args::{Comparison, ExitPolicy, Output, ReviewArguments};
 use crate::render::Format;
@@ -195,7 +195,7 @@ impl Engine {
             storage
                 .extend_deadline(
                     &claim.fence,
-                    deadline + AFTER_EVIDENCE_SECONDS,
+                    deadline + self.after_evidence_seconds,
                     (self.now)(),
                 )
                 .await?;

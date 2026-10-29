@@ -21,11 +21,8 @@ use tokio::{task, time};
 use super::App;
 use crate::args::{ModelSelection, Switch};
 
-/// Bound of one analysis job once its evidence is due: active deadline and slack.
-pub(super) const AFTER_EVIDENCE_SECONDS: i64 = 300 + 120;
-/// Default bound of one analysis job, retries included: the default CI wait, then the above.
-/// PREPARE extends it to the CI wait the target's policy asks for.
-pub(super) const JOB_SECONDS: i64 = CI_WAIT_SECONDS as i64 + AFTER_EVIDENCE_SECONDS;
+/// Transport slack of one analysis job on top of its active deadline.
+pub const JOB_SLACK_SECONDS: i64 = 120;
 /// Write access lets an actor run commands (spec §22.5).
 const COMMAND_PERMISSIONS: &[&str] = &["admin", "maintain", "write"];
 
@@ -53,6 +50,9 @@ pub struct Engine {
     pub review: ReviewSettings,
     pub owner: String,
     pub lease_seconds: i64,
+    /// Bound of one analysis job once its evidence is due: the active analysis deadline
+    /// (`budgets.analysis.active_deadline_seconds`) and [`JOB_SLACK_SECONDS`].
+    pub after_evidence_seconds: i64,
     /// Interval of lease renewals while a job is held (`workers.heartbeat_seconds`).
     pub heartbeat: Duration,
     /// `http.public_base_url`, for links to full results.
@@ -81,6 +81,12 @@ pub(super) fn scm_state(pull: &PullState, full_name: &str) -> ScmState {
 }
 
 impl Engine {
+    /// Default bound of one analysis job, retries included: the default CI wait, then
+    /// [`Engine::after_evidence_seconds`]. PREPARE extends it to the wait the target's policy asks for.
+    pub(super) fn job_seconds(&self) -> i64 {
+        i64::from(CI_WAIT_SECONDS) + self.after_evidence_seconds
+    }
+
     pub(super) async fn token(&self, conn: &Conn, change: &ChangeRow) -> Result<Secret, ScmError> {
         let now = (self.now)().as_second();
         let installation = match change.installation_id {
@@ -147,7 +153,7 @@ impl Engine {
                     e.retry_after_seconds,
                     0,
                     at,
-                    at + JOB_SECONDS,
+                    at + self.job_seconds(),
                 );
                 storage
                     .log_event(change.id, None, "SCM_READ_FAILED", &e.to_string(), now)
@@ -171,7 +177,7 @@ impl Engine {
                     .await?;
             }
             Decision::Generate { inputs } => {
-                let deadline = now.as_second() + JOB_SECONDS;
+                let deadline = now.as_second() + self.job_seconds();
                 let inputs = RunInputs {
                     publish: conn.config.publish,
                     checks: conn.config.publish && conn.config.checks,

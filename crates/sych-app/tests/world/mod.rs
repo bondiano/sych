@@ -16,8 +16,9 @@ use sych_adapters::git::{LocalSnapshot, SnapshotRequest};
 use sych_adapters::github::webhook::parse;
 use sych_adapters::github::{AppKey, Github, Secret};
 use sych_app::args::{ModelSelection, Switch};
-use sych_app::server::{App, Conn, Counters, Engine, ReviewSettings, binding};
-use sych_core::config::{ApiClient, GithubConnection, RunMode};
+use sych_app::server::build::{self, EngineConfig};
+use sych_app::server::{App, Conn, Counters, Engine, binding};
+use sych_core::config::{ApiClient, GithubConnection, ServerConfig};
 use sych_core::sha256;
 use sych_core::{ReviewResult, RunId, Timestamp};
 use sych_core::{SourceSide, decode};
@@ -126,7 +127,7 @@ pub async fn world(policy: Option<&str>) -> World {
 }
 
 /// The trusted config: engine defaults, or one metered route to the model at `endpoint`.
-fn server_config(dir: &Path, endpoint: Option<&str>) -> PathBuf {
+fn server_config(dir: &Path, endpoint: Option<&str>, extra: &str) -> PathBuf {
     // `CARGO_PKG_NAME` is set for every test process; the fake model ignores the key.
     let models = endpoint.map_or_else(String::new, |endpoint| {
         format!(
@@ -159,7 +160,7 @@ fn server_config(dir: &Path, endpoint: Option<&str>) -> PathBuf {
     let path = dir.join("sych.yaml");
     fs::write(
         &path,
-        format!("schema_version: 1\nmode: personal\n{models}"),
+        format!("schema_version: 1\nmode: personal\n{models}{extra}"),
     )
     .expect("config");
     path
@@ -167,6 +168,11 @@ fn server_config(dir: &Path, endpoint: Option<&str>) -> PathBuf {
 
 /// [`world`] whose server reviews through `models.roles` against the model at `endpoint`.
 pub async fn world_with(policy: Option<&str>, endpoint: Option<&str>) -> World {
+    world_server(policy, endpoint, "").await
+}
+
+/// [`world_with`] whose `sych.yaml` ends with `extra`.
+pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &str) -> World {
     let dir = tempfile::tempdir().expect("tempdir");
     let origin = dir.path().join("git/o/r.git");
     fs::create_dir_all(&origin).expect("origin");
@@ -194,7 +200,7 @@ pub async fn world_with(policy: Option<&str>, endpoint: Option<&str>) -> World {
         artifacts: dir.path().join("artifacts"),
     };
     Storage::migrate(&store).await.expect("migrate");
-    let config_path = server_config(dir.path(), endpoint);
+    let config_path = server_config(dir.path(), endpoint, extra);
     let app = Arc::new(App {
         storage: Storage::open(&store).await.expect("open"),
         github: BTreeMap::from([("gh".into(), (config.clone(), Secret::new("s".into())))]),
@@ -205,33 +211,38 @@ pub async fn world_with(policy: Option<&str>, endpoint: Option<&str>) -> World {
         artifacts: dir.path().join("artifacts"),
         now,
     });
-    let engine = Arc::new(Engine {
-        app: Arc::clone(&app),
-        conns: BTreeMap::from([(
-            "gh".into(),
-            Conn {
-                gh: Github::new(&url, app_key()).expect("client"),
-                binding: binding(&config),
-                config,
-            },
-        )]),
-        store,
-        review: ReviewSettings {
-            config: config_path,
+    let conns = BTreeMap::from([(
+        "gh".into(),
+        Conn {
+            gh: Github::new(&url, app_key()).expect("client"),
+            binding: binding(&config),
+            config,
+        },
+    )]);
+    let text = fs::read_to_string(&config_path).expect("config");
+    let server = ServerConfig::parse("sych.yaml", &text).expect("server config");
+    let built = build::engine(
+        Arc::clone(&app),
+        conns,
+        EngineConfig {
+            config: &config_path,
+            server: &server,
+            store,
             models: if endpoint.is_some() {
                 ModelSelection::Roles
             } else {
                 ModelSelection::Fake
             },
             semantic: Switch::Off,
-            mode: RunMode::PersonalService,
         },
+    );
+    let engine = Arc::new(Engine {
         owner: "w1".into(),
         lease_seconds: 60,
         // Real time against the test clock: preparation and analysis renew the lease often.
         heartbeat: Duration::from_millis(10),
-        public_base_url: None,
         now,
+        ..built
     });
     let _ = app.engine.set(Arc::clone(&engine));
     World {

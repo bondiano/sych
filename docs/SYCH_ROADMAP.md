@@ -190,6 +190,8 @@ Scoring сопоставляет координаты, не смысл прич�
 
 Не вводить новые общие слои. Удалять повторную реализацию уже существующего контракта: first-wins merge в трёх местах, отдельную трактовку cardinality в assessment/verifier, дублирующие представления deadline. Число потенциально удаляемых строк не оценивалось; выдуманная экономия здесь ничего не доказывает.
 
+**Статус:** first-wins merge сведён в `merge_overlapping`, cardinality «ровно один результат» одинакова в assessment, combined review и verifier (#59). Job deadline после evidence берётся из `budgets.analysis.active_deadline_seconds` плюс transport slack, а не из литерала 300.
+
 Большая часть нужных regression-сценариев должна проверять **стык настоящих компонентов**, а не ещё один удобный stand-in: SQLite ledger с router cap contract, syntax/broker с полным outgoing prompt, несколько chunks с audit scheduler, HTTP URI с persisted idempotency. Наличие зелёного suite не опровергает воспроизведённые расхождения.
 
 ## 4. Исходные проверки ревью
