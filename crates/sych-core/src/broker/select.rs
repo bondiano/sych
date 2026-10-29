@@ -123,8 +123,15 @@ pub(super) fn select(
         })
         .collect();
     let mut merged = merge(candidates, max_span_lines);
-    // Code before prose of the same priority: a tight budget drops the notes first.
-    merged.sort_by_key(|m| (m.priority, is_prose(m.path.as_str())));
+    // Code before prose of the same priority, and the head before the code it replaces:
+    // a tight budget drops the notes and the old version first.
+    merged.sort_by_key(|m| {
+        (
+            m.priority,
+            is_prose(m.path.as_str()),
+            m.side != SourceSide::Head,
+        )
+    });
     let budget = request.remaining_budget;
     // A verification packet whose required spans do not fit together is split (spec §9.3);
     // discovery keeps one packet per unit.
