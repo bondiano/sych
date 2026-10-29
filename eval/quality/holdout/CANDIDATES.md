@@ -7,6 +7,9 @@ them while tuning prompts or rules. Labelling, the choice and the split are the 
 How a fix commit becomes a case: the fix itself is a `safe` case (or an `unknown` one). The commit that introduced
 the bug, found with `git log -L` or `git blame` on the fixed lines, is the `unsafe` case. Both use
 `repository_fixture` with `base_ref: <commit>~1` and `head_ref: <commit>`.
+When what the fix removes is only a nit (a style or rules-of-the-framework issue with no shown consequence),
+the introducing commit is a `safe` case that expects a `nitpick` finding instead, and the two are not a pair: an
+`unsafe` case needs a defect.
 
 ## Labelled so far
 
