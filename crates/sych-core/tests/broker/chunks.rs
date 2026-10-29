@@ -1,9 +1,11 @@
 //! A required guard whose spans do not fit one request is split into chunks; the chunks'
 //! assessments merge into one verdict per rule.
 
-use sych_core::broker::{EvidencePacket, Limits, Priority, REQUIRED_OVER_BUDGET, context_limited};
+use sych_core::broker::{
+    EvidencePacket, Limits, Priority, REQUIRED_OVER_BUDGET, context_gaps, context_limited,
+};
 use sych_core::effects::EffectLedger;
-use sych_core::{Assessment, DiffManifest, ObligationStatus};
+use sych_core::{Assessment, ChangeStatus, DiffManifest, ObligationStatus, SourceSide};
 
 use super::{Reader, facts, limits, manifest, oid, path, run_on};
 
@@ -161,6 +163,91 @@ fn a_run_cap_never_shrinks_requests_below_the_largest_required_span() {
         fitted.unit_tokens
     );
     assert!(fitted.request_tokens >= largest);
+}
+
+#[test]
+fn a_discovery_unit_over_budget_is_split_without_dropping_required_spans() {
+    let reader = Reader::new();
+    let two = two_files();
+    let none = EffectLedger::default();
+    let discovery = |packets: &[EvidencePacket]| -> Vec<EvidencePacket> {
+        packets
+            .iter()
+            .filter(|p| p.request.obligation_id.is_none())
+            .cloned()
+            .collect()
+    };
+    let (_, whole) = run_on(&two, limits(), &[facts(&reader)], &[], &none, &[]);
+    let required: Vec<u32> = discovery(&whole)
+        .iter()
+        .flat_map(|p| &p.fragments)
+        .filter(|f| f.priority == Priority::Required)
+        .map(|f| f.tokens)
+        .collect();
+    let largest = *required.iter().max().expect("spans");
+    assert!(largest < required.iter().sum(), "they do not fit together");
+    let tight = Limits {
+        unit_tokens: largest,
+        request_tokens: largest,
+        ..limits()
+    };
+    let (_, packets) = run_on(&two, tight, &[facts(&reader)], &[], &none, &[]);
+    let chunks = discovery(&packets);
+    assert!(chunks.len() > 1, "{} chunks", chunks.len());
+    assert!(chunks.iter().all(|p| p.usage.tokens <= largest));
+    assert!(
+        context_gaps(&packets).is_empty(),
+        "{:?}",
+        context_gaps(&packets)
+    );
+    let shown = chunks
+        .iter()
+        .flat_map(|p| &p.fragments)
+        .filter(|f| f.priority == Priority::Required)
+        .count();
+    assert_eq!(shown, required.len(), "every required span is shown once");
+}
+
+#[test]
+fn a_tight_discovery_budget_keeps_the_head_side_of_a_modified_file() {
+    let reader = Reader::new();
+    let mut modified = manifest();
+    let file = &mut modified.files[0];
+    file.status = ChangeStatus::Modified;
+    file.old = file.new.clone();
+    (file.hunks[0].old_start, file.hunks[0].old_lines) = (6, 2);
+    let none = EffectLedger::default();
+    let (_, whole) = run_on(&modified, limits(), &[facts(&reader)], &[], &none, &[]);
+    let required = |p: &EvidencePacket, side| {
+        p.fragments
+            .iter()
+            .filter(|f| f.priority == Priority::Required && f.code_ref.side == side)
+            .map(|f| f.tokens)
+            .sum::<u32>()
+    };
+    let (base, head) = (
+        required(&whole[0], SourceSide::DiffBase),
+        required(&whole[0], SourceSide::Head),
+    );
+    assert!(base > 0 && head > 0, "both sides are required");
+    // Room for one side only: the changed code under review wins over its old version.
+    let tight = Limits {
+        unit_tokens: head.max(base),
+        request_tokens: head.max(base),
+        ..limits()
+    };
+    let (_, packets) = run_on(&modified, tight, &[facts(&reader)], &[], &none, &[]);
+    let discovery = &packets[0];
+    assert_eq!(required(discovery, SourceSide::Head), head);
+    assert!(
+        discovery
+            .excluded
+            .iter()
+            .filter(|e| e.reason == REQUIRED_OVER_BUDGET)
+            .all(|e| e.code_ref.side == SourceSide::DiffBase),
+        "{:?}",
+        discovery.excluded
+    );
 }
 
 /// A second changed file in the same unit: two required spans for the guard.

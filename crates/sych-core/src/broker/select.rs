@@ -123,12 +123,17 @@ pub(super) fn select(
         })
         .collect();
     let mut merged = merge(candidates, max_span_lines);
-    // Code before prose of the same priority: a tight budget drops the notes first.
-    merged.sort_by_key(|m| (m.priority, is_prose(m.path.as_str())));
+    // Code before prose of the same priority, and the head before the code it replaces:
+    // a tight budget drops the notes and the old version first.
+    merged.sort_by_key(|m| {
+        (
+            m.priority,
+            is_prose(m.path.as_str()),
+            m.side != SourceSide::Head,
+        )
+    });
     let budget = request.remaining_budget;
-    // A verification packet whose required spans do not fit together is split (spec §9.3);
-    // discovery keeps one packet per unit.
-    let chunked = request.obligation_id.is_some();
+    // A packet whose required spans do not fit together is split (spec §9.3).
     let mut chunks = vec![Chunk::default()];
     let mut excluded = Vec::new();
     for m in merged {
@@ -177,7 +182,6 @@ pub(super) fn select(
         }
 
         if room.is_none()
-            && chunked
             && m.priority == Priority::Required
             && tokens <= budget
             && chunks.len() < MAX_CHUNKS
@@ -205,9 +209,10 @@ pub(super) fn select(
             transformation: transformation.into(),
         });
     }
-    // What did not fit stays on its own packet, so the chunks that did fit are still assessed.
+    // What did not fit stays on its own packet, so the chunks that did fit are still assessed;
+    // discovery reads its gaps from any packet.
     let over = excluded.iter().any(|e| e.reason == REQUIRED_OVER_BUDGET);
-    if chunked && over && chunks.iter().any(|c| !c.fragments.is_empty()) {
+    if request.obligation_id.is_some() && over && chunks.iter().any(|c| !c.fragments.is_empty()) {
         chunks.push(Chunk::default());
     }
 
