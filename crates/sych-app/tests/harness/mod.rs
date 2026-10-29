@@ -10,6 +10,7 @@ use std::{env, fs};
 use serde_json::{Value, json};
 use sych_adapters::git::{LocalSnapshot, SnapshotRequest};
 use sych_adapters::openrouter::CAPABILITIES;
+use sych_adapters::syntax;
 use sych_app::analysis::{Engine, Outcome};
 use sych_core::analysis::packet_evidence;
 use sych_core::broker::{BrokerInput, Limits as BrokerLimits, build_packets};
@@ -292,7 +293,7 @@ pub async fn run_reusing(
         )
         .await
         .expect("run");
-    let syntax = sych_adapters::syntax::collect(&snap, &policy.effects);
+    let syntax = syntax::collect(&snap, &policy.effects);
     let packets = build_packets(
         &BrokerInput {
             run_id: handle.id,
