@@ -119,10 +119,16 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                             &context,
                             self.snap,
                         )),
+                        // Naming what was answered tells an omission from a repeat or a wrong id.
                         _ => not_assessed(
                             planned,
                             "MODEL_FAILED",
-                            &format!("{ob} has no single assessment"),
+                            &format!(
+                                "{ob} has no single assessment; the answer assessed {:?}",
+                                list.iter()
+                                    .map(|a| a.obligation_id.as_str())
+                                    .collect::<Vec<_>>()
+                            ),
                         ),
                     }
                 }
