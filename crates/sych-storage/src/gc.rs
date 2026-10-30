@@ -38,16 +38,18 @@ impl Storage {
         let rows = sqlx::query(
             "SELECT a.tenant_id, a.access_scope, a.sha256, a.kind, a.store_key,
                  a.created_at, a.retain_until,
-                 EXISTS (SELECT 1 FROM run_artifacts ra JOIN runs r ON r.id = ra.run_id
+                 CAST(CASE WHEN EXISTS (SELECT 1 FROM run_artifacts ra JOIN runs r ON r.id = ra.run_id
                      WHERE ra.tenant_id = a.tenant_id AND ra.access_scope = a.access_scope
                      AND ra.sha256 = a.sha256
                      AND (r.state IN ('QUEUED', 'RUNNING', 'WAITING_EVIDENCE', 'RETRY_WAIT',
                                       'FINALIZING')
                           OR EXISTS (SELECT 1 FROM publication_operations po WHERE po.run_id = r.id
-                              AND po.state IN ('PENDING', 'PUBLISHING', 'UNCERTAIN')))) AS pinned,
-                 EXISTS (SELECT 1 FROM run_artifacts ra JOIN runs r ON r.id = ra.run_id
+                              AND po.state IN ('PENDING', 'PUBLISHING', 'UNCERTAIN'))))
+                     THEN 1 ELSE 0 END AS BIGINT) AS pinned,
+                 CAST(CASE WHEN EXISTS (SELECT 1 FROM run_artifacts ra JOIN runs r ON r.id = ra.run_id
                      WHERE ra.tenant_id = a.tenant_id AND ra.access_scope = a.access_scope
-                     AND ra.sha256 = a.sha256 AND r.state = 'COMPLETED') AS kept
+                     AND ra.sha256 = a.sha256 AND r.state = 'COMPLETED')
+                     THEN 1 ELSE 0 END AS BIGINT) AS kept
              FROM artifacts a ORDER BY a.sha256",
         )
         .fetch_all(self.pool())
@@ -55,8 +57,8 @@ impl Storage {
         let now = now.as_second();
         let mut report = PruneReport::default();
         for row in rows {
-            let pinned: bool = row.get("pinned");
-            let kept: bool = row.get("kept");
+            let pinned = row.get::<i64, _>("pinned") != 0;
+            let kept = row.get::<i64, _>("kept") != 0;
             let created_at: i64 = row.get("created_at");
             let retain_until: i64 = row.get("retain_until");
             let reason = if pinned {
@@ -102,12 +104,11 @@ impl Storage {
         digest: &str,
         now: i64,
     ) -> Result<bool, StorageError> {
-        // The DELETE is the transaction's first statement: it takes the write lock on the latest
-        // snapshot, and the lock is held until the bytes are gone.
+        // The shared write lock keeps the eligibility check and unlink in one transaction.
         let mut tx = self.write().await?;
         let key: Option<String> = sqlx::query_scalar(
             "DELETE FROM artifacts AS a
-             WHERE a.tenant_id = ?1 AND a.access_scope = ?2 AND a.sha256 = ?3
+             WHERE a.tenant_id = $1 AND a.access_scope = $2 AND a.sha256 = $3
              AND NOT EXISTS (SELECT 1 FROM run_artifacts ra JOIN runs r ON r.id = ra.run_id
                  WHERE ra.tenant_id = a.tenant_id AND ra.access_scope = a.access_scope
                  AND ra.sha256 = a.sha256
@@ -118,8 +119,8 @@ impl Storage {
              AND CASE WHEN EXISTS (SELECT 1 FROM run_artifacts ra JOIN runs r ON r.id = ra.run_id
                      WHERE ra.tenant_id = a.tenant_id AND ra.access_scope = a.access_scope
                      AND ra.sha256 = a.sha256 AND r.state = 'COMPLETED')
-                 THEN a.retain_until <= ?4
-                 ELSE a.created_at + ?5 <= ?4 END
+                 THEN a.retain_until <= $4
+                 ELSE a.created_at + $5 <= $4 END
              RETURNING store_key",
         )
         .bind(tenant_id)
@@ -140,7 +141,9 @@ impl Storage {
 mod tests {
     use sych_core::{PolicySnapshotId, SourceSnapshotId, Timestamp, sha256};
 
-    use crate::{ArtifactKind, ArtifactStore, Partition, Storage, StoreConfig, TENANT_LOCAL};
+    use crate::{
+        ArtifactKind, ArtifactStore, Database, Partition, Storage, StoreConfig, TENANT_LOCAL,
+    };
 
     const T0: i64 = 1_800_000_000;
     const LATER: i64 = 2 * 3600;
@@ -153,7 +156,7 @@ mod tests {
     async fn pin_committed_after_listing_keeps_the_artifact() {
         let dir = tempfile::tempdir().expect("tempdir");
         let config = StoreConfig {
-            database: dir.path().join("sych.db"),
+            database: Database::Sqlite(dir.path().join("sych.db")),
             artifacts: dir.path().join("artifacts"),
         };
         Storage::migrate(&config).await.expect("migrate");

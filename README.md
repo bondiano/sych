@@ -23,7 +23,7 @@ answers are not, so a fresh review of the same diff can differ.
 - **Facts before models.** Semantic facts from pinned language servers (rust-analyzer, TypeScript `tsc --lsp`, Go),
   syntax facts from syn and oxc, pinned linters, CI facts (cargo/clippy JSON, JUnit, SARIF, LCOV, Cobertura, Terraform plans) bound to the tested commit.
 - **Bounded models.** OpenRouter with pinned upstreams, ChatGPT / GLM Coding Plan / OpenCode Go subscriptions,
-  role routing with bounded fallback; a monetary upper bound before every call and a SQLite ledger after it.
+  role routing with bounded fallback; a monetary upper bound before every call and a durable database ledger after it.
 - **Deployment-aware rules.** Migration (`MIG-*`) and Terraform rules are checked against an owner-declared
   deployment model and its reachable transition matrix.
 - **GitHub App.** Verified webhooks, durable jobs with lease and fencing, a reconciling outbox, a summary plus up to
@@ -62,7 +62,7 @@ The walkthrough is in [LOCAL_REVIEW.md](docs/LOCAL_REVIEW.md); `just run --help`
 | [Semantic backends](docs/SEMANTIC.md) | pinned language servers and context facts |
 | [Deployment model](docs/DEPLOYMENT.md) | `.sych/deploy.yaml`, transition matrix, `MIG-*` binding |
 | [Server](docs/SERVER.md) | GitHub App, scheduler, CI evidence, publication, API and operations |
-| [Storage](docs/STORAGE.md) | SQLite, artifacts, retention |
+| [Storage](docs/STORAGE.md) | PostgreSQL/SQLite, artifacts, retention |
 | [Decisions](docs/adr/) | architecture decision records |
 | [Brand](docs/brand/README.md) | logo, icons, colors |
 
@@ -104,9 +104,9 @@ Rules:
 crates/sych-app/       CLI and server: args, commands, services; thin bin/sych.rs
 crates/sych-core/      domain types, planner, reducer, broker, model routing; no HTTP/SQL/LLM SDK
 crates/sych-adapters/  Git snapshot, GitHub, model providers, language servers, syntax/CI facts, sandbox
-crates/sych-storage/   SQLite runs and pointers, artifact store, ledger, GC
+crates/sych-storage/   PostgreSQL/SQLite runs and pointers, artifact store, ledger, GC
 crates/sych-style/     the house style check rustfmt and Clippy lack
-migrations/sqlite/     migrations (applied only by `sych db migrate`)
+migrations/            backend-specific migrations (applied only by `sych db migrate`)
 schemas/               JSON Schema and OpenAPI generated from the Rust DTOs (do not edit)
 fixtures/              frozen documents, Git/config/review fixtures
 examples/personal/     a working personal sych.yaml and .sych/

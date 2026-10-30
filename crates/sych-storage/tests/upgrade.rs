@@ -10,18 +10,18 @@ use std::str::FromStr;
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::{Connection, Executor, Row, SqliteConnection};
 use sych_core::RunId;
-use sych_storage::{Storage, StoreConfig};
+use sych_storage::{Database, Storage, StoreConfig};
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_v2_database_upgrades_with_its_data() {
     let dir = tempfile::tempdir().expect("tempdir");
     let config = StoreConfig {
-        database: dir.path().join("sych.db"),
+        database: Database::Sqlite(dir.path().join("sych.db")),
         artifacts: dir.path().join("artifacts"),
     };
     let options = SqliteConnectOptions::from_str("sqlite:")
         .expect("options")
-        .filename(&config.database)
+        .filename(dir.path().join("sych.db"))
         .create_if_missing(true)
         .foreign_keys(true);
     let mut conn = SqliteConnection::connect_with(&options)

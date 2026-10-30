@@ -59,10 +59,10 @@ impl Storage {
         let at = now.as_second();
         let mut tx = self.write().await?;
         let id: Option<i64> = sqlx::query_scalar(
-            "UPDATE publication_operations SET owner = ?, lease_epoch = lease_epoch + 1,
-                 lease_until = ?
+            "UPDATE publication_operations SET owner = $1, lease_epoch = lease_epoch + 1,
+                 lease_until = $2
              WHERE id = (SELECT o.id FROM publication_operations o
-                 WHERE o.state = 'PENDING' AND o.next_action_at <= ?
+                 WHERE o.state = 'PENDING' AND o.next_action_at <= $3
                  AND NOT EXISTS (SELECT 1 FROM publication_operations b
                      WHERE b.object_id = o.object_id AND b.state IN ('PUBLISHING', 'UNCERTAIN'))
                  ORDER BY o.next_action_at, o.id LIMIT 1)
@@ -79,7 +79,7 @@ impl Storage {
                  p.remote_id, o.run_id, o.result_id, o.generation, o.attempts, o.owner, o.lease_epoch,
                  p.kind, p.fingerprint, p.anchor
              FROM publication_operations o JOIN publication_objects p ON p.id = o.object_id
-             JOIN changes c ON c.id = p.change_id WHERE o.id = ?",
+             JOIN changes c ON c.id = p.change_id WHERE o.id = $1",
         )
         .bind(id)
         .fetch_one(&mut *tx)
@@ -115,7 +115,7 @@ impl Storage {
         c: &PublishClaim,
     ) -> Result<Result<(), String>, StorageError> {
         let r = sqlx::query(
-            "SELECT c.desired_generation, coalesce(c.scm_state, 'OPEN') FROM changes c WHERE c.id = ?",
+            "SELECT c.desired_generation, coalesce(c.scm_state, 'OPEN') FROM changes c WHERE c.id = $1",
         )
         .bind(c.change_id)
         .fetch_one(self.pool())
@@ -147,10 +147,11 @@ impl Storage {
             )
             .as_bytes(),
         );
+        let mut tx = self.write().await?;
         let done = sqlx::query(
-            "UPDATE publication_operations SET state = 'PUBLISHING', body = ?, request_digest = ?,
-                 attempt_id = ?, attempts = attempts + 1
-             WHERE id = ? AND owner = ? AND lease_epoch = ? AND state = 'PENDING' AND lease_until >= ?",
+            "UPDATE publication_operations SET state = 'PUBLISHING', body = $1, request_digest = $2,
+                 attempt_id = $3, attempts = attempts + 1
+             WHERE id = $4 AND owner = $5 AND lease_epoch = $6 AND state = 'PENDING' AND lease_until >= $7",
         )
         .bind(body)
         .bind(digest.to_string())
@@ -159,8 +160,9 @@ impl Storage {
         .bind(&c.owner)
         .bind(c.epoch)
         .bind(now.as_second())
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok((done.rows_affected() == 1).then_some(attempt))
     }
 
@@ -175,8 +177,8 @@ impl Storage {
         let at = now.as_second();
         let mut tx = self.write().await?;
         sqlx::query(
-            "UPDATE publication_operations SET state = 'DELIVERED', remote_id = ?, finished_at = ?
-             WHERE id = ? AND state IN ('PUBLISHING', 'UNCERTAIN')",
+            "UPDATE publication_operations SET state = 'DELIVERED', remote_id = $1, finished_at = $2
+             WHERE id = $3 AND state IN ('PUBLISHING', 'UNCERTAIN')",
         )
         .bind(remote_id)
         .bind(at)
@@ -197,17 +199,19 @@ impl Storage {
         now: Timestamp,
     ) -> Result<(), StorageError> {
         let at = now.as_second();
+        let mut tx = self.write().await?;
         sqlx::query(
-            "UPDATE publication_operations SET state = 'UNCERTAIN', last_error = ?,
-                 reconcile_deadline = coalesce(reconcile_deadline, ?), next_action_at = ?
-             WHERE id = ? AND state = 'PUBLISHING'",
+            "UPDATE publication_operations SET state = 'UNCERTAIN', last_error = $1,
+                 reconcile_deadline = coalesce(reconcile_deadline, $2), next_action_at = $3
+             WHERE id = $4 AND state = 'PUBLISHING'",
         )
         .bind(error)
         .bind(at + window)
         .bind(at)
         .bind(op_id)
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -219,18 +223,20 @@ impl Storage {
         error: &str,
         retry_at: i64,
     ) -> Result<(), StorageError> {
+        let mut tx = self.write().await?;
         sqlx::query(
             "UPDATE publication_operations SET
-                 state = CASE WHEN attempts >= ? THEN 'FAILED' ELSE 'PENDING' END,
-                 owner = NULL, last_error = ?, next_action_at = ?
-             WHERE id = ? AND state IN ('PENDING', 'PUBLISHING')",
+                 state = CASE WHEN attempts >= $1 THEN 'FAILED' ELSE 'PENDING' END,
+                 owner = NULL, last_error = $2, next_action_at = $3
+             WHERE id = $4 AND state IN ('PENDING', 'PUBLISHING')",
         )
         .bind(MAX_PUBLISH_ATTEMPTS)
         .bind(error)
         .bind(retry_at)
         .bind(c.op_id)
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -242,16 +248,18 @@ impl Storage {
         reason: &str,
         now: Timestamp,
     ) -> Result<(), StorageError> {
+        let mut tx = self.write().await?;
         sqlx::query(
-            "UPDATE publication_operations SET state = ?, last_error = ?, finished_at = ?
-             WHERE id = ? AND state IN ('PENDING', 'PUBLISHING')",
+            "UPDATE publication_operations SET state = $1, last_error = $2, finished_at = $3
+             WHERE id = $4 AND state IN ('PENDING', 'PUBLISHING')",
         )
         .bind(state)
         .bind(reason)
         .bind(now.as_second())
         .bind(op_id)
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -262,26 +270,30 @@ impl Storage {
         now: Timestamp,
     ) -> Result<u64, StorageError> {
         let at = now.as_second();
+        let mut tx = self.write().await?;
         let done = sqlx::query(
             "UPDATE publication_operations SET state = 'UNCERTAIN', last_error = 'lease lost while publishing',
-                 reconcile_deadline = ?, next_action_at = ?
-             WHERE state = 'PUBLISHING' AND lease_until < ?",
+                 reconcile_deadline = $1, next_action_at = $2
+             WHERE state = 'PUBLISHING' AND lease_until < $3",
         )
         .bind(at + window)
         .bind(at)
         .bind(at)
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(done.rows_affected())
     }
 
     /// The remote object was deleted by someone: the next revision creates it again, which
     /// is safe because its absence is known, not guessed.
     pub async fn forget_remote(&self, object_id: i64) -> Result<(), StorageError> {
-        sqlx::query("UPDATE publication_objects SET remote_id = NULL WHERE id = ?")
+        let mut tx = self.write().await?;
+        sqlx::query("UPDATE publication_objects SET remote_id = NULL WHERE id = $1")
             .bind(object_id)
-            .execute(self.pool())
+            .execute(&mut *tx)
             .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -316,7 +328,7 @@ impl Storage {
             "SELECT o.id, o.object_id, p.change_id, p.marker, p.remote_id, coalesce(o.body, ''),
                  o.reconcile_deadline, p.kind
              FROM publication_operations o JOIN publication_objects p ON p.id = o.object_id
-             WHERE o.state = 'UNCERTAIN' AND o.next_action_at <= ? ORDER BY o.id",
+             WHERE o.state = 'UNCERTAIN' AND o.next_action_at <= $1 ORDER BY o.id",
         )
         .bind(now.as_second())
         .fetch_all(self.pool())
@@ -346,8 +358,8 @@ impl Storage {
         let at = now.as_second();
         let mut tx = self.write().await?;
         let generation: i64 = sqlx::query(
-            "UPDATE publication_operations SET state = 'DELIVERED', remote_id = ?, finished_at = ?
-             WHERE id = ? AND state = 'UNCERTAIN' RETURNING generation",
+            "UPDATE publication_operations SET state = 'DELIVERED', remote_id = $1, finished_at = $2
+             WHERE id = $3 AND state = 'UNCERTAIN' RETURNING generation",
         )
         .bind(remote_id)
         .bind(at)
@@ -369,9 +381,10 @@ impl Storage {
         now: Timestamp,
     ) -> Result<(), StorageError> {
         let exhausted = now.as_second() >= u.reconcile_deadline;
+        let mut tx = self.write().await?;
         sqlx::query(
-            "UPDATE publication_operations SET next_action_at = ?, last_error = ?
-             WHERE id = ? AND state = 'UNCERTAIN'",
+            "UPDATE publication_operations SET next_action_at = $1, last_error = $2
+             WHERE id = $3 AND state = 'UNCERTAIN'",
         )
         .bind(if exhausted { i64::MAX } else { next })
         .bind(if exhausted {
@@ -380,14 +393,15 @@ impl Storage {
             "not found yet"
         })
         .bind(u.op_id)
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 }
 
 async fn observe(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    tx: &mut sqlx::Transaction<'_, sqlx::Any>,
     object_id: i64,
     remote_id: &str,
     generation: i64,
@@ -395,11 +409,11 @@ async fn observe(
     at: i64,
 ) -> Result<(), StorageError> {
     sqlx::query(
-        "UPDATE publication_objects SET remote_id = ?, observed_generation = ?,
-             observed_body_sha256 = ?, updated_at = ?,
-             relevance = CASE WHEN ? >= (SELECT desired_generation FROM changes c
-                 WHERE c.id = change_id) THEN 'CURRENT' ELSE 'STALE' END
-         WHERE id = ?",
+        "UPDATE publication_objects SET remote_id = $1, observed_generation = $2,
+             observed_body_sha256 = $3, updated_at = $4,
+             relevance = CASE WHEN $5 >= (SELECT desired_generation FROM changes c
+                 WHERE c.id = publication_objects.change_id) THEN 'CURRENT' ELSE 'STALE' END
+         WHERE id = $6",
     )
     .bind(remote_id)
     .bind(generation)
@@ -435,7 +449,8 @@ impl Storage {
             "SELECT o.id, p.change_id, p.slot, o.state, o.attempts, o.created_at,
                  o.reconcile_deadline, o.last_error
              FROM publication_operations o JOIN publication_objects p ON p.id = o.object_id
-             WHERE o.state IN ('PUBLISHING', 'UNCERTAIN') AND (?1 IS NULL OR p.change_id = ?1)
+             WHERE o.state IN ('PUBLISHING', 'UNCERTAIN')
+                 AND (CAST($1 AS BIGINT) IS NULL OR p.change_id = $1)
              ORDER BY o.created_at, o.id",
         )
         .bind(change_id)
@@ -469,7 +484,7 @@ impl Storage {
                  coalesce(o.owner, ''), o.lease_epoch, p.kind, p.fingerprint, p.anchor
              FROM publication_operations o JOIN publication_objects p ON p.id = o.object_id
              JOIN changes c ON c.id = p.change_id
-             WHERE p.change_id = ? AND p.kind = 'SUMMARY' AND o.state = 'DELIVERED'
+             WHERE p.change_id = $1 AND p.kind = 'SUMMARY' AND o.state = 'DELIVERED'
              ORDER BY o.id DESC LIMIT 1",
         )
         .bind(change_id)
@@ -501,13 +516,15 @@ impl Storage {
     /// Records the body a delivered operation now carries remotely, so verification compares
     /// against it.
     pub async fn record_body(&self, op_id: i64, body: &str) -> Result<(), StorageError> {
+        let mut tx = self.write().await?;
         sqlx::query(
-            "UPDATE publication_operations SET body = ? WHERE id = ? AND state = 'DELIVERED'",
+            "UPDATE publication_operations SET body = $1 WHERE id = $2 AND state = 'DELIVERED'",
         )
         .bind(body)
         .bind(op_id)
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 }

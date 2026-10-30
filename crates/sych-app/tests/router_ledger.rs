@@ -1,4 +1,4 @@
-//! The router over the real `SQLite` ledger: a released attempt fails honestly and still
+//! The router over the selected backend's ledger: a released attempt fails honestly and still
 //! counts against the run's attempt cap, and a session cap survives the UTC month boundary.
 
 use std::cell::{Cell, RefCell};
@@ -10,7 +10,7 @@ use sych_core::model::{
     TaskFailure,
 };
 use sych_core::{PolicySnapshotId, SourceSnapshotId, Timestamp, sha256};
-use sych_storage::{Partition, RunLedger, Storage, StoreConfig, TENANT_LOCAL};
+use sych_storage::{Partition, RunLedger, Storage, TENANT_LOCAL};
 
 mod harness;
 
@@ -73,13 +73,10 @@ fn empty_object(_: &ModelRequest) -> Result<ModelReply, ProviderError> {
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_session_attempt_cap_survives_the_month_boundary_through_the_router() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let store = StoreConfig {
-        database: dir.path().join("sych.db"),
-        artifacts: dir.path().join("artifacts"),
-    };
-    Storage::migrate(&store).await.expect("migrate");
-    let storage = Storage::open(&store).await.expect("open");
+    let dir = database::TestDir::new().await;
+    let store = dir.config();
+    Storage::migrate(store).await.expect("migrate");
+    let storage = Storage::open(store).await.expect("open");
     set_clock("2026-10-31T23:59:58Z");
     let run = storage
         .begin_run(

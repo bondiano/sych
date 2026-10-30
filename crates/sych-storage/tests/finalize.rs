@@ -164,11 +164,6 @@ async fn lost_bytes_unfrozen_inputs_and_cancel_before_commit_leave_no_result_or_
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_database_failure_inside_finalization_rolls_back_the_result_too() {
-    use std::str::FromStr;
-
-    use sqlx::sqlite::SqliteConnectOptions;
-    use sqlx::{Connection, SqliteConnection};
-
     let (dir, s) = migrated().await;
     let id = change(&s).await;
     s.generate(id, &publishing("h"), 1_800_001_000, 3, at(0))
@@ -176,17 +171,18 @@ async fn a_database_failure_inside_finalization_rolls_back_the_result_too() {
         .expect("gen");
     let c = claim(&s, "w", 1).await;
     // The outbox insert, the last statement of the commit, fails.
-    let options = SqliteConnectOptions::from_str("sqlite:")
-        .expect("opts")
-        .filename(dir.path().join("sych.db"));
-    let mut conn = SqliteConnection::connect_with(&options)
+    let pool = support::database::inspect(dir.config()).await;
+    let fault = match &dir.config().database {
+        sych_storage::Database::Sqlite(_) => "ALTER TABLE publication_objects RENAME TO broken",
+        sych_storage::Database::Postgres(_) => {
+            "ALTER TABLE publication_objects ADD CONSTRAINT finalization_fault CHECK (1 = 0)"
+        }
+    };
+    sqlx::query(fault)
+        .execute(&pool)
         .await
-        .expect("connect");
-    sqlx::query("ALTER TABLE publication_objects RENAME TO broken")
-        .execute(&mut conn)
-        .await
-        .expect("break");
-    conn.close().await.expect("close");
+        .expect("break outbox independently of the finalization transaction");
+    pool.close().await;
     let failed = finish(&s, &c, 2).await;
     assert!(matches!(failed, Err(StorageError::Db(_))), "{failed:?}");
     let (state, ..) = s

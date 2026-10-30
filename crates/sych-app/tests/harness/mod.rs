@@ -25,9 +25,12 @@ use sych_core::{
     AttemptId, MicroUsd, ObligationStatus, PolicySnapshotId, Redactor, RunFacts, RunId,
     Sha256Digest, SourceSide, Timestamp, plan, sha256,
 };
-use sych_storage::{Partition, Storage, StoreConfig, TENANT_LOCAL};
+use sych_storage::{Partition, Storage, TENANT_LOCAL};
 use tempfile::TempDir;
 use tokio::task::yield_now;
+
+#[path = "../../../sych-storage/tests/support/database.rs"]
+pub mod database;
 
 pub const RULES: &str = "schema_version: 1\nrules:\n  - id: ORDER-01\n    version: 1\n    title: Missing items total zero\n    kind: invariant\n    required: true\n    severity_on_violation: high\n    owner: backend\n    applies_to:\n      paths: [\"src/**\"]\n    statement: total() returns 0 when items is undefined.\n";
 pub const BASE: &str = "export function total(items) {\n  if (!items) {\n    return 0;\n  }\n  return items.reduce(sum, 0);\n}\n";
@@ -272,13 +275,10 @@ pub async fn run_reusing(
     let policy = RepositoryPolicy::parse(&files, &ServerConfig::engine_default()).expect("policy");
     let facts = RunFacts::default();
     let plan = plan(&snap.snapshot.id, &snap.manifest, &policy, &facts);
-    let store_dir = tempfile::tempdir().expect("store");
-    let store = StoreConfig {
-        database: store_dir.path().join("sych.db"),
-        artifacts: store_dir.path().join("artifacts"),
-    };
-    Storage::migrate(&store).await.expect("migrate");
-    let storage = Storage::open(&store).await.expect("open");
+    let store_dir = database::TestDir::new().await;
+    let store = store_dir.config();
+    Storage::migrate(store).await.expect("migrate");
+    let storage = Storage::open(store).await.expect("open");
     let policy_id = PolicySnapshotId(sha256(b"policy"));
     let handle = storage
         .begin_run(

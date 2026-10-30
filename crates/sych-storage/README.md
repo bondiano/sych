@@ -1,7 +1,8 @@
 # sych-storage
 
-Durable local storage: SQLite (WAL, a single connection) for runs, result pointers and the
-model ledger, and a content-addressed artifact store for immutable run documents.
+Durable storage: PostgreSQL for the server or SQLite/WAL for the autonomous CLI, using the same
+`Storage` methods and one-connection SQLx Any pool. Immutable run documents remain in the
+content-addressed artifact directory, not in the database.
 
 ## What's inside
 
@@ -23,10 +24,15 @@ model ledger, and a content-addressed artifact store for immutable run documents
 Errors are `StorageError` (`thiserror`); `tracing` records migrations and the run lifecycle (started, completed,
 failed).
 
-Migrations live in `migrations/sqlite/` at the repository root.
+Migrations live in `migrations/sqlite/` and `migrations/postgres/` at the repository root.
+Only `Storage::migrate` creates files/schema. PostgreSQL writes take a transaction-scoped advisory
+lock before business reads; SQLite uses `BEGIN IMMEDIATE`. Both preserve one-writer semantics,
+including across independent pools; this is not a multi-worker scaling change.
 
 ## Checks
 
 ```sh
-cargo test -p sych-storage
+cargo test --locked -p sych-storage
+# Disposable local PostgreSQL admin database; each fixture creates its own database.
+SYCH_TEST_POSTGRES_URL=postgres://postgres:sych-test@127.0.0.1:55432/postgres just test-postgres
 ```

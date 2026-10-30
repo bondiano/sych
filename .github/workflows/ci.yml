@@ -20,7 +20,19 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: docker.io/library/postgres:18.6@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
+        env:
+          POSTGRES_PASSWORD: sych-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,15 +49,23 @@ jobs:
         id: check
         continue-on-error: true
         run: just check
+      - name: PostgreSQL contracts
+        id: postgres
+        continue-on-error: true
+        env:
+          SYCH_TEST_POSTGRES_URL: postgres://postgres:sych-test@127.0.0.1:5432/postgres
+        run: just test-postgres
       # Evidence for the Sych self-review (docs/SERVER.md#self-review-bondianosych).
       - name: Write Sych reports
         if: always()
         env:
           OUTCOME: ${{ steps.check.outcome }}
+          PG_OUTCOME: ${{ steps.postgres.outcome }}
         run: |
           cargo clippy --workspace --all-targets --all-features --locked --message-format=json > clippy.json || true
           code=$([ "$OUTCOME" = success ] && echo 0 || echo 1)
-          printf '{"schema_version":1,"commands":[{"name":"just check","exit_code":%s}]}\n' "$code" > outcomes.json
+          pg_code=$([ "$PG_OUTCOME" = success ] && echo 0 || echo 1)
+          printf '{"schema_version":1,"commands":[{"name":"just check","exit_code":%s},{"name":"just test-postgres","exit_code":%s}]}\n' "$code" "$pg_code" > outcomes.json
           printf '{"schema_version":1,"job":"github:%s/actions/runs/%s","tested_oid":"%s","toolchain":"%s","target":"x86_64-unknown-linux-gnu","features":["all"]}\n' \
             "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$(git rev-parse HEAD)" "$(rustc --version)" > sych-ci.json
       - uses: actions/upload-artifact@v4
@@ -58,5 +78,5 @@ jobs:
             sych-ci.json
           retention-days: 7
       - name: Fail when the check failed
-        if: steps.check.outcome != 'success'
+        if: steps.check.outcome != 'success' || steps.postgres.outcome != 'success'
         run: exit 1

@@ -77,8 +77,8 @@ impl Storage {
         let at = now.as_second();
         let mut tx = self.write().await?;
         sqlx::query(
-            "DELETE FROM idempotency_keys WHERE tenant_id = ? AND actor = ? AND endpoint = ?
-                 AND key = ? AND expires_at <= ?",
+            "DELETE FROM idempotency_keys WHERE tenant_id = $1 AND actor = $2 AND endpoint = $3
+                 AND key = $4 AND expires_at <= $5",
         )
         .bind(tenant)
         .bind(actor)
@@ -89,7 +89,7 @@ impl Storage {
         .await?;
         let existing = sqlx::query(
             "SELECT body_sha256, response_status, response_body FROM idempotency_keys
-             WHERE tenant_id = ? AND actor = ? AND endpoint = ? AND key = ?",
+             WHERE tenant_id = $1 AND actor = $2 AND endpoint = $3 AND key = $4",
         )
         .bind(tenant)
         .bind(actor)
@@ -109,7 +109,7 @@ impl Storage {
             None => Idempotency::New(
                 sqlx::query_scalar(
                     "INSERT INTO idempotency_keys (tenant_id, actor, endpoint, key, body_sha256,
-                         created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
+                         created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
                 )
                 .bind(tenant)
                 .bind(actor)
@@ -133,14 +133,16 @@ impl Storage {
         status: u16,
         body: &str,
     ) -> Result<(), StorageError> {
+        let mut tx = self.write().await?;
         sqlx::query(
-            "UPDATE idempotency_keys SET response_status = ?, response_body = ? WHERE id = ?",
+            "UPDATE idempotency_keys SET response_status = $1, response_body = $2 WHERE id = $3",
         )
         .bind(i64::from(status))
         .bind(body)
         .bind(id)
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -156,7 +158,7 @@ impl Storage {
                  u.failure, u.created_at, u.finished_at
              FROM runs u JOIN changes c ON c.id = u.change_id
              LEFT JOIN repositories r ON r.id = c.repository_id
-             WHERE u.id = ? AND u.tenant_id = ?",
+             WHERE u.id = $1 AND u.tenant_id = $2",
         )
         .bind(run_id)
         .bind(tenant_id)
@@ -192,8 +194,8 @@ impl Storage {
         let at = now.as_second();
         let mut tx = self.write().await?;
         let done = sqlx::query(concat!(
-            "UPDATE runs SET state = 'CANCELLED', failure = ?, finished_at = ?
-             WHERE id = ? AND tenant_id = ? AND state IN ",
+            "UPDATE runs SET state = 'CANCELLED', failure = $1, finished_at = $2
+             WHERE id = $3 AND tenant_id = $4 AND state IN ",
             active!()
         ))
         .bind(reason)
@@ -204,8 +206,8 @@ impl Storage {
         .await?;
         if done.rows_affected() == 1 {
             sqlx::query(
-                "UPDATE jobs SET state = 'CANCELLED', lease_epoch = lease_epoch + 1, finished_at = ?
-                 WHERE run_id = ? AND state IN ('QUEUED', 'CLAIMED')",
+                "UPDATE jobs SET state = 'CANCELLED', lease_epoch = lease_epoch + 1, finished_at = $1
+                 WHERE run_id = $2 AND state IN ('QUEUED', 'CLAIMED')",
             )
             .bind(at)
             .bind(run_id)
@@ -213,7 +215,7 @@ impl Storage {
             .await?;
         }
 
-        let state = sqlx::query_scalar("SELECT state FROM runs WHERE id = ? AND tenant_id = ?")
+        let state = sqlx::query_scalar("SELECT state FROM runs WHERE id = $1 AND tenant_id = $2")
             .bind(run_id)
             .bind(tenant_id)
             .fetch_optional(&mut *tx)
@@ -231,7 +233,7 @@ impl Storage {
         let r = sqlx::query(
             "SELECT c.tenant_id, p.change_id, o.state, p.relevance, o.remote_id, o.last_error
              FROM publication_operations o JOIN publication_objects p ON p.id = o.object_id
-             JOIN changes c ON c.id = p.change_id WHERE o.id = ?",
+             JOIN changes c ON c.id = p.change_id WHERE o.id = $1",
         )
         .bind(op_id)
         .fetch_optional(self.pool())
@@ -247,7 +249,7 @@ impl Storage {
     ) -> Result<Option<i64>, StorageError> {
         Ok(sqlx::query_scalar(
             "SELECT f.change_id FROM findings f JOIN changes c ON c.id = f.change_id
-             WHERE f.id = ? AND c.tenant_id = ?",
+             WHERE f.id = $1 AND c.tenant_id = $2",
         )
         .bind(finding)
         .bind(tenant_id)
@@ -279,9 +281,11 @@ impl Storage {
                 "SELECT coverage, count(*) FROM runs WHERE coverage IS NOT NULL GROUP BY coverage ORDER BY coverage",
             )
             .await?,
-            unknown_obligations: one("SELECT coalesce(sum(unknown_obligations), 0) + 0 * ? FROM runs").await?,
+            unknown_obligations: one(
+                "SELECT CAST(coalesce(sum(unknown_obligations), 0) AS BIGINT) + 0 * CAST($1 AS BIGINT) FROM runs",
+            ).await?,
             oldest_queued_age: one(
-                "SELECT coalesce(? - min(next_attempt_at), 0) FROM jobs WHERE state = 'QUEUED'",
+                "SELECT coalesce(CAST($1 AS BIGINT) - min(next_attempt_at), 0) FROM jobs WHERE state = 'QUEUED'",
             )
             .await?,
             jobs_by_state: pairs("SELECT state, count(*) FROM jobs GROUP BY state ORDER BY state").await?,
@@ -289,19 +293,24 @@ impl Storage {
                 "SELECT state, count(*) FROM model_attempts GROUP BY state ORDER BY state",
             )
             .await?,
-            input_tokens: one("SELECT coalesce(sum(input_tokens), 0) + 0 * ? FROM model_attempts").await?,
-            output_tokens: one("SELECT coalesce(sum(output_tokens), 0) + 0 * ? FROM model_attempts").await?,
+            input_tokens: one(
+                "SELECT CAST(coalesce(sum(input_tokens), 0) AS BIGINT) + 0 * CAST($1 AS BIGINT) FROM model_attempts",
+            ).await?,
+            output_tokens: one(
+                "SELECT CAST(coalesce(sum(output_tokens), 0) AS BIGINT) + 0 * CAST($1 AS BIGINT) FROM model_attempts",
+            ).await?,
             cost_known_micro_usd: one(
-                "SELECT coalesce(sum(charge_micro_usd), 0) + 0 * ? FROM model_attempts WHERE state = 'SETTLED'",
+                "SELECT CAST(coalesce(sum(charge_micro_usd), 0) AS BIGINT) + 0 * CAST($1 AS BIGINT)
+                 FROM model_attempts WHERE state = 'SETTLED'",
             )
             .await?,
             reserved_micro_usd: one(
-                "SELECT coalesce(sum(reserved_micro_usd), 0) + 0 * ? FROM model_attempts
+                "SELECT CAST(coalesce(sum(reserved_micro_usd), 0) AS BIGINT) + 0 * CAST($1 AS BIGINT) FROM model_attempts
                  WHERE state IN ('RESERVED', 'UNKNOWN')",
             )
             .await?,
             superseded_cost_micro_usd: one(
-                "SELECT coalesce(sum(a.charge_micro_usd), 0) + 0 * ? FROM model_attempts a
+                "SELECT CAST(coalesce(sum(a.charge_micro_usd), 0) AS BIGINT) + 0 * CAST($1 AS BIGINT) FROM model_attempts a
                  JOIN runs u ON u.id = a.run_id WHERE u.state = 'SUPERSEDED'",
             )
             .await?,
@@ -310,23 +319,25 @@ impl Storage {
             )
             .await?,
             oldest_pending_publication_age: one(
-                "SELECT coalesce(? - min(created_at), 0) FROM publication_operations WHERE state = 'PENDING'",
+                "SELECT coalesce(CAST($1 AS BIGINT) - min(created_at), 0) FROM publication_operations WHERE state = 'PENDING'",
             )
             .await?,
             oldest_uncertain_publication_age: one(
-                "SELECT coalesce(? - min(created_at), 0) FROM publication_operations WHERE state = 'UNCERTAIN'",
+                "SELECT coalesce(CAST($1 AS BIGINT) - min(created_at), 0) FROM publication_operations WHERE state = 'UNCERTAIN'",
             )
             .await?,
             publication_repairs: one(
-                "SELECT count(*) + 0 * ? FROM change_events WHERE kind = 'PUBLICATION_REPAIRED'",
+                "SELECT count(*) + 0 * CAST($1 AS BIGINT) FROM change_events WHERE kind = 'PUBLICATION_REPAIRED'",
             )
             .await?,
             feedback_by_judgement: pairs(
                 "SELECT judgement, count(*) FROM feedback GROUP BY judgement ORDER BY judgement",
             )
             .await?,
-            artifact_bytes: one("SELECT coalesce(sum(size), 0) + 0 * ? FROM artifacts").await?,
-            artifacts: one("SELECT count(*) + 0 * ? FROM artifacts").await?,
+            artifact_bytes: one(
+                "SELECT CAST(coalesce(sum(size), 0) AS BIGINT) + 0 * CAST($1 AS BIGINT) FROM artifacts",
+            ).await?,
+            artifacts: one("SELECT count(*) + 0 * CAST($1 AS BIGINT) FROM artifacts").await?,
         })
     }
 }
@@ -343,7 +354,7 @@ impl Storage {
         let mut tx = self.write().await?;
         let repository: i64 = sqlx::query_scalar(
             "INSERT INTO repositories (tenant_id, connection_id, provider_instance, external_id, full_name)
-             VALUES (?, ?, ?, ?, ?)
+             VALUES ($1, $2, $3, $4, $5)
              ON CONFLICT (tenant_id, connection_id, provider_instance, external_id)
              DO UPDATE SET full_name = excluded.full_name RETURNING id",
         )
@@ -357,7 +368,7 @@ impl Storage {
         let partition = conn.partition(&repo.external_id);
         let change = sqlx::query_scalar(
             "INSERT INTO changes (tenant_id, access_scope, change_key, desired_generation,
-                 repository_id, external_number) VALUES (?, ?, ?, 0, ?, ?)
+                 repository_id, external_number) VALUES ($1, $2, $3, 0, $4, $5)
              ON CONFLICT (tenant_id, access_scope, change_key)
              DO UPDATE SET repository_id = excluded.repository_id RETURNING id",
         )

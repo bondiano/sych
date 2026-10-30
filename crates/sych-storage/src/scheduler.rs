@@ -36,7 +36,7 @@ impl Storage {
             "SELECT c.id, c.tenant_id, c.access_scope, c.change_key, r.connection_id,
                  r.full_name, r.installation_id, c.external_number, c.scm_state, c.head_sha,
                  r.external_id
-             FROM changes c JOIN repositories r ON r.id = c.repository_id WHERE c.id = ?",
+             FROM changes c JOIN repositories r ON r.id = c.repository_id WHERE c.id = $1",
         )
         .bind(change_id)
         .fetch_optional(self.pool())
@@ -63,7 +63,7 @@ impl Storage {
     pub async fn open_changes(&self, connection_id: &str) -> Result<Vec<ChangeRow>, StorageError> {
         let ids: Vec<i64> = sqlx::query(
             "SELECT c.id FROM changes c JOIN repositories r ON r.id = c.repository_id
-             WHERE r.connection_id = ? AND coalesce(c.scm_state, 'OPEN') IN ('OPEN', 'DRAFT')",
+             WHERE r.connection_id = $1 AND coalesce(c.scm_state, 'OPEN') IN ('OPEN', 'DRAFT')",
         )
         .bind(connection_id)
         .fetch_all(self.pool())
@@ -91,19 +91,21 @@ impl Storage {
             (true, _, true) => "DRAFT",
             (true, _, false) => "OPEN",
         };
+        let mut tx = self.write().await?;
         sqlx::query(
-            "UPDATE changes SET scm_state = ?, head_sha = ?, base_sha = ?, base_ref = ?,
-                 fork = ?, synced_at = ? WHERE id = ?",
+            "UPDATE changes SET scm_state = $1, head_sha = $2, base_sha = $3, base_ref = $4,
+                 fork = $5, synced_at = $6 WHERE id = $7",
         )
         .bind(scm)
         .bind(&state.head_sha)
         .bind(&state.base_sha)
         .bind(&state.base_ref)
-        .bind(state.fork)
+        .bind(i64::from(state.fork))
         .bind(now.as_second())
         .bind(change_id)
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -111,7 +113,7 @@ impl Storage {
     pub async fn latest(&self, change_id: i64) -> Result<Option<Latest>, StorageError> {
         let row = sqlx::query(
             "SELECT id, inputs, state, stage, expected_sources FROM runs
-             WHERE change_id = ? AND inputs IS NOT NULL ORDER BY generation DESC LIMIT 1",
+             WHERE change_id = $1 AND inputs IS NOT NULL ORDER BY generation DESC LIMIT 1",
         )
         .bind(change_id)
         .fetch_optional(self.pool())
@@ -141,16 +143,18 @@ impl Storage {
         detail: &str,
         now: Timestamp,
     ) -> Result<(), StorageError> {
+        let mut tx = self.write().await?;
         sqlx::query(
-            "INSERT INTO change_events (change_id, run_id, kind, detail, at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO change_events (change_id, run_id, kind, detail, at) VALUES ($1, $2, $3, $4, $5)",
         )
         .bind(change_id)
         .bind(run_id)
         .bind(kind)
         .bind(detail)
         .bind(now.as_second())
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -160,7 +164,7 @@ impl Storage {
         change_id: i64,
     ) -> Result<Vec<(String, String, Option<String>)>, StorageError> {
         let rows = sqlx::query(
-            "SELECT kind, detail, run_id FROM change_events WHERE change_id = ? ORDER BY id",
+            "SELECT kind, detail, run_id FROM change_events WHERE change_id = $1 ORDER BY id",
         )
         .bind(change_id)
         .fetch_all(self.pool())
@@ -172,13 +176,15 @@ impl Storage {
     }
 
     pub async fn consume_intent(&self, intent_id: i64, now: Timestamp) -> Result<(), StorageError> {
+        let mut tx = self.write().await?;
         sqlx::query(
-            "UPDATE change_intents SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL",
+            "UPDATE change_intents SET consumed_at = $1 WHERE id = $2 AND consumed_at IS NULL",
         )
         .bind(now.as_second())
         .bind(intent_id)
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -195,8 +201,8 @@ impl Storage {
         let at = now.as_second();
         let mut tx = self.write().await?;
         let superseded = sqlx::query(concat!(
-            "UPDATE runs SET state = 'SUPERSEDED', finished_at = ?
-             WHERE change_id = ? AND state IN ",
+            "UPDATE runs SET state = 'SUPERSEDED', finished_at = $1
+             WHERE change_id = $2 AND state IN ",
             active!(),
             " RETURNING id"
         ))
@@ -207,7 +213,7 @@ impl Storage {
         for r in &superseded {
             sqlx::query(
                 "UPDATE jobs SET state = 'CANCELLED', lease_epoch = lease_epoch + 1,
-                     finished_at = ? WHERE run_id = ? AND state IN ('QUEUED', 'CLAIMED')",
+                     finished_at = $1 WHERE run_id = $2 AND state IN ('QUEUED', 'CLAIMED')",
             )
             .bind(at)
             .bind(r.get::<String, _>(0))
@@ -215,7 +221,7 @@ impl Storage {
             .await?;
         }
         let change = sqlx::query(
-            "UPDATE changes SET desired_generation = desired_generation + 1 WHERE id = ?
+            "UPDATE changes SET desired_generation = desired_generation + 1 WHERE id = $1
              RETURNING tenant_id, access_scope, desired_generation",
         )
         .bind(change_id)
@@ -235,7 +241,7 @@ impl Storage {
         sqlx::query(
             "INSERT INTO runs (id, tenant_id, access_scope, change_id, generation, parent_run_id,
                  inputs, inputs_digest, state, stage, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'QUEUED', 'PREPARE', ?)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'QUEUED', 'PREPARE', $9)",
         )
         .bind(id.to_string())
         .bind(&partition.tenant_id)
@@ -251,7 +257,7 @@ impl Storage {
         sqlx::query(
             "INSERT INTO jobs (run_id, kind, task_key, state, deadline, max_attempts,
                  next_attempt_at, created_at)
-             VALUES (?, 'ANALYSIS', '', 'QUEUED', ?, ?, ?, ?)",
+             VALUES ($1, 'ANALYSIS', '', 'QUEUED', $2, $3, $4, $5)",
         )
         .bind(id.to_string())
         .bind(deadline)
@@ -291,8 +297,8 @@ impl Storage {
         let at = now.as_second();
         let mut tx = self.write().await?;
         let cancelled: Vec<String> = sqlx::query(concat!(
-            "UPDATE runs SET state = 'CANCELLED', failure = ?, finished_at = ?
-             WHERE change_id = ? AND state IN ",
+            "UPDATE runs SET state = 'CANCELLED', failure = $1, finished_at = $2
+             WHERE change_id = $3 AND state IN ",
             active!(),
             " RETURNING id"
         ))
@@ -307,7 +313,7 @@ impl Storage {
         for run in &cancelled {
             sqlx::query(
                 "UPDATE jobs SET state = 'CANCELLED', lease_epoch = lease_epoch + 1,
-                     finished_at = ? WHERE run_id = ? AND state IN ('QUEUED', 'CLAIMED')",
+                     finished_at = $1 WHERE run_id = $2 AND state IN ('QUEUED', 'CLAIMED')",
             )
             .bind(at)
             .bind(run)
@@ -317,9 +323,9 @@ impl Storage {
         }
         // Unsent publication stops too; an uncertain one stays for read-only reconciliation.
         sqlx::query(
-            "UPDATE publication_operations SET state = 'CANCELLED', last_error = ?, finished_at = ?
+            "UPDATE publication_operations SET state = 'CANCELLED', last_error = $1, finished_at = $2
              WHERE state = 'PENDING' AND object_id IN
-                 (SELECT id FROM publication_objects WHERE change_id = ?)",
+                 (SELECT id FROM publication_objects WHERE change_id = $3)",
         )
         .bind(reason)
         .bind(at)
@@ -332,13 +338,15 @@ impl Storage {
 
     /// Makes a run waiting for evidence claimable now.
     pub async fn wake(&self, run_id: &str, now: Timestamp) -> Result<bool, StorageError> {
+        let mut tx = self.write().await?;
         let done = sqlx::query(
-            "UPDATE jobs SET next_attempt_at = ? WHERE run_id = ? AND state = 'QUEUED'",
+            "UPDATE jobs SET next_attempt_at = $1 WHERE run_id = $2 AND state = 'QUEUED'",
         )
         .bind(now.as_second())
         .bind(run_id)
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(done.rows_affected() > 0)
     }
 
@@ -349,7 +357,7 @@ impl Storage {
         run: &str,
     ) -> Result<(String, String, i64, Option<String>), StorageError> {
         let r = sqlx::query(
-            "SELECT state, stage, generation, parent_run_id FROM runs WHERE id = ? AND tenant_id = ?",
+            "SELECT state, stage, generation, parent_run_id FROM runs WHERE id = $1 AND tenant_id = $2",
         )
         .bind(run)
         .bind(tenant_id)
@@ -361,7 +369,7 @@ impl Storage {
 }
 
 async fn log(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    tx: &mut sqlx::Transaction<'_, sqlx::Any>,
     change_id: i64,
     run: &str,
     kind: &str,
@@ -369,7 +377,7 @@ async fn log(
     at: i64,
 ) -> Result<(), StorageError> {
     sqlx::query(
-        "INSERT INTO change_events (change_id, run_id, kind, detail, at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO change_events (change_id, run_id, kind, detail, at) VALUES ($1, $2, $3, $4, $5)",
     )
     .bind(change_id)
     .bind(run)

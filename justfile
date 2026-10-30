@@ -23,6 +23,12 @@ style-fix:
 test:
     cargo test --workspace --all-features --locked
 
+# Run the same contracts and PostgreSQL-specific imports/races on a disposable local cluster
+test-postgres:
+    @test -n "${SYCH_TEST_POSTGRES_URL:-}" || { echo 'Set SYCH_TEST_POSTGRES_URL to a disposable local PostgreSQL admin database.' >&2; exit 1; }
+    cargo test --locked -p sych-storage -p sych-app --tests -- --test-threads=1
+    cargo test --locked -p sych-storage --test postgres -- --ignored --test-threads=1
+
 # Everything CI runs
 check: lint test
 

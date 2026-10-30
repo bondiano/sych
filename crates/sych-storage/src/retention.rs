@@ -16,55 +16,55 @@ const RULES: &[(&str, &str, &str, &str, i64)] = &[
     (
         "change_intents",
         "consumed over 30 days ago",
-        "SELECT count(*) FROM change_intents WHERE consumed_at < ?",
-        "DELETE FROM change_intents WHERE consumed_at < ?",
+        "SELECT count(*) FROM change_intents WHERE consumed_at < $1",
+        "DELETE FROM change_intents WHERE consumed_at < $1",
         OPERATIONAL,
     ),
     (
         "inbox_events",
         "received over 30 days ago, no kept intent refers to it",
-        "SELECT count(*) FROM inbox_events i WHERE received_at < ?1 AND NOT EXISTS
-             (SELECT 1 FROM change_intents c WHERE coalesce(c.consumed_at, ?1) >= ?1
+        "SELECT count(*) FROM inbox_events i WHERE received_at < $1 AND NOT EXISTS
+             (SELECT 1 FROM change_intents c WHERE coalesce(c.consumed_at, $1) >= $1
                  AND i.id IN (c.first_inbox_id, c.last_inbox_id))",
-        "DELETE FROM inbox_events WHERE received_at < ?1 AND NOT EXISTS
-             (SELECT 1 FROM change_intents c WHERE coalesce(c.consumed_at, ?1) >= ?1
+        "DELETE FROM inbox_events WHERE received_at < $1 AND NOT EXISTS
+             (SELECT 1 FROM change_intents c WHERE coalesce(c.consumed_at, $1) >= $1
                  AND inbox_events.id IN (c.first_inbox_id, c.last_inbox_id))",
         OPERATIONAL,
     ),
     (
         "jobs",
         "finished over 30 days ago",
-        "SELECT count(*) FROM jobs WHERE finished_at < ? AND state IN ('DONE', 'FAILED', 'CANCELLED')",
-        "DELETE FROM jobs WHERE finished_at < ? AND state IN ('DONE', 'FAILED', 'CANCELLED')",
+        "SELECT count(*) FROM jobs WHERE finished_at < $1 AND state IN ('DONE', 'FAILED', 'CANCELLED')",
+        "DELETE FROM jobs WHERE finished_at < $1 AND state IN ('DONE', 'FAILED', 'CANCELLED')",
         OPERATIONAL,
     ),
     (
         "change_events",
         "logged over 90 days ago",
-        "SELECT count(*) FROM change_events WHERE at < ?",
-        "DELETE FROM change_events WHERE at < ?",
+        "SELECT count(*) FROM change_events WHERE at < $1",
+        "DELETE FROM change_events WHERE at < $1",
         AUDIT,
     ),
     (
         "audit_events",
         "logged over 90 days ago",
-        "SELECT count(*) FROM audit_events WHERE at < ?",
-        "DELETE FROM audit_events WHERE at < ?",
+        "SELECT count(*) FROM audit_events WHERE at < $1",
+        "DELETE FROM audit_events WHERE at < $1",
         AUDIT,
     ),
     (
         "model_attempts",
         "settled or released over 90 days ago; unknown charges stay",
-        "SELECT count(*) FROM model_attempts WHERE created_at < ? AND state IN ('SETTLED', 'RELEASED')",
-        "DELETE FROM model_attempts WHERE created_at < ? AND state IN ('SETTLED', 'RELEASED')",
+        "SELECT count(*) FROM model_attempts WHERE created_at < $1 AND state IN ('SETTLED', 'RELEASED')",
+        "DELETE FROM model_attempts WHERE created_at < $1 AND state IN ('SETTLED', 'RELEASED')",
         AUDIT,
     ),
     (
         "publication_operations",
         "final over 90 days ago; unresolved outcomes stay",
-        "SELECT count(*) FROM publication_operations WHERE finished_at < ?
+        "SELECT count(*) FROM publication_operations WHERE finished_at < $1
              AND state IN ('DELIVERED', 'FAILED', 'CANCELLED', 'SUPERSEDED')",
-        "DELETE FROM publication_operations WHERE finished_at < ?
+        "DELETE FROM publication_operations WHERE finished_at < $1
              AND state IN ('DELIVERED', 'FAILED', 'CANCELLED', 'SUPERSEDED')",
         AUDIT,
     ),

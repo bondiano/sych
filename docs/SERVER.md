@@ -101,7 +101,7 @@ Accepted events: `ping`, `pull_request`, `issue_comment`, `workflow_run`, `check
 `installation_repositories`. GitHub does not sign a timestamp, so there is no replay window: a repeat is recognized by the delivery id.
 Errors use the §25.3 envelope (`error.code/message/retryable/correlation_id/details`), without secrets or payload.
 
-A single SQLite transaction stores the receipt (`inbox_events`: delivery key, payload digest, normalized event,
+A single storage transaction stores the receipt (`inbox_events`: delivery key, payload digest, normalized event,
 significance decision), the binding (`repositories`: tenant + connection + instance + external id), the change and the
 intent. The raw payload is not stored: PR text is untrusted and is re-read from the API. Normalization:
 
@@ -442,8 +442,9 @@ generated from the same Rust DTOs (`sych_core::api`, `just schemas`).
 **Process roles.** `sych serve` — everything in one (personal default); `sych api` — webhooks and `/v1` without claiming work;
 `sych worker` — scheduler, worker, publisher and only health/metrics. The default bind is `127.0.0.1:8080`;
 a non-loopback bind without `api_clients` and `behind_tls_proxy: true` is rejected by the validator, as is corporate without
-`api_clients`. SQLite is only a local file of a single process: `api` and `worker` on different machines require
-PostgreSQL (M4).
+`api_clients`. Use PostgreSQL for the server via `storage.database_url_env`; the local CLI still defaults to
+SQLite. All writers serialize under a database lock. Separate machines also need the same artifact files;
+PostgreSQL alone does not make local artifact directories shared.
 
 **`/v1`** requires `Authorization: Bearer <token>` of a configured client (constant-time comparison) and access to the
 repository (`connection/owner/name` or `*`); a foreign repository — 404. Mutating requests require an
