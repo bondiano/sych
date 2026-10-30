@@ -63,9 +63,9 @@ impl Storage {
         let at = now.as_second();
         let mut tx = self.write().await?;
         let done = sqlx::query(
-            "UPDATE publication_operations SET state = 'PENDING', owner = NULL, next_action_at = ?,
-                 reconcile_deadline = NULL, last_error = ?
-             WHERE id = ? AND state = 'UNCERTAIN' AND attempts < ?
+            "UPDATE publication_operations SET state = 'PENDING', owner = NULL, next_action_at = $1,
+                 reconcile_deadline = NULL, last_error = $2
+             WHERE id = $3 AND state = 'UNCERTAIN' AND attempts < $4
                  AND (SELECT remote_id FROM publication_objects p WHERE p.id = object_id) IS NULL",
         )
         .bind(at)
@@ -77,7 +77,7 @@ impl Storage {
         if done.rows_affected() == 1 {
             sqlx::query(
                 "INSERT INTO audit_events (tenant_id, actor, action, target, correlation_id,
-                     metadata, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                     metadata, at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
             )
             .bind(tenant_id)
             .bind(r.actor)

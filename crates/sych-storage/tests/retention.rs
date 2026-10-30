@@ -1,11 +1,7 @@
 //! Retention of records (roadmap M2.4): operational rows go after 30 days and audit or usage
 //! after 90, a dry run only counts, and unresolved charges or publication outcomes stay.
 
-use std::path::Path;
-use std::str::FromStr;
-
-use sqlx::sqlite::SqliteConnectOptions;
-use sqlx::{Connection, Row, SqliteConnection};
+use sqlx::AnyPool;
 
 mod support;
 
@@ -13,24 +9,17 @@ use support::{at, change, claim, finish, inputs, migrated};
 
 const DAY: i64 = 86_400;
 
-async fn count(db: &Path, sql: &'static str) -> i64 {
-    let options = SqliteConnectOptions::from_str("sqlite:")
-        .expect("opts")
-        .filename(db);
-    let mut conn = SqliteConnection::connect_with(&options)
+async fn count(pool: &AnyPool, sql: &'static str) -> i64 {
+    sqlx::query_scalar(sql)
+        .fetch_one(pool)
         .await
-        .expect("connect");
-    sqlx::query(sql)
-        .fetch_one(&mut conn)
-        .await
-        .expect("count")
-        .get(0)
+        .expect("count selected database")
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn old_records_go_unresolved_ones_stay_and_a_dry_run_deletes_nothing() {
     let (dir, s) = migrated().await;
-    let db = dir.path().join("sych.db");
+    let pool = support::database::inspect(dir.config()).await;
     let id = change(&s).await;
     let intent = s.open_intents().await.expect("intents")[0].id;
     s.consume_intent(intent, at(1)).await.expect("consume");
@@ -39,29 +28,22 @@ async fn old_records_go_unresolved_ones_stay_and_a_dry_run_deletes_nothing() {
         .expect("gen");
     let c = claim(&s, "w", 3).await;
     finish(&s, &c, 4).await.expect("commit");
-    let options = SqliteConnectOptions::from_str("sqlite:")
-        .expect("opts")
-        .filename(&db);
-    let mut conn = SqliteConnection::connect_with(&options)
-        .await
-        .expect("connect");
     for state in ["SETTLED", "UNKNOWN"] {
         sqlx::query(
             "INSERT INTO model_attempts (id, tenant_id, run_id, purpose, kind, template, profile,
                  provider, requested_model, billing_kind, enforcement, day, month,
                  reserved_micro_usd, input_tokens_bound, state, created_at)
-             VALUES (?, 'local', ?, 'ANALYSIS', 'INITIAL', 't', 'p', 'x', 'm', 'api_usage',
-                 'api_hard', 'd', 'm', 1, 1, ?, ?)",
+             VALUES ($1, 'local', $2, 'ANALYSIS', 'INITIAL', 't', 'p', 'x', 'm', 'api_usage',
+                 'api_hard', 'd', 'm', 1, 1, $3, $4)",
         )
         .bind(format!("attempt-{state}"))
         .bind(c.run.id.to_string())
         .bind(state)
         .bind(1_800_000_000_i64)
-        .execute(&mut conn)
+        .execute(&pool)
         .await
         .expect("attempt");
     }
-    conn.close().await.expect("close");
 
     let month = s.prune_records(at(31 * DAY), true).await.expect("plan");
     let planned = |table: &str| {
@@ -80,29 +62,30 @@ async fn old_records_go_unresolved_ones_stay_and_a_dry_run_deletes_nothing() {
     );
     assert_eq!(planned("model_attempts"), 0, "usage is kept 90 days");
     assert_eq!(
-        count(&db, "SELECT count(*) FROM jobs").await,
+        count(&pool, "SELECT count(*) FROM jobs").await,
         1,
         "dry run deletes nothing"
     );
 
     s.prune_records(at(91 * DAY), false).await.expect("prune");
-    assert_eq!(count(&db, "SELECT count(*) FROM inbox_events").await, 0);
-    assert_eq!(count(&db, "SELECT count(*) FROM change_events").await, 0);
+    assert_eq!(count(&pool, "SELECT count(*) FROM inbox_events").await, 0);
+    assert_eq!(count(&pool, "SELECT count(*) FROM change_events").await, 0);
     assert_eq!(
         count(
-            &db,
+            &pool,
             "SELECT count(*) FROM model_attempts WHERE state = 'UNKNOWN'"
         )
         .await,
         1,
         "an unknown charge is never pruned by age"
     );
-    assert_eq!(count(&db, "SELECT count(*) FROM model_attempts").await, 1);
+    assert_eq!(count(&pool, "SELECT count(*) FROM model_attempts").await, 1);
     assert_eq!(
-        count(&db, "SELECT count(*) FROM runs").await,
+        count(&pool, "SELECT count(*) FROM runs").await,
         1,
         "runs stay"
     );
+    pool.close().await;
 }
 
 #[tokio::test(flavor = "current_thread")]

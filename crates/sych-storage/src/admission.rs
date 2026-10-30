@@ -2,7 +2,7 @@
 //! scheduling intent commit in one transaction, so a 2xx always means durable.
 
 use sqlx::Row;
-use sqlx::{Sqlite, Transaction};
+use sqlx::{Any, Transaction};
 use sych_core::scm::{ChangeSignal, ProviderCapabilities, RepositoryRef, WebhookEvent};
 use sych_core::{Sha256Digest, Timestamp, canonical_json};
 
@@ -85,7 +85,7 @@ impl Storage {
         let inserted = sqlx::query(
             "INSERT INTO inbox_events (provider_instance, connection_id, delivery_id, event,
                  action, payload_sha256, normalized, received_at, decision)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
              ON CONFLICT (provider_instance, connection_id, delivery_id) DO NOTHING
              RETURNING id",
         )
@@ -103,16 +103,16 @@ impl Storage {
         let Some(row) = inserted else {
             let row = sqlx::query(
                 "SELECT id FROM inbox_events
-                 WHERE provider_instance = ? AND connection_id = ? AND delivery_id = ?",
+                 WHERE provider_instance = $1 AND connection_id = $2 AND delivery_id = $3",
             )
             .bind(&conn.provider_instance)
             .bind(&conn.connection_id)
             .bind(delivery_id)
             .fetch_one(&mut *tx)
             .await?;
-            return Ok(Admitted::Duplicate {
-                inbox_id: row.get(0),
-            });
+            let inbox_id = row.get(0);
+            tx.commit().await?;
+            return Ok(Admitted::Duplicate { inbox_id });
         };
         let inbox_id: i64 = row.get(0);
         let mut intents = Vec::new();
@@ -120,10 +120,10 @@ impl Storage {
             let repository_id: i64 = sqlx::query(
                 "INSERT INTO repositories (tenant_id, connection_id, provider_instance,
                      external_id, full_name, installation_id)
-                 VALUES (?, ?, ?, ?, ?, ?)
+                 VALUES ($1, $2, $3, $4, $5, $6)
                  ON CONFLICT (tenant_id, connection_id, provider_instance, external_id)
                  DO UPDATE SET full_name = excluded.full_name,
-                     installation_id = coalesce(excluded.installation_id, installation_id)
+                     installation_id = coalesce(excluded.installation_id, repositories.installation_id)
                  RETURNING id",
             )
             .bind(&conn.tenant_id)
@@ -160,7 +160,7 @@ impl Storage {
 /// Upserts the change and its coalesced intent; returns the intent id.
 #[allow(clippy::too_many_arguments)] // one transaction step with its keys
 async fn schedule(
-    tx: &mut Transaction<'_, Sqlite>,
+    tx: &mut Transaction<'_, Any>,
     partition: &Partition,
     repository_id: i64,
     number: u64,
@@ -172,7 +172,7 @@ async fn schedule(
     let change_id: i64 = sqlx::query(
         "INSERT INTO changes (tenant_id, access_scope, change_key, desired_generation,
              repository_id, external_number)
-         VALUES (?, ?, ?, 0, ?, ?)
+         VALUES ($1, $2, $3, 0, $4, $5)
          ON CONFLICT (tenant_id, access_scope, change_key)
          DO UPDATE SET repository_id = excluded.repository_id
          RETURNING id",
@@ -188,10 +188,12 @@ async fn schedule(
     Ok(sqlx::query(
         "INSERT INTO change_intents (change_id, kind, due_at, latest_at, events,
              first_inbox_id, last_inbox_id, created_at)
-         VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+         VALUES ($1, $2, $3, $4, 1, $5, $6, $7)
          ON CONFLICT (change_id, kind) WHERE consumed_at IS NULL
-         DO UPDATE SET due_at = min(excluded.due_at, latest_at),
-             events = events + 1, last_inbox_id = excluded.last_inbox_id
+         DO UPDATE SET due_at = CASE
+             WHEN excluded.due_at < change_intents.latest_at THEN excluded.due_at
+             ELSE change_intents.latest_at END,
+             events = change_intents.events + 1, last_inbox_id = excluded.last_inbox_id
          RETURNING id",
     )
     .bind(change_id)
@@ -272,10 +274,11 @@ impl Storage {
         now: Timestamp,
     ) -> Result<i64, StorageError> {
         let caps = String::from_utf8_lossy(&canonical_json(capabilities)?).into_owned();
+        let mut tx = self.write().await?;
         let row = sqlx::query(
             "INSERT INTO repositories (tenant_id, connection_id, provider_instance, external_id,
                  full_name, installation_id, capabilities, capabilities_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              ON CONFLICT (tenant_id, connection_id, provider_instance, external_id)
              DO UPDATE SET full_name = excluded.full_name,
                  installation_id = excluded.installation_id,
@@ -290,8 +293,9 @@ impl Storage {
         .bind(i64::try_from(installation_id).unwrap_or(i64::MAX))
         .bind(caps)
         .bind(now.as_second())
-        .fetch_one(self.pool())
+        .fetch_one(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(row.get(0))
     }
 
@@ -302,8 +306,8 @@ impl Storage {
         external_id: &str,
     ) -> Result<Option<ProviderCapabilities>, StorageError> {
         let row = sqlx::query(
-            "SELECT capabilities FROM repositories WHERE tenant_id = ? AND connection_id = ?
-                 AND provider_instance = ? AND external_id = ?",
+            "SELECT capabilities FROM repositories WHERE tenant_id = $1 AND connection_id = $2
+                 AND provider_instance = $3 AND external_id = $4",
         )
         .bind(&conn.tenant_id)
         .bind(&conn.connection_id)
@@ -319,7 +323,7 @@ impl Storage {
 impl Storage {
     /// The normalized event of a receipt.
     pub async fn inbox_event(&self, inbox_id: i64) -> Result<WebhookEvent, StorageError> {
-        let text: String = sqlx::query("SELECT normalized FROM inbox_events WHERE id = ?")
+        let text: String = sqlx::query("SELECT normalized FROM inbox_events WHERE id = $1")
             .bind(inbox_id)
             .fetch_one(self.pool())
             .await?
@@ -329,15 +333,18 @@ impl Storage {
 
     /// Moves an intent whose handling must be retried; the bound moves with it.
     pub async fn postpone_intent(&self, intent_id: i64, due_at: i64) -> Result<(), StorageError> {
+        let mut tx = self.write().await?;
         sqlx::query(
-            "UPDATE change_intents SET due_at = ?, latest_at = max(latest_at, ?)
-             WHERE id = ? AND consumed_at IS NULL",
+            "UPDATE change_intents SET due_at = $1, latest_at = CASE
+                 WHEN latest_at > $2 THEN latest_at ELSE $2 END
+             WHERE id = $3 AND consumed_at IS NULL",
         )
         .bind(due_at)
         .bind(due_at)
         .bind(intent_id)
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 }

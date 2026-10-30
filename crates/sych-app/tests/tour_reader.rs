@@ -11,7 +11,7 @@ use sych_app::storage::block_on;
 use sych_core::analysis::tour_prompt::{DraftStep, TourDraft, assemble};
 use sych_core::tour::{Question, QuestionKind, plan};
 use sych_core::{ReviewResult, Timestamp};
-use sych_storage::{ArtifactKind, Storage, StoreConfig, TENANT_LOCAL, tour_role};
+use sych_storage::{ArtifactKind, Database, Storage, StoreConfig, TENANT_LOCAL, tour_role};
 use tempfile::TempDir;
 
 const RULES: &str = r#"schema_version: 1
@@ -135,7 +135,7 @@ fn store_tour(data: &Path, result: &ReviewResult) -> String {
     let (tour, problems) = assemble(&plan, result, draft, "fixed".into());
     assert!(problems.is_empty(), "{problems:?}");
     let config = StoreConfig {
-        database: data.join(".sych-data/sych.db"),
+        database: Database::Sqlite(data.join(".sych-data/sych.db")),
         artifacts: data.join(".sych-data/artifacts"),
     };
     block_on(async {

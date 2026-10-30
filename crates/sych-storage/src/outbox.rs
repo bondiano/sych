@@ -2,15 +2,20 @@
 //! for lands in the same transaction as the result pointer, so a crash after commit leaves a
 //! durable intent for the publisher and never a second analysis.
 
-use sqlx::{Row, Sqlite, Transaction};
-use sych_core::ResultId;
+use sqlx::{Any, Row, Transaction};
+use sych_core::{ResultId, schedule::RunInputs};
 
 use crate::{RunHandle, StorageError};
+
+fn publication_flags(inputs: Option<&str>) -> Result<(bool, bool), StorageError> {
+    let inputs = inputs.map(serde_json::from_str::<RunInputs>).transpose()?;
+    Ok(inputs.map_or((false, false), |inputs| (inputs.publish, inputs.checks)))
+}
 
 /// Queues the summary revision of `result` when the run's inputs ask for publication; an older
 /// unsent revision of the same object is superseded. Returns the operation id.
 pub(crate) async fn enqueue(
-    tx: &mut Transaction<'_, Sqlite>,
+    tx: &mut Transaction<'_, Any>,
     run: &RunHandle,
     result: ResultId,
     at: i64,
@@ -21,20 +26,19 @@ pub(crate) async fn enqueue(
 /// The summary operation of a committed run; `force` publishes even when the run's inputs did
 /// not ask for it (an authorized `sych publish`).
 async fn enqueue_summary(
-    tx: &mut Transaction<'_, Sqlite>,
+    tx: &mut Transaction<'_, Any>,
     run_id: &str,
     result: &str,
     at: i64,
     force: bool,
 ) -> Result<Option<i64>, StorageError> {
-    let row = sqlx::query(
-        "SELECT change_id, generation, coalesce(json_extract(inputs, '$.publish'), 0)
-         FROM runs WHERE id = ?",
-    )
-    .bind(run_id)
-    .fetch_one(&mut **tx)
-    .await?;
-    let (change_id, generation, publish): (i64, i64, bool) = (row.get(0), row.get(1), row.get(2));
+    let row = sqlx::query("SELECT change_id, generation, inputs FROM runs WHERE id = $1")
+        .bind(run_id)
+        .fetch_one(&mut **tx)
+        .await?;
+    let (change_id, generation, inputs): (i64, i64, Option<String>) =
+        (row.get(0), row.get(1), row.get(2));
+    let (publish, _) = publication_flags(inputs.as_deref())?;
     enqueue_check(tx, run_id, result, at).await?;
     if !publish && !force {
         return Ok(None);
@@ -43,7 +47,7 @@ async fn enqueue_summary(
     let object: i64 = sqlx::query(
         "INSERT INTO publication_objects (change_id, slot, kind, marker, desired_generation,
              desired_result_id, updated_at)
-         VALUES (?, 'summary', 'SUMMARY', ?, ?, ?, ?)
+         VALUES ($1, 'summary', 'SUMMARY', $2, $3, $4, $5)
          ON CONFLICT (change_id, slot) DO UPDATE SET
              desired_generation = excluded.desired_generation,
              desired_result_id = excluded.desired_result_id, updated_at = excluded.updated_at
@@ -58,8 +62,8 @@ async fn enqueue_summary(
     .await?
     .get(0);
     sqlx::query(
-        "UPDATE publication_operations SET state = 'SUPERSEDED', finished_at = ?
-         WHERE object_id = ? AND state = 'PENDING'",
+        "UPDATE publication_operations SET state = 'SUPERSEDED', finished_at = $1
+         WHERE object_id = $2 AND state = 'PENDING'",
     )
     .bind(at)
     .bind(object)
@@ -68,7 +72,7 @@ async fn enqueue_summary(
     let op: Option<i64> = sqlx::query(
         "INSERT INTO publication_operations (object_id, run_id, result_id, generation, state,
              next_action_at, created_at)
-         VALUES (?, ?, ?, ?, 'PENDING', ?, ?)
+         VALUES ($1, $2, $3, $4, 'PENDING', $5, $6)
          ON CONFLICT (object_id, generation) DO NOTHING RETURNING id",
     )
     .bind(object)
@@ -94,7 +98,7 @@ impl crate::Storage {
     ) -> Result<Option<i64>, StorageError> {
         let mut tx = self.write().await?;
         let result: String = sqlx::query_scalar(
-            "SELECT result_id FROM runs WHERE id = ? AND tenant_id = ? AND state = 'COMPLETED'",
+            "SELECT result_id FROM runs WHERE id = $1 AND tenant_id = $2 AND state = 'COMPLETED'",
         )
         .bind(run_id)
         .bind(tenant_id)
@@ -124,7 +128,7 @@ impl crate::Storage {
         let rows = sqlx::query(
             "SELECT o.id, o.object_id, p.slot, o.state, o.generation, o.result_id
              FROM publication_operations o JOIN publication_objects p ON p.id = o.object_id
-             WHERE p.change_id = ? ORDER BY o.id",
+             WHERE p.change_id = $1 ORDER BY o.id",
         )
         .bind(change_id)
         .fetch_all(self.pool())
@@ -161,7 +165,7 @@ impl crate::Storage {
             let object: Option<i64> = sqlx::query_scalar(
                 "INSERT INTO publication_objects (change_id, slot, kind, marker, desired_generation,
                      desired_result_id, fingerprint, anchor, updated_at)
-                 VALUES (?, ?, 'INLINE', ?, ?, ?, ?, ?, ?)
+                 VALUES ($1, $2, 'INLINE', $3, $4, $5, $6, $7, $8)
                  ON CONFLICT (change_id, slot) DO NOTHING RETURNING id",
             )
             .bind(change_id)
@@ -179,7 +183,7 @@ impl crate::Storage {
                 sqlx::query_scalar(
                     "INSERT INTO publication_operations (object_id, run_id, result_id, generation,
                          state, next_action_at, created_at)
-                     VALUES (?, ?, ?, ?, 'PENDING', ?, ?) RETURNING id",
+                     VALUES ($1, $2, $3, $4, 'PENDING', $5, $6) RETURNING id",
                 )
                 .bind(object)
                 .bind(run_id)
@@ -202,14 +206,19 @@ impl crate::Storage {
         change_id: i64,
     ) -> Result<Vec<(String, bool)>, StorageError> {
         let rows = sqlx::query(
-            "SELECT p.fingerprint, p.remote_id IS NULL AND EXISTS (SELECT 1 FROM publication_operations o
-                 WHERE o.object_id = p.id AND o.state = 'FAILED' AND o.last_error LIKE 'INVALID_ANCHOR%')
-             FROM publication_objects p WHERE p.change_id = ? AND p.kind = 'INLINE'",
+            "SELECT p.fingerprint, CAST(CASE WHEN p.remote_id IS NULL AND EXISTS
+                 (SELECT 1 FROM publication_operations o WHERE o.object_id = p.id
+                     AND o.state = 'FAILED' AND o.last_error LIKE 'INVALID_ANCHOR%')
+                 THEN 1 ELSE 0 END AS BIGINT)
+             FROM publication_objects p WHERE p.change_id = $1 AND p.kind = 'INLINE'",
         )
         .bind(change_id)
         .fetch_all(self.pool())
         .await?;
-        Ok(rows.iter().map(|r| (r.get(0), r.get(1))).collect())
+        Ok(rows
+            .iter()
+            .map(|r| (r.get(0), r.get::<i64, _>(1) != 0))
+            .collect())
     }
 
     /// Queues the advisory check run of a failed server run, when its inputs ask for checks;
@@ -229,18 +238,18 @@ impl crate::Storage {
 /// The check object of the run's change and an operation for this generation, when the run's
 /// inputs ask for checks.
 pub(crate) async fn enqueue_check(
-    tx: &mut Transaction<'_, Sqlite>,
+    tx: &mut Transaction<'_, Any>,
     run_id: &str,
     result_id: &str,
     at: i64,
 ) -> Result<Option<i64>, StorageError> {
-    let row = sqlx::query(
-        "SELECT change_id, generation, coalesce(json_extract(inputs, '$.checks'), 0) FROM runs WHERE id = ?",
-    )
-    .bind(run_id)
-    .fetch_one(&mut **tx)
-    .await?;
-    let (change_id, generation, checks): (i64, i64, bool) = (row.get(0), row.get(1), row.get(2));
+    let row = sqlx::query("SELECT change_id, generation, inputs FROM runs WHERE id = $1")
+        .bind(run_id)
+        .fetch_one(&mut **tx)
+        .await?;
+    let (change_id, generation, inputs): (i64, i64, Option<String>) =
+        (row.get(0), row.get(1), row.get(2));
+    let (_, checks) = publication_flags(inputs.as_deref())?;
     if !checks {
         return Ok(None);
     }
@@ -248,7 +257,7 @@ pub(crate) async fn enqueue_check(
     let object: i64 = sqlx::query(
         "INSERT INTO publication_objects (change_id, slot, kind, marker, desired_generation,
              desired_result_id, updated_at)
-         VALUES (?, 'check', 'CHECK', ?, ?, ?, ?)
+         VALUES ($1, 'check', 'CHECK', $2, $3, $4, $5)
          ON CONFLICT (change_id, slot) DO UPDATE SET desired_generation = excluded.desired_generation,
              desired_result_id = excluded.desired_result_id, updated_at = excluded.updated_at
          RETURNING id",
@@ -264,7 +273,7 @@ pub(crate) async fn enqueue_check(
     let op = sqlx::query_scalar(
         "INSERT INTO publication_operations (object_id, run_id, result_id, generation, state,
              next_action_at, created_at)
-         VALUES (?, ?, ?, ?, 'PENDING', ?, ?)
+         VALUES ($1, $2, $3, $4, 'PENDING', $5, $6)
          ON CONFLICT (object_id, generation) DO NOTHING RETURNING id",
     )
     .bind(object)
@@ -276,4 +285,35 @@ pub(crate) async fn enqueue_check(
     .fetch_optional(&mut **tx)
     .await?;
     Ok(op)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::publication_flags;
+
+    #[test]
+    fn publication_requires_valid_stored_inputs() {
+        assert_eq!(publication_flags(None).expect("no inputs"), (false, false));
+        let mut inputs = serde_json::json!({
+            "head_sha": "head",
+            "base_sha": "base",
+            "base_ref": "main",
+            "fork": false,
+            "trigger": {"kind": "CHANGED"}
+        });
+        assert_eq!(
+            publication_flags(Some(&inputs.to_string())).expect("default flags"),
+            (false, false)
+        );
+        inputs["publish"] = true.into();
+        inputs["checks"] = true.into();
+        assert_eq!(
+            publication_flags(Some(&inputs.to_string())).expect("publication flags"),
+            (true, true)
+        );
+        assert!(publication_flags(Some("{")).is_err());
+        assert!(publication_flags(Some("{}")).is_err());
+        inputs["checks"] = "true".into();
+        assert!(publication_flags(Some(&inputs.to_string())).is_err());
+    }
 }

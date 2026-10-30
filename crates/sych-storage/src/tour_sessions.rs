@@ -30,7 +30,7 @@ impl Storage {
     ) -> Result<Option<TourId>, StorageError> {
         let row = sqlx::query(
             "SELECT substr(role, 6) FROM run_artifacts
-             WHERE run_id = ? AND tenant_id = ? AND role LIKE 'tour:%' ORDER BY role DESC LIMIT 1",
+             WHERE run_id = $1 AND tenant_id = $2 AND role LIKE 'tour:%' ORDER BY role DESC LIMIT 1",
         )
         .bind(run.to_string())
         .bind(tenant_id)
@@ -53,7 +53,7 @@ impl Storage {
         tour: TourId,
     ) -> Result<bool, StorageError> {
         Ok(sqlx::query(
-            "SELECT 1 FROM run_artifacts WHERE run_id = ? AND tenant_id = ? AND role = ?",
+            "SELECT 1 FROM run_artifacts WHERE run_id = $1 AND tenant_id = $2 AND role = $3",
         )
         .bind(run.to_string())
         .bind(tenant_id)
@@ -71,7 +71,7 @@ impl Storage {
     ) -> Result<Option<TourSession>, StorageError> {
         let row = sqlx::query(
             "SELECT state, revealed FROM tour_sessions
-             WHERE tenant_id = ? AND tour_id = ? AND actor = ?",
+             WHERE tenant_id = $1 AND tour_id = $2 AND actor = $3",
         )
         .bind(tenant_id)
         .bind(tour.to_string())
@@ -100,9 +100,10 @@ impl Storage {
     ) -> Result<(), StorageError> {
         let revealed = serde_json::to_string(&session.revealed)
             .map_err(|e| StorageError::Corrupt(e.to_string()))?;
+        let mut tx = self.write().await?;
         sqlx::query(
             "INSERT INTO tour_sessions (tenant_id, tour_id, actor, run_id, state, revealed, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
              ON CONFLICT (tenant_id, tour_id, actor)
              DO UPDATE SET state = excluded.state, revealed = excluded.revealed,
                  updated_at = excluded.updated_at",
@@ -114,8 +115,9 @@ impl Storage {
         .bind(state_str(session.state))
         .bind(revealed)
         .bind(now.as_second())
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -126,9 +128,10 @@ impl Storage {
         run: RunId,
         exchange: &Exchange,
     ) -> Result<(), StorageError> {
+        let mut tx = self.write().await?;
         sqlx::query(
             "INSERT INTO tour_exchanges (id, tenant_id, tour_id, actor, run_id, body, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(&exchange.id)
         .bind(tenant_id)
@@ -137,8 +140,9 @@ impl Storage {
         .bind(run.to_string())
         .bind(serde_json::to_string(exchange)?)
         .bind(exchange.at.as_second())
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -150,7 +154,7 @@ impl Storage {
         actor: &str,
     ) -> Result<Vec<Exchange>, StorageError> {
         let rows = sqlx::query(
-            "SELECT body FROM tour_exchanges WHERE tenant_id = ? AND tour_id = ? AND actor = ?
+            "SELECT body FROM tour_exchanges WHERE tenant_id = $1 AND tour_id = $2 AND actor = $3
              ORDER BY created_at, id",
         )
         .bind(tenant_id)

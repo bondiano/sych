@@ -109,8 +109,8 @@ impl Storage {
              JOIN run_artifacts ra ON ra.run_id = r.id
              LEFT JOIN artifacts a ON a.tenant_id = ra.tenant_id
                  AND a.access_scope = ra.access_scope AND a.sha256 = ra.sha256
-             WHERE r.id = ? AND r.tenant_id = ? AND r.access_scope = ?
-                 AND substr(ra.role, 1, length(?)) = ?",
+             WHERE r.id = $1 AND r.tenant_id = $2 AND r.access_scope = $3
+                 AND substr(ra.role, 1, length($4)) = $5",
         )
         .bind(run.to_string())
         .bind(&partition.tenant_id)

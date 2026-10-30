@@ -126,6 +126,8 @@ pub struct AuthChatgptArguments {
 pub enum DbCommands {
     /// Apply pending migrations; other commands never change the schema
     Migrate(StoreArguments),
+    /// Import a stopped `SQLite` snapshot and its artifacts into an empty, migrated `PostgreSQL` database
+    ImportSqlite(DbImportArguments),
 }
 
 #[derive(Subcommand)]
@@ -435,6 +437,16 @@ pub struct ReconcileArguments {
 pub struct StoreArguments {
     #[arg(long)]
     pub config: Option<PathBuf>,
+}
+
+#[derive(clap::Args)]
+pub struct DbImportArguments {
+    /// Consistent `SQLite` snapshot; stop all writers and GC before taking it
+    #[arg(long)]
+    pub source: PathBuf,
+    /// `PostgreSQL` target and the matching artifact directory
+    #[arg(long)]
+    pub config: PathBuf,
 }
 
 #[derive(clap::Args)]

@@ -1,7 +1,7 @@
 //! Durable local runs, result pointers and immutable artifacts (spec §8.2, §20).
 //!
-//! `SQLite` in WAL mode with one connection: one writer, one worker. Schema changes happen only
-//! through [`Storage::migrate`]; [`Storage::open`] refuses an unmigrated database.
+//! One serialized writer across `SQLite` (WAL) or `PostgreSQL` connections. Schema changes happen
+//! only through [`Storage::migrate`]; [`Storage::open`] refuses an unmigrated database.
 
 #[macro_use]
 mod sql;
@@ -11,6 +11,7 @@ mod artifacts;
 mod checkpoints;
 mod connection;
 mod gc;
+mod import;
 mod jobs;
 mod ledger;
 mod lineage;
@@ -21,13 +22,13 @@ mod retention;
 mod scheduler;
 mod tour_sessions;
 
-use std::io;
 use std::path::PathBuf;
+use std::{fmt, io};
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use sqlx::migrate::{MigrateError, Migrator};
-use sqlx::{Row, SqlitePool};
+use sqlx::{AnyPool, Row};
 use sych_core::{
     DecodeError, PolicySnapshotId, ReviewResult, RunId, SCHEMA_VERSION, Sha256Digest,
     SourceSnapshotId, Timestamp, canonical_json, decode, sha256,
@@ -48,6 +49,7 @@ pub use scheduler::ChangeRow;
 pub use tour_sessions::tour_role;
 
 static MIGRATOR: Migrator = sqlx::migrate!("../../migrations/sqlite");
+static POSTGRES_MIGRATOR: Migrator = sqlx::migrate!("../../migrations/postgres");
 
 pub const TENANT_LOCAL: &str = "local";
 const DAY: i64 = 86_400;
@@ -135,9 +137,31 @@ impl ArtifactKind {
     }
 }
 
+/// A local CLI database or the server database; `PostgreSQL` credentials are never displayed.
+#[derive(Clone, PartialEq, Eq)]
+pub enum Database {
+    Sqlite(PathBuf),
+    Postgres(String),
+}
+
+impl fmt::Display for Database {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Sqlite(path) => fmt::Display::fmt(&path.display(), f),
+            Self::Postgres(_) => f.write_str("PostgreSQL"),
+        }
+    }
+}
+
+impl fmt::Debug for Database {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct StoreConfig {
-    pub database: PathBuf,
+    pub database: Database,
     pub artifacts: PathBuf,
 }
 
@@ -152,8 +176,9 @@ pub struct RunHandle {
 }
 
 pub struct Storage {
-    pool: SqlitePool,
+    pool: AnyPool,
     store: ArtifactStore,
+    postgres: bool,
 }
 
 fn int(value: u64) -> i64 {
@@ -173,9 +198,9 @@ impl Storage {
         let mut tx = self.write().await?;
         let row = sqlx::query(
             "INSERT INTO changes (tenant_id, access_scope, change_key, desired_generation)
-             VALUES (?, ?, ?, 1)
+             VALUES ($1, $2, $3, 1)
              ON CONFLICT (tenant_id, access_scope, change_key)
-             DO UPDATE SET desired_generation = desired_generation + 1
+             DO UPDATE SET desired_generation = changes.desired_generation + 1
              RETURNING id, desired_generation",
         )
         .bind(&partition.tenant_id)
@@ -189,7 +214,7 @@ impl Storage {
         sqlx::query(
             "INSERT INTO runs (id, tenant_id, access_scope, change_id, generation,
                  source_snapshot_id, policy_snapshot_id, state, stage, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'RUNNING', 'PLAN', ?)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'RUNNING', 'PLAN', $8)",
         )
         .bind(id.to_string())
         .bind(&partition.tenant_id)
@@ -229,9 +254,11 @@ impl Storage {
         sqlx::query(
             "INSERT INTO artifacts (tenant_id, access_scope, sha256, kind, schema_version,
                  store_key, size, created_at, retain_until)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
              ON CONFLICT (tenant_id, access_scope, sha256)
-             DO UPDATE SET retain_until = max(retain_until, excluded.retain_until)",
+             DO UPDATE SET retain_until = CASE
+                 WHEN artifacts.retain_until > excluded.retain_until THEN artifacts.retain_until
+                 ELSE excluded.retain_until END",
         )
         .bind(&p.tenant_id)
         .bind(&p.access_scope)
@@ -248,11 +275,11 @@ impl Storage {
         let fence = run.fence.as_ref();
         let pinned = sqlx::query(concat!(
             "INSERT INTO run_artifacts (run_id, role, tenant_id, access_scope, sha256)
-             SELECT ?, ?, ?, ?, ? WHERE ? IS NULL OR EXISTS (SELECT 1 FROM runs
-                 WHERE runs.id = ? AND runs.state IN ",
+             SELECT $1, $2, $3, $4, $5 WHERE CAST($6 AS BIGINT) IS NULL
+                 OR EXISTS (SELECT 1 FROM runs WHERE runs.id = $7 AND runs.state IN ",
             active!(),
             " AND ",
-            fenced!(),
+            fenced!("$8", "$9", "$10", "$11"),
             ")
              ON CONFLICT (run_id, role) DO UPDATE SET sha256 = excluded.sha256"
         ))
@@ -305,7 +332,7 @@ impl Storage {
             "SELECT a.store_key FROM run_artifacts ra
              JOIN artifacts a ON a.tenant_id = ra.tenant_id
                  AND a.access_scope = ra.access_scope AND a.sha256 = ra.sha256
-             WHERE ra.run_id = ? AND ra.role = 'review_result' AND ra.sha256 = ?",
+             WHERE ra.run_id = $1 AND ra.role = 'review_result' AND ra.sha256 = $2",
         )
         .bind(run.id.to_string())
         .bind(result_sha256.to_string())
@@ -321,13 +348,13 @@ impl Storage {
         self.store.get(&key, result_sha256)?;
         let usage = &result.usage_summary;
         let updated = sqlx::query(concat!(
-            "UPDATE runs SET state = 'COMPLETED', stage = 'REDUCE', result_id = ?,
-                 result_sha256 = ?, model_attempts = ?, input_tokens = ?, output_tokens = ?,
-                 cost_known_micro_usd = ?, unknown_cost_attempts = ?, finished_at = ?,
-                 coverage = ?, unknown_obligations = ?
-             WHERE id = ? AND tenant_id = ? AND access_scope = ? AND state = 'RUNNING'
-                 AND (? IS NULL OR (stage = 'ANALYZE' AND ",
-            fenced!(),
+            "UPDATE runs SET state = 'COMPLETED', stage = 'REDUCE', result_id = $1,
+                 result_sha256 = $2, model_attempts = $3, input_tokens = $4, output_tokens = $5,
+                 cost_known_micro_usd = $6, unknown_cost_attempts = $7, finished_at = $8,
+                 coverage = $9, unknown_obligations = $10
+             WHERE id = $11 AND tenant_id = $12 AND access_scope = $13 AND state = 'RUNNING'
+                 AND (CAST($14 AS BIGINT) IS NULL OR (stage = 'ANALYZE' AND ",
+            fenced!("$15", "$16", "$17", "$18"),
             "))"
         ))
         .bind(result.result_id.to_string())
@@ -396,28 +423,31 @@ impl Storage {
         reason: &str,
         now: Timestamp,
     ) -> Result<(), StorageError> {
+        let mut tx = self.write().await?;
         sqlx::query(
-            "UPDATE runs SET state = ?, failure = ?, finished_at = ?
-             WHERE id = ? AND state = 'RUNNING'",
+            "UPDATE runs SET state = $1, failure = $2, finished_at = $3
+             WHERE id = $4 AND state = 'RUNNING'",
         )
         .bind(state)
         .bind(reason)
         .bind(now.as_second())
         .bind(run.id.to_string())
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 
     /// A handle to a saved local run, for work on its result (a tour) after it finished.
     pub async fn run_handle(&self, tenant_id: &str, run: RunId) -> Result<RunHandle, StorageError> {
-        let row =
-            sqlx::query("SELECT access_scope, generation FROM runs WHERE id = ? AND tenant_id = ?")
-                .bind(run.to_string())
-                .bind(tenant_id)
-                .fetch_optional(&self.pool)
-                .await?
-                .ok_or(StorageError::UnknownRun(run))?;
+        let row = sqlx::query(
+            "SELECT access_scope, generation FROM runs WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(run.to_string())
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(StorageError::UnknownRun(run))?;
         let generation: i64 = row.get(1);
         Ok(RunHandle {
             id: run,
@@ -433,7 +463,7 @@ impl Storage {
     }
 
     pub async fn run_state(&self, tenant_id: &str, run: RunId) -> Result<String, StorageError> {
-        let row = sqlx::query("SELECT state FROM runs WHERE id = ? AND tenant_id = ?")
+        let row = sqlx::query("SELECT state FROM runs WHERE id = $1 AND tenant_id = $2")
             .bind(run.to_string())
             .bind(tenant_id)
             .fetch_optional(&self.pool)
@@ -451,7 +481,7 @@ impl Storage {
             "SELECT r.state, r.result_sha256, a.store_key FROM runs r
              LEFT JOIN artifacts a ON a.tenant_id = r.tenant_id
                  AND a.access_scope = r.access_scope AND a.sha256 = r.result_sha256
-             WHERE r.id = ? AND r.tenant_id = ?",
+             WHERE r.id = $1 AND r.tenant_id = $2",
         )
         .bind(run.to_string())
         .bind(tenant_id)
@@ -479,7 +509,7 @@ impl Storage {
              JOIN run_artifacts ra ON ra.run_id = r.id
              LEFT JOIN artifacts a ON a.tenant_id = ra.tenant_id
                  AND a.access_scope = ra.access_scope AND a.sha256 = ra.sha256
-             WHERE r.id = ? AND r.tenant_id = ? AND ra.role = ?",
+             WHERE r.id = $1 AND r.tenant_id = $2 AND ra.role = $3",
         )
         .bind(run.to_string())
         .bind(tenant_id)

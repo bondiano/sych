@@ -6,9 +6,9 @@ use sych_app::args::{
     AuthCommands, CacheCommands, Cli, Commands, ConfigCommands, DbCommands, EvalCommands,
 };
 use sych_app::commands::{
-    ask, auth_chatgpt, cache_prune, config_init, config_validate, db_migrate, doctor, eval_measure,
-    eval_run, eval_validate, explain, handoff, reconcile, review, run_action, semantic, serve,
-    show, tour,
+    ask, auth_chatgpt, cache_prune, config_init, config_validate, db_import, db_migrate, doctor,
+    eval_measure, eval_run, eval_validate, explain, handoff, reconcile, review, run_action,
+    semantic, serve, show, tour,
 };
 use sych_app::quality::{compare, judge};
 use sych_app::run_command;
@@ -60,6 +60,9 @@ fn main() -> ExitCode {
         }),
         Commands::Db(DbCommands::Migrate(args)) => {
             run_command("db migrate", || db_migrate::run(&args))
+        }
+        Commands::Db(DbCommands::ImportSqlite(args)) => {
+            run_command("db import-sqlite", || db_import::run(&args))
         }
         Commands::Auth(AuthCommands::Chatgpt(args)) => {
             run_command("auth chatgpt", || auth_chatgpt::run(&args))

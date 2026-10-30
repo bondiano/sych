@@ -1,5 +1,4 @@
 //! Storage contract on a real `SQLite` file and artifact directory (roadmap M0.5).
-// shortcut: written against the concrete SQLite API; extract a trait when PostgreSQL lands (M4).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,7 +7,7 @@ use sych_core::{
     PolicySnapshotId, ReviewResult, RunId, SourceSnapshotId, Timestamp, decode, sha256,
 };
 use sych_storage::{
-    ArtifactKind, Partition, PruneReason, RunHandle, Storage, StorageError, StoreConfig,
+    ArtifactKind, Database, Partition, PruneReason, RunHandle, Storage, StorageError, StoreConfig,
     TENANT_LOCAL,
 };
 use tempfile::TempDir;
@@ -23,7 +22,7 @@ fn at(offset: i64) -> Timestamp {
 
 fn config(dir: &Path) -> StoreConfig {
     StoreConfig {
-        database: dir.join("db/sych.db"),
+        database: Database::Sqlite(dir.join("db/sych.db")),
         artifacts: dir.join("artifacts"),
     }
 }
@@ -106,7 +105,10 @@ async fn schema_changes_only_through_migrate() {
         Storage::open(&cfg).await,
         Err(StorageError::NotMigrated(_))
     ));
-    assert!(!cfg.database.exists(), "open never creates a database");
+    assert!(
+        !dir.path().join("db/sych.db").exists(),
+        "open never creates a database"
+    );
     let files = fs::read_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/sqlite"))
         .expect("migrations")
         .count();

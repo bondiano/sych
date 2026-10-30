@@ -38,9 +38,9 @@ impl Storage {
         let at = now.as_second();
         let mut tx = self.write().await?;
         let row = sqlx::query(
-            "UPDATE jobs SET state = 'CLAIMED', owner = ?, lease_epoch = lease_epoch + 1,
-                 lease_until = ?, attempts = attempts + 1
-             WHERE id = (SELECT id FROM jobs WHERE state = 'QUEUED' AND next_attempt_at <= ?
+            "UPDATE jobs SET state = 'CLAIMED', owner = $1, lease_epoch = lease_epoch + 1,
+                 lease_until = $2, attempts = attempts + 1
+             WHERE id = (SELECT id FROM jobs WHERE state = 'QUEUED' AND next_attempt_at <= $3
                  ORDER BY next_attempt_at, id LIMIT 1)
              RETURNING id, lease_epoch, run_id, attempts, deadline",
         )
@@ -50,12 +50,13 @@ impl Storage {
         .fetch_optional(&mut *tx)
         .await?;
         let Some(job) = row else {
+            tx.commit().await?;
             return Ok(None);
         };
         let run_id: String = job.get(2);
         let run = sqlx::query(
             "SELECT tenant_id, access_scope, generation, change_id, inputs, stage,
-                 evidence_deadline FROM runs WHERE id = ?",
+                 evidence_deadline FROM runs WHERE id = $1",
         )
         .bind(&run_id)
         .fetch_one(&mut *tx)
@@ -99,17 +100,19 @@ impl Storage {
         now: Timestamp,
     ) -> Result<bool, StorageError> {
         let at = now.as_second();
+        let mut tx = self.write().await?;
         let done = sqlx::query(
-            "UPDATE jobs SET lease_until = ? WHERE id = ? AND owner = ? AND lease_epoch = ?
-                 AND state = 'CLAIMED' AND lease_until >= ?",
+            "UPDATE jobs SET lease_until = $1 WHERE id = $2 AND owner = $3 AND lease_epoch = $4
+                 AND state = 'CLAIMED' AND lease_until >= $5",
         )
         .bind(at + lease_seconds)
         .bind(fence.job_id)
         .bind(&fence.owner)
         .bind(fence.epoch)
         .bind(at)
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(done.rows_affected() == 1)
     }
 
@@ -120,17 +123,20 @@ impl Storage {
         deadline: i64,
         now: Timestamp,
     ) -> Result<bool, StorageError> {
+        let mut tx = self.write().await?;
         let done = sqlx::query(
-            "UPDATE jobs SET deadline = max(deadline, ?) WHERE id = ? AND owner = ?
-                 AND lease_epoch = ? AND state = 'CLAIMED' AND lease_until >= ?",
+            "UPDATE jobs SET deadline = CASE WHEN deadline > $1 THEN deadline ELSE $1 END
+             WHERE id = $2 AND owner = $3
+                 AND lease_epoch = $4 AND state = 'CLAIMED' AND lease_until >= $5",
         )
         .bind(deadline)
         .bind(fence.job_id)
         .bind(&fence.owner)
         .bind(fence.epoch)
         .bind(now.as_second())
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(done.rows_affected() == 1)
     }
 
@@ -140,10 +146,10 @@ impl Storage {
         let at = now.as_second();
         let mut tx = self.write().await?;
         let failed: Vec<String> = sqlx::query(
-            "UPDATE jobs SET state = 'FAILED', lease_epoch = lease_epoch + 1, finished_at = ?,
+            "UPDATE jobs SET state = 'FAILED', lease_epoch = lease_epoch + 1, finished_at = $1,
                  last_error = 'lease expired'
-             WHERE state = 'CLAIMED' AND lease_until < ?
-                 AND (attempts > max_attempts OR deadline <= ?)
+             WHERE state = 'CLAIMED' AND lease_until < $2
+                 AND (attempts > max_attempts OR deadline <= $3)
              RETURNING run_id",
         )
         .bind(at)
@@ -157,7 +163,7 @@ impl Storage {
         for run in &failed {
             sqlx::query(concat!(
                 "UPDATE runs SET state = 'FAILED', failure = 'worker lease expired',
-                     finished_at = ? WHERE id = ? AND state IN ",
+                     finished_at = $1 WHERE id = $2 AND state IN ",
                 active!()
             ))
             .bind(at)
@@ -167,8 +173,8 @@ impl Storage {
         }
         let requeued = sqlx::query(
             "UPDATE jobs SET state = 'QUEUED', owner = NULL, lease_epoch = lease_epoch + 1,
-                 next_attempt_at = ?, last_error = 'lease expired'
-             WHERE state = 'CLAIMED' AND lease_until < ?",
+                 next_attempt_at = $1, last_error = 'lease expired'
+             WHERE state = 'CLAIMED' AND lease_until < $2",
         )
         .bind(at)
         .bind(at)
@@ -186,11 +192,12 @@ impl Storage {
         error: Option<&str>,
         now: Timestamp,
     ) -> Result<bool, StorageError> {
+        let mut tx = self.write().await?;
         let done = sqlx::query(
-            "UPDATE jobs SET state = 'QUEUED', owner = NULL, next_attempt_at = ?,
-                 last_error = coalesce(?, last_error)
-             WHERE id = ? AND owner = ? AND lease_epoch = ? AND state = 'CLAIMED'
-                 AND lease_until >= ?",
+            "UPDATE jobs SET state = 'QUEUED', owner = NULL, next_attempt_at = $1,
+                 last_error = coalesce($2, last_error)
+             WHERE id = $3 AND owner = $4 AND lease_epoch = $5 AND state = 'CLAIMED'
+                 AND lease_until >= $6",
         )
         .bind(next_attempt_at)
         .bind(error)
@@ -198,8 +205,9 @@ impl Storage {
         .bind(&fence.owner)
         .bind(fence.epoch)
         .bind(now.as_second())
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(done.rows_affected() == 1)
     }
 
@@ -221,13 +229,14 @@ impl Storage {
         } else {
             "RUNNING"
         };
+        let mut tx = self.write().await?;
         let done = sqlx::query(concat!(
-            "UPDATE runs SET state = ?, stage = 'EVIDENCE', source_snapshot_id = ?,
-                 policy_snapshot_id = ?, expected_sources = ?, evidence_deadline = ?
-             WHERE id = ? AND state IN ",
+            "UPDATE runs SET state = $1, stage = 'EVIDENCE', source_snapshot_id = $2,
+                 policy_snapshot_id = $3, expected_sources = $4, evidence_deadline = $5
+             WHERE id = $6 AND state IN ",
             active!(),
             " AND ",
-            fenced!()
+            fenced!("$7", "$8", "$9", "$10")
         ))
         .bind(state)
         .bind(snapshot.0.to_string())
@@ -239,8 +248,9 @@ impl Storage {
         .bind(&fence.owner)
         .bind(fence.epoch)
         .bind(now.as_second())
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(done.rows_affected() == 1)
     }
 
@@ -253,12 +263,13 @@ impl Storage {
         sources: &serde_json::Value,
         now: Timestamp,
     ) -> Result<bool, StorageError> {
+        let mut tx = self.write().await?;
         let done = sqlx::query(concat!(
-            "UPDATE runs SET state = 'RUNNING', stage = 'ANALYZE', expected_sources = ?
-             WHERE id = ? AND state IN ",
+            "UPDATE runs SET state = 'RUNNING', stage = 'ANALYZE', expected_sources = $1
+             WHERE id = $2 AND state IN ",
             active!(),
             " AND ",
-            fenced!()
+            fenced!("$3", "$4", "$5", "$6")
         ))
         .bind(sources.to_string())
         .bind(run.to_string())
@@ -266,8 +277,9 @@ impl Storage {
         .bind(&fence.owner)
         .bind(fence.epoch)
         .bind(now.as_second())
-        .execute(self.pool())
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(done.rows_affected() == 1)
     }
 
@@ -282,11 +294,11 @@ impl Storage {
         let at = now.as_second();
         let mut tx = self.write().await?;
         let done = sqlx::query(concat!(
-            "UPDATE runs SET state = 'FAILED', failure = ?, finished_at = ?
-             WHERE id = ? AND state IN ",
+            "UPDATE runs SET state = 'FAILED', failure = $1, finished_at = $2
+             WHERE id = $3 AND state IN ",
             active!(),
             " AND ",
-            fenced!()
+            fenced!("$4", "$5", "$6", "$7")
         ))
         .bind(reason)
         .bind(at)
@@ -308,7 +320,7 @@ impl Storage {
     /// `(state, lease_epoch, attempts, next_attempt_at)` of the jobs of a run.
     pub async fn jobs_of(&self, run: &str) -> Result<Vec<(String, i64, i64, i64)>, StorageError> {
         let rows = sqlx::query(
-            "SELECT state, lease_epoch, attempts, next_attempt_at FROM jobs WHERE run_id = ?
+            "SELECT state, lease_epoch, attempts, next_attempt_at FROM jobs WHERE run_id = $1
              ORDER BY id",
         )
         .bind(run)
@@ -322,15 +334,15 @@ impl Storage {
 }
 
 pub(crate) async fn finish_job(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    tx: &mut sqlx::Transaction<'_, sqlx::Any>,
     fence: &Fence,
     state: &str,
     error: Option<&str>,
     at: i64,
 ) -> Result<(), StorageError> {
     sqlx::query(
-        "UPDATE jobs SET state = ?, finished_at = ?, last_error = coalesce(?, last_error)
-         WHERE id = ? AND lease_epoch = ?",
+        "UPDATE jobs SET state = $1, finished_at = $2, last_error = coalesce($3, last_error)
+         WHERE id = $4 AND lease_epoch = $5",
     )
     .bind(state)
     .bind(at)

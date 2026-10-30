@@ -1,27 +1,13 @@
-//! Webhook admission on a real `SQLite` file (roadmap M2.1): receipt, binding and intent in one
+//! Webhook admission on the selected backend (roadmap M2.1): receipt, binding and intent in one
 //! transaction, recognized repeats and separate tenant bindings of one repository.
 
 use sych_core::scm::{ChangeSignal, RepositoryRef, WebhookEvent};
-use sych_core::{Timestamp, sha256};
-use sych_storage::{Admitted, Connection, Storage, StoreConfig};
-use tempfile::TempDir;
+use sych_core::sha256;
+use sych_storage::{Admitted, Connection};
 
-const T0: i64 = 1_800_000_000;
+mod support;
 
-fn at(offset: i64) -> Timestamp {
-    Timestamp::from_second(T0 + offset).expect("timestamp")
-}
-
-async fn migrated() -> (TempDir, Storage) {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let config = StoreConfig {
-        database: dir.path().join("sych.db"),
-        artifacts: dir.path().join("artifacts"),
-    };
-    Storage::migrate(&config).await.expect("migrate");
-    let storage = Storage::open(&config).await.expect("open");
-    (dir, storage)
-}
+use support::{T0, at, migrated};
 
 fn conn(tenant: &str, id: &str) -> Connection {
     Connection {

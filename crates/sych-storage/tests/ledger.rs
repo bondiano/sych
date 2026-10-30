@@ -1,7 +1,6 @@
-//! Model ledger on a real `SQLite` file (roadmap M1.3): concurrent reservations, idempotent
+//! Model ledger on the selected backend (roadmap M1.3): concurrent reservations, idempotent
 //! settlement, unknown charges, monthly subscription fees and billing mismatch.
 
-use std::path::Path;
 use std::sync::Arc;
 
 use sych_core::config::{BillingKind, Budget, Enforcement, FixedFee};
@@ -12,9 +11,13 @@ use sych_core::model::{
 use sych_core::{
     AttemptId, MicroUsd, PolicySnapshotId, RunId, SourceSnapshotId, Timestamp, sha256,
 };
-use sych_storage::{Partition, Storage, StoreConfig, TENANT_LOCAL};
-use tempfile::TempDir;
+use sych_storage::{Partition, Storage, TENANT_LOCAL};
 use tokio::task::JoinSet;
+
+#[path = "support/database.rs"]
+mod database;
+
+use database::TestDir;
 
 const T0: i64 = 1_800_000_000;
 
@@ -22,19 +25,10 @@ fn at(offset: i64) -> Timestamp {
     Timestamp::from_second(T0 + offset).expect("timestamp")
 }
 
-fn config(dir: &Path) -> StoreConfig {
-    StoreConfig {
-        database: dir.join("sych.db"),
-        artifacts: dir.join("artifacts"),
-    }
-}
-
-async fn setup() -> (TempDir, Storage, RunId) {
-    let dir = tempfile::tempdir().expect("tempdir");
-    Storage::migrate(&config(dir.path()))
-        .await
-        .expect("migrate");
-    let storage = Storage::open(&config(dir.path())).await.expect("open");
+async fn setup() -> (TestDir, Storage, RunId) {
+    let dir = TestDir::new().await;
+    Storage::migrate(dir.config()).await.expect("migrate");
+    let storage = Storage::open(dir.config()).await.expect("open");
     let partition = Partition {
         tenant_id: TENANT_LOCAL.into(),
         access_scope: "local:repo".into(),
@@ -149,12 +143,12 @@ async fn concurrent_reservations_never_exceed_the_cap() {
     assert_eq!(admitted, 10);
 }
 
-/// A server engine and a review thread each open their own pool on one file; reservations
-/// from both must wait for the lock, not fail with "database is locked".
+/// A server engine and a review thread each open their own pool on one database; reservations
+/// from both must wait for the writer lock.
 #[tokio::test]
 async fn reservations_from_two_connections_wait_for_the_lock() {
     let (dir, first, run) = setup().await;
-    let second = Storage::open(&config(dir.path())).await.expect("open");
+    let second = Storage::open(dir.config()).await.expect("open");
     let pools = [Arc::new(first), Arc::new(second)];
     let mut tasks = JoinSet::new();
     for i in 0..40 {
@@ -325,7 +319,7 @@ async fn ledger_survives_reopen() {
         .expect("ledger")
         .expect("fits");
     drop(storage);
-    let storage = Storage::open(&config(dir.path())).await.expect("reopen");
+    let storage = Storage::open(dir.config()).await.expect("reopen");
     let denied = storage
         .reserve_attempt(&reservation(run, 700), &caps)
         .await

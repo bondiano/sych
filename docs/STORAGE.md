@@ -1,10 +1,13 @@
-# Local storage
+# Storage
 
 Implements roadmap M0.5: §8.2, §20 and §24.4 of the specification.
 
 ## Components
 
-- **SQLite** (`sych-storage`): WAL, `synchronous=FULL`, one connection — one writer and one worker.
+- **Database** (`sych-storage`): PostgreSQL for the server; SQLite/WAL with `synchronous=FULL` for the local CLI.
+  Both use the same business queries and a one-connection pool. Writes serialize before business reads:
+  SQLite `BEGIN IMMEDIATE`, PostgreSQL READ COMMITTED plus a transaction-scoped advisory lock.
+  This retains one-writer semantics, not multi-worker scaling.
   Tables `changes`, `runs`, `artifacts`, `run_artifacts`; ledger — `model_attempts`, `subscription_fees`;
   server (M2) — `repositories`, `inbox_events`, `change_intents`, `jobs`, `change_events`, `publication_objects`,
   `publication_operations`, `audit_events` ([SERVER.md](SERVER.md)); `tour_sessions` — one reader's progress through a
@@ -12,8 +15,11 @@ Implements roadmap M0.5: §8.2, §20 and §24.4 of the specification.
   objects are not decomposed into SQL.
 - **Artifacts**: canonical JSON in a local directory, keyed by the SHA-256 of the bytes, with the path partitioned by tenant/access scope.
   The file is written to a temporary file, `fsync`ed, then `rename`d; the hash is verified on every read.
-- Paths: `storage.database_url_env` (value `sqlite://PATH`, `sqlite:PATH` or a path) and
-  `storage.artifact_store.path` are relative to the `sych.yaml` directory (absolute paths stay absolute), not the CWD; without them — `./.sych-data/sych.db` and `./.sych-data/artifacts`.
+- `storage.database_url_env` accepts a `postgres://…` or `postgresql://…` URL for PostgreSQL; invalid or unsupported
+  URLs fail without falling back to SQLite. PostgreSQL connection strings are redacted in logs and doctor output.
+  SQLite values (`sqlite://PATH`, `sqlite:PATH` or a raw path) and `storage.artifact_store.path` resolve relative
+  to `sych.yaml` (absolute paths stay absolute), not the CWD. Without configuration the CLI uses
+  `./.sych-data/sych.db` and `./.sych-data/artifacts`.
 
 ## Invariants
 
@@ -82,7 +88,50 @@ brings up a v2 database from `fixtures/storage/v2-seed.sql` (completed run, pin,
 migration the data and foreign keys are intact. Backward compatibility is not promised before R1, but data in existing databases
 is carried over.
 
+PostgreSQL has its own migration history, starting with `migrations/postgres/0001_storage.sql`.
+It stores the same 21 application tables; domain IDs and JSON remain text, integer data remains signed 64-bit.
+Opening either backend refuses missing or newer migrations. Switching the configured URL does not copy history
+or artifact files.
+
+## Moving server history to PostgreSQL
+
+Stop every writer and GC. Take a consistent SQLite backup and retain the matching artifact files.
+If the snapshot is older, run `db migrate` on the **copy**, never on the original. Unknown or newer
+schemas must be handled by the matching reviewed build, not forced through import.
+
+Point `pg.yaml` at the empty PostgreSQL target and the copied artifact directory, then run:
+
+```sh
+sych db migrate --config pg.yaml
+sych db import-sqlite --source /protected/snapshot/sych.db --config pg.yaml
+```
+
+Import never migrates either database. It requires the current SQLite schema and all PostgreSQL
+application tables empty; a populated or repeated target is refused. One write transaction copies
+all 21 tables, restores predecessor links, resets identities, and compares ordered row counts/digests.
+Every extant artifact row must have its expected safe key, size and matching file hash. Already-pruned
+metadata references remain unavailable; missing files are not regenerated. Any error rolls back the
+imported rows; per-table counts/digests are logged only after commit. Source data and files stay untouched.
+
+Keep writers stopped until the verified cutover. Once the PostgreSQL server can write, recovery must
+preserve PostgreSQL and its files and fix forward; the original SQLite is stale, not a safe rollback.
+
 ## Backup
 
-Locally it is enough to stop `sych` and copy the whole `.sych-data/` directory (the database, `-wal` and artifacts
-together). This is the documented procedure for personal mode, not a verified corporate restore.
+For SQLite, stop all writers and GC, then use SQLite's backup API for a consistent database snapshot and copy
+the artifact directory from the same stopped interval. Preserve the original database and WAL.
+For PostgreSQL, retain a database backup **and** the artifact files; neither the database backup nor a retained
+PVC alone is a complete restore. This is not a verified corporate restore.
+
+## Backend contracts
+
+`just check` uses SQLite by default, including its upgrade and PRAGMA checks.
+With a disposable local PostgreSQL 18.6 cluster, run:
+
+```sh
+SYCH_TEST_POSTGRES_URL=postgres://postgres:sych-test@127.0.0.1:55432/postgres just test-postgres
+```
+
+The recipe runs the application/storage contracts on isolated databases and then explicitly runs
+the ignored PostgreSQL import/race cases. Do not supply a production URL. CI requires both suites
+and pins the PostgreSQL service image by digest.

@@ -22,8 +22,12 @@ use sych_core::config::{ApiClient, GithubConnection, ServerConfig};
 use sych_core::sha256;
 use sych_core::{ReviewResult, RunId, Timestamp};
 use sych_core::{SourceSide, decode};
-use sych_storage::{Admitted, ArtifactKind, Storage, StoreConfig};
-use tempfile::TempDir;
+use sych_storage::{Admitted, ArtifactKind, Storage};
+
+#[path = "../../../sych-storage/tests/support/database.rs"]
+pub mod database;
+
+use database::TestDir;
 
 use crate::fake_github::{Shared, lock, pull_json, start, stored_zip};
 
@@ -113,7 +117,7 @@ fn clients() -> Vec<(ApiClient, Secret)> {
 }
 
 pub struct World {
-    pub dir: TempDir,
+    pub dir: TestDir,
     pub origin: PathBuf,
     pub base: String,
     pub fake: Shared,
@@ -173,7 +177,7 @@ pub async fn world_with(policy: Option<&str>, endpoint: Option<&str>) -> World {
 
 /// [`world_with`] whose `sych.yaml` ends with `extra`.
 pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &str) -> World {
-    let dir = tempfile::tempdir().expect("tempdir");
+    let dir = TestDir::new().await;
     let origin = dir.path().join("git/o/r.git");
     fs::create_dir_all(&origin).expect("origin");
     git(&origin, &["init", "-q", "-b", "main"]);
@@ -195,10 +199,7 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
         .expect("value"),
     )
     .expect("connection");
-    let store = StoreConfig {
-        database: dir.path().join("sych.db"),
-        artifacts: dir.path().join("artifacts"),
-    };
+    let store = dir.config().clone();
     Storage::migrate(&store).await.expect("migrate");
     let config_path = server_config(dir.path(), endpoint, extra);
     let app = Arc::new(App {

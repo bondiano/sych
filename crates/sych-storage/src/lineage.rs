@@ -1,7 +1,7 @@
 //! Finding lineage, lifecycle history, feedback and waivers (spec §5.6, §11.6, §18.4). One
 //! transaction applies a revision's lineage; history rows are only ever appended.
 
-use sqlx::{Row, Sqlite, Transaction};
+use sqlx::{Any, Row, Transaction};
 use sych_core::config::RuleException;
 use sych_core::lineage::{Decision, Prior};
 use sych_core::{FindingCategory, ReviewResult, Timestamp};
@@ -28,7 +28,7 @@ fn name(c: FindingCategory) -> &'static str {
 
 #[allow(clippy::too_many_arguments)] // one history row
 async fn event(
-    tx: &mut Transaction<'_, Sqlite>,
+    tx: &mut Transaction<'_, Any>,
     finding: i64,
     run: Option<&str>,
     from: Option<&str>,
@@ -40,7 +40,7 @@ async fn event(
 ) -> Result<(), StorageError> {
     sqlx::query(
         "INSERT INTO finding_events (finding_id, run_id, from_state, to_state, reason, actor,
-             evidence, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+             evidence, at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     )
     .bind(finding)
     .bind(run)
@@ -69,7 +69,7 @@ impl Storage {
     pub async fn open_findings(&self, change_id: i64) -> Result<Vec<Prior>, StorageError> {
         let rows = sqlx::query(
             "SELECT fingerprint, category, rule_id, path FROM findings
-             WHERE change_id = ? AND state = 'OPEN' ORDER BY id",
+             WHERE change_id = $1 AND state = 'OPEN' ORDER BY id",
         )
         .bind(change_id)
         .fetch_all(self.pool())
@@ -95,11 +95,12 @@ impl Storage {
         at: i64,
     ) -> Result<bool, StorageError> {
         let mut tx = self.write().await?;
-        let fresh =
-            sqlx::query("UPDATE runs SET lineage_applied = 1 WHERE id = ? AND lineage_applied = 0")
-                .bind(run_id)
-                .execute(&mut *tx)
-                .await?;
+        let fresh = sqlx::query(
+            "UPDATE runs SET lineage_applied = 1 WHERE id = $1 AND lineage_applied = 0",
+        )
+        .bind(run_id)
+        .execute(&mut *tx)
+        .await?;
         if fresh.rows_affected() == 0 {
             return Ok(false);
         }
@@ -127,7 +128,7 @@ impl Storage {
 
     pub async fn findings_of(&self, change_id: i64) -> Result<Vec<FindingRow>, StorageError> {
         let rows = sqlx::query(
-            "SELECT id, fingerprint, state, predecessor_id FROM findings WHERE change_id = ? ORDER BY id",
+            "SELECT id, fingerprint, state, predecessor_id FROM findings WHERE change_id = $1 ORDER BY id",
         )
         .bind(change_id)
         .fetch_all(self.pool())
@@ -149,7 +150,7 @@ impl Storage {
         finding: i64,
     ) -> Result<Vec<(String, String, Option<String>)>, StorageError> {
         let rows = sqlx::query(
-            "SELECT to_state, reason, actor FROM finding_events WHERE finding_id = ? ORDER BY id",
+            "SELECT to_state, reason, actor FROM finding_events WHERE finding_id = $1 ORDER BY id",
         )
         .bind(finding)
         .fetch_all(self.pool())
@@ -176,7 +177,7 @@ impl Storage {
         let mut tx = self.write().await?;
         let row = sqlx::query(
             "SELECT f.change_id, f.state, (SELECT policy_snapshot_id FROM runs WHERE id = f.last_run_id)
-             FROM findings f JOIN changes c ON c.id = f.change_id WHERE f.id = ? AND c.tenant_id = ?",
+             FROM findings f JOIN changes c ON c.id = f.change_id WHERE f.id = $1 AND c.tenant_id = $2",
         )
         .bind(finding)
         .bind(tenant_id)
@@ -187,7 +188,7 @@ impl Storage {
             (row.get(0), row.get(1), row.get(2));
         sqlx::query(
             "INSERT INTO feedback (tenant_id, change_id, finding_id, actor, judgement, scope,
-                 rationale, policy_snapshot_id, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 rationale, policy_snapshot_id, at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         )
         .bind(tenant_id)
         .bind(change_id)
@@ -201,7 +202,7 @@ impl Storage {
         .execute(&mut *tx)
         .await?;
         if matches!(judgement, "FALSE_POSITIVE" | "WONT_FIX") && state == "OPEN" {
-            sqlx::query("UPDATE findings SET state = 'DISMISSED', updated_at = ? WHERE id = ?")
+            sqlx::query("UPDATE findings SET state = 'DISMISSED', updated_at = $1 WHERE id = $2")
                 .bind(at)
                 .bind(finding)
                 .execute(&mut *tx)
@@ -245,11 +246,12 @@ impl Storage {
         policy_snapshot_id: Option<&str>,
         at: i64,
     ) -> Result<i64, StorageError> {
+        let mut tx = self.write().await?;
         let id = sqlx::query_scalar(
             "INSERT INTO waivers (tenant_id, repository_id, rule_id, paths, reason, owner, author,
                  expires_at, until, policy_snapshot_id, created_at)
-             SELECT ?, c.repository_id, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM changes c
-             WHERE c.id = ? AND c.tenant_id = ? AND c.repository_id IS NOT NULL
+             SELECT $1, c.repository_id, $2, $3, $4, $5, $6, $7, $8, $9, $10 FROM changes c
+             WHERE c.id = $11 AND c.tenant_id = $12 AND c.repository_id IS NOT NULL
              RETURNING id",
         )
         .bind(tenant_id)
@@ -264,9 +266,12 @@ impl Storage {
         .bind(at)
         .bind(change_id)
         .bind(tenant_id)
-        .fetch_optional(self.pool())
+        .fetch_optional(&mut *tx)
         .await?;
-        id.ok_or_else(|| StorageError::Conflict(format!("change {change_id} not found")))
+        let id =
+            id.ok_or_else(|| StorageError::Conflict(format!("change {change_id} not found")))?;
+        tx.commit().await?;
+        Ok(id)
     }
 
     /// Waivers in force for the change's repository at `at`.
@@ -279,7 +284,7 @@ impl Storage {
             "SELECT w.rule_id, w.paths, w.reason, w.owner, w.author, w.expires_at, w.until
              FROM waivers w JOIN changes c ON c.repository_id = w.repository_id
                  AND c.tenant_id = w.tenant_id
-             WHERE c.id = ? AND w.revoked_at IS NULL AND (w.expires_at IS NULL OR w.expires_at > ?)
+             WHERE c.id = $1 AND w.revoked_at IS NULL AND (w.expires_at IS NULL OR w.expires_at > $2)
              ORDER BY w.id",
         )
         .bind(change_id)
@@ -310,7 +315,7 @@ impl Storage {
     /// The policy snapshot of the change's latest run that pinned one.
     pub async fn latest_policy(&self, change_id: i64) -> Result<Option<String>, StorageError> {
         Ok(sqlx::query_scalar(
-            "SELECT policy_snapshot_id FROM runs WHERE change_id = ? AND policy_snapshot_id IS NOT NULL
+            "SELECT policy_snapshot_id FROM runs WHERE change_id = $1 AND policy_snapshot_id IS NOT NULL
              ORDER BY generation DESC LIMIT 1",
         )
         .bind(change_id)
@@ -322,7 +327,7 @@ impl Storage {
 
 /// Every finding of the revision: new ones open with a `found` event, known ones are touched.
 async fn record_findings(
-    tx: &mut Transaction<'_, Sqlite>,
+    tx: &mut Transaction<'_, Any>,
     change_id: i64,
     run_id: &str,
     result: &ReviewResult,
@@ -333,10 +338,10 @@ async fn record_findings(
         let inserted: Option<i64> = sqlx::query_scalar(
             "INSERT INTO findings (change_id, fingerprint, finding_id, category, rule_id, path,
                  state, first_run_id, last_run_id, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?, ?, ?)
+             VALUES ($1, $2, $3, $4, $5, $6, 'OPEN', $7, $8, $9)
              ON CONFLICT (change_id, fingerprint) DO UPDATE SET last_run_id = excluded.last_run_id,
                  updated_at = excluded.updated_at
-             RETURNING CASE WHEN first_run_id = ? THEN id END",
+             RETURNING CASE WHEN findings.first_run_id = $10 THEN findings.id END",
         )
         .bind(change_id)
         .bind(f.fingerprint.to_string())
@@ -372,7 +377,7 @@ async fn record_findings(
 
 /// What the lineage decided about earlier open findings, with one event each.
 async fn record_decisions(
-    tx: &mut Transaction<'_, Sqlite>,
+    tx: &mut Transaction<'_, Any>,
     change_id: i64,
     run_id: &str,
     decisions: &[(String, Decision)],
@@ -384,8 +389,8 @@ async fn record_decisions(
             Decision::Continued { successor } => {
                 sqlx::query(
                     "UPDATE findings SET predecessor_id = (SELECT id FROM findings
-                         WHERE change_id = ?1 AND fingerprint = ?2)
-                     WHERE change_id = ?1 AND fingerprint = ?3",
+                         WHERE change_id = $1 AND fingerprint = $2)
+                     WHERE change_id = $1 AND fingerprint = $3",
                 )
                 .bind(change_id)
                 .bind(fingerprint)
@@ -404,8 +409,8 @@ async fn record_decisions(
             Decision::Open { reason } => ("OPEN", reason.clone(), Vec::new()),
         };
         let id: Option<i64> = sqlx::query_scalar(
-            "UPDATE findings SET state = ?, last_run_id = ?, updated_at = ?
-             WHERE change_id = ? AND fingerprint = ? AND state = 'OPEN' RETURNING id",
+            "UPDATE findings SET state = $1, last_run_id = $2, updated_at = $3
+             WHERE change_id = $4 AND fingerprint = $5 AND state = 'OPEN' RETURNING id",
         )
         .bind(to)
         .bind(run_id)

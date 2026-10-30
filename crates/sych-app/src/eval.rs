@@ -10,7 +10,7 @@ use sych_core::config::RunMode;
 
 use serde::{Deserialize, Serialize};
 use sych_core::{Coverage, ObligationStatus, Recommendation, RepoPath, SchemaVersion};
-use sych_storage::{Storage, StoreConfig};
+use sych_storage::{Database, Storage, StoreConfig};
 use tempfile::TempDir;
 
 use crate::args::{Comparison, ExitPolicy, ModelSelection, Output, ReviewArguments, Switch};
@@ -211,7 +211,7 @@ fn run_case(case: &Case, suite_dir: &Path) -> Result<Actual, String> {
     let data = TempDir::new().map_err(|e| e.to_string())?;
     build_repo(case, repo.path())?;
     let store = || StoreConfig {
-        database: data.path().join("sych.db"),
+        database: Database::Sqlite(data.path().join("sych.db")),
         artifacts: data.path().join("artifacts"),
     };
     storage::block_on(Storage::migrate(&store()))

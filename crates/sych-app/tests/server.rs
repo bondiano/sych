@@ -12,9 +12,13 @@ use sych_adapters::github::webhook::sign;
 use sych_app::server::{App, Counters, router};
 use sych_core::Timestamp;
 use sych_core::config::GithubConnection;
-use sych_storage::{Storage, StoreConfig};
-use tempfile::TempDir;
+use sych_storage::Storage;
 use tokio::net::TcpListener;
+
+#[path = "../../sych-storage/tests/support/database.rs"]
+mod database;
+
+use database::TestDir;
 
 const SECRET: &str = "webhook-secret";
 
@@ -31,19 +35,16 @@ fn now() -> Timestamp {
 }
 
 struct Server {
-    _dir: TempDir,
+    _dir: TestDir,
     url: String,
     app: Arc<App>,
 }
 
 async fn start(max_body_bytes: u32) -> Server {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let config = StoreConfig {
-        database: dir.path().join("sych.db"),
-        artifacts: dir.path().join("artifacts"),
-    };
-    Storage::migrate(&config).await.expect("migrate");
-    let storage = Storage::open(&config).await.expect("open");
+    let dir = TestDir::new().await;
+    let config = dir.config();
+    Storage::migrate(config).await.expect("migrate");
+    let storage = Storage::open(config).await.expect("open");
     let app = Arc::new(App {
         storage,
         github: BTreeMap::from([(

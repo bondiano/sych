@@ -9,8 +9,9 @@ use serde::de::DeserializeOwned;
 use sych_core::broker::ContextPackets;
 use sych_core::config::ServerConfig;
 use sych_core::{EvidenceManifest, RunFacts, RunId};
-use sych_storage::{Storage, StorageError, StoreConfig, TENANT_LOCAL};
+use sych_storage::{Database, Storage, StorageError, StoreConfig, TENANT_LOCAL};
 use tokio::runtime::Builder;
+use url::Url;
 
 use crate::config;
 use crate::errors::Failure;
@@ -28,8 +29,8 @@ pub fn block_on<F: Future>(future: F) -> anyhow::Result<F::Output> {
         .map_err(|e| Failure::no_result(format!("cannot start runtime: {e}")).into())
 }
 
-/// Paths, the database URL's included, are relative to the directory of `sych.yaml`; without a
-/// config they default under `./.sych-data`.
+/// `SQLite` and artifact paths are relative to `sych.yaml`; without a config they default
+/// under `./.sych-data`. `PostgreSQL` URLs are passed to the database driver unchanged.
 pub fn store_config(config: Option<&Path>, server: &ServerConfig) -> anyhow::Result<StoreConfig> {
     let base = config
         .and_then(Path::parent)
@@ -42,13 +43,9 @@ pub fn store_config(config: Option<&Path>, server: &ServerConfig) -> anyhow::Res
                     name.as_str()
                 ))
             })?;
-            let path = url
-                .strip_prefix("sqlite://")
-                .or_else(|| url.strip_prefix("sqlite:"))
-                .unwrap_or(&url);
-            base.join(path)
+            database(&url, &base)?
         }
-        None => base.join(DEFAULT_DATABASE),
+        None => Database::Sqlite(base.join(DEFAULT_DATABASE)),
     };
     let artifacts = server
         .storage
@@ -61,6 +58,32 @@ pub fn store_config(config: Option<&Path>, server: &ServerConfig) -> anyhow::Res
     })
 }
 
+fn database(value: &str, base: &Path) -> anyhow::Result<Database> {
+    let invalid = || Failure::invalid("invalid or unsupported storage database URL");
+    if value.trim().is_empty() {
+        return Err(invalid().into());
+    }
+
+    if value.starts_with("postgres://") || value.starts_with("postgresql://") {
+        let url = Url::parse(value).map_err(|_| invalid())?;
+        if url.host_str().is_none_or(str::is_empty) || url.fragment().is_some() {
+            return Err(invalid().into());
+        }
+
+        return Ok(Database::Postgres(value.to_owned()));
+    }
+
+    let path = value
+        .strip_prefix("sqlite://")
+        .or_else(|| value.strip_prefix("sqlite:"));
+    match path {
+        Some("") => Err(invalid().into()),
+        Some(path) => Ok(Database::Sqlite(base.join(path))),
+        None if Url::parse(value).is_ok() || value.contains("://") => Err(invalid().into()),
+        None => Ok(Database::Sqlite(base.join(value))),
+    }
+}
+
 /// Storage location from the server config at `config`, or engine defaults.
 pub fn load_store_config(config: Option<&Path>) -> anyhow::Result<StoreConfig> {
     store_config(config, &config::server(config)?)
@@ -71,7 +94,7 @@ pub fn database_status(config: &Path, server: &ServerConfig) -> Result<String, S
     let store = store_config(Some(config), server).map_err(|e| format!("{e:#}"))?;
     // The pool is dropped inside its runtime.
     match block_on(async { Storage::open(&store).await.map(drop) }) {
-        Ok(Ok(())) => Ok(format!("{} is migrated", store.database.display())),
+        Ok(Ok(())) => Ok(format!("{} is migrated", store.database)),
         Ok(Err(err)) => Err(err.to_string()),
         Err(err) => Err(format!("{err:#}")),
     }
@@ -143,4 +166,45 @@ pub fn saved_report(config: Option<&Path>, run: &str) -> anyhow::Result<Report> 
         .map_err(|_| Failure::invalid(format!("`{run}` is not a run id")))?;
     let store = load_store_config(config)?;
     block_on(load_report(store, run))?.with_context(|| format!("cannot read saved run {run}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn database_selection_preserves_local_paths_and_redacts_remote_credentials() {
+        let base = Path::new("/config");
+        for value in ["history.db", "sqlite:history.db", "sqlite://history.db"] {
+            assert!(matches!(
+                database(value, base).expect("SQLite"),
+                Database::Sqlite(path) if path == base.join("history.db")
+            ));
+        }
+        assert!(matches!(
+            database("sqlite:///data/history.db", base).expect("absolute"),
+            Database::Sqlite(path) if path == Path::new("/data/history.db")
+        ));
+        for scheme in ["postgres", "postgresql"] {
+            let value = format!("{scheme}://sych:private-password@db/sych?sslmode=require");
+            let selected = database(&value, base).expect("PostgreSQL");
+            assert!(matches!(&selected, Database::Postgres(url) if url == &value));
+            assert!(!format!("{selected:?} {selected}").contains("private-password"));
+        }
+        for value in [
+            "",
+            "  ",
+            "sqlite:",
+            "sqlite://",
+            "postgres://",
+            "postgresql://user:private-password@/db",
+            "postgres://user:private-password@host:bad/db",
+            "postgres://user:private-password@db/sych#fragment",
+            "mysql://user:private-password@db/sych",
+            "postgres:history",
+        ] {
+            let error = database(value, base).expect_err("invalid URL").to_string();
+            assert!(!error.contains("private-password"), "{error}");
+        }
+    }
 }
