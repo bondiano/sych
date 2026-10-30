@@ -15,6 +15,15 @@ use super::{AnalysisRecord, Engine, Outcome};
 /// A pass and its part of the outcome.
 pub(super) type Task<'a, T> = LocalBoxFuture<'a, (Outcome, T)>;
 
+/// A discovery batch that assesses obligations it shows whole: its context, the obligations
+/// linked to it and the indices of those it assesses.
+pub(super) type Combined<'a> = (
+    &'a Vec<usize>,
+    Context,
+    Vec<&'a PlannedObligation>,
+    Vec<usize>,
+);
+
 /// A discovery batch that also assessed obligations, waiting for verification.
 pub(super) type Reviewed<'a> = (
     &'a Vec<usize>,

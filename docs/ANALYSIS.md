@@ -24,7 +24,9 @@ All calls go through the shared gateway and ledger of a single run: each attempt
 sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are shared by all passes and repair.
 
 1. **Assessment** — required ones first, then by descending risk; this is the verification reserve: discovery cannot
-   spend the budget the obligations need. If a discovery batch (item 3) shows an obligation's verification packet
+   spend the budget the obligations need. Nor can the obligations spend all of discovery's: assessment and the
+   risk audit leave one attempt per standalone discovery batch, at most half of `max_attempts` less the
+   verifier's attempt, so a PR with many required rules is still searched. If a discovery batch (item 3) shows an obligation's verification packet
    in full (each of its spans lies within the batch spans, nothing required is excluded), the assessment
    runs in the same call as discovery: `review@5` returns `assessments` and hypotheses. For a small PR this is
    one call instead of assessment + discovery. The remaining obligations each get a separate `assessment@4`.
@@ -156,6 +158,9 @@ discovery in batches and verify, 1 candidate `REJECTED`, 1 `UNRESOLVED` (the new
   request `read_lines` is answered via the broker and visible to the verifier as `answer to: …`; a small PR gets
   `review@5` instead of assessment + discovery, and an obligation that no batch shows in full
   gets a separate assessment; `review@5` without an assessment leaves `UNKNOWN/MODEL_FAILED`.
+- `cargo test -p sych-app --test analysis_budget` — one run budget across passes: with `max_attempts: 1` the required
+  standalone assessment goes before an optional combined review; four required rules over two discovery batches
+  leave discovery its two attempts and the verifier its one; a search denied beside an unsettled sibling is retried.
 - Real smoke of `cheap_api` (DeepSeek V4.1 Flash, `reasoning_effort: low`) on an unsafe/safe pair via
   `review@2`: a removed guard gives `VIOLATED` and a confirmed finding; replacing the guard with `?? []` gives `SUPPORTED`, with no
   findings; 3 calls each (review, risk audit, verify), ~$0.0015 per run ([example](examples/model-review/)).

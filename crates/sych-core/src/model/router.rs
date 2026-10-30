@@ -216,14 +216,16 @@ impl<P: ModelProvider, L: Ledger> Router<'_, P, L> {
         self.route(role, prompt, schema_name, self.limits).await
     }
 
-    /// [`Self::structured`] for a search pass, under [`Limits::reserving_verification`].
-    pub async fn search<T: Serialize + DeserializeOwned + JsonSchema>(
+    /// [`Self::structured`] under [`Limits::reserving`] `kept` attempts for later passes; a
+    /// search keeps at least the verifier's, so it cannot leave candidates without a check.
+    pub async fn leaving<T: Serialize + DeserializeOwned + JsonSchema>(
         &self,
         role: Role,
         prompt: &Prompt,
         schema_name: &str,
+        kept: u32,
     ) -> RoutedOutcome<T> {
-        let limits = self.limits.reserving_verification();
+        let limits = self.limits.reserving(kept);
         self.route(role, prompt, schema_name, limits).await
     }
 

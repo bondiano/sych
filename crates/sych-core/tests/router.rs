@@ -399,7 +399,7 @@ async fn a_search_pass_leaves_the_verification_reserve() {
     assert!(review(&r).await.value.is_ok());
 
     let search = r
-        .search::<Out>(Role::Reviewer, &prompt(), "discovery")
+        .leaving::<Out>(Role::Reviewer, &prompt(), "discovery", 1)
         .await;
     assert!(
         matches!(
@@ -423,10 +423,32 @@ fn the_verification_reserve_keeps_a_share_of_the_tokens() {
     budgets.analysis.max_attempts = Some(6);
     budgets.analysis.max_input_tokens = Some(64_000);
     budgets.analysis.max_output_tokens = Some(24_000);
-    let search = Limits::new(&budgets, Purpose::Analysis).reserving_verification();
+    let limits = Limits::new(&budgets, Purpose::Analysis);
+    let search = limits.reserving(1);
     assert_eq!(search.run.max_attempts, Some(5));
     assert_eq!(search.run.max_input_tokens, Some(53_334));
     assert_eq!(search.run.max_output_tokens, Some(20_000));
+    // Three attempts kept for later passes take three shares.
+    let assessing = limits.reserving(3);
+    assert_eq!(assessing.run.max_attempts, Some(3));
+    assert_eq!(assessing.run.max_input_tokens, Some(32_002));
+    assert_eq!(assessing.run.max_output_tokens, Some(12_000));
+}
+
+#[test]
+fn discovery_keeps_a_call_per_batch_up_to_half_the_cap() {
+    let share = |cap: Option<u32>, calls: usize| {
+        let mut budgets = Budgets::default();
+        budgets.analysis.max_attempts = cap;
+        Limits::new(&budgets, Purpose::Analysis).discovery_share(calls)
+    };
+    assert_eq!(share(Some(12), 4), 4);
+    // Half of what the verifier's attempt leaves; the required obligations keep the rest.
+    assert_eq!(share(Some(12), 9), 5);
+    // One attempt goes to the obligation; nothing is kept that would take it away.
+    assert_eq!(share(Some(1), 3), 0);
+    assert_eq!(share(Some(2), 3), 0);
+    assert_eq!(share(None, 3), 0, "no attempt cap, nothing to keep");
 }
 
 #[tokio::test(flavor = "current_thread")]
