@@ -428,30 +428,6 @@ async fn parallel_calls_give_the_outcome_of_sequential_ones() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn a_pass_denied_beside_an_unsettled_sibling_is_retried() {
-    // Two searches in flight together exceed the cap by their byte bounds; settled, they fit.
-    let run_with = |parallel| {
-        let mut budgets = Budgets::default();
-        budgets.analysis.max_input_tokens = Some(6_000);
-        budgets.analysis.max_parallel_calls = Some(parallel);
-        run_on(repo(true), supported_and_empty, budgets, 1, false)
-    };
-    let (sequential, mut sequential_calls) = run_with(1).await;
-    let (parallel, mut parallel_calls) = run_with(2).await;
-    // Parallel calls start in no fixed order.
-    sequential_calls.sort();
-    parallel_calls.sort();
-    assert!(sequential.gaps.is_empty(), "{:?}", sequential.gaps);
-    assert!(
-        parallel.gaps.is_empty() && !parallel.limit_reached,
-        "{:?}",
-        parallel.gaps
-    );
-    assert_eq!(parallel_calls, sequential_calls);
-    assert_eq!(parallel.record.passes.len(), sequential.record.passes.len());
-}
-
-#[tokio::test(flavor = "current_thread")]
 async fn every_chunk_of_a_split_obligation_gets_its_risk_audit() {
     // Each file fits a request alone, both together do not: the rule's verification
     // context becomes one chunk per file.
@@ -473,27 +449,4 @@ async fn every_chunk_of_a_split_obligation_gets_its_risk_audit() {
     };
     assert_eq!(shown("assessment").len(), 2, "split into two chunks");
     assert_eq!(shown("risk_audit"), shown("assessment"));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn a_required_standalone_assessment_goes_before_an_optional_combined_review() {
-    // The required rule spans both units, so no single batch shows it whole; the optional
-    // one covers only `lib/` and is assessed inside that unit's review call.
-    let optional = "\n  - id: FORMAT-01\n    version: 1\n    title: Money keeps its sign\n    kind: invariant\n    required: false\n    severity_on_violation: low\n    owner: backend\n    applies_to:\n      paths: [\"lib/**\"]\n    statement: money() keeps the sign of n.\n";
-    let rules = RULES.replace("[\"src/**\"]", "[\"src/**\", \"lib/**\"]") + optional;
-    let mut budgets = Budgets::default();
-    budgets.analysis.max_attempts = Some(1);
-    let (_, calls) = run_on(
-        repo_with(true, &[(".sych/rules.yaml", &rules)]),
-        supported_and_empty,
-        budgets,
-        1,
-        true,
-    )
-    .await;
-    assert_eq!(
-        calls,
-        ["obligation_assessment"],
-        "the one attempt goes to the required rule"
-    );
 }

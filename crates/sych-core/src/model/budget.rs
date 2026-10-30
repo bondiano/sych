@@ -19,13 +19,14 @@ impl Limits {
             .unwrap_or(REQUEST_OUTPUT_TOKENS)
     }
 
-    /// The caps a search pass sees: one attempt and its share of the run money and tokens
-    /// stay for the verifier, so discovery cannot leave candidates without a check (spec §17.1).
+    /// The caps a pass sees when `attempts` later calls must still fit: those attempts and
+    /// their share of the run money and tokens stay for them (spec §17.1).
     #[must_use]
-    pub fn reserving_verification(mut self) -> Self {
+    pub fn reserving(mut self, attempts: u32) -> Self {
         if let Some(cap) = self.run.max_attempts {
+            let kept = attempts.min(cap);
             if let Some(money) = &mut self.run.max_cost_micro_usd {
-                money.0 -= money.0 / u64::from(cap.max(1));
+                money.0 -= money.0 / u64::from(cap.max(1)) * u64::from(kept);
             }
 
             for tokens in [
@@ -35,13 +36,22 @@ impl Limits {
             .into_iter()
             .flatten()
             {
-                *tokens -= *tokens / cap.max(1);
+                *tokens -= *tokens / cap.max(1) * kept;
             }
 
-            self.run.max_attempts = Some(cap.saturating_sub(1));
+            self.run.max_attempts = Some(cap - kept);
         }
 
         self
+    }
+
+    /// Attempts the passes before discovery leave it: one per discovery call, at most half
+    /// of the cap without the verifier's attempt, so the required obligations keep the rest.
+    pub fn discovery_share(&self, calls: usize) -> u32 {
+        let calls = u32::try_from(calls).unwrap_or(u32::MAX);
+        self.run
+            .max_attempts
+            .map_or(0, |cap| calls.min(cap.saturating_sub(1) / 2))
     }
 }
 const MESSAGE_OVERHEAD_TOKENS: u64 = 16;

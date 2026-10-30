@@ -1,5 +1,6 @@
 //! Model passes of one review (spec §16.1): required assessments first, so discovery can
-//! never spend the verification reserve; then the independent high-risk audit, discovery
+//! never spend the verification reserve, though they and the audit leave discovery a share
+//! of the attempts; then the independent high-risk audit, discovery
 //! with typed context asks, and verification of every candidate. A discovery batch that
 //! shows an obligation whole assesses it in the same call (`review@1`), which comes first.
 //! Each pass goes through the gateway and ledger; a failed or denied pass leaves an
@@ -26,7 +27,7 @@ use sych_core::{
 mod parts;
 mod passes;
 
-use parts::{Reviewed, Task};
+use parts::{Combined, Reviewed, Task};
 
 /// Answers kept per context ask; each is a span the verifier sees.
 const MAX_REFS_PER_ANSWER: usize = 3;
@@ -205,25 +206,20 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
 
         // Obligations a discovery batch shows whole are assessed in that batch's one call.
         let batches = self.discovery_batches();
+        let reviews = self.reviews(&batches, &planned);
+        // The passes before discovery leave it a share of the attempts; with a share they also
+        // leave the verifier its attempt, which discovery itself cannot spend.
+        let share = self
+            .router
+            .limits
+            .discovery_share(batches.len() - reviews.len());
+        let (assessing_keeps, audit_keeps) = (share + u32::from(share > 0), share + 1);
         // Combined and standalone calls share one queue in the obligations' order, so a tight
         // budget is spent on the required and riskier ones first.
         let rank = |id: ObligationId| planned.iter().position(|p| p.obligation.id == id);
         let mut assessing: Vec<(usize, Task<'_, Option<Reviewed<'_>>>)> = Vec::new();
         let mut assessed_in_review = Vec::new();
-        for batch in &batches {
-            let (context, linked) = self.batch_view(batch);
-            let assessed: Vec<usize> = (0..linked.len())
-                .filter(|&i| {
-                    planned
-                        .iter()
-                        .any(|p| p.obligation.id == linked[i].obligation.id)
-                        && self.shown_whole(linked[i].obligation.id, batch)
-                })
-                .collect();
-            if assessed.is_empty() {
-                continue;
-            }
-
+        for (batch, context, linked, assessed) in reviews {
             assessed_in_review.extend(assessed.iter().map(|&i| linked[i].obligation.id));
             let first = assessed
                 .iter()
@@ -235,7 +231,14 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                 Box::pin(async move {
                     let mut part = self.part();
                     let (context, found) = self
-                        .review(batch, &linked, &assessed, context, &mut part)
+                        .review(
+                            batch,
+                            &linked,
+                            &assessed,
+                            context,
+                            assessing_keeps,
+                            &mut part,
+                        )
                         .await;
                     (part, Some((batch, linked, context, found)))
                 }),
@@ -250,7 +253,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                 i,
                 Box::pin(async move {
                     let mut part = self.part();
-                    self.assess(obligation, &mut part).await;
+                    self.assess(obligation, assessing_keeps, &mut part).await;
                     (part, None)
                 }),
             ));
@@ -264,7 +267,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         }
 
         let done: Vec<&Vec<usize>> = reviewed.iter().map(|(batch, ..)| *batch).collect();
-        let mut searching = self.audits(&planned);
+        let mut searching = self.audits(&planned, audit_keeps);
         for (batch, linked, context, found) in reviewed {
             searching.push(Box::pin(async move {
                 let mut part = self.part();
@@ -297,10 +300,35 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         out
     }
 
-    /// The independent searches of the high-risk obligations, one per verification chunk.
+    /// The batches that show some of `planned` whole and assess them in their one call.
+    fn reviews<'s>(
+        &'s self,
+        batches: &'s [Vec<usize>],
+        planned: &[&PlannedObligation],
+    ) -> Vec<Combined<'s>> {
+        batches
+            .iter()
+            .filter_map(|batch| {
+                let (context, linked) = self.batch_view(batch);
+                let assessed: Vec<usize> = (0..linked.len())
+                    .filter(|&i| {
+                        planned
+                            .iter()
+                            .any(|p| p.obligation.id == linked[i].obligation.id)
+                            && self.shown_whole(linked[i].obligation.id, batch)
+                    })
+                    .collect();
+                (!assessed.is_empty()).then_some((batch, context, linked, assessed))
+            })
+            .collect()
+    }
+
+    /// The independent searches of the high-risk obligations, one per verification chunk;
+    /// each leaves `kept` attempts to discovery and the verifier.
     fn audits<'s>(
         &'s self,
         planned: &[&'s PlannedObligation],
+        kept: u32,
     ) -> Vec<Task<'s, Option<&'s Vec<usize>>>> {
         planned
             .iter()
@@ -308,14 +336,14 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             .flat_map(|&o| {
                 self.verification_packets(o.obligation.id)
                     .map(move |i| -> Task<'s, _> {
-                        Box::pin(async move { (self.audit(o, i).await, None) })
+                        Box::pin(async move { (self.audit(o, i, kept).await, None) })
                     })
             })
             .collect()
     }
 
     /// The independent search for one high-risk obligation and verification of what it found.
-    async fn audit(&self, obligation: &PlannedObligation, index: usize) -> Outcome {
+    async fn audit(&self, obligation: &PlannedObligation, index: usize, kept: u32) -> Outcome {
         let mut part = self.part();
         let mut context = self.context(index);
         let prompt = prompts::risk_audit(&context, obligation);
@@ -327,6 +355,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                 &prompt,
                 &context,
                 &ids,
+                kept,
                 &mut part,
             )
             .await;
@@ -346,7 +375,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         let ids: Vec<ObligationId> = linked.iter().map(|o| o.obligation.id).collect();
         let prompt = prompts::discovery(&context, &linked, &self.title(batch));
         let found = self
-            .discover(batch, None, &prompt, &context, &ids, &mut part)
+            .discover(batch, None, &prompt, &context, &ids, 1, &mut part)
             .await;
         if let Some(found) = &found {
             self.answer(batch[0], &found.asks, &mut context, &mut part);

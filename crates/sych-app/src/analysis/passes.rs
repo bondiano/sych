@@ -29,16 +29,23 @@ fn failed(planned: &PlannedObligation, failure: &TaskFailure) -> AssessmentRecor
 }
 
 impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
-    /// One assessment per chunk of the obligation; `context_limited` merges them.
-    pub(super) async fn assess(&self, planned: &PlannedObligation, out: &mut Outcome) {
+    /// One assessment per chunk of the obligation, each leaving `kept` attempts to later
+    /// passes; `context_limited` merges them.
+    pub(super) async fn assess(&self, planned: &PlannedObligation, kept: u32, out: &mut Outcome) {
         let id = planned.obligation.id;
         let chunks: Vec<usize> = self.verification_packets(id).collect();
         for index in chunks {
-            self.assess_chunk(planned, index, out).await;
+            self.assess_chunk(planned, index, kept, out).await;
         }
     }
 
-    async fn assess_chunk(&self, planned: &PlannedObligation, index: usize, out: &mut Outcome) {
+    async fn assess_chunk(
+        &self,
+        planned: &PlannedObligation,
+        index: usize,
+        kept: u32,
+        out: &mut Outcome,
+    ) {
         let id = planned.obligation.id;
         let packet = &self.packets[index];
         if packet
@@ -65,7 +72,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         let prompt = prompts::assessment(&context, planned);
         let outcome = self
             .router
-            .structured::<AssessmentOutput>(Role::Reviewer, &prompt, "obligation_assessment")
+            .leaving::<AssessmentOutput>(Role::Reviewer, &prompt, "obligation_assessment", kept)
             .await;
         record(out, prompts::ASSESSMENT, &[index], Some(id), &outcome);
         let record = match outcome.value {
@@ -83,20 +90,22 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         unseen_violation(record, &unseen_spans(&self.facts.syntax))
     }
 
-    /// One call for discovery over `batch` and the assessments of `linked[assessed]`; the
-    /// asks are answered into the returned context for the verifier.
+    /// One call for discovery over `batch` and the assessments of `linked[assessed]`, leaving
+    /// `kept` attempts to later passes; the asks are answered into the returned context for
+    /// the verifier.
     pub(super) async fn review(
         &self,
         batch: &[usize],
         linked: &[&PlannedObligation],
         assessed: &[usize],
         mut context: Context,
+        kept: u32,
         out: &mut Outcome,
     ) -> (Context, Option<Discovered>) {
         let prompt = prompts::review(&context, linked, assessed, &self.title(batch));
         let outcome = self
             .router
-            .structured::<ReviewOutput>(Role::Reviewer, &prompt, "review")
+            .leaving::<ReviewOutput>(Role::Reviewer, &prompt, "review", kept)
             .await;
         record(out, prompts::REVIEW, batch, None, &outcome);
         let (assessments, discovery) = match outcome.value {
@@ -148,6 +157,8 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         (context, found)
     }
 
+    /// A search over `batch` that leaves `kept` attempts to later passes.
+    #[allow(clippy::too_many_arguments)] // one search with its scope and reserve
     pub(super) async fn discover(
         &self,
         batch: &[usize],
@@ -155,6 +166,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         prompt: &Prompt,
         context: &Context,
         obligations: &[ObligationId],
+        kept: u32,
         out: &mut Outcome,
     ) -> Option<Discovered> {
         // The obligation-bound search is the high-risk audit; it may escalate to premium.
@@ -165,7 +177,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         };
         let outcome = self
             .router
-            .search::<DiscoveryOutput>(role, prompt, "discovery")
+            .leaving::<DiscoveryOutput>(role, prompt, "discovery", kept)
             .await;
         record(out, &prompt.template, batch, obligation, &outcome);
         let key = format!("{}:{batch:?}", prompt.template);

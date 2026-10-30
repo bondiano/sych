@@ -45,8 +45,11 @@ For each attempt, before sending:
    for `api_hard`; for `subscription_observable` the upstream output/quota is soft/unknown, while Sych attempts,
    input and money stay hard.
 5. Verification reserve (§17.1): pure search (discovery, high-risk audit) reserves against caps minus one attempt
-   and its share of run money (`cap / max_attempts`), so it cannot spend what the verifier needs; assessment
-   and the verifier see the full caps. Retry, repair and fallback spend the same reserve-aware remainder.
+   and its share of run money (`cap / max_attempts`), so it cannot spend what the verifier needs; the verifier
+   sees the full caps. Discovery share: assessment, combined review and the high-risk audit also keep one attempt
+   per standalone discovery batch, at most `(max_attempts - 1) / 2`, with the same per-attempt share of money and
+   tokens; while that share is not zero, assessment keeps the verifier's attempt too. Retry, repair and fallback
+   spend the same reserve-aware remainder.
 
 Invariant: settled charges + held reservations + unknown charges ≤ cap.
 
