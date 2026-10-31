@@ -2,6 +2,7 @@
 //! endpoint; read models of runs and publications; and the numbers `/metrics` reports.
 
 use sqlx::Row;
+use sqlx::any::AnyRow;
 use sych_core::Timestamp;
 use sych_core::scm::RepositoryRef;
 
@@ -39,6 +40,30 @@ pub struct RunView {
     pub failure: Option<String>,
     pub created_at: i64,
     pub finished_at: Option<i64>,
+    pub parent_run_id: Option<String>,
+    pub unknown_obligations: Option<i64>,
+}
+
+/// A row of [`run_view!`].
+pub(crate) fn run_view(r: &AnyRow) -> RunView {
+    RunView {
+        run_id: r.get(0),
+        change_id: r.get(1),
+        connection_id: r.get(2),
+        full_name: r.get(3),
+        generation: r.get(4),
+        state: r.get(5),
+        stage: r.get(6),
+        coverage: r.get(7),
+        model_attempts: r.get(8),
+        cost_known_micro_usd: r.get(9),
+        unknown_cost_attempts: r.get(10),
+        failure: r.get(11),
+        created_at: r.get(12),
+        finished_at: r.get(13),
+        parent_run_id: r.get(14),
+        unknown_obligations: r.get(15),
+    }
 }
 
 /// Point-in-time numbers for `/metrics`; bounded label sets only.
@@ -152,34 +177,12 @@ impl Storage {
         tenant_id: &str,
         run_id: &str,
     ) -> Result<Option<RunView>, StorageError> {
-        let r = sqlx::query(
-            "SELECT u.id, u.change_id, r.connection_id, r.full_name, u.generation, u.state, u.stage,
-                 u.coverage, u.model_attempts, u.cost_known_micro_usd, u.unknown_cost_attempts,
-                 u.failure, u.created_at, u.finished_at
-             FROM runs u JOIN changes c ON c.id = u.change_id
-             LEFT JOIN repositories r ON r.id = c.repository_id
-             WHERE u.id = $1 AND u.tenant_id = $2",
-        )
-        .bind(run_id)
-        .bind(tenant_id)
-        .fetch_optional(self.pool())
-        .await?;
-        Ok(r.map(|r| RunView {
-            run_id: r.get(0),
-            change_id: r.get(1),
-            connection_id: r.get(2),
-            full_name: r.get(3),
-            generation: r.get(4),
-            state: r.get(5),
-            stage: r.get(6),
-            coverage: r.get(7),
-            model_attempts: r.get(8),
-            cost_known_micro_usd: r.get(9),
-            unknown_cost_attempts: r.get(10),
-            failure: r.get(11),
-            created_at: r.get(12),
-            finished_at: r.get(13),
-        }))
+        let r = sqlx::query(concat!(run_view!(), "WHERE u.id = $1 AND u.tenant_id = $2"))
+            .bind(run_id)
+            .bind(tenant_id)
+            .fetch_optional(self.pool())
+            .await?;
+        Ok(r.as_ref().map(run_view))
     }
 
     /// Cancels an active run with its job; a terminal run keeps its state. Returns the state

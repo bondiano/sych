@@ -4,7 +4,7 @@
 use sqlx::{Any, Row, Transaction};
 use sych_core::config::RuleException;
 use sych_core::lineage::{Decision, Prior};
-use sych_core::{FindingCategory, ReviewResult, Timestamp};
+use sych_core::{FindingCategory, ReviewResult, Severity, Timestamp};
 
 use crate::{Storage, StorageError};
 
@@ -23,6 +23,16 @@ fn name(c: FindingCategory) -> &'static str {
         FindingCategory::RuleViolation => "RULE_VIOLATION",
         FindingCategory::Improvement => "IMPROVEMENT",
         FindingCategory::Nit => "NIT",
+    }
+}
+
+fn severity(s: Severity) -> &'static str {
+    match s {
+        Severity::Info => "INFO",
+        Severity::Low => "LOW",
+        Severity::Medium => "MEDIUM",
+        Severity::High => "HIGH",
+        Severity::Critical => "CRITICAL",
     }
 }
 
@@ -337,10 +347,11 @@ async fn record_findings(
         let path = f.anchors.first().map(|a| a.path.as_str().to_owned());
         let inserted: Option<i64> = sqlx::query_scalar(
             "INSERT INTO findings (change_id, fingerprint, finding_id, category, rule_id, path,
-                 state, first_run_id, last_run_id, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, 'OPEN', $7, $8, $9)
+                 state, first_run_id, last_run_id, updated_at, severity, title)
+             VALUES ($1, $2, $3, $4, $5, $6, 'OPEN', $7, $8, $9, $11, $12)
              ON CONFLICT (change_id, fingerprint) DO UPDATE SET last_run_id = excluded.last_run_id,
-                 updated_at = excluded.updated_at
+                 updated_at = excluded.updated_at, severity = excluded.severity,
+                 title = excluded.title
              RETURNING CASE WHEN findings.first_run_id = $10 THEN findings.id END",
         )
         .bind(change_id)
@@ -353,6 +364,8 @@ async fn record_findings(
         .bind(run_id)
         .bind(at)
         .bind(run_id)
+        .bind(severity(f.severity))
+        .bind(&f.title)
         .fetch_one(&mut **tx)
         .await?;
         if let Some(id) = inserted {

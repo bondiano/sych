@@ -16,6 +16,7 @@ mod questions;
 pub mod requests;
 pub mod smoke;
 mod tours;
+mod views;
 mod worker;
 
 use std::collections::BTreeMap;
@@ -144,7 +145,16 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/runs/{id}/cancel", post(api::cancel_run))
         .route("/v1/changes/{id}/reruns", post(api::rerun))
         .route("/v1/findings/{id}/feedback", post(api::feedback))
-        .route("/v1/waivers", post(api::waiver))
+        .route("/v1/waivers", get(views::waivers).post(api::waiver))
+        .route("/v1/waivers/{id}/revoke", post(views::revoke))
+        .route("/v1/repositories", get(views::repositories))
+        .route("/v1/changes", get(views::changes))
+        .route("/v1/changes/{id}", get(views::change))
+        .route("/v1/findings", get(views::findings))
+        .route("/v1/findings/{id}", get(views::finding))
+        .route("/v1/runs/{id}/attempts", get(views::attempts))
+        .route("/v1/summary", get(views::summary))
+        .route("/v1/usage", get(views::usage))
         .route("/v1/publications/{id}", get(api::publication))
         .route("/v1/runs/{id}/handoff", post(handoff::handoff))
         .route("/v1/runs/{id}/tour", get(tours::get_tour))

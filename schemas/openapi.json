@@ -38,6 +38,106 @@
         ],
         "type": "string"
       },
+      "Attempt": {
+        "description": "`GET /v1/runs/:id/attempts`: one model call as the ledger recorded it.",
+        "properties": {
+          "billing_kind": {
+            "type": "string"
+          },
+          "charge_micro_usd": {
+            "description": "`None` while unknown; never shown as zero.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "input_tokens": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "output_tokens": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "profile": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "reasoning_tokens": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "requested_model": {
+            "type": "string"
+          },
+          "reserved_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "resolved_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "settled_at": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "state": {
+            "description": "`RESERVED`, `SETTLED`, `UNKNOWN` or `RELEASED`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "purpose",
+          "kind",
+          "profile",
+          "provider",
+          "requested_model",
+          "billing_kind",
+          "state",
+          "reserved_micro_usd",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "Attempts": {
+        "items": {
+          "$ref": "#/$defs/Attempt"
+        },
+        "title": "Array_of_Attempt",
+        "type": "array"
+      },
       "BillingKind": {
         "enum": [
           "api_usage",
@@ -160,6 +260,92 @@
         ],
         "type": "string"
       },
+      "ChangeDetail": {
+        "description": "`GET /v1/changes/:id`; its findings are `GET /v1/findings?change_id=`.",
+        "properties": {
+          "change": {
+            "$ref": "#/$defs/ChangeSummary"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/$defs/ChangeEvent"
+            },
+            "type": "array"
+          },
+          "publications": {
+            "items": {
+              "$ref": "#/$defs/PublicationEntry"
+            },
+            "type": "array"
+          },
+          "runs": {
+            "description": "Every generation, oldest first.",
+            "items": {
+              "$ref": "#/$defs/RunStatus"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "change",
+          "runs",
+          "events",
+          "publications"
+        ],
+        "title": "ChangeDetail",
+        "type": "object"
+      },
+      "ChangeEvent": {
+        "description": "One logged event of a change: generation, skip, SCM failure, repair.",
+        "properties": {
+          "at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "detail",
+          "at"
+        ],
+        "type": "object"
+      },
+      "ChangePage": {
+        "description": "One page, newest first; pass `next_before` as `before` for the next one.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/ChangeSummary"
+            },
+            "type": "array"
+          },
+          "next_before": {
+            "description": "`None` on the last page.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page",
+        "type": "object"
+      },
       "ChangeRef": {
         "additionalProperties": false,
         "properties": {
@@ -178,6 +364,65 @@
           "connection_id",
           "repository",
           "external_number"
+        ],
+        "type": "object"
+      },
+      "ChangeSummary": {
+        "description": "`GET /v1/changes`: one pull request.",
+        "properties": {
+          "head_sha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "latest_run": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/LatestRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "number": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "open_findings": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "repository": {
+            "$ref": "#/$defs/Repository"
+          },
+          "scm_state": {
+            "description": "`OPEN`, `DRAFT`, `MERGED` or `CLOSED`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "synced_at": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "repository",
+          "open_findings"
         ],
         "type": "object"
       },
@@ -264,6 +509,22 @@
           "known",
           "reference_estimate",
           "unknown_cost_attempts"
+        ],
+        "type": "object"
+      },
+      "Count": {
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "count"
         ],
         "type": "object"
       },
@@ -449,6 +710,34 @@
         ],
         "type": "object"
       },
+      "FeedbackEntry": {
+        "properties": {
+          "actor": {
+            "type": "string"
+          },
+          "at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "judgement": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor",
+          "judgement",
+          "scope",
+          "rationale",
+          "at"
+        ],
+        "type": "object"
+      },
       "FeedbackRequest": {
         "additionalProperties": false,
         "description": "`POST /v1/findings/:id/feedback`.",
@@ -596,6 +885,189 @@
           "NIT"
         ],
         "type": "string"
+      },
+      "FindingDetail": {
+        "description": "`GET /v1/findings/:id`.",
+        "properties": {
+          "feedback": {
+            "items": {
+              "$ref": "#/$defs/FeedbackEntry"
+            },
+            "type": "array"
+          },
+          "finding": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Finding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The finding as its latest run's result states it; `None` once that result was pruned."
+          },
+          "history": {
+            "items": {
+              "$ref": "#/$defs/FindingEvent"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/$defs/FindingSummary"
+          }
+        },
+        "required": [
+          "summary",
+          "history",
+          "feedback"
+        ],
+        "title": "FindingDetail",
+        "type": "object"
+      },
+      "FindingEvent": {
+        "description": "One lifecycle transition of a finding.",
+        "properties": {
+          "actor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "from_state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to_state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "to_state",
+          "reason",
+          "at"
+        ],
+        "type": "object"
+      },
+      "FindingPage": {
+        "description": "One page, newest first; pass `next_before` as `before` for the next one.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/FindingSummary"
+            },
+            "type": "array"
+          },
+          "next_before": {
+            "description": "`None` on the last page.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page",
+        "type": "object"
+      },
+      "FindingSummary": {
+        "description": "`GET /v1/findings`: one finding's lineage row.",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "change_id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "finding_id": {
+            "description": "The finding's id inside its run's result.",
+            "type": "string"
+          },
+          "first_run_id": {
+            "type": "string"
+          },
+          "id": {
+            "description": "The id feedback is posted to.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "last_run_id": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "repository": {
+            "$ref": "#/$defs/Repository"
+          },
+          "rule_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "severity": {
+            "description": "`None` for findings recorded before severities were kept.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "description": "`OPEN`, `RESOLVED`, `DISMISSED` or `OBSOLETE`.",
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "change_id",
+          "repository",
+          "finding_id",
+          "category",
+          "state",
+          "first_run_id",
+          "last_run_id",
+          "updated_at"
+        ],
+        "type": "object"
       },
       "GitObjectId": {
         "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$",
@@ -784,6 +1256,67 @@
           "finding_ids"
         ],
         "title": "HandoffRequest",
+        "type": "object"
+      },
+      "LatestRun": {
+        "description": "The newest generation's run of a change.",
+        "properties": {
+          "cost_known_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "coverage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "finished_at": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "unknown_cost_attempts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unknown_obligations": {
+            "description": "Obligations the run could not assess; `None` before it finished.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "run_id",
+          "generation",
+          "state",
+          "stage",
+          "cost_known_micro_usd",
+          "unknown_cost_attempts",
+          "created_at"
+        ],
         "type": "object"
       },
       "Lifecycle": {
@@ -1030,6 +1563,67 @@
         ],
         "type": "object"
       },
+      "PublicationEntry": {
+        "description": "One delivery attempt of a summary, inline comment or check run.",
+        "properties": {
+          "attempts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "finished_at": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "description": "`SUMMARY`, `INLINE` or `CHECK`.",
+            "type": "string"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "relevance": {
+            "description": "`CURRENT` or `STALE`.",
+            "type": "string"
+          },
+          "remote_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "relevance",
+          "generation",
+          "attempts",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "PublicationStatus": {
         "description": "`GET /v1/publications/:id`: delivery and relevance kept apart.",
         "properties": {
@@ -1232,6 +1826,35 @@
       "RepoPath": {
         "minLength": 1,
         "type": "string"
+      },
+      "Repositories": {
+        "items": {
+          "$ref": "#/$defs/Repository"
+        },
+        "title": "Array_of_Repository",
+        "type": "array"
+      },
+      "Repository": {
+        "description": "A repository the caller may read.",
+        "properties": {
+          "connection_id": {
+            "type": "string"
+          },
+          "full_name": {
+            "description": "`owner/name`.",
+            "type": "string"
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "connection_id",
+          "full_name"
+        ],
+        "type": "object"
       },
       "Requirement": {
         "description": "A requirement a finding violates or depends on, with the review's status for it.",
@@ -1660,6 +2283,13 @@
             "format": "int64",
             "type": "integer"
           },
+          "parent_run_id": {
+            "description": "The run this one continues, such as after late CI evidence.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "result_url": {
             "type": "string"
           },
@@ -1671,6 +2301,14 @@
           },
           "state": {
             "type": "string"
+          },
+          "unknown_obligations": {
+            "description": "Obligations the run could not assess; `None` before it finished.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "usage": {
             "$ref": "#/$defs/RunUsage"
@@ -1686,7 +2324,6 @@
           "created_at",
           "result_url"
         ],
-        "title": "RunStatus",
         "type": "object"
       },
       "RunUsage": {
@@ -1792,6 +2429,28 @@
         "$ref": "#/$defs/Sha256Digest",
         "description": "Content-derived identity of a [`crate::SourceSnapshot`]."
       },
+      "SubscriptionFee": {
+        "description": "A fixed subscription fee of the tenant; not attributed to a repository.",
+        "properties": {
+          "amount_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "month": {
+            "description": "`YYYY-MM`.",
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "month",
+          "amount_micro_usd"
+        ],
+        "type": "object"
+      },
       "SuggestedChange": {
         "description": "The full new text of exactly the HEAD lines of `code`, which a comment can offer as a\none-click change.",
         "properties": {
@@ -1806,6 +2465,80 @@
           "code",
           "replacement"
         ],
+        "type": "object"
+      },
+      "Summary": {
+        "description": "`GET /v1/summary`: totals since `since` over the repositories the caller may read.",
+        "properties": {
+          "cost_known_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "finding_events": {
+            "description": "Lifecycle transitions in the period by the state entered: found, resolved, dismissed.",
+            "items": {
+              "$ref": "#/$defs/Count"
+            },
+            "type": "array"
+          },
+          "oldest_queued_age_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "queued_jobs": {
+            "description": "Current queue, not limited to the period.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "reserved_micro_usd": {
+            "description": "Money still reserved by attempts in flight.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "runs_by_coverage": {
+            "items": {
+              "$ref": "#/$defs/Count"
+            },
+            "type": "array"
+          },
+          "runs_by_state": {
+            "items": {
+              "$ref": "#/$defs/Count"
+            },
+            "type": "array"
+          },
+          "since": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "uncertain_publications": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unknown_cost_attempts": {
+            "description": "Attempts whose charge is not known: never counted as zero cost.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "unknown_obligations": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "since",
+          "runs_by_state",
+          "runs_by_coverage",
+          "unknown_obligations",
+          "finding_events",
+          "cost_known_micro_usd",
+          "unknown_cost_attempts",
+          "reserved_micro_usd",
+          "queued_jobs",
+          "oldest_queued_age_seconds",
+          "uncertain_publications"
+        ],
+        "title": "Summary",
         "type": "object"
       },
       "Support": {
@@ -2022,6 +2755,76 @@
         "title": "TourView",
         "type": "object"
       },
+      "Usage": {
+        "description": "`GET /v1/usage`.",
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/$defs/UsageDay"
+            },
+            "type": "array"
+          },
+          "from": {
+            "type": "string"
+          },
+          "subscription_fees": {
+            "description": "Only for a caller that reads every repository and asked for no single one.",
+            "items": {
+              "$ref": "#/$defs/SubscriptionFee"
+            },
+            "type": "array"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "days",
+          "subscription_fees"
+        ],
+        "title": "Usage",
+        "type": "object"
+      },
+      "UsageDay": {
+        "description": "One UTC day of model usage.",
+        "properties": {
+          "attempts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cost_known_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "day": {
+            "description": "`YYYY-MM-DD`.",
+            "type": "string"
+          },
+          "input_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unknown_cost_attempts": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "attempts",
+          "cost_known_micro_usd",
+          "unknown_cost_attempts",
+          "input_tokens",
+          "output_tokens"
+        ],
+        "type": "object"
+      },
       "UsageSummary": {
         "properties": {
           "cost": {
@@ -2082,17 +2885,25 @@
         "type": "string"
       },
       "Waiver": {
-        "description": "A rule exception in force for one obligation.",
+        "description": "`GET /v1/waivers`.",
         "properties": {
           "author": {
             "type": "string"
           },
+          "created_at": {
+            "format": "int64",
+            "type": "integer"
+          },
           "expires_at": {
-            "format": "date-time",
+            "format": "int64",
             "type": [
-              "string",
+              "integer",
               "null"
             ]
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
           },
           "owner": {
             "type": "string"
@@ -2106,8 +2917,20 @@
           "reason": {
             "type": "string"
           },
+          "repository": {
+            "$ref": "#/$defs/Repository"
+          },
+          "revoked_at": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rule_id": {
+            "type": "string"
+          },
           "until": {
-            "description": "Completion condition when there is no fixed expiry.",
             "type": [
               "string",
               "null"
@@ -2115,11 +2938,16 @@
           }
         },
         "required": [
+          "id",
+          "repository",
+          "rule_id",
           "paths",
           "reason",
           "owner",
-          "author"
+          "author",
+          "created_at"
         ],
+        "title": "Waiver",
         "type": "object"
       },
       "WaiverRequest": {
@@ -2209,6 +3037,13 @@
           "owner"
         ],
         "type": "object"
+      },
+      "Waivers": {
+        "items": {
+          "$ref": "#/$defs/Waiver"
+        },
+        "title": "Array_of_Waiver",
+        "type": "array"
       }
     },
     "securitySchemes": {
@@ -2224,6 +3059,188 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/changes": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this repository",
+            "in": "query",
+            "name": "repository_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`OPEN`, `DRAFT`, `MERGED` or `CLOSED`",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the `next_before` of the previous page",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "1 to 200, 50 by default",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangePage"
+                }
+              }
+            },
+            "description": "Pull requests, newest first"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pull requests, newest first"
+      }
+    },
+    "/v1/changes/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeDetail"
+                }
+              }
+            },
+            "description": "A pull request with its runs, events and publications"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A pull request with its runs, events and publications"
+      }
+    },
     "/v1/changes/{id}/reruns": {
       "post": {
         "parameters": [
@@ -2335,6 +3352,224 @@
           }
         ],
         "summary": "An explicit new generation"
+      }
+    },
+    "/v1/findings": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this repository",
+            "in": "query",
+            "name": "repository_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "only this change",
+            "in": "query",
+            "name": "change_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "lifecycle state",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "finding category",
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "finding severity",
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "only this rule",
+            "in": "query",
+            "name": "rule_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the `next_before` of the previous page",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "1 to 200, 50 by default",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingPage"
+                }
+              }
+            },
+            "description": "Findings, newest first"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Findings, newest first"
+      }
+    },
+    "/v1/findings/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingDetail"
+                }
+              }
+            },
+            "description": "A finding with its history, feedback and stated details"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A finding with its history, feedback and stated details"
       }
     },
     "/v1/findings/{id}/feedback": {
@@ -2500,6 +3735,78 @@
           }
         ],
         "summary": "Delivery, relevance and reconciliation state"
+      }
+    },
+    "/v1/repositories": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repositories"
+                }
+              }
+            },
+            "description": "Repositories the caller may read"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Repositories the caller may read"
       }
     },
     "/v1/reviews": {
@@ -2685,6 +3992,78 @@
           }
         ],
         "summary": "Run state, stage, usage and links"
+      }
+    },
+    "/v1/runs/{id}/attempts": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Attempts"
+                }
+              }
+            },
+            "description": "Model attempts of a run as the ledger recorded them"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Model attempts of a run as the ledger recorded them"
       }
     },
     "/v1/runs/{id}/cancel": {
@@ -3430,7 +4809,290 @@
         "summary": "Reveal one step's answer in the caller's session"
       }
     },
+    "/v1/summary": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this repository",
+            "in": "query",
+            "name": "repository_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Unix seconds; 30 days ago by default",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Summary"
+                }
+              }
+            },
+            "description": "Totals since a time over readable repositories"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Totals since a time over readable repositories"
+      }
+    },
+    "/v1/usage": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this repository",
+            "in": "query",
+            "name": "repository_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`YYYY-MM-DD`; 30 days ago by default",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`YYYY-MM-DD`; today by default",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Usage"
+                }
+              }
+            },
+            "description": "Model usage by UTC day"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Model usage by UTC day"
+      }
+    },
     "/v1/waivers": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this repository",
+            "in": "query",
+            "name": "repository_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`active`, `expired` or `revoked`",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Waivers"
+                }
+              }
+            },
+            "description": "Waivers of the repositories the caller may read"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Waivers of the repositories the caller may read"
+      },
       "post": {
         "parameters": [
           {
@@ -3531,6 +5193,99 @@
           }
         ],
         "summary": "A scoped waiver"
+      }
+    },
+    "/v1/waivers/{id}/revoke": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Waiver"
+                }
+              }
+            },
+            "description": "Revoke a waiver; a revoked one keeps its time"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revoke a waiver; a revoked one keeps its time"
       }
     }
   }
