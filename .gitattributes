@@ -3,3 +3,6 @@
 schemas/*.schema.json linguist-generated=true
 schemas/openapi.json linguist-generated=true
 docs/examples/**/*.json linguist-generated=true
+web/pnpm-lock.yaml linguist-generated=true
+# Copied in by the shadcn-vue CLI from its registry; changed by re-running it, not by hand.
+web/src/modules/Ui/components/ui/** linguist-vendored=true

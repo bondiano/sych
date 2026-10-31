@@ -7,6 +7,7 @@ use std::{env, fs};
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde_json::Value;
 use sych_core::api;
 use sych_core::{
     DecodeError, Evidence, ObligationStatus, PolicySnapshot, ReviewResult, SourceSnapshot,
@@ -97,6 +98,33 @@ fn generated_schemas_match_committed() {
                 path.display()
             );
         }
+    }
+}
+
+/// Every `$ref` of the `OpenAPI` document resolves inside it, so generators can read it.
+#[test]
+fn every_openapi_reference_resolves() {
+    fn refs(v: &Value, out: &mut Vec<String>) {
+        match v {
+            Value::Object(o) => {
+                if let Some(Value::String(r)) = o.get("$ref") {
+                    out.push(r.clone());
+                }
+
+                o.values().for_each(|v| refs(v, out));
+            }
+            Value::Array(a) => a.iter().for_each(|v| refs(v, out)),
+            _ => {}
+        }
+    }
+
+    let doc = api::openapi();
+    let mut found = Vec::new();
+    refs(&doc, &mut found);
+    assert!(!found.is_empty());
+    for r in found {
+        let target = r.strip_prefix('#').and_then(|p| doc.pointer(p));
+        assert!(target.is_some(), "{r} does not resolve");
     }
 }
 

@@ -267,7 +267,7 @@ pub struct Usage {
 
 /// `GET /v1/waivers`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct Waiver {
+pub struct WaiverEntry {
     pub id: i64,
     pub repository: Repository,
     pub rule_id: String,
@@ -308,8 +308,8 @@ pub(super) fn paths(
     let attempts = component::<Vec<Attempt>>(c, "Attempts");
     let summary = component::<Summary>(c, "Summary");
     let usage = component::<Usage>(c, "Usage");
-    let waivers = component::<Vec<Waiver>>(c, "Waivers");
-    let waiver = component::<Waiver>(c, "Waiver");
+    let waivers = component::<Vec<WaiverEntry>>(c, "Waivers");
+    let waiver = component::<WaiverEntry>(c, "WaiverEntry");
     let me = component::<Me>(c, "Me");
     let audit = component::<Page<AuditEvent>>(c, "AuditPage");
     let sign_ins = component::<Vec<SignIn>>(c, "SignIns");

@@ -27,6 +27,7 @@ sych-storage.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "net", "signal", "sync", "time"] }
+tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 url.workspace = true

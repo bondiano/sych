@@ -204,20 +204,49 @@ pub struct ErrorEnvelope {
     pub error: ErrorBody,
 }
 
+/// `schemars` refers to `#/$defs/X`; in the document those definitions are components.
+fn relink(v: &mut Value) {
+    match v {
+        Value::Object(o) => {
+            if let Some(Value::String(r)) = o.get_mut("$ref")
+                && let Some(name) = r.strip_prefix("#/$defs/")
+            {
+                *r = format!("#/components/schemas/{name}");
+            }
+
+            o.values_mut().for_each(relink);
+        }
+        Value::Array(a) => a.iter_mut().for_each(relink),
+        _ => {}
+    }
+}
+
 fn component<T: JsonSchema>(components: &mut Map<String, Value>, name: &str) -> Value {
     let mut schema = serde_json::to_value(schema_for!(T)).unwrap_or(Value::Null);
+    relink(&mut schema);
     if let Some(defs) = schema
         .as_object_mut()
         .and_then(|o| o.remove("$defs"))
         .and_then(|d| d.as_object().cloned())
     {
         for (k, v) in defs {
+            // Two Rust types with one name would silently replace each other's schema.
+            if let Some(known) = components.get(&k) {
+                assert_eq!(known, &v, "two different schemas are named {k}");
+            }
+
             components.insert(k, v);
         }
     }
 
+    // A root schema carries a `title` its copies in `$defs` do not; both describe one type.
     if let Some(o) = schema.as_object_mut() {
         o.remove("$schema");
+        o.remove("title");
+    }
+
+    if let Some(known) = components.get(name) {
+        assert_eq!(known, &schema, "two different schemas are named {name}");
     }
 
     components.insert(name.into(), schema);

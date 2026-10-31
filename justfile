@@ -29,8 +29,16 @@ test-postgres:
     cargo test --locked -p sych-storage -p sych-app --tests -- --test-threads=1
     cargo test --locked -p sych-storage --test postgres -- --ignored --test-threads=1
 
+# Generate API types, lint, check formatting, type-check, test and build the web UI
+web-check:
+    cd web && pnpm install --frozen-lockfile && pnpm check
+
+# Format the web UI and fix what its linters can
+web-fmt:
+    cd web && pnpm format && pnpm lint:fix
+
 # Everything CI runs
-check: lint test
+check: lint test web-check
 
 # Build the application
 build:

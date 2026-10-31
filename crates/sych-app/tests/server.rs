@@ -59,6 +59,7 @@ async fn start(max_body_bytes: u32) -> Server {
         now,
         public_base_url: None,
         oauth: BTreeMap::new(),
+        ui_dir: None,
     });
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let url = format!("http://{}", listener.local_addr().expect("addr"));

@@ -44,6 +44,7 @@ tar = "0.4.46"
 tempfile = "3.20.0"
 thiserror = "2.0.21"
 tokio = { version = "1.53.2", features = ["rt"] }
+tower-http = { version = "0.6.11", default-features = false, features = ["fs"] }
 toml = "1.1.8"
 tree-sitter = "0.27.1"
 tree-sitter-go = "0.25.0"

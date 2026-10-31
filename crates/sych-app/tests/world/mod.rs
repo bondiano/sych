@@ -217,6 +217,7 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
         now,
         public_base_url: Some(PUBLIC_BASE.into()),
         oauth: BTreeMap::from([("gh".into(), Secret::new(CLIENT_SECRET.into()))]),
+        ui_dir: None,
     });
     let conns = BTreeMap::from([(
         "gh".into(),
