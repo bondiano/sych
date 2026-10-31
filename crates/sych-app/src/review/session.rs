@@ -70,6 +70,13 @@ impl Session<'_> {
             saved = self.analyze_and_store(&storage, &run) => saved.map_err(|e| Stopped::Failed(format!("{e:#}"))),
             () = cancelled => Err(Stopped::Cancelled),
         };
+        // A stopped analysis was dropped with its calls; none of them will settle now.
+        if saved.is_err()
+            && let Err(e) = storage.hold_unsettled(&run.id, Timestamp::now()).await
+        {
+            tracing::error!(run = %run.id, error = %e, "cannot hold unsettled attempts");
+        }
+
         let marked = match (&saved, &run.fence) {
             // The scheduler already ended a claimed run it cancelled or superseded.
             (Ok(_), _) | (Err(Stopped::Cancelled), Some(_)) => Ok(()),
