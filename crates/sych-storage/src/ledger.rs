@@ -7,7 +7,7 @@ use sych_core::config::BillingKind;
 use sych_core::model::{
     Committed, Denied, Ledger, LedgerError, Limits, Reservation, Settlement, admit,
 };
-use sych_core::{AttemptId, MicroUsd, Timestamp};
+use sych_core::{AttemptId, MicroUsd, RunId, Timestamp};
 
 use crate::{Storage, StorageError, int};
 
@@ -248,6 +248,22 @@ impl Storage {
 
         tx.commit().await?;
         Ok(())
+    }
+
+    /// Moves the attempts a cancelled run dropped in flight from RESERVED to UNKNOWN: their
+    /// requests may have been sent, so the reservation stays held, but no settlement will come.
+    pub async fn hold_unsettled(&self, run: &RunId, at: Timestamp) -> Result<u64, StorageError> {
+        let mut tx = self.write().await?;
+        let done = sqlx::query(
+            "UPDATE model_attempts SET state = 'UNKNOWN', settled_at = $1
+             WHERE run_id = $2 AND state = 'RESERVED'",
+        )
+        .bind(at.as_second())
+        .bind(run.to_string())
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(done.rows_affected())
     }
 }
 

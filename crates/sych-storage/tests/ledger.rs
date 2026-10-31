@@ -405,3 +405,63 @@ async fn a_session_cap_survives_the_month_boundary() {
         "the monthly pool itself starts again"
     );
 }
+
+#[tokio::test]
+async fn a_stopped_run_holds_its_unsettled_attempts_as_unknown() {
+    let (dir, storage, run) = setup().await;
+    let partition = Partition {
+        tenant_id: TENANT_LOCAL.into(),
+        access_scope: "local:repo".into(),
+    };
+    let other = storage
+        .begin_run(
+            &partition,
+            "other",
+            &SourceSnapshotId(sha256(b"s")),
+            &PolicySnapshotId(sha256(b"p")),
+            at(0),
+        )
+        .await
+        .expect("begin")
+        .id;
+    let caps = limits(10_000, 100_000);
+    let (dropped, done, running) = (
+        reservation(run, 600),
+        reservation(run, 300),
+        reservation(other, 300),
+    );
+    for r in [&dropped, &done, &running] {
+        storage
+            .reserve_attempt(r, &caps)
+            .await
+            .expect("ledger")
+            .expect("fits");
+    }
+    storage
+        .settle_attempt(done.attempt_id, &settled(100), at(61))
+        .await
+        .expect("settle");
+
+    assert_eq!(storage.hold_unsettled(&run, at(62)).await.expect("hold"), 1);
+    let pool = database::inspect(dir.config()).await;
+    let state = async |r: &Reservation| -> String {
+        sqlx::query_scalar("SELECT state FROM model_attempts WHERE id = $1")
+            .bind(r.attempt_id.to_string())
+            .fetch_one(&pool)
+            .await
+            .expect("state")
+    };
+    assert_eq!(state(&dropped).await, "UNKNOWN");
+    assert_eq!(state(&done).await, "SETTLED");
+    assert_eq!(
+        state(&running).await,
+        "RESERVED",
+        "another run is untouched"
+    );
+    // A known charge that arrives later still reconciles the held attempt.
+    storage
+        .settle_attempt(dropped.attempt_id, &settled(50), at(63))
+        .await
+        .expect("settle");
+    assert_eq!(state(&dropped).await, "SETTLED");
+}
