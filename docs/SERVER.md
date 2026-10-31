@@ -407,16 +407,30 @@ repository (`connection/owner/name` or `*`); a foreign repository — 404. Mutat
 `reused: true`, the same key with a different body or target resource (path parameters) — 409 `IDEMPOTENCY_CONFLICT`, an unfinished first request — 409
 `REQUEST_IN_PROGRESS`. Run/publication uniqueness does not depend on the key TTL.
 
+Lists show only repositories in the caller's scope and never changes without a repository (local
+runs). They are newest first by id: `limit` is 1–200 (50 by default) and a page's `next_before`, passed
+as `before`, gives the next one. Times are Unix seconds, money micro-USD.
+
 | Endpoint | Role | Response |
 |---|---|---|
 | `POST /v1/reviews` | writer | 202 `{request_id, run_id, status_url, reused}` — durable admission; `publish` defaults to `false` and is enabled only where the connection publishes; optional `checks: [{profile, params}]` run only those execution profiles ([CONFIG.md](CONFIG.md)) |
 | `GET /v1/runs/:id` | reader | state, stage, coverage, usage, link to the result |
-| `GET /v1/runs/:id/result` | reader | immutable `ReviewResult`; before commit — 409 `NO_RESULT` |
+| `GET /v1/runs/:id/result` | reader | immutable `ReviewResult`; before commit — 409 `NO_RESULT`; once retention deleted it — 409 `RESULT_PRUNED` |
+| `GET /v1/runs/:id/attempts` | reader | the run's model attempts as the ledger recorded them; an unknown charge is `null`, never 0 |
 | `POST /v1/runs/:id/cancel` | writer | active → `CANCELLED`; a committed one stays in its terminal state |
 | `POST /v1/changes/:id/reruns` | writer | 202, a new generation from the current PR state |
 | `POST /v1/findings/:id/feedback` | triage | 201; `FALSE_POSITIVE`/`WONT_FIX` → `DISMISSED` |
 | `POST /v1/waivers` | maintainer | 201; scoped, with an expiry or a condition |
+| `GET /v1/waivers[?repository_id=&state=]` | reader | waivers, newest first; `state` is `active`, `expired` or `revoked` |
+| `POST /v1/waivers/:id/revoke` | maintainer | 200 with the waiver; the next review no longer applies it; a revoked one keeps its time |
 | `GET /v1/publications/:id` | reader | delivery, relevance, remote id, error |
+| `GET /v1/repositories` | reader | repositories the caller may read |
+| `GET /v1/changes[?repository_id=&state=&before=&limit=]` | reader | pull requests, newest first, with the latest run and open findings |
+| `GET /v1/changes/:id` | reader | every generation's run, the event log and publication attempts; findings are `GET /v1/findings?change_id=` |
+| `GET /v1/findings[?repository_id=&change_id=&state=&category=&severity=&rule_id=&before=&limit=]` | reader | findings, newest first, with the `id` feedback is posted to |
+| `GET /v1/findings/:id` | reader | the lineage row, its history, feedback and the finding as the latest result states it (`null` once that result was pruned) |
+| `GET /v1/summary[?repository_id=&since=]` | reader | since 30 days ago by default: runs by state and coverage, unknown obligations, finding transitions, known cost and unknown-cost attempts; the queue and `UNCERTAIN` publications are current |
+| `GET /v1/usage[?repository_id=&from=&to=]` | reader | model usage per UTC day (`YYYY-MM-DD`, 30 days by default); the tenant's subscription fees only for a caller of every repository without `repository_id` |
 | `POST /v1/runs/:id/handoff` | reader | the run's own findings (`{finding_ids, source_snapshot_id?}`) as a `handoff@1` package ([LOCAL_REVIEW.md](LOCAL_REVIEW.md#handing-off-a-fix)); no model, no change, nothing published; a foreign finding — 400 `FOREIGN_FINDING`, another snapshot — 409 `SNAPSHOT_MISMATCH` |
 | `GET /v1/runs/:id/tour[?tour=]` | reader | the newest (or named) tour as the caller's own session sees it: unrevealed answers blanked, `stale` once the result revision or the change's generation moved on; source is not included, only `code_refs`; a pruned tour — 409 `TOUR_UNAVAILABLE` |
 | `POST /v1/runs/:id/tours/:tour/reveal\|complete\|dismiss` | reader | the caller's session (the actor is the API client), never published and never an approval; `reveal` takes `{step_id}`; finishing a finished session — 409 `SESSION_FINISHED` |

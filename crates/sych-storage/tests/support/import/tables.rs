@@ -339,6 +339,8 @@ pub const TABLES: &[Table] = &[
             T("last_run_id"),
             I("predecessor_id"),
             I("updated_at"),
+            T("severity"),
+            T("title"),
         ],
     },
     Table {

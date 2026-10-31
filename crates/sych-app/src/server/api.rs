@@ -21,7 +21,7 @@ use sych_core::api::{
 use sych_core::config::{ApiClient, ApiRole, RuleException};
 use sych_core::scm::ScmErrorKind;
 use sych_core::{RunId, Timestamp, sha256};
-use sych_storage::{Idempotency, RunView};
+use sych_storage::{Idempotency, RunView, StorageError};
 
 use super::App;
 use super::error::ApiError;
@@ -259,7 +259,7 @@ pub(super) fn to_value<T: serde::Serialize>(v: &T) -> Result<Value, ApiError> {
     serde_json::to_value(v).map_err(|e| storage_error(&e))
 }
 
-fn run_status(v: RunView) -> RunStatus {
+pub(super) fn run_status(v: RunView) -> RunStatus {
     RunStatus {
         result_url: format!("/v1/runs/{}/result", v.run_id),
         run_id: v.run_id,
@@ -276,6 +276,8 @@ fn run_status(v: RunView) -> RunStatus {
         failure: v.failure,
         created_at: v.created_at,
         finished_at: v.finished_at,
+        parent_run_id: v.parent_run_id,
+        unknown_obligations: v.unknown_obligations,
     }
 }
 
@@ -317,7 +319,15 @@ pub async fn get_result(
         .storage
         .load_result(&caller.0.tenant_id, run)
         .await
-        .map_err(|e| status(StatusCode::CONFLICT, "NO_RESULT", e.to_string()))?;
+        .map_err(|e| match e {
+            StorageError::NotCompleted { .. } => {
+                status(StatusCode::CONFLICT, "NO_RESULT", e.to_string())
+            }
+            StorageError::ArtifactUnavailable(_) => {
+                status(StatusCode::CONFLICT, "RESULT_PRUNED", e.to_string())
+            }
+            e => storage_error(&e),
+        })?;
     Ok(Json(
         serde_json::to_value(result).map_err(|e| storage_error(&e))?,
     ))

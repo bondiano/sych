@@ -11,6 +11,10 @@ use crate::handoff::Handoff;
 use crate::tour::{QuestionKind, TourArtifact, TourSession};
 use crate::{FindingId, ReviewResult, SourceSnapshotId, Timestamp};
 
+mod views;
+
+pub use views::*;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ChangeRef {
@@ -139,6 +143,10 @@ pub struct RunStatus {
     pub created_at: i64,
     pub finished_at: Option<i64>,
     pub result_url: String,
+    /// The run this one continues, such as after late CI evidence.
+    pub parent_run_id: Option<String>,
+    /// Obligations the run could not assess; `None` before it finished.
+    pub unknown_obligations: Option<i64>,
 }
 
 /// `POST /v1/runs/:id/cancel`: the state after the call; a committed run keeps its own.
@@ -216,6 +224,17 @@ fn component<T: JsonSchema>(components: &mut Map<String, Value>, name: &str) -> 
     json!({ "$ref": format!("#/components/schemas/{name}") })
 }
 
+/// Adds `paths` to the document; a path present in both keeps the methods of each, as
+/// `/v1/waivers` holds the POST written here and the GET of the read models.
+fn merge(doc: &mut Value, paths: Map<String, Value>) {
+    for (path, item) in paths {
+        match (doc["paths"].get_mut(&path), item) {
+            (Some(Value::Object(existing)), Value::Object(added)) => existing.extend(added),
+            (_, item) => doc["paths"][path] = item,
+        }
+    }
+}
+
 /// The `OpenAPI` 3.1 description of `/v1`, from the same DTOs the server uses.
 pub fn openapi() -> Value {
     let mut c = Map::new();
@@ -285,7 +304,16 @@ pub fn openapi() -> Value {
     get_tour["parameters"] = json!([{"name": "tour", "in": "query", "required": false,
         "description": "a tour id of this run; the newest when omitted",
         "schema": {"type": "string", "format": "uuid"}}]);
-    json!({
+    // Reads answer 200 or the usual refusals; the one mutation also conflicts.
+    let views = views::paths(&mut c, &|summary, mutating, response| {
+        let fail: &[u16] = if mutating {
+            &[400, 401, 403, 404, 409, 503]
+        } else {
+            &[400, 401, 403, 404, 503]
+        };
+        op(summary, None, 200, response, mutating, fail)
+    });
+    let mut doc = json!({
         "openapi": "3.1.0",
         "info": {"title": "Sych", "version": env!("CARGO_PKG_VERSION")},
         "components": {"schemas": c, "securitySchemes": {"bearer": {"type": "http", "scheme": "bearer"}}},
@@ -305,5 +333,7 @@ pub fn openapi() -> Value {
             "/v1/runs/{id}/handoff": {"post": op("Export selected findings for a separate author workflow; no model, no change", Some(&handoff_request), 200, &handoff, false, &[400, 401, 403, 404, 409, 503])},
             "/v1/runs/{id}/tours/{tour}/questions": {"post": op("A bounded follow-up on one step; private, never evidence", Some(&question), 201, &exchange, true, &[400, 401, 403, 404, 409, 503])},
         }
-    })
+    });
+    merge(&mut doc, views);
+    doc
 }

@@ -88,7 +88,8 @@ is carried over.
 
 PostgreSQL has its own migration history, starting with `migrations/postgres/0001_storage.sql`.
 It stores the same 21 application tables; domain IDs and JSON remain text, integer data remains signed 64-bit.
-Opening either backend refuses missing or newer migrations. Switching the configured URL does not copy history
+SQLite 0011 and PostgreSQL 0002 keep a finding's severity and title for the API lists; findings recorded
+before them stay `NULL` until a later revision touches them. Opening either backend refuses missing or newer migrations. Switching the configured URL does not copy history
 or artifact files.
 
 ## Moving server history to PostgreSQL

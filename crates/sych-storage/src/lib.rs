@@ -20,7 +20,9 @@ mod publish;
 mod recreate;
 mod retention;
 mod scheduler;
+mod totals;
 mod tour_sessions;
+mod views;
 
 use std::path::PathBuf;
 use std::{fmt, io};
@@ -47,6 +49,7 @@ pub use publish::{MAX_PUBLISH_ATTEMPTS, PublishClaim, Uncertain, Unresolved};
 pub use retention::RecordPrune;
 pub use scheduler::ChangeRow;
 pub use tour_sessions::tour_role;
+pub use views::{ChangeFilter, FindingFilter, Visibility};
 
 static MIGRATOR: Migrator = sqlx::migrate!("../../migrations/sqlite");
 static POSTGRES_MIGRATOR: Migrator = sqlx::migrate!("../../migrations/postgres");

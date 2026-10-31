@@ -176,9 +176,9 @@ pub async fn seed_rows(pool: &AnyPool, run: &RunHandle, result: &ReviewResult, n
             INSERT INTO waivers VALUES (81, 'import-tenant', 41, 'rule', '["src/**"]', 'reason',
                 'owner', 'author', NULL, 'next-policy', NULL, {T0}, NULL);
             INSERT INTO findings VALUES (909, 1, 'older-fingerprint', 'finding-old', 'BUG',
-                NULL, NULL, 'RESOLVED', '{run_id}', '{run_id}', NULL, {T0});
+                NULL, NULL, 'RESOLVED', '{run_id}', '{run_id}', NULL, {T0}, NULL, NULL);
             INSERT INTO findings VALUES (101, 1, 'newer-fingerprint', 'finding-new', 'BUG',
-                'rule', 'src/π.rs', 'OPEN', '{run_id}', '{run_id}', 909, {T0});
+                'rule', 'src/π.rs', 'OPEN', '{run_id}', '{run_id}', 909, {T0}, 'HIGH', 'π in a title ');
             INSERT INTO publication_operations VALUES (61, 51, '{run_id}', '{result_id}', 1,
                 'PUBLISHING', 'attempt-publishing', 'request-digest', '{{"text":"π"}}', 2,
                 'worker', 9007199254740993, 1800000060, NULL, NULL, NULL, 1800003600,
