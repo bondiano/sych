@@ -476,7 +476,7 @@ generated from `schemas/openapi.json`. `sych serve` serves the build from `http.
 `/v1`, with `/` redirecting there. The image ships it in `/usr/share/sych/ui`. Every page falls back to `index.html`.
 A missing hashed asset is a 404. The answers carry a same-origin CSP, `nosniff` and `no-cache` (assets: immutable).
 
-Development needs Node 24 and pnpm; `just check` runs `just web-check` (`pnpm check`: generate the API types, oxlint and
+Development needs Node 22.18+ or 24 (CI and the image use 24) and pnpm; `just check` runs `just web-check` (`pnpm check`: generate the API types, oxlint and
 ESLint, Prettier, `vue-tsc`, Vitest and the build). `just web-fmt` formats. Against a local `sych serve` on
 `127.0.0.1:8080`, `cd web && pnpm dev` proxies `/v1` and `/auth` to it (`SYCH_URL` changes the address); sign in there
 with an API client's token.
