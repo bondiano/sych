@@ -18,7 +18,7 @@ import {
 const repository = useQueryParam('repository')
 const period = useQueryParam('days')
 const repositoryId = computed(() => toId(repository.value))
-const days = computed(() => Number(period.value ?? 30))
+const days = computed(() => toId(period.value) ?? 30)
 const summary = useSummary(repositoryId, days)
 const usage = useUsage(repositoryId, days)
 </script>
@@ -40,6 +40,7 @@ const usage = useUsage(repositoryId, days)
     <ErrorNotice v-if="summary.error.value" :error="summary.error.value" />
     <Skeleton v-else-if="!summary.data.value" class="h-40 w-full" />
     <SummaryTiles v-else :summary="summary.data.value" />
-    <CostByDay v-if="usage.data.value" :usage="usage.data.value" />
+    <ErrorNotice v-if="usage.error.value" :error="usage.error.value" />
+    <CostByDay v-else-if="usage.data.value" :usage="usage.data.value" />
   </div>
 </template>

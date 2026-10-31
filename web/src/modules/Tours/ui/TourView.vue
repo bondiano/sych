@@ -94,8 +94,16 @@ function ask(stepId: string) {
     </Card>
 
     <div v-if="open" class="flex gap-2">
-      <Button @click="actions.finish.mutate('complete')">Done</Button>
-      <Button variant="ghost" @click="actions.finish.mutate('dismiss')">Dismiss</Button>
+      <Button :disabled="actions.finish.isPending.value" @click="actions.finish.mutate('complete')">
+        Done
+      </Button>
+      <Button
+        variant="ghost"
+        :disabled="actions.finish.isPending.value"
+        @click="actions.finish.mutate('dismiss')"
+      >
+        Dismiss
+      </Button>
     </div>
   </div>
 </template>
