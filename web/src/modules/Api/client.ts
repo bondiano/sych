@@ -18,7 +18,10 @@ export class ApiError extends Error {
 }
 
 /** Same origin as `sych serve`: the session cookie goes along, no token lives in the page. */
-export const api = createClient<paths>({ credentials: 'same-origin' })
+export const api = createClient<paths>({
+  baseUrl: globalThis.location?.origin,
+  credentials: 'same-origin',
+})
 
 /** A key for one user action; a retry of that action sends the same one. */
 export function idempotencyKey(): string {
@@ -31,8 +34,9 @@ interface Envelope {
 
 /** The answer's data, or its refusal as an {@link ApiError}. */
 export function unwrap<T>(result: { data?: T; error?: unknown; response: Response }): T {
-  if (result.response.ok && result.data !== undefined) {
-    return result.data
+  // An ok answer is a success even without a body, as a 204 has none.
+  if (result.response.ok) {
+    return result.data as T
   }
 
   const body = result.error as Envelope | undefined

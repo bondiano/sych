@@ -11,6 +11,10 @@ describe('unwrap', () => {
     })
   })
 
+  it('takes an ok answer without a body as a success', () => {
+    expect(unwrap({ response: new Response(null, { status: 204 }) })).toBeUndefined()
+  })
+
   it('throws the envelope of a refusal with its status and code', () => {
     const error = {
       error: { code: 'FORBIDDEN', message: 'triage is needed', correlation_id: 'c-1' },

@@ -264,6 +264,44 @@ fn merge(doc: &mut Value, paths: Map<String, Value>) {
     }
 }
 
+/// Declares every `{name}` of each path template as a required path parameter of its
+/// operations: a run and a tour are named by uuid, everything else by a numeric id.
+fn path_parameters(doc: &mut Value) {
+    let Some(paths) = doc["paths"].as_object_mut() else {
+        return;
+    };
+    for (path, item) in paths {
+        let declared: Vec<Value> = path
+            .split('/')
+            .filter_map(|s| s.strip_prefix('{')?.strip_suffix('}'))
+            .map(|name| {
+                let text = name != "id" || path.starts_with("/v1/runs/");
+                let schema = if text {
+                    json!({"type": "string"})
+                } else {
+                    json!({"type": "integer", "format": "int64"})
+                };
+                json!({"name": name, "in": "path", "required": true, "schema": schema})
+            })
+            .collect();
+        // Only operations: a path item may also hold shared parameters, servers or a summary.
+        for operation in item.as_object_mut().into_iter().flat_map(|o| {
+            o.iter_mut()
+                .filter(|(m, _)| matches!(m.as_str(), "get" | "post" | "put" | "patch" | "delete"))
+                .map(|(_, operation)| operation)
+        }) {
+            let mut parameters = declared.clone();
+            if let Some(Value::Array(own)) = operation.get("parameters") {
+                parameters.extend(own.iter().cloned());
+            }
+
+            if !parameters.is_empty() {
+                operation["parameters"] = Value::Array(parameters);
+            }
+        }
+    }
+}
+
 /// The `OpenAPI` 3.1 description of `/v1`, from the same DTOs the server uses.
 pub fn openapi() -> Value {
     let mut c = Map::new();
@@ -364,5 +402,6 @@ pub fn openapi() -> Value {
         }
     });
     merge(&mut doc, views);
+    path_parameters(&mut doc);
     doc
 }
