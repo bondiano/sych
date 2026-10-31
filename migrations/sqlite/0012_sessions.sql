@@ -13,3 +13,11 @@ CREATE TABLE sessions (
 
 -- The repository an audited action concerns: a maintainer reads only the log of their own.
 ALTER TABLE audit_events ADD COLUMN repository_id INTEGER REFERENCES repositories (id);
+
+-- Rows written before this column: reconcile decisions, whose target names a publication
+-- operation that knows its repository. Those whose operation retention already removed stay NULL.
+UPDATE audit_events SET repository_id = (
+    SELECT c.repository_id FROM publication_operations o
+    JOIN runs u ON u.id = o.run_id JOIN changes c ON c.id = u.change_id
+    WHERE audit_events.target = 'publication_operation:' || CAST(o.id AS TEXT)
+) WHERE target LIKE 'publication_operation:%';

@@ -508,7 +508,9 @@ equal to `public_base_url`; mutating `/v1` calls also need `Idempotency-Key`, wh
 
 The audit log records `RUN_REQUESTED` (API, CLI or `/sych` command), `RUN_CANCELLED`, `FINDING_FEEDBACK`, `WAIVER_CREATED`,
 `WAIVER_REVOKED`, `PUBLICATION_REQUESTED`, `PUBLICATION_RECREATE_*`, `SESSION_STARTED` and `SESSION_ENDED`. Each entry is
-written in the same transaction as its action, with the actor and the repository, and is never pruned. `sych reconcile
+written in the same transaction as its action, with the actor and the repository, and is never pruned. Reconcile
+decisions logged before the repository was recorded take it from their publication operation; one whose operation
+retention already removed stays without a repository. `sych reconcile
 --allow-create` takes `--actor` only as a configured client with the writer role.
 
 ### Metrics and alerts
