@@ -206,7 +206,8 @@ pub async fn finding(
             .findings
             .into_iter()
             .find(|f| f.id.to_string() == summary.finding_id),
-        Err(StorageError::ArtifactUnavailable(_)) => None,
+        // History and feedback outlive the result: retention deleted it, or it never committed.
+        Err(StorageError::ArtifactUnavailable(_) | StorageError::NotCompleted { .. }) => None,
         Err(e) => return Err(storage_error(&e)),
     };
     Ok(Json(FindingDetail {
