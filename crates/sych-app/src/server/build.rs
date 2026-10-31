@@ -67,6 +67,8 @@ impl App {
             engine: OnceLock::new(),
             artifacts,
             now: Timestamp::now,
+            public_base_url: None,
+            oauth: BTreeMap::new(),
         }
     }
 }

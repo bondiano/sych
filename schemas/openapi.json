@@ -29,6 +29,31 @@
         "title": "Accepted",
         "type": "object"
       },
+      "ApiRole": {
+        "description": "What an API client or a signed-in person may do, cumulative.",
+        "oneOf": [
+          {
+            "const": "reader",
+            "description": "Read runs, results and publications.",
+            "type": "string"
+          },
+          {
+            "const": "triage",
+            "description": "Also give feedback on findings.",
+            "type": "string"
+          },
+          {
+            "const": "writer",
+            "description": "Also request reviews, reruns and cancellations.",
+            "type": "string"
+          },
+          {
+            "const": "maintainer",
+            "description": "Also record waivers.",
+            "type": "string"
+          }
+        ]
+      },
       "Applicability": {
         "description": "Three-valued rule applicability.",
         "enum": [
@@ -137,6 +162,71 @@
         },
         "title": "Array_of_Attempt",
         "type": "array"
+      },
+      "AuditEvent": {
+        "description": "`GET /v1/audit`: one recorded action.",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "metadata": true,
+          "repository_id": {
+            "description": "`None` for actions of no single repository, such as signing in.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "target": {
+            "description": "`run:<id>`, `finding:<id>`, `waiver:<id>`, `publication_operation:<id>` or `session`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "actor",
+          "action",
+          "target",
+          "metadata",
+          "at"
+        ],
+        "type": "object"
+      },
+      "AuditPage": {
+        "description": "One page, newest first; pass `next_before` as `before` for the next one.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/AuditEvent"
+            },
+            "type": "array"
+          },
+          "next_before": {
+            "description": "`None` on the last page.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page",
+        "type": "object"
       },
       "BillingKind": {
         "enum": [
@@ -1073,6 +1163,22 @@
         "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$",
         "type": "string"
       },
+      "Grant": {
+        "description": "A readable repository and the caller's role on it.",
+        "properties": {
+          "repository": {
+            "$ref": "#/$defs/Repository"
+          },
+          "role": {
+            "$ref": "#/$defs/ApiRole"
+          }
+        },
+        "required": [
+          "repository",
+          "role"
+        ],
+        "type": "object"
+      },
       "Handoff": {
         "properties": {
           "coverage": {
@@ -1327,6 +1433,37 @@
           "OBSOLETE"
         ],
         "type": "string"
+      },
+      "Me": {
+        "description": "`GET /v1/me`: who the caller is and what it may do where.",
+        "properties": {
+          "actor": {
+            "description": "`github:<login>` for a person, the client name for an API client.",
+            "type": "string"
+          },
+          "kind": {
+            "description": "`user` or `client`.",
+            "type": "string"
+          },
+          "repositories": {
+            "description": "A person's roles as GitHub granted them at sign-in; every change is checked again live.",
+            "items": {
+              "$ref": "#/$defs/Grant"
+            },
+            "type": "array"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor",
+          "kind",
+          "tenant_id",
+          "repositories"
+        ],
+        "title": "Me",
+        "type": "object"
       },
       "MicroUsd": {
         "description": "Money as whole micro-USD; never a float.",
@@ -2417,6 +2554,29 @@
         "pattern": "^sha256:[0-9a-f]{64}$",
         "type": "string"
       },
+      "SignIn": {
+        "description": "`GET /auth/github`: a connection people sign in through.",
+        "properties": {
+          "connection_id": {
+            "type": "string"
+          },
+          "login_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connection_id",
+          "login_url"
+        ],
+        "type": "object"
+      },
+      "SignIns": {
+        "items": {
+          "$ref": "#/$defs/SignIn"
+        },
+        "title": "Array_of_SignIn",
+        "type": "array"
+      },
       "SourceSide": {
         "enum": [
           "DIFF_BASE",
@@ -3050,6 +3210,11 @@
       "bearer": {
         "scheme": "bearer",
         "type": "http"
+      },
+      "session": {
+        "in": "cookie",
+        "name": "sych_session",
+        "type": "apiKey"
       }
     }
   },
@@ -3059,6 +3224,328 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/auth/github": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignIns"
+                }
+              }
+            },
+            "description": "Connections people sign in through"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [],
+        "summary": "Connections people sign in through"
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "End the caller's browser session"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "End the caller's browser session"
+      }
+    },
+    "/auth/token": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Exchange an API client's bearer token for a browser session"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Exchange an API client's bearer token for a browser session"
+      }
+    },
+    "/v1/audit": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this action",
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the `next_before` of the previous page",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "1 to 200, 50 by default",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditPage"
+                }
+              }
+            },
+            "description": "Recorded actions on repositories the caller maintains"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Recorded actions on repositories the caller maintains"
+      }
+    },
     "/v1/changes": {
       "get": {
         "parameters": [
@@ -3164,6 +3651,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Pull requests, newest first"
@@ -3236,6 +3726,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "A pull request with its runs, events and publications"
@@ -3349,6 +3842,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "An explicit new generation"
@@ -3495,6 +3991,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Findings, newest first"
@@ -3567,6 +4066,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "A finding with its history, feedback and stated details"
@@ -3670,9 +4172,87 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Structured feedback"
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            },
+            "description": "The caller and its role on each readable repository"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "The caller and its role on each readable repository"
       }
     },
     "/v1/publications/{id}": {
@@ -3732,6 +4312,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Delivery, relevance and reconciliation state"
@@ -3804,6 +4387,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Repositories the caller may read"
@@ -3927,6 +4513,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Request a review; 202 is durable admission"
@@ -3989,6 +4578,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Run state, stage, usage and links"
@@ -4061,6 +4653,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Model attempts of a run as the ledger recorded them"
@@ -4154,6 +4749,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Cancel an active run; committed results keep their state"
@@ -4246,6 +4844,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Export selected findings for a separate author workflow; no model, no change"
@@ -4318,6 +4919,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "The immutable result"
@@ -4412,6 +5016,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "The newest stored tour (or `?tour=`) as the caller's session sees it"
@@ -4505,6 +5112,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Complete the caller's session; not an approval"
@@ -4598,6 +5208,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Dismiss the caller's session"
@@ -4701,6 +5314,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "A bounded follow-up on one step; private, never evidence"
@@ -4804,6 +5420,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Reveal one step's answer in the caller's session"
@@ -4896,6 +5515,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Totals since a time over readable repositories"
@@ -4997,6 +5619,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Model usage by UTC day"
@@ -5089,6 +5714,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Waivers of the repositories the caller may read"
@@ -5190,6 +5818,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "A scoped waiver"
@@ -5283,6 +5914,9 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "session": []
           }
         ],
         "summary": "Revoke a waiver; a revoked one keeps its time"

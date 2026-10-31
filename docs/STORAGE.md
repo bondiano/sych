@@ -8,7 +8,7 @@
   This retains one-writer semantics, not multi-worker scaling.
   Tables `changes`, `runs`, `artifacts`, `run_artifacts`; ledger — `model_attempts`, `subscription_fees`;
   server — `repositories`, `inbox_events`, `change_intents`, `jobs`, `change_events`, `publication_objects`,
-  `publication_operations`, `audit_events` ([SERVER.md](SERVER.md)); `tour_sessions` — one reader's progress through a
+  `publication_operations`, `audit_events`, `sessions` ([SERVER.md](SERVER.md#web-ui-sign-in-and-audit)); `tour_sessions` — one reader's progress through a
   stored tour, no shared state ([LOCAL_REVIEW.md](LOCAL_REVIEW.md#reading-a-tour)). Nested domain
   objects are not decomposed into SQL.
 - **Artifacts**: canonical JSON in a local directory, keyed by the SHA-256 of the bytes, with the path partitioned by tenant/access scope.
@@ -69,7 +69,9 @@ rewritten.
 | artifacts without a completed/active run (failure, unfinished commit) | after a 1-hour grace period |
 | mirrors (`<data>/mirrors/…`, source cache) | 7 days since the last fetch; not while the repository is in an active run |
 | `change_intents` (consumed), `inbox_events` without a live intent, `jobs` (terminal) | 30 days |
-| `change_events`, `audit_events`, `model_attempts` (`SETTLED`/`RELEASED`), publication operations (final) | 90 days |
+| `change_events`, `model_attempts` (`SETTLED`/`RELEASED`), publication operations (final) | 90 days |
+| `sessions` | once expired (8 hours after sign-in) |
+| `audit_events` | not deleted |
 | `model_attempts` `RESERVED`/`UNKNOWN`, operations `PENDING/PUBLISHING/UNCERTAIN` | not deleted by age |
 | `runs` rows (usage/audit) | not deleted; 90 days is the lower bound |
 
@@ -87,9 +89,10 @@ migration the data and foreign keys are intact. Backward compatibility is not pr
 is carried over.
 
 PostgreSQL has its own migration history, starting with `migrations/postgres/0001_storage.sql`.
-It stores the same 21 application tables; domain IDs and JSON remain text, integer data remains signed 64-bit.
+It stores the same 22 application tables; domain IDs and JSON remain text, integer data remains signed 64-bit.
 SQLite 0011 and PostgreSQL 0002 keep a finding's severity and title for the API lists; findings recorded
-before them stay `NULL` until a later revision touches them. Opening either backend refuses missing or newer migrations. Switching the configured URL does not copy history
+before them stay `NULL` until a later revision touches them. SQLite 0012 and PostgreSQL 0003 add browser
+`sessions` and the repository of an audited action. Opening either backend refuses missing or newer migrations. Switching the configured URL does not copy history
 or artifact files.
 
 ## Moving server history to PostgreSQL
@@ -107,7 +110,7 @@ sych db import-sqlite --source /protected/snapshot/sych.db --config pg.yaml
 
 Import never migrates either database. It requires the current SQLite schema and all PostgreSQL
 application tables empty; a populated or repeated target is refused. One write transaction copies
-all 21 tables, restores predecessor links, resets identities, and compares ordered row counts/digests.
+all 22 tables, restores predecessor links, resets identities, and compares ordered row counts/digests.
 Every extant artifact row must have its expected safe key, size and matching file hash. Already-pruned
 metadata references remain unavailable; missing files are not regenerated. Any error rolls back the
 imported rows; per-table counts/digests are logged only after commit. Source data and files stay untouched.

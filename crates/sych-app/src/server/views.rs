@@ -11,8 +11,8 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use serde::Deserialize;
 use sych_core::api::{
-    Attempt, ChangeDetail, ChangeSummary, FindingDetail, FindingSummary, Page, Repository, Summary,
-    Usage, Waiver,
+    Attempt, AuditEvent, ChangeDetail, ChangeSummary, FindingDetail, FindingSummary, Grant, Page,
+    Repository, Summary, Usage, Waiver,
 };
 use sych_core::config::ApiRole;
 use sych_core::{RunId, Timestamp};
@@ -28,34 +28,38 @@ const DAY: i64 = 86_400;
 
 /// Repository ids the caller may read; `None` for every repository of its tenant.
 async fn readable(app: &App, caller: &Caller) -> Result<Option<Vec<i64>>, ApiError> {
-    if caller.0.repositories.iter().any(|r| r == "*") {
+    if caller.reads_everything() {
         return Ok(None);
     }
 
     Ok(Some(
-        visible_repositories(app, caller)
+        grants(app, caller)
             .await?
             .into_iter()
-            .map(|r| r.id)
+            .map(|g| g.repository.id)
             .collect(),
     ))
 }
 
-async fn visible_repositories(app: &App, caller: &Caller) -> Result<Vec<Repository>, ApiError> {
+/// Every repository of the tenant the caller may read, with its role there.
+pub(super) async fn grants(app: &App, caller: &Caller) -> Result<Vec<Grant>, ApiError> {
     let all = app
         .storage
-        .repositories(&caller.0.tenant_id)
+        .repositories(&caller.tenant_id)
         .await
         .map_err(|e| storage_error(&e))?;
     Ok(all
         .into_iter()
-        .filter(|r| caller.0.allows(&r.connection_id, &r.full_name))
+        .filter_map(|repository| {
+            let role = caller.role_on(&repository.connection_id, &repository.full_name)?;
+            Some(Grant { repository, role })
+        })
         .collect())
 }
 
 fn visibility<'a>(caller: &'a Caller, ids: Option<&'a [i64]>) -> Visibility<'a> {
     Visibility {
-        tenant_id: &caller.0.tenant_id,
+        tenant_id: &caller.tenant_id,
         repositories: ids,
     }
 }
@@ -86,7 +90,8 @@ pub async fn repositories(
     caller: Caller,
 ) -> Result<Json<Vec<Repository>>, ApiError> {
     caller.need(ApiRole::Reader)?;
-    Ok(Json(visible_repositories(&app, &caller).await?))
+    let grants = grants(&app, &caller).await?;
+    Ok(Json(grants.into_iter().map(|g| g.repository).collect()))
 }
 
 #[derive(Deserialize)]
@@ -201,7 +206,7 @@ pub async fn finding(
             .parse()
             .map_err(|_| storage_error(&"a finding names a malformed run"))?,
     );
-    let finding = match s.load_result(&caller.0.tenant_id, run).await {
+    let finding = match s.load_result(&caller.tenant_id, run).await {
         Ok(result) => result
             .findings
             .into_iter()
@@ -225,10 +230,10 @@ pub async fn attempts(
     Path(id): Path<String>,
 ) -> Result<Json<Vec<Attempt>>, ApiError> {
     caller.need(ApiRole::Reader)?;
-    let run = visible_run(&app, &caller, &id).await?;
+    let run = visible_run(&app, &caller, &id, ApiRole::Reader).await?;
     let attempts = app
         .storage
-        .attempts(&caller.0.tenant_id, &run.run_id)
+        .attempts(&caller.tenant_id, &run.run_id)
         .await
         .map_err(|e| storage_error(&e))?;
     Ok(Json(attempts))
@@ -315,7 +320,7 @@ pub async fn usage(
         .map_err(|e| storage_error(&e))?;
     // Fees belong to the tenant, not a repository: only a caller that reads all of it sees them.
     let subscription_fees = if ids.is_none() && q.repository_id.is_none() {
-        s.subscription_fees(&caller.0.tenant_id, &from[..7], &to[..7])
+        s.subscription_fees(&caller.tenant_id, &from[..7], &to[..7])
             .await
             .map_err(|e| storage_error(&e))?
     } else {
@@ -374,11 +379,21 @@ pub async fn revoke(
     caller.need(ApiRole::Maintainer)?;
     let ids = readable(&app, &caller).await?;
     let v = visibility(&caller, ids.as_deref());
-    app.storage
+    let waiver = app
+        .storage
         .waiver(v, id)
         .await
         .map_err(|e| storage_error(&e))?
         .ok_or_else(not_found)?;
+    let repository = &waiver.repository;
+    caller
+        .scope(
+            &app,
+            Some(&repository.connection_id),
+            Some(&repository.full_name),
+            ApiRole::Maintainer,
+        )
+        .await?;
     idempotent(
         &app,
         &caller,
@@ -389,7 +404,7 @@ pub async fn revoke(
         || async {
             let waiver = app
                 .storage
-                .revoke_waiver(v, id, now(&app).as_second())
+                .revoke_waiver(v, id, &caller.actor, now(&app).as_second())
                 .await
                 .map_err(|e| storage_error(&e))?
                 .ok_or_else(not_found)?;
@@ -397,4 +412,41 @@ pub async fn revoke(
         },
     )
     .await
+}
+
+#[derive(Deserialize)]
+pub struct AuditQuery {
+    action: Option<String>,
+    before: Option<i64>,
+    limit: Option<i64>,
+}
+
+/// `GET /v1/audit`: actions on the repositories the caller maintains; actions of no single
+/// repository only for a maintainer client of every repository.
+pub async fn audit(
+    State(app): State<Arc<App>>,
+    caller: Caller,
+    Query(q): Query<AuditQuery>,
+) -> Result<Json<Page<AuditEvent>>, ApiError> {
+    caller.need(ApiRole::Maintainer)?;
+    let limit = limit(q.limit)?;
+    let maintained: Vec<i64> = grants(&app, &caller)
+        .await?
+        .into_iter()
+        .filter(|g| g.role == ApiRole::Maintainer)
+        .map(|g| g.repository.id)
+        .collect();
+    let everything = caller.reads_everything();
+    let page = app
+        .storage
+        .audit_events(
+            visibility(&caller, (!everything).then_some(maintained.as_slice())),
+            everything,
+            q.action.as_deref(),
+            q.before,
+            limit,
+        )
+        .await
+        .map_err(|e| storage_error(&e))?;
+    Ok(Json(page))
 }

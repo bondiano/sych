@@ -48,7 +48,7 @@ pub async fn ask(
         return Err(invalid("the question is empty"));
     }
 
-    let run_view = visible_run(&app, &caller, &id).await?;
+    let run_view = visible_run(&app, &caller, &id, ApiRole::Reader).await?;
     let terms = match (request.kind, &request.waiver) {
         (QuestionKind::RiskDecision, Some(terms)) => {
             check_waiver(&app, &caller, run_view.change_id, terms).await?;
@@ -85,13 +85,13 @@ pub async fn ask(
             };
             let exchange = followup::exchange(
                 (&t, step),
-                &caller.0.name,
+                &caller.actor,
                 (request.kind, &request.question),
                 now(&app),
                 reply,
             );
             app.storage
-                .add_exchange(&caller.0.tenant_id, run, &exchange)
+                .add_exchange(&caller.tenant_id, run, &exchange)
                 .await
                 .map_err(|e| storage_error(&e))?;
             Ok((StatusCode::CREATED, to_value(&exchange)?))
@@ -118,7 +118,7 @@ async fn explain(
     };
     let mirror = mirrors::path(&engine.store.artifacts, conn, repo);
     let run = run_of(run_view)?;
-    let tenant = caller.0.tenant_id.clone();
+    let tenant = caller.tenant_id.clone();
     let report = report_of(&app.storage, &tenant, run)
         .await
         .map_err(|e| status(StatusCode::CONFLICT, "NO_RESULT", e.to_string()))?;
@@ -130,7 +130,7 @@ async fn explain(
         settings.models.clone(),
         settings.mode,
     );
-    let (actor, tour, step) = (caller.0.name.clone(), tour.clone(), step.clone());
+    let (actor, tour, step) = (caller.actor.clone(), tour.clone(), step.clone());
     let question = question.to_owned();
     let answered = worker::blocking(move || {
         block_on(async {

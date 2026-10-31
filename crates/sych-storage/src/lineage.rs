@@ -1,11 +1,13 @@
 //! Finding lineage, lifecycle history, feedback and waivers. One
 //! transaction applies a revision's lineage; history rows are only ever appended.
 
+use serde_json::json;
 use sqlx::{Any, Row, Transaction};
 use sych_core::config::RuleException;
 use sych_core::lineage::{Decision, Prior};
 use sych_core::{FindingCategory, ReviewResult, Severity, Timestamp};
 
+use crate::audit::Audit;
 use crate::{Storage, StorageError};
 
 fn category(text: &str) -> FindingCategory {
@@ -186,7 +188,8 @@ impl Storage {
     ) -> Result<(), StorageError> {
         let mut tx = self.write().await?;
         let row = sqlx::query(
-            "SELECT f.change_id, f.state, (SELECT policy_snapshot_id FROM runs WHERE id = f.last_run_id)
+            "SELECT f.change_id, f.state, (SELECT policy_snapshot_id FROM runs WHERE id = f.last_run_id),
+                 c.repository_id
              FROM findings f JOIN changes c ON c.id = f.change_id WHERE f.id = $1 AND c.tenant_id = $2",
         )
         .bind(finding)
@@ -194,8 +197,8 @@ impl Storage {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or_else(|| StorageError::Conflict(format!("finding {finding} not found")))?;
-        let (change_id, state, policy): (i64, String, Option<String>) =
-            (row.get(0), row.get(1), row.get(2));
+        let (change_id, state, policy, repository_id): (i64, String, Option<String>, Option<i64>) =
+            (row.get(0), row.get(1), row.get(2), row.get(3));
         sqlx::query(
             "INSERT INTO feedback (tenant_id, change_id, finding_id, actor, judgement, scope,
                  rationale, policy_snapshot_id, at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
@@ -232,6 +235,17 @@ impl Storage {
             .await?;
         }
 
+        Audit {
+            tenant_id,
+            actor,
+            action: "FINDING_FEEDBACK",
+            target: format!("finding:{finding}"),
+            repository_id,
+            metadata: json!({"judgement": judgement, "scope": scope}),
+            at,
+        }
+        .record(&mut tx)
+        .await?;
         tx.commit().await?;
         Ok(())
     }
@@ -257,12 +271,12 @@ impl Storage {
         at: i64,
     ) -> Result<i64, StorageError> {
         let mut tx = self.write().await?;
-        let id = sqlx::query_scalar(
+        let row = sqlx::query(
             "INSERT INTO waivers (tenant_id, repository_id, rule_id, paths, reason, owner, author,
                  expires_at, until, policy_snapshot_id, created_at)
              SELECT $1, c.repository_id, $2, $3, $4, $5, $6, $7, $8, $9, $10 FROM changes c
              WHERE c.id = $11 AND c.tenant_id = $12 AND c.repository_id IS NOT NULL
-             RETURNING id",
+             RETURNING id, repository_id",
         )
         .bind(tenant_id)
         .bind(rule_id)
@@ -278,8 +292,20 @@ impl Storage {
         .bind(tenant_id)
         .fetch_optional(&mut *tx)
         .await?;
-        let id =
-            id.ok_or_else(|| StorageError::Conflict(format!("change {change_id} not found")))?;
+        let row =
+            row.ok_or_else(|| StorageError::Conflict(format!("change {change_id} not found")))?;
+        let id: i64 = row.get(0);
+        Audit {
+            tenant_id,
+            actor: &exception.author,
+            action: "WAIVER_CREATED",
+            target: format!("waiver:{id}"),
+            repository_id: row.get(1),
+            metadata: json!({"rule_id": rule_id, "paths": exception.paths}),
+            at,
+        }
+        .record(&mut tx)
+        .await?;
         tx.commit().await?;
         Ok(id)
     }

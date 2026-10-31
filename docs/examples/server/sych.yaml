@@ -10,7 +10,7 @@ storage:
 
 http:
   bind: "127.0.0.1:8080"              # a non-loopback bind needs api_clients and behind_tls_proxy
-  public_base_url: null               # e.g. https://sych.example, for result links in summaries
+  public_base_url: null               # e.g. https://sych.example: result links in summaries and the web UI sign-in
   behind_tls_proxy: false
   metrics_allow: ["127.0.0.1", "::1"]
   api_clients:
@@ -34,6 +34,9 @@ scm:
       bot_login: your-app[bot]
       publish: true                    # advisory summary and inline comments
       checks: false
+      # oauth:                         # people sign in to the web UI; needs http.public_base_url
+      #   client_id: Iv1.0123456789abcdef
+      #   client_secret_env: SYCH_GITHUB_OAUTH_SECRET
       ci_reports:
         - report: tests
           workflow: .github/workflows/ci.yml

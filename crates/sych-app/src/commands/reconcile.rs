@@ -1,10 +1,13 @@
 use std::process::ExitCode;
 
 use sych_core::Timestamp;
+use sych_core::config::ApiRole;
 use sych_storage::Storage;
 
 use crate::args::ReconcileArguments;
+use crate::config;
 use crate::errors::Failure;
+use crate::server::build::caller;
 use crate::storage::{block_on, load_store_config};
 
 /// Lists unresolved publications; never calls the SCM itself — the server reconciles. A new
@@ -13,7 +16,15 @@ pub fn run(args: &ReconcileArguments) -> anyhow::Result<ExitCode> {
     let store = load_store_config(args.config.as_deref())?;
     let now = Timestamp::now();
     let (change, allow) = (args.change, args.allow_create);
-    let (actor, reason) = (args.actor.clone(), args.reason.clone());
+    // The audited actor is a configured writer, not a free name.
+    let actor = match (&args.actor, allow) {
+        (Some(name), Some(_)) => {
+            let server = config::server(args.config.as_deref())?;
+            Some(caller(&server, name, ApiRole::Writer)?.name)
+        }
+        _ => None,
+    };
+    let reason = args.reason.clone();
     let (listed, allowed) = block_on(async move {
         let storage = Storage::open(&store).await?;
         let allowed = match (allow, actor, reason) {

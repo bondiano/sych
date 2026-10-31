@@ -4,6 +4,7 @@
 
 use std::net::{IpAddr, SocketAddr};
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{EnvName, Mode, Problems};
@@ -36,8 +37,10 @@ impl Default for Http {
     }
 }
 
-/// What an API client may do, cumulative.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+/// What an API client or a signed-in person may do, cumulative.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ApiRole {
     /// Read runs, results and publications.

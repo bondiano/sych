@@ -7,80 +7,27 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::body::Bytes;
-use axum::extract::{FromRequestParts, Path, State};
-use axum::http::request::Parts;
+use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use ring::hmac;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sych_core::api::{
     Accepted, CancelOutcome, FeedbackRequest, PublicationStatus, RerunRequest, ReviewRequest,
     RunStatus, RunUsage, WaiverRequest, WaiverTerms,
 };
-use sych_core::config::{ApiClient, ApiRole, RuleException};
+use sych_core::config::{ApiRole, RuleException};
 use sych_core::scm::ScmErrorKind;
 use sych_core::{RunId, Timestamp, sha256};
 use sych_storage::{Idempotency, RunView, StorageError};
 
 use super::App;
+pub use super::caller::Caller;
 use super::error::ApiError;
 use super::requests::RequestError;
 
-/// The authenticated caller.
-pub struct Caller(pub ApiClient);
-
 pub(super) fn status(code: StatusCode, name: &'static str, message: impl Into<String>) -> ApiError {
     ApiError::new(code, name, message)
-}
-
-impl FromRequestParts<Arc<App>> for Caller {
-    type Rejection = ApiError;
-
-    async fn from_request_parts(parts: &mut Parts, app: &Arc<App>) -> Result<Self, ApiError> {
-        let presented = parts
-            .headers
-            .get("authorization")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.strip_prefix("Bearer "))
-            .ok_or_else(|| {
-                status(
-                    StatusCode::UNAUTHORIZED,
-                    "UNAUTHENTICATED",
-                    "a bearer token is required",
-                )
-            })?;
-        // HMAC tags compare in constant time; the key only makes them comparable.
-        let key = hmac::Key::new(hmac::HMAC_SHA256, b"sych api token comparison");
-        let tag = hmac::sign(&key, presented.as_bytes());
-        app.clients
-            .iter()
-            .find(|(_, token)| hmac::verify(&key, token.expose().as_bytes(), tag.as_ref()).is_ok())
-            .map(|(client, _)| Self(client.clone()))
-            .ok_or_else(|| status(StatusCode::UNAUTHORIZED, "UNAUTHENTICATED", "unknown token"))
-    }
-}
-
-impl Caller {
-    pub(super) fn need(&self, role: ApiRole) -> Result<(), ApiError> {
-        if self.0.role >= role {
-            Ok(())
-        } else {
-            Err(status(
-                StatusCode::FORBIDDEN,
-                "FORBIDDEN",
-                format!("{role:?} is needed").to_lowercase(),
-            ))
-        }
-    }
-
-    /// Repository authorization; another repository is reported as not found.
-    fn scope(&self, connection: Option<&str>, full_name: Option<&str>) -> Result<(), ApiError> {
-        match (connection, full_name) {
-            (Some(c), Some(r)) if self.0.allows(c, r) => Ok(()),
-            _ => Err(status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object")),
-        }
-    }
 }
 
 pub(super) fn now(app: &App) -> Timestamp {
@@ -147,11 +94,7 @@ where
                 "Idempotency-Key is required",
             )
         })?;
-    let scope = (
-        caller.0.tenant_id.as_str(),
-        caller.0.name.as_str(),
-        endpoint,
-    );
+    let scope = (caller.tenant_id.as_str(), caller.actor.as_str(), endpoint);
     let digest = sha256(&[resource.as_bytes(), b"\0", body].concat()).to_string();
     match app
         .storage
@@ -222,7 +165,14 @@ pub async fn create_review(
         _ => return Err(invalid("profile is `economical` or `deep`")),
     };
     let c = &request.change;
-    caller.scope(Some(&c.connection_id), Some(&c.repository))?;
+    caller
+        .scope(
+            &app,
+            Some(&c.connection_id),
+            Some(&c.repository),
+            ApiRole::Writer,
+        )
+        .await?;
     idempotent(
         &app,
         &caller,
@@ -236,7 +186,7 @@ pub async fn create_review(
                     &c.connection_id,
                     &c.repository,
                     number,
-                    &caller.0.name,
+                    &caller.actor,
                     request.publish,
                     deep,
                     request.checks.clone(),
@@ -281,14 +231,27 @@ pub(super) fn run_status(v: RunView) -> RunStatus {
     }
 }
 
-pub(super) async fn visible_run(app: &App, caller: &Caller, id: &str) -> Result<RunView, ApiError> {
+/// A run of a repository the caller holds `role` on.
+pub(super) async fn visible_run(
+    app: &App,
+    caller: &Caller,
+    id: &str,
+    role: ApiRole,
+) -> Result<RunView, ApiError> {
     let view = app
         .storage
-        .run_view(&caller.0.tenant_id, id)
+        .run_view(&caller.tenant_id, id)
         .await
         .map_err(|e| storage_error(&e))?
         .ok_or_else(|| status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"))?;
-    caller.scope(view.connection_id.as_deref(), view.full_name.as_deref())?;
+    caller
+        .scope(
+            app,
+            view.connection_id.as_deref(),
+            view.full_name.as_deref(),
+            role,
+        )
+        .await?;
     Ok(view)
 }
 
@@ -299,7 +262,9 @@ pub async fn get_run(
     Path(id): Path<String>,
 ) -> Result<Json<RunStatus>, ApiError> {
     caller.need(ApiRole::Reader)?;
-    Ok(Json(run_status(visible_run(&app, &caller, &id).await?)))
+    Ok(Json(run_status(
+        visible_run(&app, &caller, &id, ApiRole::Reader).await?,
+    )))
 }
 
 /// `GET /v1/runs/:id/result`: the immutable result, never recomputed.
@@ -309,7 +274,7 @@ pub async fn get_result(
     Path(id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     caller.need(ApiRole::Reader)?;
-    let view = visible_run(&app, &caller, &id).await?;
+    let view = visible_run(&app, &caller, &id, ApiRole::Reader).await?;
     let run = RunId(
         view.run_id
             .parse()
@@ -317,7 +282,7 @@ pub async fn get_result(
     );
     let result = app
         .storage
-        .load_result(&caller.0.tenant_id, run)
+        .load_result(&caller.tenant_id, run)
         .await
         .map_err(|e| match e {
             StorageError::NotCompleted { .. } => {
@@ -342,7 +307,7 @@ pub async fn cancel_run(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     caller.need(ApiRole::Writer)?;
-    visible_run(&app, &caller, &id).await?;
+    visible_run(&app, &caller, &id, ApiRole::Writer).await?;
     idempotent(
         &app,
         &caller,
@@ -351,10 +316,9 @@ pub async fn cancel_run(
         &headers,
         &body,
         || async {
-            let reason = format!("cancelled by {}", caller.0.name);
             let state = app
                 .storage
-                .cancel_run_by_id(&caller.0.tenant_id, &id, &reason, now(&app))
+                .cancel_run_by_id(&caller.tenant_id, &id, &caller.actor, now(&app))
                 .await
                 .map_err(|e| storage_error(&e))?;
             Ok((
@@ -388,11 +352,18 @@ pub async fn rerun(
         .change(id)
         .await
         .map_err(|_| status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"))?;
-    if change.partition.tenant_id != caller.0.tenant_id {
+    if change.partition.tenant_id != caller.tenant_id {
         return Err(status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"));
     }
 
-    caller.scope(Some(&change.connection_id), Some(&change.full_name))?;
+    caller
+        .scope(
+            &app,
+            Some(&change.connection_id),
+            Some(&change.full_name),
+            ApiRole::Writer,
+        )
+        .await?;
     let deep = request.profile.as_deref() == Some("deep");
     idempotent(
         &app,
@@ -403,7 +374,7 @@ pub async fn rerun(
         &body,
         || async {
             let run = engine(&app)?
-                .manual(id, &caller.0.name, request.publish, deep, Vec::new())
+                .manual(id, &caller.actor, request.publish, deep, Vec::new())
                 .await
                 .map_err(|e| request_error(&e))?;
             let accepted = Accepted {
@@ -439,7 +410,7 @@ pub async fn feedback(
         ));
     }
 
-    let tenant = caller.0.tenant_id.clone();
+    let tenant = caller.tenant_id.clone();
     let change = app
         .storage
         .finding_change(&tenant, id)
@@ -451,7 +422,14 @@ pub async fn feedback(
         .change(change)
         .await
         .map_err(|e| storage_error(&e))?;
-    caller.scope(Some(&row.connection_id), Some(&row.full_name))?;
+    caller
+        .scope(
+            &app,
+            Some(&row.connection_id),
+            Some(&row.full_name),
+            ApiRole::Triage,
+        )
+        .await?;
     idempotent(
         &app,
         &caller,
@@ -465,7 +443,7 @@ pub async fn feedback(
                 .record_feedback(
                     &tenant,
                     id,
-                    &caller.0.name,
+                    &caller.actor,
                     &request.judgement,
                     &request.scope,
                     &request.rationale,
@@ -504,11 +482,18 @@ pub(super) async fn check_waiver(
         .change(change)
         .await
         .map_err(|_| status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"))?;
-    if row.partition.tenant_id != caller.0.tenant_id {
+    if row.partition.tenant_id != caller.tenant_id {
         return Err(status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"));
     }
 
-    caller.scope(Some(&row.connection_id), Some(&row.full_name))
+    caller
+        .scope(
+            app,
+            Some(&row.connection_id),
+            Some(&row.full_name),
+            ApiRole::Maintainer,
+        )
+        .await
 }
 
 /// Records a waiver [`check_waiver`] accepted; the review's statuses are never rewritten.
@@ -522,7 +507,7 @@ pub(super) async fn record_waiver(
         paths: terms.paths.clone(),
         reason: terms.reason.clone(),
         owner: terms.owner.clone(),
-        author: caller.0.name.clone(),
+        author: caller.actor.clone(),
         expires_at: terms.expires_at,
         until: terms.until.clone(),
     };
@@ -533,7 +518,7 @@ pub(super) async fn record_waiver(
         .map_err(|e| storage_error(&e))?;
     app.storage
         .add_waiver(
-            &caller.0.tenant_id,
+            &caller.tenant_id,
             change,
             &terms.rule_id,
             &exception,
@@ -589,14 +574,21 @@ pub async fn publication(
         .publication_view(id)
         .await
         .map_err(|e| storage_error(&e))?
-        .filter(|v| v.0 == caller.0.tenant_id)
+        .filter(|v| v.0 == caller.tenant_id)
         .ok_or_else(|| status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object"))?;
     let row = app
         .storage
         .change(change)
         .await
         .map_err(|e| storage_error(&e))?;
-    caller.scope(Some(&row.connection_id), Some(&row.full_name))?;
+    caller
+        .scope(
+            &app,
+            Some(&row.connection_id),
+            Some(&row.full_name),
+            ApiRole::Reader,
+        )
+        .await?;
     let _ = tenant;
     Ok(Json(PublicationStatus {
         publication_id: id,

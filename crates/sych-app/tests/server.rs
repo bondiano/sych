@@ -57,6 +57,8 @@ async fn start(max_body_bytes: u32) -> Server {
         engine: OnceLock::new(),
         artifacts: dir.path().join("artifacts"),
         now,
+        public_base_url: None,
+        oauth: BTreeMap::new(),
     });
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let url = format!("http://{}", listener.local_addr().expect("addr"));

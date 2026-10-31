@@ -68,6 +68,21 @@ pub struct GithubConnection {
     /// Hosts an artifact download may be redirected to; it never carries a credential.
     #[serde(default = "artifact_hosts")]
     pub artifact_hosts: Vec<String>,
+    /// People sign in to the web UI through this App's user authorization.
+    #[serde(default)]
+    pub oauth: Option<GithubOauth>,
+}
+
+/// The App's OAuth client: it only learns who signs in and which repositories they reach.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GithubOauth {
+    pub client_id: String,
+    /// Variable that holds the App's client secret.
+    pub client_secret_env: EnvName,
+    /// Where `/login/oauth/*` is served: github.com or the Enterprise host.
+    #[serde(default = "github_git")]
+    pub web_base_url: String,
 }
 
 /// Where one expected report comes from: never "a job with a similar name".
@@ -148,6 +163,13 @@ impl Scm {
                         &c.webhook_secret_env,
                     ),
                 ]
+                .into_iter()
+                .chain(c.oauth.as_ref().map(|o| {
+                    (
+                        format!("scm.github[{i}].oauth.client_secret_env"),
+                        &o.client_secret_env,
+                    )
+                }))
             })
             .collect()
     }
@@ -235,6 +257,16 @@ impl Scm {
                 format!("{path}.max_body_bytes"),
                 "must be greater than zero",
             );
+            if let Some(o) = &c.oauth {
+                p.check(
+                    !o.client_id.is_empty()
+                        && endpoint::callable(&o.web_base_url).is_some()
+                        && o.client_secret_env != c.private_key_file_env
+                        && o.client_secret_env != c.webhook_secret_env,
+                    format!("{path}.oauth"),
+                    "needs a client_id, an https web_base_url and a client secret of its own",
+                );
+            }
         }
     }
 }

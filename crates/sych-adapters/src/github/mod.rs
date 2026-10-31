@@ -5,6 +5,7 @@ mod actions;
 mod app;
 mod client;
 mod comments;
+mod oauth;
 mod reviews;
 pub mod webhook;
 
@@ -140,7 +141,15 @@ impl Github {
                 token,
             )
             .await?;
-        Ok(v["permission"].as_str().unwrap_or("none").to_owned())
+        // `permission` folds maintain into write and triage into read; `role_name` keeps them,
+        // and a custom role falls back to its base.
+        let role = v["role_name"]
+            .as_str()
+            .filter(|r| matches!(*r, "admin" | "maintain" | "write" | "triage" | "read"));
+        Ok(role
+            .or_else(|| v["permission"].as_str())
+            .unwrap_or("none")
+            .to_owned())
     }
 
     /// Open pull requests, for reconciliation after downtime.

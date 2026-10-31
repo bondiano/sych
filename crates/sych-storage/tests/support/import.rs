@@ -147,7 +147,10 @@ pub async fn seed_rows(pool: &AnyPool, run: &RunHandle, result: &ReviewResult, n
             INSERT INTO inbox_events VALUES (31, 'github.com', 'github', 'delivery',
                 'pull_request', NULL, 'payload-digest', '{{ "unicode": "π" }}', {T0}, 'ACCEPTED');
             INSERT INTO audit_events VALUES (71, 'import-tenant', 'dev', 'review', 'o/r#7',
-                'correlation', '{{"line":"first\\nsecond","quote":"it''s"}}', {T0});
+                'correlation', '{{"line":"first\\nsecond","quote":"it''s"}}', {T0}, 41);
+            INSERT INTO sessions VALUES ('token-digest', 'import-tenant', 'github:dev', 'USER',
+                '[{{"repository":{{"id":41,"connection_id":"github","full_name":"o/r"}},"role":"reader"}}]',
+                {T0}, 1800028800);
             INSERT INTO idempotency_keys VALUES (121, 'import-tenant', 'dev', '/v1/reviews',
                 'request-key', 'body-digest', NULL, NULL, {T0}, 1800003600);
             INSERT INTO tour_sessions VALUES ('import-tenant', 'tour', 'dev', '{run_id}',
@@ -191,5 +194,5 @@ pub async fn seed_rows(pool: &AnyPool, run: &RunHandle, result: &ReviewResult, n
             INSERT INTO feedback VALUES (91, 'import-tenant', 1, 101, 'dev', 'USEFUL',
                 'finding', 'kept exactly, including π and trailing space ', NULL, {T0});
         "#, run_id = run.id, result_id = result.result_id, pruned = sha256(b"pruned"), T0 = now)))
-            .execute(pool).await.expect("seed all 21 current-schema tables");
+            .execute(pool).await.expect("seed all 22 current-schema tables");
 }

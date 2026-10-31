@@ -374,7 +374,7 @@ binding; the worker passes the active ones into the review as rule exceptions: t
 |---|---|---|
 | `/sych rerun`, `/sych deep`, `/sych stop` in a PR | `write`, `maintain`, `admin` | permission API at scheduler time; otherwise `SKIPPED:UNAUTHORIZED_COMMAND`, no reply |
 | the bot's own comment | nobody | `BOT_COMMENT`, no work |
-| feedback on a finding | `triage` and above | permission API; otherwise a `Permission` refusal |
+| feedback on a finding | `triage` and above | permission API (a person in the UI as well); otherwise a `Permission` refusal |
 | waiver | `maintain`, `admin` | permission API; otherwise a `Permission` refusal |
 | free PR text | — | does not change policy, budget, credentials or the model |
 
@@ -401,8 +401,9 @@ a non-loopback bind without `api_clients` and `behind_tls_proxy: true` is reject
 SQLite. All writers serialize under a database lock. Separate machines also need the same artifact files;
 PostgreSQL alone does not make local artifact directories shared.
 
-**`/v1`** requires `Authorization: Bearer <token>` of a configured client (constant-time comparison) and access to the
-repository (`connection/owner/name` or `*`); a foreign repository — 404. Mutating requests require an
+**`/v1`** requires `Authorization: Bearer <token>` of a configured client (constant-time comparison) or a browser
+session ([Web UI, sign-in and audit](#web-ui-sign-in-and-audit)), and access to the repository (`connection/owner/name` or
+`*` for a client, the roles GitHub grants for a person); a foreign repository — 404. Mutating requests require an
 `Idempotency-Key` (scope tenant + actor + endpoint, TTL 24 h): a repeat returns the stored response with
 `reused: true`, the same key with a different body or target resource (path parameters) — 409 `IDEMPOTENCY_CONFLICT`, an unfinished first request — 409
 `REQUEST_IN_PROGRESS`. Run/publication uniqueness does not depend on the key TTL.
@@ -430,6 +431,8 @@ as `before`, gives the next one. Times are Unix seconds, money micro-USD.
 | `GET /v1/findings[?repository_id=&change_id=&state=&category=&severity=&rule_id=&before=&limit=]` | reader | findings, newest first, with the `id` feedback is posted to |
 | `GET /v1/findings/:id` | reader | the lineage row, its history, feedback and the finding as the latest result states it (`null` once that result was pruned) |
 | `GET /v1/summary[?repository_id=&since=]` | reader | since 30 days ago by default: runs by state and coverage, unknown obligations, finding transitions, known cost and unknown-cost attempts; the queue and `UNCERTAIN` publications are current |
+| `GET /v1/me` | any | the caller (`github:<login>` or the client name), `user` or `client`, and its role on each readable repository |
+| `GET /v1/audit[?action=&before=&limit=]` | maintainer | recorded actions on the repositories the caller maintains, newest first; actions of no repository (sign-in) only for a maintainer client of `*` |
 | `GET /v1/usage[?repository_id=&from=&to=]` | reader | model usage per UTC day (`YYYY-MM-DD`, 30 days by default); the tenant's subscription fees only for a caller of every repository without `repository_id` |
 | `POST /v1/runs/:id/handoff` | reader | the run's own findings (`{finding_ids, source_snapshot_id?}`) as a `handoff@1` package ([LOCAL_REVIEW.md](LOCAL_REVIEW.md#handing-off-a-fix)); no model, no change, nothing published; a foreign finding — 400 `FOREIGN_FINDING`, another snapshot — 409 `SNAPSHOT_MISMATCH` |
 | `GET /v1/runs/:id/tour[?tour=]` | reader | the newest (or named) tour as the caller's own session sees it: unrevealed answers blanked, `stale` once the result revision or the change's generation moved on; source is not included, only `code_refs`; a pruned tour — 409 `TOUR_UNAVAILABLE` |
@@ -464,6 +467,49 @@ Errors — `{"error": {code, message, retryable, correlation_id, details}}`: 400
 
 Local `publish`/`cancel`/`rerun` act on behalf of a configured client with the required role; an unknown client
 or an insufficient role — exit 4.
+
+### Web UI, sign-in and audit
+
+People sign in to the web UI through the GitHub App's user authorization. Configure it per connection; it needs
+`http.public_base_url`, the https address people open (http only to loopback):
+
+```yaml
+http:
+  public_base_url: https://sych.example.com
+scm:
+  github:
+    - id: sych
+      # …
+      oauth:
+        client_id: Iv1.0123456789abcdef
+        client_secret_env: SYCH_GITHUB_OAUTH_SECRET
+        web_base_url: https://github.com   # the Enterprise host for GHES
+```
+
+In the App's settings, set the callback URL to `https://sych.example.com/auth/github/<id>/callback` and generate a
+client secret. The user token is used once, at sign-in, to read the login and the repositories of the App's installations
+the person reaches with their role; it is never stored.
+
+| Route | Who | What |
+|---|---|---|
+| `GET /auth/github` | anyone | the connections with sign-in |
+| `GET /auth/github/:connection/login` | anyone | redirect to GitHub with a state held in a 10-minute `HttpOnly` cookie |
+| `GET /auth/github/:connection/callback` | the same browser | a mismatched state — 403; otherwise a session and a redirect to `/ui/` |
+| `POST /auth/token` | an API client's bearer token | a session acting as that client, for operators and local checks |
+| `POST /auth/logout` | the session, from the UI's origin | ends it, also an expired one |
+
+A session is the `sych_session` cookie (`HttpOnly`, `SameSite=Lax`, `Secure` under https). The database keeps only the token's
+SHA-256, and the session lasts 8 hours. A person's roles map from GitHub: admin and maintain → maintainer, write → writer,
+triage → triage, read → reader. Reads use the roles from sign-in. **Every change a person makes is checked with GitHub
+again** through the collaborator permission API (its `role_name`, since `permission` folds maintain into write and triage
+into read). Losing access on GitHub refuses the next change at once, while reads end with the session. A client's session
+ends when the client leaves the config. A cookie-authenticated request that changes something must carry `Origin`
+equal to `public_base_url`; mutating `/v1` calls also need `Idempotency-Key`, which another site cannot send without CORS.
+
+The audit log records `RUN_REQUESTED` (API, CLI or `/sych` command), `RUN_CANCELLED`, `FINDING_FEEDBACK`, `WAIVER_CREATED`,
+`WAIVER_REVOKED`, `PUBLICATION_REQUESTED`, `PUBLICATION_RECREATE_*`, `SESSION_STARTED` and `SESSION_ENDED`. Each entry is
+written in the same transaction as its action, with the actor and the repository, and is never pruned. `sych reconcile
+--allow-create` takes `--actor` only as a configured client with the writer role.
 
 ### Metrics and alerts
 

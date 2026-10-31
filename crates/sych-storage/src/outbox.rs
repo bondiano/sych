@@ -5,6 +5,7 @@
 use sqlx::{Any, Row, Transaction};
 use sych_core::{ResultId, schedule::RunInputs};
 
+use crate::audit::Audit;
 use crate::{RunHandle, StorageError};
 
 fn publication_flags(inputs: Option<&str>) -> Result<(bool, bool), StorageError> {
@@ -94,18 +95,34 @@ impl crate::Storage {
         &self,
         tenant_id: &str,
         run_id: &str,
+        actor: &str,
         at: i64,
     ) -> Result<Option<i64>, StorageError> {
         let mut tx = self.write().await?;
-        let result: String = sqlx::query_scalar(
-            "SELECT result_id FROM runs WHERE id = $1 AND tenant_id = $2 AND state = 'COMPLETED'",
+        let row = sqlx::query(
+            "SELECT u.result_id, c.repository_id FROM runs u JOIN changes c ON c.id = u.change_id
+             WHERE u.id = $1 AND u.tenant_id = $2 AND u.state = 'COMPLETED'",
         )
         .bind(run_id)
         .bind(tenant_id)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or_else(|| StorageError::Conflict(format!("run {run_id} has no committed result")))?;
+        let result: String = row.get(0);
         let op = enqueue_summary(&mut tx, run_id, &result, at, true).await?;
+        // The request is the action; `operation` is null when this revision was already queued.
+        Audit {
+            tenant_id,
+            actor,
+            action: "PUBLICATION_REQUESTED",
+            target: format!("run:{run_id}"),
+            repository_id: row.get(1),
+            metadata: serde_json::json!({"operation": op}),
+            at,
+        }
+        .record(&mut tx)
+        .await?;
+
         tx.commit().await?;
         Ok(op)
     }

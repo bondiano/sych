@@ -6,6 +6,7 @@ use sqlx::any::AnyRow;
 use sych_core::Timestamp;
 use sych_core::scm::RepositoryRef;
 
+use crate::audit::Audit;
 use crate::{Storage, StorageError};
 
 /// Default lifetime of an idempotency key.
@@ -191,7 +192,7 @@ impl Storage {
         &self,
         tenant_id: &str,
         run_id: &str,
-        reason: &str,
+        actor: &str,
         now: Timestamp,
     ) -> Result<Option<String>, StorageError> {
         let at = now.as_second();
@@ -201,7 +202,7 @@ impl Storage {
              WHERE id = $3 AND tenant_id = $4 AND state IN ",
             active!()
         ))
-        .bind(reason)
+        .bind(format!("cancelled by {actor}"))
         .bind(at)
         .bind(run_id)
         .bind(tenant_id)
@@ -215,6 +216,24 @@ impl Storage {
             .bind(at)
             .bind(run_id)
             .execute(&mut *tx)
+            .await?;
+            let repository_id: Option<i64> = sqlx::query_scalar(
+                "SELECT c.repository_id FROM runs u JOIN changes c ON c.id = u.change_id
+                 WHERE u.id = $1",
+            )
+            .bind(run_id)
+            .fetch_one(&mut *tx)
+            .await?;
+            Audit {
+                tenant_id,
+                actor,
+                action: "RUN_CANCELLED",
+                target: format!("run:{run_id}"),
+                repository_id,
+                metadata: serde_json::json!({}),
+                at,
+            }
+            .record(&mut tx)
             .await?;
         }
 

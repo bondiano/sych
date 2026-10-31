@@ -1,6 +1,7 @@
-//! Retention of records: operational rows 30 days, audit and usage 90 days.
-//! Unresolved model charges (`RESERVED`, `UNKNOWN`) and publication outcomes that are not final
-//! (`PENDING`, `PUBLISHING`, `UNCERTAIN`) are never removed by age; runs are kept.
+//! Retention of records: operational rows 30 days, event logs and usage 90 days, sessions once
+//! expired. Unresolved model charges (`RESERVED`, `UNKNOWN`) and publication outcomes that are
+//! not final (`PENDING`, `PUBLISHING`, `UNCERTAIN`) are never removed by age; runs and the audit
+//! log are kept.
 
 use sqlx::Row;
 use sych_core::Timestamp;
@@ -46,11 +47,11 @@ const RULES: &[(&str, &str, &str, &str, i64)] = &[
         AUDIT,
     ),
     (
-        "audit_events",
-        "logged over 90 days ago",
-        "SELECT count(*) FROM audit_events WHERE at < $1",
-        "DELETE FROM audit_events WHERE at < $1",
-        AUDIT,
+        "sessions",
+        "expired",
+        "SELECT count(*) FROM sessions WHERE expires_at < $1",
+        "DELETE FROM sessions WHERE expires_at < $1",
+        0,
     ),
     (
         "model_attempts",

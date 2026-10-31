@@ -5,6 +5,7 @@ use sqlx::Row;
 use sych_core::schedule::{Latest, RunInputs, ScmState, Trigger};
 use sych_core::{RunId, Timestamp, canonical_json, sha256};
 
+use crate::audit::Audit;
 use crate::{Partition, RunHandle, Storage, StorageError};
 
 /// A change with its repository binding.
@@ -222,7 +223,7 @@ impl Storage {
         }
         let change = sqlx::query(
             "UPDATE changes SET desired_generation = desired_generation + 1 WHERE id = $1
-             RETURNING tenant_id, access_scope, desired_generation",
+             RETURNING tenant_id, access_scope, desired_generation, repository_id",
         )
         .bind(change_id)
         .fetch_one(&mut *tx)
@@ -278,6 +279,10 @@ impl Storage {
             .await?;
         }
         log(&mut tx, change_id, &id.to_string(), "GENERATED", &text, at).await?;
+        if let Some(audit) = requested(&partition.tenant_id, id, change.get(3), inputs, at) {
+            audit.record(&mut tx).await?;
+        }
+
         tx.commit().await?;
         Ok(RunHandle {
             id,
@@ -387,4 +392,27 @@ async fn log(
     .execute(&mut **tx)
     .await?;
     Ok(())
+}
+
+/// The audit row of a run a person or client asked for: through the API, the CLI or a PR
+/// command. Runs the change itself triggered are not audited.
+fn requested<'a>(
+    tenant_id: &'a str,
+    run: RunId,
+    repository_id: Option<i64>,
+    inputs: &'a RunInputs,
+    at: i64,
+) -> Option<Audit<'a>> {
+    let Trigger::Manual { actor, deep } = &inputs.trigger else {
+        return None;
+    };
+    Some(Audit {
+        tenant_id,
+        actor,
+        action: "RUN_REQUESTED",
+        target: format!("run:{run}"),
+        repository_id,
+        metadata: serde_json::json!({"deep": deep, "publish": inputs.publish}),
+        at,
+    })
 }
