@@ -1,4 +1,4 @@
-# Corporate server config (spec §23.2, D10): code goes only to an approved VPC endpoint. No
+# Corporate server config: code goes only to an approved VPC endpoint. No
 # public API or personal subscription can be a route or a fallback here; validation rejects
 # each of them. `openai_compatible` transports are not implemented yet, so this config is a
 # boundary example that validates, not a runnable review setup.

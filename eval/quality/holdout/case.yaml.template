@@ -1,15 +1,15 @@
-# Holdout case template (spec §27.3). Copy to <id>.yaml; the file name must equal `id`.
-# `sych eval validate --suite eval/quality/holdout --repo sych=. --repo vkusori=../vkusori` checks it.
+# Holdout case template. Copy to <id>.yaml; the file name must equal `id`.
+# `sych eval validate --suite eval/quality/holdout --repo app=../app` checks it.
 schema_version: 1
-id: vkusori-<topic>-<variant>
+id: app-<topic>-<variant>
 split: holdout
-language: typescript            # typescript | rust | go (go counts only from M3)
-pair: vkusori-<topic>           # optional; a pair needs both safe and unsafe
+language: typescript            # typescript | rust | go | python
+pair: app-<topic>               # optional; a pair needs both safe and unsafe
 variant: unsafe                 # safe | unsafe | unknown
 profiles: [correctness]         # correctness | project_rules | side_effects | nitpicks | …
 rationale: "What the change does and why it is (not) correct, in one or two sentences."
 repository_fixture:
-  repo: vkusori                 # name given with --repo NAME=PATH
+  repo: app                     # name given with --repo NAME=PATH
   base_ref: "<commit>~1"
   head_ref: "<commit>"
 expected:

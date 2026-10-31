@@ -1,4 +1,4 @@
-//! Fetching pinned commits into a bare mirror (roadmap M2.2): exact ids over a local file URL,
+//! Fetching pinned commits into a bare mirror: exact ids over a local file URL,
 //! readable by the snapshot service afterwards; anything but full ids or https/file is refused.
 
 use std::fs;

@@ -1,4 +1,4 @@
-//! Stored tours of a run and the personal sessions through them (spec §21.8, roadmap M5.2). A
+//! Stored tours of a run and the personal sessions through them. A
 //! session is one actor's row; nothing here touches the tour artifact or the result.
 
 use sqlx::Row;

@@ -1,4 +1,4 @@
-//! Durable event → intent → generation → job traces (roadmap M2.2) on the loopback GitHub fake,
+//! Durable event → intent → generation → job traces on the loopback GitHub fake,
 //! a local origin fetched over `file://` and the fake model: repeats, a stream of pushes, a
 //! target-only move, drafts, commands, close, bot comments, CI waits and successors, a crashed
 //! worker and missed webhooks.

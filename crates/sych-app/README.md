@@ -9,7 +9,7 @@ only parses arguments and calls a command.
   (`--repo/--base/--head/--diff-base`) and `Output` (`--format/--output`).
 - `command` — the trait `Command { name(), run() -> anyhow::Result<ExitCode> }` and `run_command`, which
   prints the error chain (`sych <command>: context: cause`) and returns its exit code.
-- `errors` — exit codes (§24.1): 2 invalid, 3 no result, 4 permission, 10/11 strict policy, 130
+- `errors` — exit codes: 2 invalid, 3 no result, 4 permission, 10/11 strict policy, 130
   cancelled, 1 failed eval. Errors follow the thiserror + anyhow scheme: libraries return typed
   errors (`SnapshotError`, `StorageError`, `ToolError`, `SandboxError`, `DepsError`, `CiError`), the app returns
   `anyhow::Result` with `.context()` at every step. The code is decided by `Failure` (thiserror: `Invalid`, `NoResult`,
@@ -19,14 +19,18 @@ only parses arguments and calls a command.
   only in a terminal. The level is `SYCH_LOG` in `EnvFilter` syntax (by default `info` for Sych crates,
   `warn` for dependencies; `SYCH_LOG=debug`, `SYCH_LOG=sych_adapters=trace`). Secrets, prompts and model
   responses are not logged.
-- `commands/` — one file per subcommand (`review`, `semantic`, `show`, `explain`, `doctor`, `config_init`,
-  `config_validate`, `eval_run`, `eval_validate`, `eval_measure`, `db_migrate`, `auth_chatgpt`, `cache_prune`).
+- `commands/` — one file per subcommand (`review`, `semantic`, `show`, `explain`, `tour`, `ask`, `handoff`, `doctor`,
+  `config_init`, `config_validate`, `eval_run`, `eval_validate`, `eval_measure`, `db_migrate`, `db_import`,
+  `auth_chatgpt`, `cache_prune`, `serve` (also `api` and `worker`), `run_action` (`publish`, `cancel`, `rerun`),
+  `reconcile`).
   In each, `run(&XArguments) -> anyhow::Result<ExitCode>` assembles the result from the services.
 - Services, by subject area:
 
 | Service | Purpose |
 |---|---|
-| `review` | the review pipeline: snapshot → trusted policy → facts → plan → fake assessments → context packets → reduce → save |
+| `review` | the review pipeline: snapshot → trusted policy → facts → plan → model passes → context packets → reduce → save |
+| `analysis` | model passes of one review: required assessments, high-risk audit, discovery and verification |
+| `backend` | resolving model profiles to a callable transport (mode, egress, model, price, credentials) |
 | `semantic` | semantic facts via pinned language servers with a cache |
 | `ci` | reading `--ci-facts`/`--ci-manifest` for import |
 | `snapshot` | capturing the comparison (`Comparison` → `LocalSnapshot`) |
@@ -36,6 +40,10 @@ only parses arguments and calls a command.
 | `render` | JSON and Markdown renderers with escaping of repository text |
 | `fake` | fake model adapter for `--fake-responses` |
 | `probe` | opt-in model probe for `doctor --probe-model` |
+| `tour`, `tour_reader` | building a guided tour of a saved run; reading it (`show`, `reveal`, `complete`, `dismiss`) without a model |
+| `followup` | `sych ask`: a bounded follow-up on one tour stop under `budgets.followup_session` |
+| `handoff` | `sych handoff`: selected findings of a saved run as a package for a separate fix workflow |
+| `server` | `sych serve`/`api`/`worker`: webhook admission, scheduler, worker, publisher, `/v1` API, health and metrics |
 | `eval`, `quality` | the `eval run` suite harness and validation of the labelled quality suite `eval validate` |
 
 ## How to add a command

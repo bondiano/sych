@@ -1,4 +1,4 @@
-//! Follow-up exchanges (roadmap M5.3): a reader reads back only their own questions on a tour.
+//! Follow-up exchanges: a reader reads back only their own questions on a tour.
 
 mod support;
 

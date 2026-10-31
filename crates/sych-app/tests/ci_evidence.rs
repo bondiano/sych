@@ -1,4 +1,4 @@
-//! CI evidence of a server run (roadmap M2.3): reports come from the trusted selector's exact
+//! CI evidence of a server run: reports come from the trusted selector's exact
 //! run, job and artifact; the checkout manifest decides `SOURCE_HEAD`, `MERGE_RESULT` or
 //! `UNVERIFIED`; anything missing is a concrete gap and never a pass.
 

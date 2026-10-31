@@ -1,4 +1,4 @@
-# Scripted fake-adapter answers (spec §24.5). Code refs are resolved by the harness.
+# Scripted fake-adapter answers. Code refs are resolved by the harness.
 schema_version: 1
 evidence:
   - key: save-keeps-event-in-tx

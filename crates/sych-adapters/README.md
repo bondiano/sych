@@ -10,11 +10,18 @@ with privileges.
 |---|---|
 | `git` | hardened `git` (cleared environment, no hooks/filters/textconv), `LocalSnapshot` (three pinned positions, diff manifest, `SnapshotReader`: reading any file of a side and `git grep -F`), byte-for-byte export of a side into a directory from the object database |
 | `tools` | pinned versions of language servers and pnpm (`tools/pinned.json`: version, URL, SHA-256 per platform), download, verification and an atomic cache |
-| `semantic` | LSP client, rust-analyzer and TypeScript 7 (`tsc --lsp`) profiles, changed constructs, references/callers/implementations, pull diagnostics, semantic cache, dependency installation via `sandbox` |
-| `syntax` | syntax facts from `syn` (Rust) and `oxc` (TS/React) in-process, without execution |
+| `semantic` | LSP client, rust-analyzer, TypeScript 7 (`tsc --lsp`), gopls and ty profiles, changed constructs, references/callers/implementations, pull diagnostics, semantic cache, dependency installation via `sandbox` |
+| `syntax` | syntax facts from `syn` (Rust), `oxc` (TS/React) and tree-sitter (Go, Python) in-process, without execution |
+| `lint` | pinned linters on changed head files (ruff, oxlint, sqruff, mago, jarl, clj-kondo, actionlint, zizmor), never executing repository code |
 | `sandbox` | running installers in bwrap (read-only root, `$HOME`/`/tmp`/secrets hidden) or docker (pinned digest) |
-| `ci` | normalization of `cargo --message-format=json` and JUnit into `CiFacts` bound to the tested commit |
+| `ci` | normalization of CI reports into `CiFacts` bound to the tested commit: cargo JSON, JUnit, SARIF, GitLab Code Quality, LCOV, Cobertura, Go test/cover/vet, Terraform plans, rendered Kubernetes manifests and the `sych_manifest` outcomes; in-memory artifact zip reading |
+| `execution` | targeted checks: allowed profiles run on the pinned head in docker without network or secrets; stdout is imported as a CI report |
+| `github` | GitHub App: webhook admission checks, App JWT and installation tokens, normalized reads, comments, reviews, check runs and Actions artifacts |
+| `chat` | OpenAI-compatible SSE chat completions shared by OpenRouter and OpenCode Go |
 | `openrouter` | OpenRouter transport for ModelGateway: pinned model and upstreams, no hidden fallback |
+| `opencode_go` | OpenCode Go subscription transport; local schema validation, one session per task |
+| `pi` | GLM Coding Plan through the pinned Pi CLI, one isolated process per request |
+| `siwc` | GPT via Sign in with ChatGPT: OAuth sign-in and token refresh, text-only Responses API |
 
 ## Errors and logs
 

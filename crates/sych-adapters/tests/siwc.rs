@@ -1,4 +1,4 @@
-//! Sign in with `ChatGPT` adapter fixtures (roadmap M1.10): route-required fields, stream
+//! Sign in with `ChatGPT` adapter fixtures: route-required fields, stream
 //! outcomes, documented plan errors, token refresh with rotation and revocation, and the
 //! no-tools boundary. Loopback only; no real account.
 

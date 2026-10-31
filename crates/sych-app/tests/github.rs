@@ -1,4 +1,4 @@
-//! The GitHub adapter against the loopback fake (roadmap M2.1): App JWT → installation token
+//! The GitHub adapter against the loopback fake: App JWT → installation token
 //! scoped to one repository and cached, normalized reads and error mapping v1.
 
 use std::fs;

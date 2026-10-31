@@ -1,4 +1,4 @@
-//! Tour reader smoke (roadmap M5.2): a stored tour is shown, revealed, completed and dismissed
+//! Tour reader smoke: a stored tour is shown, revealed, completed and dismissed
 //! through the CLI with no model and no config; a moved head is `STALE` with the run's code,
 //! pruned source reads "source unavailable", and the review result never changes.
 

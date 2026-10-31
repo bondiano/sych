@@ -1,4 +1,4 @@
-//! Migration obligations bound to the deployment model (spec §13, roadmap M3.5): each MIG-*
+//! Migration obligations bound to the deployment model: each MIG-*
 //! rule is assessed in `PLAN_REVIEW` mode over the rollout states it is about. A state is
 //! dropped only by a sourced constraint; an owner input the rule depends on that is missing
 //! keeps it `UNKNOWN` with that gap, never filled in by an assumption.

@@ -1,4 +1,4 @@
-//! Fenced finalization and its fault matrix (roadmap M2.4). The authoritative commit predicate:
+//! Fenced finalization and its fault matrix. The authoritative commit predicate:
 //! the run is RUNNING with frozen inputs (`stage = ANALYZE`), its job is CLAIMED by the same
 //! owner at the same `lease_epoch` with a live lease, `run.generation = change.desired_generation`,
 //! and the result bytes are already stored under the run. Result pointer, terminal state, usage,

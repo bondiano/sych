@@ -89,7 +89,7 @@
       ]
     },
     "CiBindingKind": {
-      "description": "How the tested tree relates to the reviewed head (spec §15.2).",
+      "description": "How the tested tree relates to the reviewed head.",
       "oneOf": [
         {
           "description": "The job's checkout manifest names the requested head.",
@@ -537,7 +537,7 @@
       ]
     },
     "CodeRef": {
-      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
+      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model.",
       "type": "object",
       "properties": {
         "blob_oid": {
@@ -746,7 +746,7 @@
       ]
     },
     "EvidenceStage": {
-      "description": "What the documents are evidence of, weakest first (spec §14.2): rendered YAML shows the\nstructure, a dry-run that the API server admitted it, runtime objects the live state.",
+      "description": "What the documents are evidence of, weakest first: rendered YAML shows the\nstructure, a dry-run that the API server admitted it, runtime objects the live state.",
       "type": "string",
       "enum": [
         "rendered",
@@ -1527,7 +1527,7 @@
       ]
     },
     "SourceSnapshotId": {
-      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`].",
       "$ref": "#/$defs/Sha256Digest"
     },
     "SymbolFacts": {

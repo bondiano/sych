@@ -1,4 +1,4 @@
-//! Advisory publication on the GitHub fake (roadmap M2.6): a committed result with findings
+//! Advisory publication on the GitHub fake: a committed result with findings
 //! becomes one summary, inline comments at explicit commit/path/line/side, and an advisory
 //! neutral check run; a refused position moves to the summary; nothing approves or merges.
 

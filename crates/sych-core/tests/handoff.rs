@@ -1,4 +1,4 @@
-//! Fix handoff (roadmap M5.4): a reproducible package of a result's own findings, with their
+//! Fix handoff: a reproducible package of a result's own findings, with their
 //! requirements, fix criteria, gaps and the consent-first procedure; nothing else is accepted.
 
 use sych_core::handoff::{FORMAT, HandoffError, PROCEDURE, package};

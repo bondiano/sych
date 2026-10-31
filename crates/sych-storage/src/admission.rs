@@ -1,4 +1,4 @@
-//! Webhook admission (spec §19.2, §20.2): the inbox receipt, the repository binding and the
+//! Webhook admission: the inbox receipt, the repository binding and the
 //! scheduling intent commit in one transaction, so a 2xx always means durable.
 
 use sqlx::Row;
@@ -264,7 +264,7 @@ impl Storage {
 }
 
 impl Storage {
-    /// Binds a repository and fixes its capabilities, when connected or updated (§19.1).
+    /// Binds a repository and fixes its capabilities, when connected or updated.
     pub async fn bind_repository(
         &self,
         conn: &Connection,

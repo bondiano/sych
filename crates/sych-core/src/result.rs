@@ -1,4 +1,4 @@
-//! Scope and the immutable review result (spec §5.2, §5.7, §7.4).
+//! Scope and the immutable review result.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -18,7 +18,7 @@ pub struct ReviewUnit {
     /// Where each file is reported: its new path, or old path when deleted. A renamed file's
     /// old path is still part of its identity in the diff manifest.
     pub paths: Vec<RepoPath>,
-    /// Routing hints from the planner; not evidence of a defect (spec §7.3).
+    /// Routing hints from the planner; not evidence of a defect.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub risk_hints: Vec<RiskHint>,
 }
@@ -38,7 +38,7 @@ pub struct PathGap {
     pub reason: String,
 }
 
-/// Fixed before discovery; may only grow through a new revision (spec §7.4).
+/// Fixed before discovery; may only grow through a new revision.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ScopeManifest {
     pub revision: u32,
@@ -48,7 +48,7 @@ pub struct ScopeManifest {
     pub excluded: Vec<PathGap>,
 }
 
-/// Cost with explicit unknown part; an unknown charge is never recorded as zero (INV-13).
+/// Cost with explicit unknown part; an unknown charge is never recorded as zero.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CostSummary {
     /// Money the providers reported, or the price card computed, for settled API attempts.
@@ -71,7 +71,7 @@ pub struct UsageSummary {
     pub routes: Vec<RouteUsage>,
 }
 
-/// One model route of the run: how it bills and which caps are hard (spec §17.2).
+/// One model route of the run: how it bills and which caps are hard.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct RouteUsage {
     pub profile: String,

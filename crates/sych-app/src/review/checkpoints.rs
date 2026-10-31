@@ -1,4 +1,4 @@
-//! The parent checkpoints a successor run may reuse (spec §8.5, §9.6).
+//! The parent checkpoints a successor run may reuse.
 
 use std::collections::BTreeMap;
 

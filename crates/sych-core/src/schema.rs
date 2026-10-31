@@ -1,4 +1,4 @@
-//! JSON Schemas generated from the DTOs, the single source of truth (spec §25.4).
+//! JSON Schemas generated from the DTOs, the single source of truth.
 
 use crate::deploy::{DeploymentModel, TransitionMatrix};
 use crate::handoff::Handoff;

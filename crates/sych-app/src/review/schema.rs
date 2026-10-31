@@ -1,5 +1,5 @@
 //! Schema changes of the changed migrations and the code of both sides that names them
-//! (spec §13.3): the old app's readers and writers on the base, the new app's on the head.
+//!: the old app's readers and writers on the base, the new app's on the head.
 //! The search covers this repository only; consumers outside it stay a named gap.
 
 use sych_adapters::git::LocalSnapshot;

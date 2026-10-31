@@ -110,7 +110,7 @@
       "pattern": "^sha256:[0-9a-f]{64}$"
     },
     "SourceSnapshotId": {
-      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`].",
       "$ref": "#/$defs/Sha256Digest"
     },
     "Validity": {

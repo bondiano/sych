@@ -1,4 +1,4 @@
-//! Repository config `.sych/config.yaml` (spec §23.3), read only from a trusted ref.
+//! Repository config `.sych/config.yaml`, read only from a trusted ref.
 
 use serde::{Deserialize, Serialize};
 
@@ -52,7 +52,7 @@ impl Default for ReviewSettings {
     }
 }
 
-/// Policy is read from the target tip; the reviewed head is never a source (INV-12).
+/// Policy is read from the target tip; the reviewed head is never a source.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PolicyRef {
@@ -128,7 +128,7 @@ pub enum ReportFormat {
     KubernetesRendered,
 }
 
-/// A report ID only; the server maps it to trusted job selectors (spec §23.3).
+/// A report ID only; the server maps it to trusted job selectors.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExpectedReport {
@@ -236,7 +236,7 @@ impl Default for RepoConfig {
 }
 
 impl RepoConfig {
-    /// Local checks plus the server ceilings the repository may not exceed (spec §23.3).
+    /// Local checks plus the server ceilings the repository may not exceed.
     pub(crate) fn validate(&self, server: &ServerConfig, p: &mut Problems<'_>) {
         let policy = &self.policy;
         for (key, file) in [

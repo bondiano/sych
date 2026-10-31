@@ -1,4 +1,4 @@
-//! TypeScript/React shapes from `oxc` (roadmap M1.1): effect setup and cleanup, listeners,
+//! TypeScript/React shapes from `oxc`: effect setup and cleanup, listeners,
 //! timers, subscriptions, stale async responses, mutations and invalidation, controlled
 //! inputs, form submit and async state flags. Names come from source text by span, so the
 //! shapes hold across `React.useEffect` and `useEffect` alike.

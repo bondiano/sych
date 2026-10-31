@@ -1,4 +1,4 @@
-//! The CI report corpus (roadmap M2.3): every supported format normalizes onto a real snapshot
+//! The CI report corpus: every supported format normalizes onto a real snapshot
 //! with its bounds; malformed, XXE and over-deep reports are refused, not half-read.
 
 use std::fs;

@@ -119,7 +119,7 @@ impl ServerConfig {
                 );
             }
         }
-        // The router never parks a job until a quota resets (spec §16.7).
+        // The router never parks a job until a quota resets.
         p.check(
             !fallback.wait_for_usage_reset,
             "models.fallback.wait_for_usage_reset",
@@ -202,7 +202,7 @@ impl ServerConfig {
             "a personal subscription is only allowed in personal_local",
         );
         let corporate = provider.allowed_modes.contains(&RunMode::Corporate);
-        // D10: corporate code goes only to an approved VPC endpoint.
+        // Corporate code goes only to an approved VPC endpoint.
         p.check(
             !(corporate && provider.adapter == Adapter::Openrouter),
             format!("{path}.allowed_modes"),

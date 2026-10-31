@@ -5,7 +5,7 @@ language: go
 pair: mig-backfill-concurrent
 variant: safe
 profiles: [migration_compatibility]
-rationale: "The backfill only fills rows the app has not written yet, so fresher values survive and a repeated run is a no-op (spec §13.2)."
+rationale: "The backfill only fills rows the app has not written yet, so fresher values survive and a repeated run is a no-op."
 base:
   .sych/deploy.yaml: |
     schema_version: 1

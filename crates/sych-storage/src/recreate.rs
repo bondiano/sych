@@ -1,4 +1,4 @@
-//! Moving an `UNCERTAIN` operation with no known remote object back to `PENDING` (spec §18.5):
+//! Moving an `UNCERTAIN` operation with no known remote object back to `PENDING`:
 //! by an audited operator decision, or by the reconciler once a complete read found nothing.
 
 use sych_core::Timestamp;

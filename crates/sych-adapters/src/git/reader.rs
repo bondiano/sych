@@ -1,4 +1,4 @@
-//! Reading pinned content of any file of a side, and literal search (spec §9.4).
+//! Reading pinned content of any file of a side, and literal search.
 
 use std::collections::HashMap;
 use std::str;
@@ -14,9 +14,9 @@ use super::SnapshotError;
 use super::parse::{TreeRecord, tree_records};
 use super::snapshot::{LocalSnapshot, span};
 
-/// Largest blob read as text (spec §9.3).
+/// Largest blob read as text.
 const MAX_TEXT_BLOB_BYTES: u64 = 512 << 10;
-/// Wall-clock bound of one model-requested literal search (spec §9.4).
+/// Wall-clock bound of one model-requested literal search.
 const SEARCH_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Texts kept per run; past this many bytes new blobs are read but not kept.

@@ -1,4 +1,4 @@
-//! Effect ledger (spec §12, roadmap M3.3): a bounded base/head table of observable effects
+//! Effect ledger: a bounded base/head table of observable effects
 //! of the changed code, built from the syntax facts of every language and the accepted
 //! effect registry. It is not full-program dataflow: it records what the facts show, how it
 //! matched across sides, and how far that match is resolved.

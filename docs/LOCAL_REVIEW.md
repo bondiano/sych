@@ -1,7 +1,6 @@
 # Local review
 
-Implements roadmap M0.6: §24.1, §24.4–24.5 and §27.1 of the specification. Local review reads only
-Git objects, stores the run in local storage ([STORAGE.md](STORAGE.md)) and publishes nothing to the SCM.
+Local review reads only Git objects, stores the run in local storage ([STORAGE.md](STORAGE.md)) and publishes nothing to the SCM.
 The fake adapter (`--models fake`) proves that the harness works, not review quality; review with a real model is
 `--models PROFILE` ([ANALYSIS.md](ANALYSIS.md)).
 
@@ -159,12 +158,12 @@ author's word, otherwise `UNKNOWN/INSUFFICIENT_EVIDENCE`.
 | 0 | result stored (operational mode does not fail because of findings) |
 | 2 | invalid flags, refs, config, policy or fixture |
 | 3 | no usable stored result: database not migrated, write failure, result could not be output |
+| 4 | missing credentials or access: a model profile's credentials are not set, a sign-in failed, or a local `ask --kind risk-decision` |
 | 10 | `--exit-policy strict` and a significant violation (`ATTENTION_REQUIRED`) |
 | 11 | `--exit-policy strict` and coverage is not `COMPLETE_FOR_SCOPE`; 10 takes precedence |
 | 130 | SIGINT/Ctrl-C during analysis: run `CANCELLED`, result not stored |
 
-Code 4 (credentials) is reserved for the real M1 providers. On exit 3 after storing (`--output` could not be
-written), the result is available via `sych show`.
+On exit 3 after storing (`--output` could not be written), the result is available via `sych show`.
 
 ## Fake eval
 
@@ -180,26 +179,26 @@ Exit 0 — all cases matched, 1 — there are mismatches, 2 — invalid suite. T
 
 ## Quality suite
 
-`eval/quality/dev/` is a labelled development suite (§27.2–27.3): one `<id>.yaml` per case, `safe/unsafe`
+`eval/quality/dev/` is a labelled development suite: one `<id>.yaml` per case, `safe/unsafe`
 pairs and honest `unknown` cases for Rust (Result/RAII, cancellation, task lifetime, lock across `.await`,
 blocking in async, trait API, cfg/features, serde contract, weakened error handling and tests) and TS/React
 (cleanup, stale response and preserved guard, timers, subscriptions, invalidation, controlled inputs, form
-submit, project hook, API removal), clean changes, nitpick and two real Sych/Vkusori commits
-(`repository_fixture`). `eval/quality/holdout/` is labelled by the owner; the rules are in its
-[README](../eval/quality/holdout/README.md).
+submit, project hook, API removal), clean changes, nitpick and a real Sych commit
+(`repository_fixture`). `eval/quality/holdout/` ships empty: holdout cases come from your own repositories, and the
+rules are in its [README](../eval/quality/holdout/README.md).
 
 ```sh
 sych eval validate --suite eval/quality/dev
 ```
 
-For repository fixtures add `--repo vkusori=PATH` and, if you have an archived pre-squash clone of Sych,
-`--repo sych=PATH`. The current Sych branch does not contain the historical refs of the `real-sych-context-broker` case.
+A case with a `repository_fixture` needs `--repo NAME=PATH` for the repository it names. `real-sych-context-broker`
+refers to commits that the published Sych history does not contain, so it runs only with a clone that has them.
 
 `validate` sends nothing to a model: it checks labelling completeness (rationale, profiles, defect for `unsafe`,
 no defect for `safe`, target and locations for `tolerated`, a reason for `unknown`, complete pairs, file name = id, one split per directory), that
 every evidence location opens as a `CodeRef`, and that expected syntax facts are present (and forbidden ones
 absent). Cases with `repository_fixture` without `--repo` are `SKIPPED`. This is a check of labelling and the harness, not a
-measurement of review quality: that is done with a real model in M1.8.
+measurement of review quality: that is done with a real model (`eval measure`, below).
 
 A case may carry CI reports as `ci: {<file name>: <text>}` — a Terraform plan (`terraform show -json`), rendered
 Kubernetes manifests, test outcomes. They are imported like `sych review --ci-facts`, with a manifest bound to the case
@@ -217,7 +216,7 @@ sych eval measure --suite eval/quality/dev --config sych.yaml --models cheap_api
 
 Each case goes through a regular `sych review` with the `--models` profile in the storage from `--config`: the ledger is shared, so
 run/day/month limits apply to the whole suite, and each review remains a stored run. `--variant c` is the regular
-pipeline, `b` — without the additional high-risk search (baseline B §27.5), `a` — a single reviewer over the diff (baseline A):
+pipeline, `b` — without the additional high-risk search (baseline B), `a` — a single reviewer over the diff (baseline A):
 without semantic facts, high-risk search and verifier; its unverified hypotheses are scored as findings. `--runs` repeats a case for a nondeterministic model.
 
 Report per run: recommendation, coverage, expected and found defects, findings with anchors and a
@@ -229,8 +228,8 @@ without `overrated_nits` — correctness findings at the location of a labelled 
 nitpicks hit by a nit or improvement), nits, attempts and
 cost, and three gaps of the pipeline itself: `verifier_dropped` (labelled defects that only a candidate the verifier
 rejected or left unresolved reached), `partial_coverage_runs` (reviews short of `COMPLETE_FOR_SCOPE`) and
-`unreviewed_paths`. A match is an intersection of an anchor with a labelled evidence location: this approximates meaning, and the owner
-checks it against finding titles. The numbers are a measurement; acceptance criteria are set by the owner. The report
+`unreviewed_paths`. A match is an intersection of an anchor with a labelled evidence location: this approximates meaning (see
+[Scoring by meaning](#scoring-by-meaning)). The numbers are a measurement; acceptance criteria are yours. The report
 records `config_sha256`, the hash of `--config`, so that measurements under other budgets are not compared.
 
 ```sh
@@ -240,5 +239,33 @@ sych eval compare a.json b.json c.json [--output comparison.json]
 `compare` puts saved `measure` reports side by side without calling a model: the totals of each, and under `differing`
 every case whose outcome (labelled defects found, correctness findings, labelled findings, `UNKNOWN` kept, or a failed run)
 differs between reports or between repeated runs of one report, with the outcome of each run. Reports of another suite,
-another case set or another config hash are refused (exit 2); a report written before `config_sha256` gives
+another case set or another config hash are refused (exit 2); a report without `config_sha256` gives
 `config_sha256: null`, so equal budgets are not proven.
+
+### Scoring by meaning
+
+`eval measure` matches a finding to a label when their anchors overlap. Its totals are location matches: a finding
+that states a different defect on the labelled lines counts, and the right defect anchored one line off does not.
+`unknown_kept` only means that there is no correctness finding and something stayed open.
+
+`eval judge` rescores a saved report by your judgments and shows both scores. Each finding in the report lists the
+labels it overlaps (`labels`, indexes into the run's `labels`). For `unknown` cases the run also lists what the
+review left open (`left_open`).
+
+```yaml
+# judgments.yaml: a correctness finding states label N (null: none), or an unknown run kept the labelled question
+- { case: orders-retry-unsafe, run: 1, finding: 0, label: 0 }
+- { case: orders-retry-unsafe, run: 1, finding: 2, label: null }
+- { case: orders-retry-unknown, run: 1, unknown_kept: false }
+```
+
+```sh
+sych eval judge report.json --judgments judgments.yaml
+```
+
+`left_open` also lists unresolved questions, which `unknown_kept` ignores; an unknown counts by meaning only when
+`unknown_kept` holds and a judgment confirms it. A correctness finding on a nitpick label counts as labelled by
+location but is no judgment candidate: by meaning it is an overrated nit.
+
+A location match or a kept unknown that nobody judged is listed in `unjudged` and does not count by meaning.
+Nitpicks and obligations stay scored by location and status.

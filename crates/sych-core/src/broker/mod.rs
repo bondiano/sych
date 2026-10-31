@@ -1,4 +1,4 @@
-//! `ContextBroker` (spec §9): bounded, addressable evidence packets instead of a context string.
+//! `ContextBroker`: bounded, addressable evidence packets instead of a context string.
 //!
 //! A packet lists exact `CodeRef`s with why each was selected, what was left out and why, and
 //! how complete every query behind it was. Raw source is not stored in the packet; it is read
@@ -32,7 +32,7 @@ pub enum Purpose {
     TourFollowup,
 }
 
-/// What a context request is bound to (spec §9.1).
+/// What a context request is bound to.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ContextRequest {
     pub run_id: RunId,
@@ -115,7 +115,7 @@ pub struct Excluded {
     pub reason: String,
 }
 
-/// Sufficiency of the requested sources, never the truth of an obligation (spec §9.1).
+/// Sufficiency of the requested sources, never the truth of an obligation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PacketResolution {
@@ -152,7 +152,7 @@ pub struct ContextPackets {
     pub packets: Vec<EvidencePacket>,
 }
 
-/// The reason code that forces an obligation to stay `UNKNOWN` (spec §9.3).
+/// The reason code that forces an obligation to stay `UNKNOWN`.
 pub const REQUIRED_OVER_BUDGET: &str = "REQUIRED_OVER_BUDGET";
 
 /// A supporting span over budget that the packet shows by its first line only.

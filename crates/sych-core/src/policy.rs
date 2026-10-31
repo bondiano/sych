@@ -1,4 +1,4 @@
-//! Trusted policy identity (spec §5.2, §11, INV-12).
+//! Trusted policy identity.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

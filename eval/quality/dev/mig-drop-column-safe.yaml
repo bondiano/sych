@@ -5,7 +5,7 @@ language: go
 pair: mig-drop-column
 variant: safe
 profiles: [migration_compatibility]
-rationale: "The migration only adds a nullable column; the old app neither reads nor writes it, so every reachable rollout state keeps working (spec §13.2, expand phase)."
+rationale: "The migration only adds a nullable column; the old app neither reads nor writes it, so every reachable rollout state keeps working."
 base:
   .sych/deploy.yaml: |
     schema_version: 1

@@ -1,5 +1,5 @@
-//! OpenAI-compatible chat completions over SSE, shared by the `OpenRouter` (M1.9) and
-//! `OpenCode` Go (M1.12) adapters. Each vendor builds its own body and headers; the stream is
+//! OpenAI-compatible chat completions over SSE, shared by the `OpenRouter` and
+//! `OpenCode` Go adapters. Each vendor builds its own body and headers; the stream is
 //! folded, mapped to typed errors and its usage normalized here.
 
 use std::time::Duration;
@@ -13,7 +13,7 @@ use sych_core::model::{
 };
 use sych_core::{MicroUsd, redact};
 
-/// Model request timeout (spec §17.1).
+/// Model request timeout.
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(90);
 
 /// No redirects or system proxy: credentials go only to the allowlisted endpoint.

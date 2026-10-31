@@ -1,4 +1,4 @@
-//! The tour generation pass (spec §21, roadmap M5.1). The model writes only the prose of the
+//! The tour generation pass. The model writes only the prose of the
 //! stops the deterministic plan chose; ids, code references, statuses and the overview come
 //! from the plan and the typed result, so it cannot invent a location or raise a severity.
 

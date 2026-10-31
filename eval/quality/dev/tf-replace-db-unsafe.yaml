@@ -5,7 +5,7 @@ language: terraform
 pair: tf-replace-db
 variant: unsafe
 profiles: [infrastructure]
-rationale: "Bumping engine_version on this instance forces a replacement, and the plan orders it delete before create: the orders database is destroyed with its data before a new empty one exists (spec §14.1)."
+rationale: "Bumping engine_version on this instance forces a replacement, and the plan orders it delete before create: the orders database is destroyed with its data before a new empty one exists."
 base:
   infra/db.tf: |
     resource "aws_db_instance" "orders" {

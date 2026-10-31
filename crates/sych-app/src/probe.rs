@@ -1,5 +1,5 @@
-//! Model probe for `sych doctor --probe-model PROFILE`: one opt-in paid structured request through the gateway
-//! and ledger (roadmap M1.9). It prints the sanitized accounting record; no review result.
+//! Model probe for `sych doctor --probe-model PROFILE`: one opt-in paid structured request through
+//! the gateway and ledger. It prints the sanitized accounting record; no review result.
 
 use std::path::Path;
 use std::process::ExitCode;

@@ -1,4 +1,4 @@
-//! Durable model ledger (spec §17.2): reservation and settlement are single transactions, so
+//! Durable model ledger: reservation and settlement are single transactions, so
 //! spent + held reservations + unknown charges never exceed a cap.
 
 use serde::Serialize;

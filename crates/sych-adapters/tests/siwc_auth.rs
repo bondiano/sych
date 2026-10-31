@@ -1,4 +1,4 @@
-//! Sign in with `ChatGPT` building blocks (roadmap M1.10): base64url, PKCE, host id, ID token
+//! Sign in with `ChatGPT` building blocks: base64url, PKCE, host id, ID token
 //! claims and the loopback callback checks.
 
 use serde_json::{Value, json};

@@ -1,4 +1,4 @@
-//! `POST /v1/runs/:id/handoff` (spec §21.7, roadmap M5.4): the run's own findings as a package
+//! `POST /v1/runs/:id/handoff`: the run's own findings as a package
 //! for a separate author workflow. It only reads the committed result: no model, no change to
 //! the result or its findings, and nothing is published.
 

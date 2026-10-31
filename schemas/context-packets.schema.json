@@ -20,7 +20,7 @@
   ],
   "$defs": {
     "CodeRef": {
-      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
+      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model.",
       "type": "object",
       "properties": {
         "blob_oid": {
@@ -70,7 +70,7 @@
       ]
     },
     "ContextRequest": {
-      "description": "What a context request is bound to (spec §9.1).",
+      "description": "What a context request is bound to.",
       "type": "object",
       "properties": {
         "access_scope_id": {
@@ -292,7 +292,7 @@
       ]
     },
     "PacketResolution": {
-      "description": "Sufficiency of the requested sources, never the truth of an obligation (spec §9.1).",
+      "description": "Sufficiency of the requested sources, never the truth of an obligation.",
       "type": "string",
       "enum": [
         "SATISFIED",
@@ -430,7 +430,7 @@
       ]
     },
     "SourceSnapshotId": {
-      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`].",
       "$ref": "#/$defs/Sha256Digest"
     }
   }

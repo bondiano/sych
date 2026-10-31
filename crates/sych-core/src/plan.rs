@@ -1,5 +1,5 @@
 //! Planner: review units, exclusions, risk hints and obligations fixed before discovery
-//! (spec §7.2–7.4, §11.4). Pure and deterministic for the same snapshot and policy.
+//!. Pure and deterministic for the same snapshot and policy.
 
 use std::collections::BTreeMap;
 
@@ -19,14 +19,14 @@ use crate::{deploy, kubernetes, migration, terraform};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlannedObligation {
     /// Before assessment an applicable obligation is `UNKNOWN/NOT_ASSESSED`, so empty
-    /// discovery can never close it (INV-03).
+    /// discovery can never close it.
     pub obligation: Obligation,
     pub rule_title: String,
     /// Acceptance criteria one by one; the rule statement when the rule lists none.
     pub criteria: Vec<String>,
     pub severity_on_violation: Option<Severity>,
     /// Exceptions of the rule scoped to a path of this change; the reducer applies the ones
-    /// still in force, and they never rewrite the status (spec §11.6).
+    /// still in force, and they never rewrite the status.
     pub exceptions: Vec<RuleException>,
     /// The rule's contract documents from the trusted policy: path, content hash and text.
     #[serde(default)]
@@ -306,7 +306,7 @@ fn obligation(
             },
         )
     } else if !rule.applies_to.change_kinds.is_empty() {
-        // shortcut: change kinds need a semantic provider (M1); until then they stay UNKNOWN.
+        // shortcut: change kinds need a semantic provider; until then they stay UNKNOWN.
         (
             Applicability::Unknown,
             ObligationStatus::Unknown {

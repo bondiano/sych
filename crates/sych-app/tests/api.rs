@@ -1,4 +1,4 @@
-//! `/v1` contracts over real HTTP (roadmap M2.8): identity and repository authorization,
+//! `/v1` contracts over real HTTP: identity and repository authorization,
 //! idempotency with replay and conflict, 202 as durable admission, the error envelope,
 //! cancellation that never rewrites a committed result, and metrics for allowed peers only.
 

@@ -1,4 +1,4 @@
-//! Deployment model and transition matrix (spec §13.1–13.2): what the environment owner
+//! Deployment model and transition matrix: what the environment owner
 //! declared about rollout, each claim with its source. Nothing here is guessed from Git:
 //! `diff_base` and `target_tip` are never the deployed version.
 
@@ -63,7 +63,7 @@ pub enum Recovery {
     Other,
 }
 
-/// `deploy.yaml` of one environment (spec §13.1). Every field is optional: what the owner
+/// `deploy.yaml` of one environment. Every field is optional: what the owner
 /// has not declared stays unknown and is reported, never filled in.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -88,7 +88,7 @@ pub struct DeploymentModel {
     pub observed: Option<Sourced<String>>,
 }
 
-/// The reachable combinations of spec §13.2.
+/// The reachable combinations of app versions and schema states.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
@@ -209,7 +209,7 @@ impl TransitionMatrix {
     }
 }
 
-/// Spec §13.2: every state is reachable unless a sourced constraint excludes it; a missing
+/// Every state is reachable unless a sourced constraint excludes it; a missing
 /// description is never grounds for `NOT_APPLICABLE`.
 pub fn matrix(model: Option<&DeploymentModel>) -> TransitionMatrix {
     let default = DeploymentModel::default();

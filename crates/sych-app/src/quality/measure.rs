@@ -1,4 +1,4 @@
-//! `sych eval measure` (spec §27.4–27.5): every case of a labelled suite is reviewed with a
+//! `sych eval measure`: every case of a labelled suite is reviewed with a
 //! real model profile through the ordinary review path and its durable ledger, so the run,
 //! day and month budgets hold across the whole suite. A finding matches a label when one of
 //! its anchors overlaps a labelled evidence location — a proxy for meaning; `eval judge`
@@ -31,7 +31,7 @@ pub struct MeasureArguments<'a> {
     /// Case ids to run; all when empty.
     pub cases: &'a [String],
     pub runs: u32,
-    /// `A`, `B` or `C` (spec §27.5).
+    /// `A`, `B` or `C`.
     pub variant: &'static str,
     /// Off for baselines A and B; on is variant C, the default pipeline.
     pub risk_audit: bool,
@@ -45,7 +45,7 @@ pub struct MeasureArguments<'a> {
 struct Report {
     suite: String,
     models: String,
-    /// `B` without the high-risk search, `C` with it (spec §27.5).
+    /// `B` without the high-risk search, `C` with it.
     variant: &'static str,
     semantic: bool,
     runs_per_case: u32,

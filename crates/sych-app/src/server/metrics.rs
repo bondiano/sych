@@ -1,4 +1,4 @@
-//! `/metrics` in the Prometheus text format (spec §26.4), only for allowed client addresses.
+//! `/metrics` in the Prometheus text format, only for allowed client addresses.
 //! Labels are bounded enums (states, coverage, judgements, reasons), never paths or ids.
 
 use std::fmt::Write;

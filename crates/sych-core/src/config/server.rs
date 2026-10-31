@@ -1,4 +1,4 @@
-//! Server config `sych.yaml` (spec §23.1–23.2): the trusted upper limits for access, budgets,
+//! Server config `sych.yaml`: the trusted upper limits for access, budgets,
 //! models and runners. Repository policy can only tighten them.
 
 use serde::{Deserialize, Serialize};
@@ -120,7 +120,7 @@ pub struct Budget {
     pub max_attempts: Option<u32>,
     pub max_input_tokens: Option<u32>,
     pub max_output_tokens: Option<u32>,
-    /// Output cap of one request, reasoning included; 2 000 when unset (spec §17.1).
+    /// Output cap of one request, reasoning included; 2 000 when unset.
     pub max_output_tokens_per_request: Option<u32>,
     pub max_parallel_calls: Option<u32>,
     pub active_deadline_seconds: Option<u32>,
@@ -129,7 +129,7 @@ pub struct Budget {
 /// Default `budgets.analysis.active_deadline_seconds`.
 pub const ANALYSIS_DEADLINE_SECONDS: u32 = 300;
 
-/// Defaults are the `economical` caps of spec §17.1.
+/// Defaults are the `economical` caps.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Budgets {
@@ -217,7 +217,7 @@ impl ServerConfig {
         }
     }
 
-    /// Whether a request URL is inside a configured provider endpoint (spec §22.3).
+    /// Whether a request URL is inside a configured provider endpoint.
     pub fn egress_allowed(&self, url: &str) -> bool {
         self.models
             .providers
@@ -258,7 +258,8 @@ impl ServerConfig {
         let mut p = Problems::new(file);
         let w = &self.workers;
         p.check(
-            // shortcut: the engine runs one claim loop; raise the cap when it spawns `concurrency` loops.
+            // shortcut: the engine runs one claim loop; raise the cap when it spawns `concurrency`
+            // loops.
             w.concurrency == 1,
             "workers.concurrency",
             "must be 1: the worker runs a single claim loop",

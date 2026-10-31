@@ -1,4 +1,4 @@
-//! Outbox intents created by finalization (spec §20.2): the publication a committed result asks
+//! Outbox intents created by finalization: the publication a committed result asks
 //! for lands in the same transaction as the result pointer, so a crash after commit leaves a
 //! durable intent for the publisher and never a second analysis.
 

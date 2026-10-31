@@ -1,4 +1,4 @@
-//! GPT through a `ChatGPT` plan with Sign in with `ChatGPT` (roadmap M1.10): text-only
+//! GPT through a `ChatGPT` plan with Sign in with `ChatGPT`: text-only
 //! Responses API on `api.openai.com/v1` with the plan-authorized OAuth token, no tools and no
 //! agent loop. Required: `store: false`, `stream: true`, `instructions` instead of system
 //! items; `max_output_tokens` and sampling fields are not accepted on this route.

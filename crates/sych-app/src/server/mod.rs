@@ -1,5 +1,5 @@
-//! `sych serve` (spec §4.1, §25–26): one process with webhook admission and health; the
-//! scheduler, worker and publisher join it as they land (roadmap M2.2–M2.8).
+//! `sych serve`: one process with webhook admission and health; the
+//! scheduler, worker and publisher join it as they land.
 
 pub mod api;
 pub mod build;
@@ -163,7 +163,7 @@ pub fn router(app: Arc<App>) -> Router {
         .with_state(app)
 }
 
-/// Which halves of the server a process runs (spec §26.1–26.2): `serve` is both, `api` takes
+/// Which halves of the server a process runs: `serve` is both, `api` takes
 /// requests and webhooks without claiming work, `worker` claims work and answers only health and
 /// metrics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

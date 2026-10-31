@@ -1,4 +1,4 @@
-//! JSON and Markdown renderers of a saved review (spec §24.1). Repository text is data: it is
+//! JSON and Markdown renderers of a saved review. Repository text is data: it is
 //! escaped for Markdown/HTML, and terminal control characters never reach the output raw.
 
 use std::fmt::Write as _;

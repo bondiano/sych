@@ -29,14 +29,12 @@ answers are not, so a fresh review of the same diff can differ.
 - **GitHub App.** Verified webhooks, durable jobs with lease and fencing, a reconciling outbox, a summary plus up to
   eight inline comments per revision, findings lineage, feedback and waivers, and a `/v1` HTTP API.
 
-Sych reviews its own pull requests through a live GitHub App; see [self-review](docs/SERVER.md#self-review-bondianosych)
-and [the real connection](docs/SERVER.md#real-connection-2026-10-27).
+Sych reviews its own pull requests through a live GitHub App; see [self-review](docs/SERVER.md#self-review-bondianosych).
 
 ## Status
 
-Pre-release. The local pipeline (M0), model review (M1), the GitHub App server (M2) and the first
-deployment/migration/Terraform checks (M3) are implemented. Nothing is rolled out to production except the pinned
-self-review of this repository. Quality is measured on a labelled suite in `eval/quality`; the numbers and their
+Pre-release. The local pipeline, model review, the GitHub App server and the first
+deployment/migration/Terraform checks are implemented. Quality is measured on a labelled suite in `eval/quality`; the numbers and their
 limits are in [ANALYSIS.md](docs/ANALYSIS.md). No license has been chosen yet.
 
 ## Quick start

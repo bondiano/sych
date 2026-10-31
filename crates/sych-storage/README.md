@@ -11,7 +11,16 @@ content-addressed artifact directory, not in the database.
 | `lib` | `Storage`: `migrate` (the only operation that changes the schema), `open` (refuses an unmigrated or newer DB), the run lifecycle (`begin_run` → `complete_run`/`fail_run`/`cancel_run`), `put_artifact`/`load_artifact` |
 | `artifacts` | `ArtifactStore`: files keyed by SHA-256 with atomic writes |
 | `ledger` | ModelGateway cost ledger: atomic reservations, idempotent settlement, `UNKNOWN_CHARGE` |
-| `gc` | `prune`: orphaned and expired artifacts; active runs and retention are protected |
+| `gc`, `retention` | `prune`: orphaned and expired artifacts; row retention; active runs and unresolved charges/publications are protected |
+| `connection`, `sql` | backend connections, explicit migrations, the shared single-writer transaction; shared SQL fragments |
+| `import` | transactional import of a stopped SQLite snapshot into an empty PostgreSQL store |
+| `admission` | webhook receipt, repository binding and scheduling intent in one transaction |
+| `scheduler`, `jobs` | change state, generations and the event log; durable jobs with leases, reaper and fence |
+| `checkpoints` | accepted model answers pinned under the run's fence for successor reuse |
+| `outbox`, `publish`, `recreate` | publication intents committed with the result; the outbox state machine; audited return of `UNCERTAIN` to `PENDING` |
+| `lineage` | finding lineage, append-only history, feedback and waivers |
+| `api` | idempotency keys, run/publication read models and `/metrics` numbers |
+| `tour_sessions` | stored tours and each reader's own session |
 
 ## Invariants
 

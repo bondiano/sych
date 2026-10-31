@@ -1,4 +1,4 @@
-//! Python shapes from tree-sitter (spec §10.4, roadmap M3.2): the fallback without a
+//! Python shapes from tree-sitter: the fallback without a
 //! language server. Imports, enclosing functions and classes, `with`/`finally` scopes, async
 //! tasks, writes, swallowed exceptions, and the dynamic shapes no static reading resolves:
 //! `getattr`/`eval`/`import_module`, monkey patching and import-time registration.

@@ -1,4 +1,4 @@
-//! Imported CI facts (spec §5.4, §15; roadmap M1.14): cargo/clippy JSON messages and `JUnit`
+//! Imported CI facts: cargo/clippy JSON messages and `JUnit`
 //! test reports, normalized and bound to what was actually tested.
 //!
 //! A locally imported file proves nothing about its origin, so it is an author claim; a
@@ -42,7 +42,7 @@ pub struct CiCoverage {
     pub hit: Vec<u32>,
 }
 
-/// How the tested tree relates to the reviewed head (spec §15.2).
+/// How the tested tree relates to the reviewed head.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CiBindingKind {
@@ -83,7 +83,7 @@ pub struct CiOrigin {
     pub completed_at: Option<String>,
 }
 
-/// A concrete reason an expected report is not evidence (spec §15.3).
+/// A concrete reason an expected report is not evidence.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CiGap {
     pub report: String,
@@ -264,7 +264,7 @@ impl CiFacts {
             ));
             TrustClass::DerivedLocal
         } else if let Some(origin) = &self.origin {
-            // Provenance, not oracle independence (spec §15.4).
+            // Provenance, not oracle independence.
             limitations.push(format!(
                 "AUTHENTICATED_CI {}: origin is established, the test oracle is not independent",
                 origin.workflow
@@ -277,7 +277,7 @@ impl CiFacts {
     }
 
     /// External input evidence: `Ci` binding, author claim until a trusted CI transport
-    /// authenticates the job (M2).
+    /// authenticates the job.
     pub fn to_evidence(
         &self,
         snapshot: &SourceSnapshot,

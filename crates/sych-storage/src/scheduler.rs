@@ -1,4 +1,4 @@
-//! Change state, generations and the event log (spec §8.3, §19.3). A generation, the supersede
+//! Change state, generations and the event log. A generation, the supersede
 //! of the active one and its job commit in one transaction.
 
 use sqlx::Row;
@@ -189,7 +189,7 @@ impl Storage {
     }
 
     /// The next generation and its analysis job; an active older run is superseded and its
-    /// job cancelled, which revokes its lease (spec §8.3).
+    /// job cancelled, which revokes its lease.
     pub async fn generate(
         &self,
         change_id: i64,

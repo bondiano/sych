@@ -1,4 +1,4 @@
-//! A Terraform plan reduced to allowlisted structure (spec §14.1, roadmap M3.6): addresses,
+//! A Terraform plan reduced to allowlisted structure: addresses,
 //! actions, replacement order and the *names* of changed, unknown and sensitive attributes.
 //! No attribute value is kept, so nothing sensitive reaches a prompt, log or artifact.
 

@@ -1,4 +1,4 @@
-//! Lineage corpus (roadmap M2.7): what an open finding of the previous revision becomes. A
+//! Lineage corpus: what an open finding of the previous revision becomes. A
 //! missing finding is never a fix by itself; a rename continues the problem or keeps it open.
 
 use std::fs;

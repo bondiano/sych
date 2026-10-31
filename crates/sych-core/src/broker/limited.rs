@@ -60,7 +60,7 @@ fn combine(into: &mut Assessment, a: Assessment) {
 }
 
 /// Obligations whose required context did not fit cannot keep a verdict: their assessment
-/// becomes `UNKNOWN/CONTEXT_LIMIT` (spec §9.3), unless a chunk that did fit shows a violation.
+/// becomes `UNKNOWN/CONTEXT_LIMIT`, unless a chunk that did fit shows a violation.
 /// One whose changed code the snapshot does not show (`UNSEEN_GAPS`) cannot be `SUPPORTED`:
 /// it becomes `UNKNOWN/SEMANTIC_GAP`; a violation shown elsewhere in the change stands.
 pub fn context_limited(

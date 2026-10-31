@@ -1,5 +1,5 @@
 //! `linguist-generated` from `.gitattributes` of the target tip: the trusted revision, as for
-//! policy (INV-12), so a change cannot mark its own code as generated to keep it unread.
+//! policy, so a change cannot mark its own code as generated to keep it unread.
 
 use std::str;
 

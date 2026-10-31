@@ -1,4 +1,4 @@
-//! Bare mirrors of reviewed repositories: the source cache (spec §20.4), kept 7 days after its
+//! Bare mirrors of reviewed repositories: the source cache, kept 7 days after its
 //! last use and never while a run of that repository is active.
 
 use std::fs;

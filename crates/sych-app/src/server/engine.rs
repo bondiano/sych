@@ -1,4 +1,4 @@
-//! The scheduler half of the server (spec §19.3, §8.3–8.5): due intents become decisions over
+//! The scheduler half of the server: due intents become decisions over
 //! the API state of the change; open changes are reconciled after downtime and periodically.
 
 use std::collections::BTreeMap;
@@ -23,7 +23,7 @@ use crate::args::{ModelSelection, Switch};
 
 /// Transport slack of one analysis job on top of its active deadline.
 pub const JOB_SLACK_SECONDS: i64 = 120;
-/// Write access lets an actor run commands (spec §22.5).
+/// Write access lets an actor run commands.
 const COMMAND_PERMISSIONS: &[&str] = &["admin", "maintain", "write"];
 
 /// One GitHub connection with its client.
@@ -82,7 +82,8 @@ pub(super) fn scm_state(pull: &PullState, full_name: &str) -> ScmState {
 
 impl Engine {
     /// Default bound of one analysis job, retries included: the default CI wait, then
-    /// [`Engine::after_evidence_seconds`]. PREPARE extends it to the wait the target's policy asks for.
+    /// [`Engine::after_evidence_seconds`]. PREPARE extends it to the wait the target's policy asks
+    /// for.
     pub(super) fn job_seconds(&self) -> i64 {
         i64::from(CI_WAIT_SECONDS) + self.after_evidence_seconds
     }
@@ -323,7 +324,7 @@ impl Engine {
 
 /// Reconciliation period after the startup pass.
 const RECONCILE_SECONDS: i64 = 600;
-/// Reaper period (spec §8.2 default).
+/// Reaper period.
 const REAP_SECONDS: i64 = 15;
 
 impl Engine {

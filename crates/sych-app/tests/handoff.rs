@@ -1,4 +1,4 @@
-//! Fix handoff over `/v1` (roadmap M5.4): a reader exports the run's own findings in scope; a
+//! Fix handoff over `/v1`: a reader exports the run's own findings in scope; a
 //! foreign finding or another snapshot is refused, and the export changes nothing.
 
 use reqwest::StatusCode;

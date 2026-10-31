@@ -1,4 +1,4 @@
-//! Model passes of one review (spec §16.1): required assessments first, so discovery can
+//! Model passes of one review: required assessments first, so discovery can
 //! never spend the verification reserve, though they and the audit leave discovery a share
 //! of the attempts; then the independent high-risk audit, discovery
 //! with typed context asks, and verification of every candidate. A discovery batch that
@@ -386,7 +386,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     }
 
     /// Consecutive discovery packets whose shown tokens fit one request: one call for a small
-    /// PR instead of one per review unit (spec §16.1).
+    /// PR instead of one per review unit.
     fn discovery_batches(&self) -> Vec<Vec<usize>> {
         let mut batches: Vec<(Vec<usize>, u32)> = Vec::new();
         for (i, packet) in self.packets.iter().enumerate() {

@@ -1,4 +1,4 @@
-//! What the scheduler does with a due change intent (spec §19.3, §8.3–8.5), as a pure decision
+//! What the scheduler does with a due change intent, as a pure decision
 //! over the API state of the change and its latest generation; and the retry classifier.
 
 use schemars::JsonSchema;
@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use crate::config::CheckRequest;
 use crate::scm::ScmErrorKind;
 
-/// Default CI wait before a run continues with gaps (spec §17.1).
+/// Default CI wait before a run continues with gaps.
 pub const CI_WAIT_SECONDS: u32 = 180;
-/// Default retries of a retryable read or analysis step (spec §8.4).
+/// Default retries of a retryable read or analysis step.
 pub const MAX_RETRIES: u32 = 2;
 
 /// Why a generation exists.
@@ -35,7 +35,7 @@ pub struct RunInputs {
     /// The connection publishes advisory results for this change (trusted server config).
     #[serde(default)]
     pub publish: bool,
-    /// An advisory check run is published too; off by default (spec §18.7).
+    /// An advisory check run is published too; off by default.
     #[serde(default)]
     pub checks: bool,
     /// Execution profiles the request asked for; empty runs every allowed one.
@@ -119,7 +119,7 @@ fn skip(reason: &str) -> Decision {
 }
 
 /// `actor` is set for a command whose author has write access; unauthorized commands are
-/// skipped before this (spec §22.5).
+/// skipped before this.
 pub fn decide(
     kind: IntentKind,
     state: &ScmState,
@@ -190,7 +190,7 @@ pub fn decide(
     }
 }
 
-/// Whether a failed step may run again unchanged, and when (spec §8.4): only rate limits and
+/// Whether a failed step may run again unchanged, and when: only rate limits and
 /// transient failures, with exponential backoff, jitter and `Retry-After`; never past the
 /// deadline.
 pub fn retry_at(

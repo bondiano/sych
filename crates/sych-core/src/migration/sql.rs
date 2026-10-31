@@ -1,4 +1,4 @@
-//! What a SQL migration changes in the schema (spec §13.3): a small scanner for the DDL that
+//! What a SQL migration changes in the schema: a small scanner for the DDL that
 //! affects existing readers and writers. It is a locator for context, not a SQL parser; an
 //! unrecognized statement is simply not a schema change here.
 

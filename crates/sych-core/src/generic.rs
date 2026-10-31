@@ -1,4 +1,4 @@
-//! The generic rule pack shipped with the engine (spec §11.4). A generic rule is enabled by
+//! The generic rule pack shipped with the engine. A generic rule is enabled by
 //! its review profile and activates only on the changes it is about; a repository rule with
 //! the same id replaces it. Domain rules are bound to their inputs after planning: migration
 //! rules to the deployment model (`migration::bind`), TF-CHANGE to a Terraform plan and
@@ -52,7 +52,7 @@ fn rule(id: &str, title: &str, severity: RuleSeverity, statement: &str, criteria
         owner: "engine".into(),
         applies_to: AppliesTo::default(),
         statement: statement.into(),
-        rationale: Some("generic rule shipped with Sych (spec §11.4)".into()),
+        rationale: Some("generic rule shipped with Sych".into()),
         contract_refs: Vec::new(),
         acceptance: Some(Acceptance {
             evidence_kinds: vec![

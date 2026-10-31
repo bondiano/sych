@@ -1,4 +1,4 @@
-//! Harness-correctness suite for `sych eval run` (spec §24.4, §27.1). Each case builds a small Git
+//! Harness-correctness suite for `sych eval run`. Each case builds a small Git
 //! repository from the suite, reviews it with the fake adapter into a throwaway store and
 //! compares significant states, not runtime ids or timestamps.
 

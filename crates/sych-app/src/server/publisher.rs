@@ -1,4 +1,4 @@
-//! The publisher and its reconciler (spec §18). A write happens only after the operation is
+//! The publisher and its reconciler. A write happens only after the operation is
 //! durably `PUBLISHING` and both gates pass; an unknown outcome is reconciled by the stored
 //! remote id or the marker of an object the App itself wrote; CREATE again only once a complete
 //! read after a grace shows the object absent.

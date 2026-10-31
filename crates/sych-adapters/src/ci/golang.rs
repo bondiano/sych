@@ -1,4 +1,4 @@
-//! Go reports (spec §10.3, §15): `go test -json` (test2json events, with `-race` reports in
+//! Go reports: `go test -json` (test2json events, with `-race` reports in
 //! their output), `go test -coverprofile` and `go vet -json`. Race and coverage show only
 //! the paths the tests executed.
 

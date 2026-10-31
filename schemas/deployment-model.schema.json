@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "DeploymentModel",
-  "description": "`deploy.yaml` of one environment (spec §13.1). Every field is optional: what the owner\nhas not declared stays unknown and is reported, never filled in.",
+  "description": "`deploy.yaml` of one environment. Every field is optional: what the owner\nhas not declared stays unknown and is reported, never filled in.",
   "type": "object",
   "properties": {
     "backfill": {
@@ -289,7 +289,7 @@
       ]
     },
     "TransitionState": {
-      "description": "The reachable combinations of spec §13.2.",
+      "description": "The reachable combinations of app versions and schema states.",
       "type": "string",
       "enum": [
         "old_app_expanded_schema",

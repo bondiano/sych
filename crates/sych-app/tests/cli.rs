@@ -1,4 +1,4 @@
-//! Real CLI smoke (roadmap M0.6): review → persisted JSON/Markdown → show/explain, exit codes,
+//! Real CLI smoke: review → persisted JSON/Markdown → show/explain, exit codes,
 //! failed save and cancellation. Needs `git` in `PATH`; no external API is reachable.
 
 use std::fs;
@@ -408,7 +408,7 @@ fn development_quality_suite_is_well_labelled_and_anchored() {
     assert_eq!(out.status.code(), Some(0), "{report:#}");
     assert!(
         report["passed"].as_u64() >= Some(24),
-        "spec §27.2 asks for at least 24 cases"
+        "the development suite needs at least 24 cases"
     );
     assert_eq!(report["split"], "development");
 }

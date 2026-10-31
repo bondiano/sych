@@ -1,4 +1,4 @@
-//! Go shapes from tree-sitter (spec §10.3, roadmap M3.1): receivers, `context.Context`
+//! Go shapes from tree-sitter: receivers, `context.Context`
 //! parameters, returned errors, `defer`, goroutines, channels and transaction boundaries.
 //!
 //! A SQL call's receiver type comes from the function's parameters and locals and the

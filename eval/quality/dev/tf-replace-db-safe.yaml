@@ -5,7 +5,7 @@ language: terraform
 pair: tf-replace-db
 variant: safe
 profiles: [infrastructure]
-rationale: "Changing the instance class is an in-place update in the plan: nothing is deleted or replaced (spec §14.1)."
+rationale: "Changing the instance class is an in-place update in the plan: nothing is deleted or replaced."
 base:
   infra/db.tf: |
     resource "aws_db_instance" "orders" {

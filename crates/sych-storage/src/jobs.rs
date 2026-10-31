@@ -1,4 +1,4 @@
-//! Durable jobs with leases (spec §8.2, §20.2): claim and a new fencing epoch in one
+//! Durable jobs with leases: claim and a new fencing epoch in one
 //! transaction, heartbeat, reaper and the fence predicate every authoritative write carries.
 
 use sqlx::Row;

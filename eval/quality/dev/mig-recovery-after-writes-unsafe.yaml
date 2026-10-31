@@ -5,7 +5,7 @@ language: go
 pair: mig-recovery-after-writes
 variant: unsafe
 profiles: [migration_compatibility]
-rationale: "The new app writes the status 'partially_refunded', and the declared recovery path is a compatible rollback to the old image; the old app's parser rejects any status it does not know, so after a rollback every order written with the new value fails to load (spec §13.4, recovery after new writes)."
+rationale: "The new app writes the status 'partially_refunded', and the declared recovery path is a compatible rollback to the old image; the old app's parser rejects any status it does not know, so after a rollback every order written with the new value fails to load."
 base:
   .sych/deploy.yaml: |
     schema_version: 1

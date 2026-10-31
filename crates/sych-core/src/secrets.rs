@@ -1,5 +1,5 @@
 //! Default-deny secret paths and value redaction, applied before model egress and before
-//! diagnostics are written (spec §22.3, INV-18). Filtering is a heuristic, not a guarantee.
+//! diagnostics are written. Filtering is a heuristic, not a guarantee.
 
 use std::borrow::Cow;
 

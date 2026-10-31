@@ -1,5 +1,5 @@
-//! `sych auth chatgpt`: the official Sign in with `ChatGPT` flow for a local owner (roadmap
-//! M1.10). The browser returns to a loopback listener; on a remote host the redirected URL can
+//! `sych auth chatgpt`: the official Sign in with `ChatGPT` flow for a local owner. The
+//! browser returns to a loopback listener; on a remote host the redirected URL can
 //! be pasted instead. Only the token file is written; no model request is made.
 
 use std::io::{BufRead, BufReader, Write};

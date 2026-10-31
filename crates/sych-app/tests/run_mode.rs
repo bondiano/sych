@@ -1,4 +1,4 @@
-//! A server run never takes a route that is allowed only locally (roadmap M2.9): a personal
+//! A server run never takes a route that is allowed only locally: a personal
 //! subscription signed in on the owner's machine is not a hosted reviewer's credential.
 
 use std::fs;

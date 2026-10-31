@@ -4,7 +4,7 @@ split: development
 language: shell
 variant: unsafe
 profiles: [correctness, side_effects]
-rationale: "The relay no longer retries a publish that failed after the commit, so a crash between commit and publish loses the event. The case's targeted check runs the relay on the diff base and the head offline and names the changed event order (roadmap M3.8)."
+rationale: "The relay no longer retries a publish that failed after the commit, so a crash between commit and publish loses the event. The case's targeted check runs the relay on the diff base and the head offline and names the changed event order."
 base:
   check.sh: |
     events=

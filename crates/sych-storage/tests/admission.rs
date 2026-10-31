@@ -1,4 +1,4 @@
-//! Webhook admission on the selected backend (roadmap M2.1): receipt, binding and intent in one
+//! Webhook admission on the selected backend: receipt, binding and intent in one
 //! transaction, recognized repeats and separate tenant bindings of one repository.
 
 use sych_core::scm::{ChangeSignal, RepositoryRef, WebhookEvent};

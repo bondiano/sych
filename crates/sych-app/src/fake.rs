@@ -1,4 +1,4 @@
-//! Fake model adapter fixtures (`--fake-responses`, spec §24.5): scripted evidence and
+//! Fake model adapter fixtures (`--fake-responses`): scripted evidence and
 //! assessments for acceptance tests. The harness resolves code coordinates and binds the
 //! evidence to the pinned snapshot; the fixture never supplies ids or hashes.
 

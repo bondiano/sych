@@ -1,4 +1,4 @@
-//! Hardened `git` invocation (spec §6.4).
+//! Hardened `git` invocation.
 //!
 //! The environment is cleared, system and global config are ignored, replace refs and lazy
 //! fetches are disabled, and every command addresses the object database through

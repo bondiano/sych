@@ -5,7 +5,7 @@ language: python
 pair: python-with-lifetime
 variant: unsafe
 profiles: [correctness, side_effects]
-rationale: "The export writes outside the `with` block: the file is never closed, so buffered rows can be lost and a failing json.dumps leaves a truncated file open (spec §12.4, Python resource lifetime)."
+rationale: "The export writes outside the `with` block: the file is never closed, so buffered rows can be lost and a failing json.dumps leaves a truncated file open."
 base:
   app/__init__.py: ""
   app/export.py: |

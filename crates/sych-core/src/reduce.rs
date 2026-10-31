@@ -1,4 +1,4 @@
-//! Deterministic `ResultReducer` (spec §5.7, §8.2): assessments, evidence and findings become
+//! Deterministic `ResultReducer`: assessments, evidence and findings become
 //! obligation statuses, coverage and recommendation. No model verdict is taken as-is.
 
 use std::collections::BTreeMap;
@@ -13,7 +13,7 @@ use crate::{
     Validity, VerificationStatus, Waiver, derived_uuid, glob_match, sha256,
 };
 
-/// A verifier's answer for one rule's obligation. Unknown fields are rejected (spec §5.1).
+/// A verifier's answer for one rule's obligation. Unknown fields are rejected.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "RawAssessment")]
 pub struct Assessment {
@@ -153,7 +153,7 @@ fn evidence_problem(
     }
 
     let supported = matches!(assessment.status, ObligationStatus::Supported);
-    // Author-written tests or PR text alone do not establish correctness (INV-19).
+    // Author-written tests or PR text alone do not establish correctness.
     if supported
         && !cited.iter().any(|ev| {
             acceptable(ev)
@@ -203,7 +203,7 @@ fn violation_severity(planned: &PlannedObligation) -> Severity {
         .unwrap_or(DEFAULT_VIOLATION_SEVERITY)
 }
 
-/// A checked violation is never lost for want of a finding (spec §5.7).
+/// A checked violation is never lost for want of a finding.
 fn rule_violation(
     planned: &PlannedObligation,
     evidence: &BTreeMap<EvidenceId, &Evidence>,
@@ -473,7 +473,7 @@ pub struct RunInfo {
     pub language: crate::ReviewLanguage,
 }
 
-/// Assembles the immutable result; the plan's scope is carried unchanged (spec §7.4).
+/// Assembles the immutable result; the plan's scope is carried unchanged.
 pub fn finalize(
     run: RunInfo,
     plan: &ReviewPlan,

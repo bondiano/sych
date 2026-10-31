@@ -1,4 +1,4 @@
-//! Model gateway contracts: providers, structured output, budgets and the ledger (spec §16–17).
+//! Model gateway contracts: providers, structured output, budgets and the ledger.
 //! Transports live in adapters; this module has no HTTP or SQL.
 
 mod budget;

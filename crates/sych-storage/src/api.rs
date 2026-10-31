@@ -1,4 +1,4 @@
-//! Storage behind the HTTP API (spec §25): idempotency keys scoped by tenant, actor and
+//! Storage behind the HTTP API: idempotency keys scoped by tenant, actor and
 //! endpoint; read models of runs and publications; and the numbers `/metrics` reports.
 
 use sqlx::Row;
@@ -7,7 +7,7 @@ use sych_core::scm::RepositoryRef;
 
 use crate::{Storage, StorageError};
 
-/// Default lifetime of an idempotency key (spec §25.2).
+/// Default lifetime of an idempotency key.
 pub const IDEMPOTENCY_TTL_SECONDS: i64 = 86_400;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

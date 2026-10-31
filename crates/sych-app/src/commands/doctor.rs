@@ -1,4 +1,4 @@
-//! Availability checks: no deploy, comment or model call (spec §23.4) unless asked for by
+//! Availability checks: no deploy, comment or model call unless asked for by
 //! `--probe-model` or `--scm-smoke`.
 
 use std::path::{Path, PathBuf};

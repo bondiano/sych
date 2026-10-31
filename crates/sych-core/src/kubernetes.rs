@@ -1,4 +1,4 @@
-//! Rendered Kubernetes manifests reduced to the rollout structure of spec §14.2 (roadmap M3.7):
+//! Rendered Kubernetes manifests reduced to their rollout structure:
 //! selectors, probes, strategy, termination, volumes, secret/config *names*, hooks. Rendered
 //! YAML is structural evidence only: it never confirms that a rollout succeeded.
 
@@ -31,7 +31,7 @@ pub struct K8sObject {
     pub deletion_policy: Option<String>,
 }
 
-/// What the documents are evidence of, weakest first (spec §14.2): rendered YAML shows the
+/// What the documents are evidence of, weakest first: rendered YAML shows the
 /// structure, a dry-run that the API server admitted it, runtime objects the live state.
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,

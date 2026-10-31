@@ -1,7 +1,5 @@
 # Storage
 
-Implements roadmap M0.5: §8.2, §20 and §24.4 of the specification.
-
 ## Components
 
 - **Database** (`sych-storage`): PostgreSQL for the server; SQLite/WAL with `synchronous=FULL` for the local CLI.
@@ -9,7 +7,7 @@ Implements roadmap M0.5: §8.2, §20 and §24.4 of the specification.
   SQLite `BEGIN IMMEDIATE`, PostgreSQL READ COMMITTED plus a transaction-scoped advisory lock.
   This retains one-writer semantics, not multi-worker scaling.
   Tables `changes`, `runs`, `artifacts`, `run_artifacts`; ledger — `model_attempts`, `subscription_fees`;
-  server (M2) — `repositories`, `inbox_events`, `change_intents`, `jobs`, `change_events`, `publication_objects`,
+  server — `repositories`, `inbox_events`, `change_intents`, `jobs`, `change_events`, `publication_objects`,
   `publication_operations`, `audit_events` ([SERVER.md](SERVER.md)); `tour_sessions` — one reader's progress through a
   stored tour, no shared state ([LOCAL_REVIEW.md](LOCAL_REVIEW.md#reading-a-tour)). Nested domain
   objects are not decomposed into SQL.
@@ -37,7 +35,7 @@ Implements roadmap M0.5: §8.2, §20 and §24.4 of the specification.
   the source snapshot and diff manifest, which have a shorter retention: after they are deleted, `show`/`explain` still work,
   and `snapshot`/`diff_manifest` in JSON are `null` (in Markdown — "unavailable").
 
-## Server run finalization (M2.4)
+## Server run finalization
 
 The authoritative commit of a run is a single transaction with a predicate:
 
@@ -85,7 +83,7 @@ artifact. Raw CI artifacts are not stored at all: the zip is read in memory, and
 The schema is changed only by `sych db migrate`. 0004 rebuilds `runs` (snapshot/policy ids became nullable) using the
 SQLite procedure with foreign keys disabled inside a single transaction. `cargo test -p sych-storage --test upgrade`
 brings up a v2 database from `fixtures/storage/v2-seed.sql` (completed run, pin, `UNKNOWN` charge) and verifies that after
-migration the data and foreign keys are intact. Backward compatibility is not promised before R1, but data in existing databases
+migration the data and foreign keys are intact. Backward compatibility is not promised yet, but data in existing databases
 is carried over.
 
 PostgreSQL has its own migration history, starting with `migrations/postgres/0001_storage.sql`.

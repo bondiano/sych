@@ -1,4 +1,4 @@
-//! Local Git snapshot service (spec §6).
+//! Local Git snapshot service.
 
 mod attributes;
 mod command;

@@ -5,7 +5,7 @@ language: terraform
 pair: tf-replace-db
 variant: unknown
 profiles: [infrastructure]
-rationale: "The same replacement-forcing change without a plan: whether it is applied in place or as delete-before-create cannot be told from the HCL alone (spec §14.1)."
+rationale: "The same replacement-forcing change without a plan: whether it is applied in place or as delete-before-create cannot be told from the HCL alone."
 base:
   infra/db.tf: |
     resource "aws_db_instance" "orders" {

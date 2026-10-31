@@ -1,4 +1,4 @@
-//! Price bounds, budget admission and the ledger contract (spec §17).
+//! Price bounds, budget admission and the ledger contract.
 
 use std::collections::BTreeMap;
 
@@ -8,11 +8,11 @@ use super::{AttemptKind, Message, ObservedUsage, Purpose, Route};
 use crate::config::{Budget, Budgets, ConfigError, FixedFee, parse_yaml};
 use crate::{AttemptId, MicroUsd, RunId, SchemaVersion, Timestamp};
 
-/// Output tokens one request may produce (spec §17.1).
+/// Output tokens one request may produce.
 pub const REQUEST_OUTPUT_TOKENS: u32 = 2_000;
 
 impl Limits {
-    /// The output cap of one request: the budget's, or the §17.1 default.
+    /// The output cap of one request: the budget's, or the default.
     pub fn request_output_tokens(&self) -> u32 {
         self.run
             .max_output_tokens_per_request
@@ -20,7 +20,7 @@ impl Limits {
     }
 
     /// The caps a pass sees when `attempts` later calls must still fit: those attempts and
-    /// their share of the run money and tokens stay for them (spec §17.1).
+    /// their share of the run money and tokens stay for them.
     #[must_use]
     pub fn reserving(mut self, attempts: u32) -> Self {
         if let Some(cap) = self.run.max_attempts {
@@ -65,7 +65,7 @@ pub struct PriceCard {
 }
 
 impl PriceCard {
-    /// Rounded up; no cache discount is assumed (spec §17.2).
+    /// Rounded up; no cache discount is assumed.
     pub fn cost(&self, input_tokens: u64, output_tokens: u64) -> MicroUsd {
         let total = (u128::from(input_tokens) * u128::from(self.input_per_mtok))
             .saturating_add(u128::from(output_tokens) * u128::from(self.output_per_mtok));
@@ -183,7 +183,7 @@ pub enum Denied {
     Deadline,
 }
 
-/// Budget invariant of spec §17.2 for one new reservation.
+/// The budget invariant for one new reservation.
 pub fn admit(limits: &Limits, c: &Committed, r: &Reservation) -> Result<(), Denied> {
     if let Some(cap) = limits.run.max_attempts
         && c.run_attempts >= cap

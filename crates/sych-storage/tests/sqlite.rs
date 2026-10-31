@@ -1,4 +1,4 @@
-//! Storage contract on a real `SQLite` file and artifact directory (roadmap M0.5).
+//! Storage contract on a real `SQLite` file and artifact directory.
 
 use std::fs;
 use std::path::{Path, PathBuf};

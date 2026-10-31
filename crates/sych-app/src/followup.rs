@@ -1,4 +1,4 @@
-//! `sych ask`: a bounded follow-up on one stop of a stored tour (spec §21.6, roadmap M5.3). A
+//! `sych ask`: a bounded follow-up on one stop of a stored tour. A
 //! comprehension question calls the model under the session's own `budgets.followup_session`,
 //! with the stop's code and at most one round of typed context queries; a defect claim in the
 //! answer goes through the regular verifier and stays in the session. A fact is the reader's

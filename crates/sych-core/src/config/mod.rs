@@ -1,5 +1,5 @@
 //! Typed server and repository configuration, trusted policy and effective config
-//! (spec §11, §23). YAML enums are lowercase `snake_case`; unknown keys are errors.
+//!. YAML enums are lowercase `snake_case`; unknown keys are errors.
 
 mod effective;
 mod endpoint;

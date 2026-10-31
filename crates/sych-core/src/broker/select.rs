@@ -1,4 +1,4 @@
-//! Packet filling (spec §9.3): merged spans go into the request budget by priority; a
+//! Packet filling: merged spans go into the request budget by priority; a
 //! verification packet whose required spans do not fit together is split into chunks.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -133,7 +133,7 @@ pub(super) fn select(
         )
     });
     let budget = request.remaining_budget;
-    // A packet whose required spans do not fit together is split (spec §9.3).
+    // A packet whose required spans do not fit together is split.
     let mut chunks = vec![Chunk::default()];
     let mut excluded = Vec::new();
     for m in merged {

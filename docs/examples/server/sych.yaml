@@ -1,4 +1,4 @@
-# Personal sandbox server (spec §26.1). Secrets are environment variable names, never values.
+# Personal sandbox server. Secrets are environment variable names, never values.
 schema_version: 1
 mode: personal
 
@@ -30,8 +30,8 @@ scm:
       app_id: 123456
       private_key_file_env: SYCH_GITHUB_APP_KEY_FILE
       webhook_secret_env: SYCH_GITHUB_WEBHOOK_SECRET
-      repositories: [bondiano/sych-sandbox]
-      bot_login: sych-sandbox[bot]
+      repositories: [your-org/your-repo]
+      bot_login: your-app[bot]
       publish: true                    # advisory summary and inline comments
       checks: false
       ci_reports:

@@ -1,4 +1,4 @@
-//! TF-CHANGE and K8S-ROLLOUT over imported infrastructure reports (roadmap M3.6–M3.7): without
+//! TF-CHANGE and K8S-ROLLOUT over imported infrastructure reports: without
 //! a report bound to the head they stay UNKNOWN; with one, each risky resource is a criterion.
 
 use std::collections::BTreeMap;
@@ -78,7 +78,7 @@ fn rollout(ci: Vec<CiFacts>) -> sych_core::Obligation {
     rule(&p, "K8S-ROLLOUT").expect("rollout rule").clone()
 }
 
-/// K8S-ROLLOUT (roadmap M3.7): without rendered manifests it is UNKNOWN; with them each risky
+/// K8S-ROLLOUT: without rendered manifests it is UNKNOWN; with them each risky
 /// object is a criterion, and rendered YAML is never taken for an observed rollout.
 #[test]
 fn k8s_rollout_needs_rendered_manifests_and_stays_structural() {

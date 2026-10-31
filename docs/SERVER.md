@@ -1,10 +1,10 @@
 # Server: GitHub App, admission, scheduling and publication
 
-`sych serve --config sych.yaml` is a single personal sandbox process: webhook intake, scheduler, worker and publisher
-(M2). A webhook only accepts a durable signal; the model is not called in the handler. Production is
-only the self-review of `bondiano/sych` with a pinned build ([below](#self-review-bondianosych)).
+`sych serve --config sych.yaml` runs webhook intake, the scheduler, the worker and the publisher in a single process.
+A webhook only accepts a durable signal; the model is not called in the handler. This repository reviews its own pull
+requests with a pinned build ([below](#self-review-bondianosych)).
 
-## Connecting a GitHub App (M2.1)
+## Connecting a GitHub App
 
 Trusted server config defines each connection; the webhook URL selects only the `:connection`, not the API address,
 credentials or tenant:
@@ -19,8 +19,8 @@ scm:
       app_id: 123456
       private_key_file_env: SYCH_GITHUB_APP_KEY_FILE   # path to the PEM, not the key itself
       webhook_secret_env: SYCH_GITHUB_WEBHOOK_SECRET   # differs from the API credential
-      repositories: [bondiano/sych-sandbox]            # others get a receipt without work
-      bot_login: sych-sandbox[bot]                     # its comments never schedule work
+      repositories: [your-org/your-repo]               # others get a receipt without work
+      bot_login: your-app[bot]                         # its comments never schedule work
       checks: false                                    # Checks write only with checks enabled
       publish: false                                   # advisory publication; off by default
       max_body_bytes: 2097152                          # default 2 MiB
@@ -37,10 +37,10 @@ stops startup and is not substituted.
 | change_refs, reconciliation, own_comments | Pull requests: read | `GET /repos/{r}/pulls/{n}`, `GET /repos/{r}/pulls?state=open`, `GET /repos/{r}/issues/{n}/comments` |
 | full_diff | Pull requests + Contents: read | `GET /repos/{r}/pulls/{n}/files` (no more than 3000 files) |
 | blobs | Contents: read | git fetch with the installation token |
-| ci_runs, ci_artifacts | Actions: read | workflow runs/jobs/artifacts (M2.3) |
-| summary_write, inline_write | Pull requests: write | issue comment, review comments (M2.5–M2.6) |
+| ci_runs, ci_artifacts | Actions: read | workflow runs/jobs/artifacts |
+| summary_write, inline_write | Pull requests: write | issue comment, review comments |
 | actor_permissions | Metadata: read | `GET /repos/{r}/collaborators/{login}/permission` |
-| checks_write | Checks: write — only with `checks: true` | check runs (M2.6) |
+| checks_write | Checks: write — only with `checks: true` | check runs |
 | events `issue_comment`, `check_suite` | Issues: read, Checks: read | without them GitHub does not allow subscribing to these events |
 
 `ProviderCapabilities` is computed from the installation `permissions` (`GET /repos/{r}/installation`) and
@@ -48,39 +48,6 @@ stored in the binding; a missing capability yields a limitation, not a guess. Th
 for a single repository (`POST /app/installations/{id}/access_tokens` with `repositories: [name]`), lives in memory and
 is refreshed 5 minutes before expiry — independently of the run. The App JWT (RS256) is signed with the key from the PEM (PKCS#1, as
 GitHub issues it, or PKCS#8) and is valid for 9 minutes.
-
-### Real connection (2026-10-27)
-
-The App `sych-reviewer` (bot `sych-reviewer[bot]`) is installed on `bondiano/sych` only; the production connection
-`sych` runs from petinfra (namespace `sych`, setup in petinfra `docs/deployments.md`). Secrets are env references
-from the Secret `sych/sych-env` — `SYCH_GITHUB_APP_KEY_FILE` (PEM mounted at `/run/sych`), `SYCH_GITHUB_WEBHOOK_SECRET`,
-`SYCH_OPENROUTER_API_KEY`, `SYCH_DATABASE_URL`, `SYCH_API_TOKEN_OWNER`; no value is stored in either repository.
-Events: Pull request, Issue comment, Workflow run, Check suite. Granted permissions, as the installation reports
-them, and the capabilities computed from them:
-
-| Permission | Level | Capabilities |
-|---|---|---|
-| Pull requests | write | change_refs, full_diff (with Contents), own_comments, summary_write, inline_write, reconciliation |
-| Contents | read | blobs, full_diff |
-| Actions | read | ci_runs, ci_artifacts |
-| Checks | read | ci_runs; `checks_write` is false — `checks: false` on the connection |
-| Issues | read | the `issue_comment` event |
-| Metadata | read | actor_permissions |
-
-`missing_capabilities` is empty for `checks: false`. Installation `175773247`; tokens are requested per run for the
-single repository and never logged.
-
-**Provider smoke** (M2.5): `sych doctor --config /etc/sych/sych.yaml --repo /tmp --scm-smoke sych --pr 20`, run with
-`kubectl exec` in the production pod on reviewer `de09d763` (`ghcr.io/bondiano/sych@sha256:17552121…`), exit 0:
-
-| Step | Result |
-|---|---|
-| installation → token for `bondiano/sych` | installation `175773247`, permissions as above |
-| create comment on PR #20 | id `6447223738`, marker `sych:smoke:01a17e26-0b07-77e3-9c0c-66227c708dbd` |
-| read back revision 1 | own (`Bot`, `sych-reviewer[bot]`), body `sha256:04198d47…` |
-| update + read back revision 2 | body `sha256:0df4cceb…` |
-| find by marker over all comments | found, same id |
-| delete, read back | `404` (`gh api …/issues/comments/6447223738` → Not Found) |
 
 ### Admission
 
@@ -99,7 +66,7 @@ single repository and never logged.
 
 Accepted events: `ping`, `pull_request`, `issue_comment`, `workflow_run`, `check_suite`, `installation`,
 `installation_repositories`. GitHub does not sign a timestamp, so there is no replay window: a repeat is recognized by the delivery id.
-Errors use the §25.3 envelope (`error.code/message/retryable/correlation_id/details`), without secrets or payload.
+Errors use the API error envelope (`error.code/message/retryable/correlation_id/details`), without secrets or payload.
 
 A single storage transaction stores the receipt (`inbox_events`: delivery key, payload digest, normalized event,
 significance decision), the binding (`repositories`: tenant + connection + instance + external id), the change and the
@@ -118,14 +85,14 @@ intent. The raw payload is not stored: PR text is untrusted and is re-read from 
 
 Debounce: one open intent per change and kind; each new event moves the deadline, but no further than
 `first event + 6 × debounce` (30 s for PRs, 60 s for CI) — a continuous stream does not postpone work indefinitely.
-This is Sych's choice, not a spec default. A repository outside `repositories` gets a `REPOSITORY_NOT_ALLOWED` receipt without
+A repository outside `repositories` gets a `REPOSITORY_NOT_ALLOWED` receipt without
 work. A fork (`head.repo` ≠ base, or deleted) is flagged and analyzed read-only.
 
 Isolation: access scope = `provider_instance/connection/external_id`, so the same repository in two tenants or
 connections has separate changes, generations, artifacts and publication state; an artifact with the same hash in a foreign
 scope is not read.
 
-### Adapter errors (mapping v1)
+### Adapter errors
 
 | HTTP | Read | Write | Inline comment |
 |---|---|---|---|
@@ -140,17 +107,7 @@ scope is not read.
 Only `RATE_LIMITED` and `TRANSIENT` are retryable; `PUBLICATION_UNKNOWN` goes to the reconciler, not to a retry.
 The client does not follow redirects and does not use environment proxies: credentials go only to `api_base_url`.
 
-### Connecting the sandbox (owner protocol)
-
-1. Create a GitHub App on the owner's account: webhook URL `https://HOST/hooks/github/sandbox`, secret,
-   permissions from the table above (Checks — only if enabled), events: Pull request, Issue comment,
-   Workflow run, Check suite. Install it only on the sandbox repository.
-2. Store the PEM outside the repository, set `SYCH_GITHUB_APP_KEY_FILE` and `SYCH_GITHUB_WEBHOOK_SECRET`.
-3. `sych db migrate --config sych.yaml`, then `sych serve --config sych.yaml`.
-4. In the App settings send a `ping` (Redeliver): expect 202 and an `IGNORED` receipt.
-5. Open a PR in the sandbox: receipt `SCHEDULED`, intent `REFRESH`.
-
-## Scheduler, jobs and freeze (M2.2)
+## Scheduler, jobs and freeze
 
 `sych serve --config sych.yaml [--models roles|PROFILE|fake] [--semantic on|off]` starts in a single process
 admission, the scheduler (once per second), reconcile (at startup and every 10 minutes), the reaper (every 15 s) and the worker.
@@ -200,7 +157,7 @@ capabilities (recorded in the binding), the list of open PRs → synthetic recei
 no-op); a change considered open but not found → `reconcile-closed` → `CLOSE` after an API check. GitHub does not
 retry failed deliveries itself; reconciliation closes this gap.
 
-**Checkpoints and successor (M2.2).** Each accepted model response is immediately pinned to the run as artifact
+**Checkpoints and successor.** Each accepted model response is immediately pinned to the run as artifact
 `checkpoint/<key>` under the fence, so the parent's work survives its supersede. The task's dependency record: template,
 schema name, role, chain, sha256 of the sent messages (after redaction: all spans, evidence, gaps and answers to
 context asks, i.e. including the search scope/completeness for a negative conclusion), sha256 of the output schema and the digest of
@@ -216,7 +173,7 @@ derived evidence (syntax/semantic facts, `DERIVED_LOCAL`) from its own snapshot;
 and the parent's frozen `evidence_manifest` does not change (`tests/ci_evidence.rs`). A manual rerun/deep
 does not take checkpoints — it is a deliberate repeat inference. Limitation: analysis of a single run happens in a single worker.
 
-## CI evidence (M2.3)
+## CI evidence
 
 Repository policy (the `.sych/config.yaml` of the target tip) lists the expected reports (`ci.expected_reports`: id,
 `applies_to`, format). Where each one comes from is decided only by the connection's trusted server config — not by the job name:
@@ -262,7 +219,7 @@ The job conclusion and the test results are counted separately: a failed job nei
 `CI_JOB_MISSING`, `CI_JOB_INCOMPLETE`, `CI_JOB_SKIPPED`, `CI_JOB_CANCELLED`,
 `CI_ARTIFACT_MISSING`, `CI_ARTIFACT_EXPIRED`, `CI_ARCHIVE_REJECTED`, `CI_REPORT_MISSING`, `CI_REPORT_MALFORMED`,
 `CI_BINDING_UNVERIFIED`, `CI_UNAVAILABLE`. Before the evidence deadline, `CI_JOB_MISSING`/`CI_JOB_INCOMPLETE` keep
-waiting; after it — freeze with gaps, and a late report yields a successor (M2.2). Freeze records the expected, the imported
+waiting; after it — freeze with gaps, and a late report yields a successor. Freeze records the expected, the imported
 (run/attempt/job/artifact/binding) and the gaps.
 
 Limitations: no comparison with baseline diagnostics (a diagnostic disappearing between producer/version) is made —
@@ -294,7 +251,7 @@ stage — rendered is structure only, a dry-run is admission, not a successful r
 the live state — and one that controller-specific ordering and inventory are not known. Without them: `UNKNOWN`/`K8S_MANIFESTS_MISSING`. The reviewer never deploys or
 asks for cluster credentials; StatefulSet- and controller-specific profiles are not claimed.
 
-## Outbox and publication reconciliation (M2.5)
+## Outbox and publication reconciliation
 
 Finalization with `publish: true` puts one operation per summary revision into the outbox (`publication_objects` — the
 `summary` slot on a change with marker `sych:summary:<change>`; `publication_operations` — a revision with a generation). A newer
@@ -346,7 +303,7 @@ PENDING ──claim──▶ (gates) ──▶ PUBLISHING ──reply──▶ D
 
 Outbox lag / uncertain age / repairs metrics and the alert — see "Metrics and alerts" below.
 
-## Summary, inline and check run (M2.6)
+## Summary, inline and check run
 
 Publication is advisory: Sych never approves, requests changes, merges or becomes a required check; the
 adapter has no such calls. Everything is rendered from the run's immutable result and diff manifest (`sych_core::publication`),
@@ -381,7 +338,7 @@ Each inline is a separate outbox object (`inline:<fingerprint>`, marker `sych:in
 both for a result (`Advisory review`) and for a run failure (`Sych could not complete this review`), so a failure
 is distinguishable by the title rather than passed off as success. Reconciliation of an unknown outcome is by `external_id` and `app.id`.
 
-## Lineage, feedback and waivers (M2.7)
+## Lineage, feedback and waivers
 
 The **fingerprint** of a model finding is the category, path, length and the hash of the content of the pinned lines, without the line
 number or wording: shifting code above does not create a "new" problem. A rule violation — rule id, version and
@@ -421,9 +378,7 @@ binding; the worker passes the active ones into the review as rule exceptions: t
 | waiver | `maintain`, `admin` | permission API; otherwise a `Permission` refusal |
 | free PR text | — | does not change policy, budget, credentials or the model |
 
-The HTTP transport for feedback and waivers is M2.8.
-
-The real connection is described above ([Real connection](#real-connection-2026-10-27)). Tests — `cargo test -p sych-app --test server`
+Tests — `cargo test -p sych-app --test server`
 (signature, limit, content/event types, duplicates, health), `--test github` (JWT → scoped token, cache, reads, mapping) on a
 loopback fake, `-p sych-storage --test admission` (atomicity, coalescing, two tenants), `--test scheduler`
 (supersede/fence, reaper, cancel, waiting for evidence), `-p sych-app --test scheduler` (end-to-end traces on fake GitHub,
@@ -434,7 +389,7 @@ crash in `PUBLISHING`, a first-publish 5xx re-created after a complete empty rea
 (anchor corpus and golden summaries), `-p sych-core --test lineage` (lineage corpus), `-p sych-app --test findings`
 (feedback/waiver with permissions, `DISMISSED` survives a rerun).
 
-## HTTP API, CLI and operations (M2.8)
+## HTTP API, CLI and operations
 
 Example configuration — [examples/server/sych.yaml](examples/server/sych.yaml); OpenAPI — `schemas/openapi.json`,
 generated from the same Rust DTOs (`sych_core::api`, `just schemas`).
@@ -466,7 +421,7 @@ repository (`connection/owner/name` or `*`); a foreign repository — 404. Mutat
 | `GET /v1/runs/:id/tour[?tour=]` | reader | the newest (or named) tour as the caller's own session sees it: unrevealed answers blanked, `stale` once the result revision or the change's generation moved on; source is not included, only `code_refs`; a pruned tour — 409 `TOUR_UNAVAILABLE` |
 | `POST /v1/runs/:id/tours/:tour/reveal\|complete\|dismiss` | reader | the caller's session (the actor is the API client), never published and never an approval; `reveal` takes `{step_id}`; finishing a finished session — 409 `SESSION_FINISHED` |
 | `POST /v1/runs/:id/tours/:tour/questions` | reader; `RISK_DECISION` maintainer | a follow-up on one step (`{step_id, kind, question, waiver?}`), stored as the caller's private exchange and listed in their `GET …/tour` (`exchanges`). `COMPREHENSION` asks the engine's models over the mirror's pinned blobs under `budgets.followup_session` per session (503 without an engine, 409 `SOURCE_UNAVAILABLE` / `NO_ANSWER`); `FACT_REQUEST` records the caller's statement; `RISK_DECISION` records a waiver like `POST /v1/waivers` (terms in `waiver`, 403 below maintainer) and never rewrites a status |
-| `POST /hooks/github/:connection` | webhook signature | see M2.1 |
+| `POST /hooks/github/:connection` | webhook signature | see [Admission](#admission) |
 | `GET /health/live` | — | the process is alive; does not depend on the model |
 | `GET /health/ready` | — | the DB responds and the artifact store is writable; without config or secrets |
 | `GET /metrics` | address from `metrics_allow` | Prometheus text; otherwise 403 |
@@ -477,9 +432,7 @@ occupied socket fails startup. This listener has no application API or peer allo
 restrict it to Prometheus with a NetworkPolicy and never attach a public ingress.
 The main listener's `/metrics` still requires `metrics_allow`, so a proxy cannot bypass
 that check using forwarded headers. It exports the same bounded storage/webhook metrics,
-without tokens, paths or payload labels. In petinfra the **Sych** folder contains
-**Operations / reviewer** and **Backend logs**. A real local `sych api` smoke checked
-private scrape/readiness and that application routes are absent from the metrics listener.
+without tokens, paths or payload labels.
 
 Errors — `{"error": {code, message, retryable, correlation_id, details}}`: 400 `INVALID_REQUEST`, 401
 `UNAUTHENTICATED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`, 409 conflicts, 413, 429 `RATE_LIMITED`, 503
@@ -491,7 +444,7 @@ Errors — `{"error": {code, message, retryable, correlation_id, details}}`: 400
 | `sych publish --run ID --as CLIENT --config …` | puts the summary of a committed run into the outbox (writer); the server sends it |
 | `sych cancel --run ID --as CLIENT --config …` | cancellation before commit — exit 130 and `CANCELLED`; committed — exit 0 and the previous state |
 | `sych rerun --change ID [--profile deep] --as CLIENT --config …` | a new generation (writer) |
-| `sych reconcile [--change ID] [--allow-create OP --actor … --reason …]` | see M2.5 |
+| `sych reconcile [--change ID] [--allow-create OP --actor … --reason …]` | see [Operator runbook](#operator-runbook) |
 | `sych serve` / `api` / `worker --config … [--models …] [--semantic …]` | process roles |
 | `sych db migrate`, `sych cache prune --dry-run` | migrations only explicitly; a deletion plan without deleting |
 
@@ -506,36 +459,41 @@ tokens, known cost, held reservations/unknown charges, cost of superseded runs, 
 outbox lag, `UNCERTAIN` age, repairs, feedback by judgement, bytes and number of artifacts, webhooks
 (`stored`/`duplicate`/`rejected` by reason). Rules — [examples/server/alerts.yaml](examples/server/alerts.yaml):
 storage failure, a stuck queue, unknown writes and charges, webhook signatures, credentials, a mass drop in
-completeness, held budget. Tour/session metrics will be added by M5.
+completeness, held budget. Tour and session metrics are not exported.
 
 ### Personal sandbox runbook
 
-1. **App**: create a GitHub App on the owner's account — permissions from the M2.1 table (Checks write — only with
-   `checks: true`), events Pull request, Issue comment, Workflow run, Check suite; install it only on the sandbox.
+1. **App**: create a GitHub App with webhook URL `https://HOST/hooks/github/<connection>` and a webhook secret,
+   permissions from the [permissions table](#permissions-and-capabilities) (Checks write — only with `checks: true`),
+   events Pull request, Issue comment, Workflow run, Check suite; install it only on the repositories you list.
 2. **Secrets** (outside the repository and the Nix store): `SYCH_GITHUB_APP_KEY_FILE` (path to the PEM), `SYCH_GITHUB_WEBHOOK_SECRET`,
    `SYCH_API_TOKEN_OWNER`, `SYCH_DATABASE_URL`, the model key (`SYCH_OPENROUTER_API_KEY`).
 3. `sych config validate --config sych.yaml`, then `sych db migrate --config sych.yaml` — the schema changes only
    through this command; `serve` does not start on an unmigrated database (exit 3).
 4. `sych serve --config sych.yaml`. Check: `curl 127.0.0.1:8080/health/ready`, `curl 127.0.0.1:8080/metrics`.
-5. **Shutdown** — Ctrl-C/SIGINT: intake stops, then claiming; in-flight work gives up its lease on expiry,
+   In the App settings send a `ping` (Redeliver): expect 202 and an `IGNORED` receipt. Open a PR: receipt `SCHEDULED`,
+   intent `REFRESH`.
+5. **Provider smoke**: `sych doctor --config sych.yaml --scm-smoke <connection> --pr N` writes, reads back, updates,
+   finds by marker and deletes one marked comment on PR `N` of the connection's first repository and prints a JSON
+   report; exit 0 means the App can publish.
+6. **Shutdown** — Ctrl-C/SIGINT: intake stops, then claiming; in-flight work gives up its lease on expiry,
    and the reaper on the next start returns the job; `PUBLISHING` without a reply becomes `UNCERTAIN`, not "delivered".
    **Startup** resumes the scheduler, reconcile of missed webhooks and the publication reconciler.
-6. **Credentials**: an expired/revoked App key or token — `SCM_READ_FAILED` in `change_events` and `UNAUTHORIZED` in the
+7. **Credentials**: an expired/revoked App key or token — `SCM_READ_FAILED` in `change_events` and `UNAUTHORIZED` in the
    log; replace the PEM/secret and restart. Model key — run `FAILED` with a reason; the budget is not spent again.
-7. **Incomplete CI**: a run with `CI_*` gaps — coverage `PARTIAL`, the gap in the summary; a late report creates a successor on its own.
-8. **Unknown publications**: `sych reconcile` (see M2.5); a new CREATE — automatically after a complete empty read, otherwise
+8. **Incomplete CI**: a run with `CI_*` gaps — coverage `PARTIAL`, the gap in the summary; a late report creates a successor on its own.
+9. **Unknown publications**: `sych reconcile` (see the [operator runbook](#operator-runbook)); a new CREATE — automatically after a complete empty read, otherwise
    only `--allow-create`; both with an audit.
-9. **Storage**: `sych cache prune --dry-run`, then without the flag; backup — stop the process and copy the whole
-   `.sych-data/`.
+10. **Storage**: `sych cache prune --dry-run`, then without the flag; backup — see [STORAGE.md](STORAGE.md#backup).
 
-The real App writes, reads back, reconciles and deletes its own comment ([provider smoke](#real-connection-2026-10-27));
-a full end-to-end protocol (late CI, restart, rerun/feedback with the usage ledger) is not recorded yet. Deterministic
-scenarios are covered by the `-p sych-app` tests.
+Late CI, restarts and rerun/feedback with the usage ledger are covered by deterministic `-p sych-app` tests, not by a
+recorded live end-to-end run.
 
-## Self-review Sych (M2.9)
+## Self-review
 
-One shared engine and publisher — there is no second bot. `bondiano/sych` (and any connection with
-`environment: production`) is accepted by the validator only with `self_review: true` and `reviewer_commit`.
+A repository can be reviewed by a Sych built from that repository. It is the same engine and publisher — there is no
+second bot. A connection with `environment: production` is accepted by the validator only with `self_review: true` and
+`reviewer_commit`.
 
 **Trusted reviewer.** Prompts, schemas and the engine are compiled into the binary; policy is taken from the target tip, and
 `.sych/` from the PR is only compared (`policy_diff`). A connection with `self_review: true` requires `reviewer_commit` —
@@ -547,12 +505,12 @@ all of these are trusted server config.
 ```yaml
 scm:
   github:
-    - id: sych-sandbox
+    - id: self
       app_id: 123456
       private_key_file_env: SYCH_GITHUB_APP_KEY_FILE
       webhook_secret_env: SYCH_GITHUB_WEBHOOK_SECRET
-      repositories: [bondiano/sych-sandbox]
-      bot_login: sych-sandbox[bot]
+      repositories: [your-org/your-repo]
+      bot_login: your-app[bot]
       publish: true
       self_review: true
       reviewer_commit: "<40-hex commit of the trusted build>"
@@ -565,53 +523,36 @@ scm:
           checkout_manifest: sych-ci.json
 ```
 
-The mirror's repository policy (`.sych/config.yaml` on the target):
+The repository policy (`.sych/config.yaml` on the target):
 `ci: {expected_reports: [{id: rust-tests, applies_to: ["crates/**", "Cargo.lock"], format: sych_manifest}]}`.
 
 **CI** — [examples/server/sandbox-ci.yml](examples/server/sandbox-ci.yml): `pull_request`, not
 `pull_request_target`; no secrets or write tokens; Sych does not execute PR code (build scripts, proc-macros and
-changed workflows run only in the mirror's CI). The report is bound as `MERGE_RESULT` via the parents of the
+changed workflows run only in the repository's CI). The report is bound as `MERGE_RESULT` via the parents of the
 merge commit; without a checkout manifest — `UNVERIFIED`.
 
 **Models.** A server run runs in `personal_service` mode (corporate — `corporate`): a provider allowed only for
-`personal_local` (a subscription the owner signed into on their own machine) does not enter a hosted route. The route is the
-M1.13 role plan; budgets — `budgets` in the server config; model keys — env references (`SYCH_OPENROUTER_API_KEY`).
+`personal_local` (a subscription signed into on a personal machine) does not enter a hosted route. The route is the
+role plan ([MODELS.md](MODELS.md#router-roles-fallback-and-premium)); budgets — `budgets` in the server config; model
+keys — env references (`SYCH_OPENROUTER_API_KEY`).
 
-**Scenarios** (deterministic in the `-p sych-app` tests; on `bondiano/sych` see [self-review traces](#self-review-traces)): force-push
-and late CI (supersede, successor), a duplicate webhook, the bot's own comment, a lost publication reply and
-a restart — without extra inference or CREATE; a stale summary — `STALE`; `RESOLVED` only after re-verification; the bot does not
-approve/request-changes/merge.
+**Scenarios** (deterministic in the `-p sych-app` tests): force-push and late CI (supersede, successor), a duplicate
+webhook, the bot's own comment, a lost publication reply and a restart — without extra inference or CREATE; a stale
+summary — `STALE`; `RESOLVED` only after re-verification; the bot does not approve/request-changes/merge.
 
 ### Self-review bondiano/sych
 
-The owner enabled production self-review before R1 (2026-10-27), right after open-sourcing: every Sych PR,
-including agent-authored ones, is reviewed by Sych itself, and reviewer defects show up on its own changes. The bot is advisory: it does not
-approve, request changes or merge. Agents must wait for its summary on the current head
-(`scripts/wait-sych`, [AGENTS.md](../AGENTS.md)); `main` is protected — PRs with green CI only.
+Every pull request to this repository, including agent-authored ones, is reviewed by Sych itself, so reviewer defects
+show up on its own changes. The bot is advisory: it does not approve, request changes or merge. Agents wait for its
+summary on the current head (`scripts/wait-sych`, [AGENTS.md](../AGENTS.md)); `main` is protected — PRs with green CI
+only.
 
-- **Image.** [image.yml](../.github/workflows/image.yml) on push to `main` builds
-  `ghcr.io/bondiano/sych:<commit>` with `SYCH_BUILD_COMMIT`; a PR neither builds nor publishes the image.
-- **Pin.** The Deployment in petinfra (namespace `sych`) runs the image by digest, `reviewer_commit` is the same
-  commit; updating the reviewer is a deliberate release by a human, not a merge. The server config, App key, webhook
-  secret and OpenRouter key live only there.
-- **Models.** Roles per M1.13 without local-only subscriptions: `reviewer`/`verifier` — DeepSeek via OpenRouter,
-  `risk_auditor` and `deep_roles.verifier` — Astra with fallback to Fable; limits — `budgets` in the server config.
-- **CI evidence.** The `check` job in [ci.yml](../.github/workflows/ci.yml) puts into the `sych-reports` artifact the output of
-  `cargo clippy --message-format=json` (`clippy.json`), the result of `just check` (`outcomes.json`) and the checkout manifest
-  (`sych-ci.json`); [.sych/config.yaml](../.sych/config.yaml) waits for them up to 15 minutes, `ci_reports` live in petinfra.
-
-
-### Self-review traces
-
-Recorded on `bondiano/sych` itself (2026-10-27), production reviewer before and after the release of `de09d763`:
-
-| Trace | PR | What happened |
-|---|---|---|
-| finding → fix → new head | #17 | revision 1 (result `01a17dfe-2aaa-…`) flagged that the head dropped `head_compiled`, `CiFacts::compiled` and the storage write lock — a real regression from a bad squash; the branch was rebuilt, revisions 2–4 re-reviewed each new head (last `01a17e11-e3ba-…`), merged as `2588723` |
-| force-push | #16 | rebase + force-push `6fabfec` → `6e20aaa`; revision 2 (`01a17df9-2800-…`) reviewed the new head; the earlier summary was edited in place, no second summary |
-| target moved | #15, #19, #20, #21 | `update-branch` produced a new head; each got a new revision before merge (`main` requires an up-to-date branch and green `check`) |
-| reviewer artefact | #20 | revision 1 on the pre-#15 reviewer still asked about an `E0308` from rust-analyzer: the defect #15 fixes only takes effect once that build is released |
-| trusted pin | — | Deployment `sych` runs `ghcr.io/bondiano/sych@sha256:17552121…` with `petinfra/revision` = `reviewer_commit` = `de09d7634e29dc65273eeddaf48ba87c95fa0533`; released by `just sych-deploy` after merge, never by a PR |
-
-The bot only commented: no approve, request-changes or merge. Not recorded yet: fork PR, reviewer/policy tampering,
-lost-ACK and late CI on the live repository (covered by the deterministic `-p sych-app` tests).
+- **Image.** [image.yml](../.github/workflows/image.yml) on push to `main` builds `ghcr.io/bondiano/sych:<commit>` with
+  `SYCH_BUILD_COMMIT`; a PR neither builds nor publishes the image.
+- **Pin.** The reviewer runs that image by digest from a separate deployment repository, with `reviewer_commit` set to
+  the same commit; updating the reviewer is a deliberate release by a human, not a merge. The server config, App key,
+  webhook secret and model keys live only there, so a PR cannot change the reviewer that reviews it.
+- **CI evidence.** The `check` job in [ci.yml](../.github/workflows/ci.yml) puts into the `sych-reports` artifact the
+  output of `cargo clippy --message-format=json` (`clippy.json`), the results of `just check` and `just test-postgres`
+  (`outcomes.json`) and the checkout manifest (`sych-ci.json`); [.sych/config.yaml](../.sych/config.yaml) waits for them
+  up to 15 minutes.

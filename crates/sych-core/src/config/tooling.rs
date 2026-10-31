@@ -1,4 +1,4 @@
-//! Isolated tooling profile (spec §22.4, roadmap M1.1): whether dependencies of the
+//! Isolated tooling profile: whether dependencies of the
 //! reviewed repository are installed for semantic analysis, and in which sandbox.
 
 use serde::{Deserialize, Serialize};

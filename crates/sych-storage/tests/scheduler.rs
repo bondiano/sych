@@ -1,4 +1,4 @@
-//! Generations, jobs and fences on a real `SQLite` file (roadmap M2.2/M2.4): supersede revokes the
+//! Generations, jobs and fences on a real `SQLite` file: supersede revokes the
 //! old lease, every claim gets a new epoch, the reaper returns expired leases, and a late worker
 //! cannot commit a result.
 

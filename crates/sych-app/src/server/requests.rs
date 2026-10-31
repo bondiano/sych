@@ -1,4 +1,4 @@
-//! Review requests from the API and the CLI (spec §24.2, §25.2): the change state is read from
+//! Review requests from the API and the CLI: the change state is read from
 //! the provider, the request becomes an explicit manual generation, and nothing is published
 //! unless both the request and the connection allow it.
 

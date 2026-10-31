@@ -1,4 +1,4 @@
-//! Fetching pinned commits into a local bare mirror (spec §19.5–19.6): exact object ids, no tags,
+//! Fetching pinned commits into a local bare mirror: exact object ids, no tags,
 //! hooks or lazy fetches; the installation token travels in `GIT_CONFIG_*` environment, never in
 //! argv or the URL. Nothing is checked out or executed.
 

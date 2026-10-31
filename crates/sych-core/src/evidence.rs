@@ -1,4 +1,4 @@
-//! Evidence records (spec §5.4).
+//! Evidence records.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

@@ -1,4 +1,4 @@
-//! Schema upgrades keep old data (roadmap M2.4): a database at v2 seeded from
+//! Schema upgrades keep old data: a database at v2 seeded from
 //! `fixtures/storage/v2-seed.sql` migrates to the current schema with its runs, pins and unknown
 //! charges intact, and the rebuilt `runs` keeps its foreign keys consistent.
 

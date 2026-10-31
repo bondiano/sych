@@ -1,4 +1,4 @@
-//! Fix handoff (spec §21.7, roadmap M5.4): selected findings of one saved result as a package
+//! Fix handoff: selected findings of one saved result as a package
 //! for a separate author workflow. It is built from the typed result alone, so the same result
 //! and ids give the same package; nothing here calls a model, edits a source or resolves a
 //! finding: a fixed head is reviewed again.

@@ -1,4 +1,4 @@
-//! Durable local runs, result pointers and immutable artifacts (spec §8.2, §20).
+//! Durable local runs, result pointers and immutable artifacts.
 //!
 //! One serialized writer across `SQLite` (WAL) or `PostgreSQL` connections. Schema changes happen
 //! only through [`Storage::migrate`]; [`Storage::open`] refuses an unmigrated database.
@@ -64,7 +64,7 @@ pub enum StorageError {
     UnknownRun(RunId),
     #[error("run {run} is {state}, not COMPLETED; it has no saved result")]
     NotCompleted { run: RunId, state: String },
-    /// Pruned or lost bytes are reported, never regenerated (spec §20.4).
+    /// Pruned or lost bytes are reported, never regenerated.
     #[error("artifact {0} is no longer available")]
     ArtifactUnavailable(Sha256Digest),
     #[error("storage conflict: {0}")]
@@ -90,7 +90,7 @@ pub struct Partition {
     pub access_scope: String,
 }
 
-/// Retention by artifact kind (spec §20.4 defaults).
+/// Retention by artifact kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArtifactKind {
     SourceSnapshot,
@@ -308,7 +308,7 @@ impl Storage {
         Ok(digest)
     }
 
-    /// Result pointer, usage and terminal state in one transaction (spec §20.2). Fails, and
+    /// Result pointer, usage and terminal state in one transaction. Fails, and
     /// leaves the run RUNNING, if the result bytes are not stored or the run is not active; a
     /// server run also needs its current `fence` and generation, and finishes its job.
     pub async fn complete_run(
@@ -388,7 +388,7 @@ impl Storage {
             )));
         }
 
-        // A server run's job and its publication intent commit with the result (spec §20.2).
+        // A server run's job and its publication intent commit with the result.
         if let Some(fence) = fence {
             jobs::finish_job(&mut tx, fence, "DONE", None, now.as_second()).await?;
             outbox::enqueue(&mut tx, run, result.result_id, now.as_second()).await?;

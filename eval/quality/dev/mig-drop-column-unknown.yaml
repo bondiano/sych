@@ -5,7 +5,7 @@ language: go
 pair: mig-drop-column
 variant: unknown
 profiles: [migration_compatibility]
-rationale: "Without a deployment model nobody has declared the compatibility window or who still consumes orders.status; removing it cannot be judged safe or unsafe from this repository (spec §13.3)."
+rationale: "Without a deployment model nobody has declared the compatibility window or who still consumes orders.status; removing it cannot be judged safe or unsafe from this repository."
 base:
   go.mod: |
     module example.com/shop

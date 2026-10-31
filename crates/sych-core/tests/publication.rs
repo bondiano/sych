@@ -1,4 +1,4 @@
-//! Advisory publication (roadmap M2.6): the anchor corpus maps findings to exact GitHub
+//! Advisory publication: the anchor corpus maps findings to exact GitHub
 //! positions or keeps them in the summary with the reason, and the summary golden files show
 //! full, partial and unavailable results, high findings over the inline limit and nits.
 

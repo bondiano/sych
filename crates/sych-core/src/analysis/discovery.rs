@@ -1,4 +1,4 @@
-//! Discovery and risk-audit output (spec §16.2): hypotheses with anchors into handed-out
+//! Discovery and risk-audit output: hypotheses with anchors into handed-out
 //! spans, typed context asks and open questions. Nothing here decides a final status.
 
 use schemars::JsonSchema;
@@ -80,7 +80,7 @@ pub struct ContextAsk {
     pub operation: AskOperation,
 }
 
-/// The model-facing form of §9.4 operations: no hashes, ids or free-form commands.
+/// The model-facing form of broker operations: no hashes, ids or free-form commands.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum AskOperation {

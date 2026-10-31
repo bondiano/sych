@@ -1,4 +1,4 @@
-//! Pins target tip, diff base and head and builds the full diff manifest (spec §6.1–6.2).
+//! Pins target tip, diff base and head and builds the full diff manifest.
 
 use std::path::Path;
 use std::str;
@@ -134,7 +134,7 @@ impl LocalSnapshot {
         })
     }
 
-    /// The `.sych/` tree at `side`; only the target tip is trusted policy (INV-12).
+    /// The `.sych/` tree at `side`; only the target tip is trusted policy.
     pub fn policy_files(&self, side: SourceSide) -> Result<PolicyFiles, SnapshotError> {
         read_policy_files(&self.git, self.commit(side).hex())
     }
@@ -176,7 +176,7 @@ impl LocalSnapshot {
     }
 
     /// Builds a [`CodeRef`] for lines of any text file on `side`; the harness, not a model,
-    /// owns coordinates (INV-06).
+    /// owns coordinates.
     pub fn code_ref(
         &self,
         side: SourceSide,
@@ -287,7 +287,7 @@ fn tree_of(
     )
 }
 
-/// Never falls back to an arbitrary commit (spec §6.2).
+/// Never falls back to an arbitrary commit.
 fn merge_base(
     git: &Git,
     algorithm: GitHashAlgorithm,
@@ -458,7 +458,7 @@ fn file_change(
         .flatten()
         .any(|s| is_secret_path(s.side.path.as_str()))
     {
-        // Kept in the manifest; context and model egress must skip its content (spec §22.3).
+        // Kept in the manifest; context and model egress must skip its content.
         limitations.push("SECRET_PATH".into());
     }
 

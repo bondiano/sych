@@ -1,4 +1,4 @@
-//! `sych doctor --probe-model` against a loopback `OpenRouter` stub (roadmap M1.9): the gateway,
+//! `sych doctor --probe-model` against a loopback `OpenRouter` stub: the gateway,
 //! ledger and adapter together, with no external API.
 
 use std::fs;

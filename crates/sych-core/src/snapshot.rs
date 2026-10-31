@@ -1,4 +1,4 @@
-//! Source snapshot and code coordinates (spec §5.3, §6.1).
+//! Source snapshot and code coordinates.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -18,7 +18,7 @@ pub enum SourceSide {
     TargetTip,
 }
 
-/// How `diff_base` was chosen; never an arbitrary commit (spec §6.2).
+/// How `diff_base` was chosen; never an arbitrary commit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ComparisonMode {
@@ -45,7 +45,7 @@ pub struct SourceSnapshot {
     pub created_at: Timestamp,
 }
 
-/// Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).
+/// Exact span inside a pinned blob; resolved by the harness, never by a model.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct CodeRef {
     pub snapshot_id: SourceSnapshotId,
@@ -71,7 +71,7 @@ struct SnapshotIdentity<'a> {
 }
 
 impl SourceSnapshot {
-    /// Content identity (spec §6.1): repository, the three positions, comparison mode and both
+    /// Content identity: repository, the three positions, comparison mode and both
     /// manifests (the diff manifest records the diff method). `target_ref`, `id` and
     /// `created_at` are excluded, so repeating the same inputs yields the same snapshot.
     pub fn identity(&self) -> Result<SourceSnapshotId, serde_json::Error> {

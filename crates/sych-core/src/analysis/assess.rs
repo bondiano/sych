@@ -1,4 +1,4 @@
-//! Obligation assessment (spec §16.3): the model proposes a status per criterion; the engine
+//! Obligation assessment: the model proposes a status per criterion; the engine
 //! accepts SUPPORTED or VIOLATED only when the criteria and their anchors carry it.
 
 use schemars::JsonSchema;
@@ -289,7 +289,7 @@ fn decide(
             unknown("CONTRADICTORY_ASSESSMENT")
         }
         ProposedStatus::Supported if incomplete || !all_met => unknown("CRITERIA_NOT_MET"),
-        // A test the author wrote is not the accepted requirement (INV-19), unless the
+        // A test the author wrote is not the accepted requirement, unless the
         // requirement is about the tests themselves.
         ProposedStatus::Supported if !planned.about_tests && test_oracle_only(criteria) => {
             problems.push("every MET criterion rests on test files only".into());

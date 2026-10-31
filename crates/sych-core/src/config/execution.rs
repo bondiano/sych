@@ -1,4 +1,4 @@
-//! Targeted checks (spec §22.4, roadmap M3.8): off by default. When an admin enables it, a
+//! Targeted checks: off by default. When an admin enables it, a
 //! command comes only from an approved profile, an absolute executable with arguments that
 //! are literals or a choice from a closed list; neither the model nor the repository writes
 //! a command line. This module is the authorization boundary; the docker runner is

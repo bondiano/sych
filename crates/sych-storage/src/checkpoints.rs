@@ -1,4 +1,4 @@
-//! Checkpoints of a run (spec §8.5): each accepted model answer is pinned under the run's
+//! Checkpoints of a run: each accepted model answer is pinned under the run's
 //! fence as it arrives, so a successor can reuse it even when this run is superseded
 //! mid-analysis. A successor reads its parent's only within its own partition, so a matching
 //! content hash never crosses a tenant or access scope.

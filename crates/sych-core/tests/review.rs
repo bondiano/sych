@@ -1,4 +1,4 @@
-//! Planner and reducer scenarios (roadmap M0.4). They check obligations, coverage and
+//! Planner and reducer scenarios. They check obligations, coverage and
 //! recommendation, never explanation wording.
 
 use std::path::Path;

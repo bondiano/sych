@@ -1,4 +1,4 @@
-//! Webhook admission over real HTTP (roadmap M2.1): raw-body signature, body limit, content
+//! Webhook admission over real HTTP: raw-body signature, body limit, content
 //! and event types, duplicate deliveries and the durable receipt behind every 2xx.
 
 use std::collections::BTreeMap;

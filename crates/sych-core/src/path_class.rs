@@ -1,4 +1,4 @@
-//! What a path is for, by name alone; the broker uses it to find related tests (spec §9.2).
+//! What a path is for, by name alone; the broker uses it to find related tests.
 
 use std::path::Path;
 
