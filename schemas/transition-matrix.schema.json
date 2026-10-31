@@ -110,7 +110,7 @@
       ]
     },
     "TransitionState": {
-      "description": "The reachable combinations of spec §13.2.",
+      "description": "The reachable combinations of app versions and schema states.",
       "type": "string",
       "enum": [
         "old_app_expanded_schema",

@@ -1,4 +1,4 @@
-//! Server actions from the CLI (roadmap M2.8): a configured identity is required, cancelling
+//! Server actions from the CLI: a configured identity is required, cancelling
 //! before commit exits 130 and keeps CANCELLED, a committed run is never rewritten.
 
 use std::ffi::OsStr;

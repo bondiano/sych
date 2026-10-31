@@ -126,7 +126,8 @@ pub struct AuthChatgptArguments {
 pub enum DbCommands {
     /// Apply pending migrations; other commands never change the schema
     Migrate(StoreArguments),
-    /// Import a stopped `SQLite` snapshot and its artifacts into an empty, migrated `PostgreSQL` database
+    /// Import a stopped `SQLite` snapshot and its artifacts into an empty, migrated `PostgreSQL`
+    /// database
     ImportSqlite(DbImportArguments),
 }
 
@@ -190,9 +191,9 @@ pub struct ReviewArguments {
     /// run with a new trusted policy, recorded as the policy source of the result
     #[arg(long, value_name = "REF")]
     pub policy_ref: Option<String>,
-    /// Semantic facts from pinned language servers and findings of pinned linters (ruff,
-    /// oxlint, sqruff, mago, jarl, clj-kondo, actionlint, zizmor) become derived evidence and context packets; tools are
-    /// downloaded on first use
+    /// Semantic facts from pinned language servers and findings of pinned linters (ruff, oxlint,
+    /// sqruff, mago, jarl, clj-kondo, actionlint, zizmor) become derived evidence and context
+    /// packets; tools are downloaded on first use
     #[arg(long, value_enum, default_value = "on")]
     pub semantic: Switch,
     /// CI report to import: `cargo … --message-format=json` output or `JUnit` XML (repeatable).
@@ -215,7 +216,7 @@ pub struct ReviewArguments {
     pub exit_policy: ExitPolicy,
     #[command(flatten)]
     pub out: Output,
-    /// The extra high-risk search (spec §7.3); only `eval measure` turns it off, for baseline B
+    /// The extra high-risk search; only `eval measure` turns it off, for baseline B
     #[arg(skip = true)]
     pub risk_audit: bool,
     /// Candidate verification; only `eval measure` turns it off, for baseline A
@@ -328,7 +329,7 @@ pub struct EvalMeasureArguments {
     #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..=10))]
     pub runs: u32,
     /// `c` is the default pipeline; `b` skips the high-risk search; `a` is one reviewer over
-    /// the diff: no semantic facts, no high-risk search, no verifier (spec §27.5)
+    /// the diff: no semantic facts, no high-risk search, no verifier
     #[arg(long, value_enum, default_value = "c")]
     pub variant: PipelineVariant,
     #[arg(long, value_enum, default_value = "on")]

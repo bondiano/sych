@@ -1,4 +1,4 @@
-//! Canonical JSON and SHA-256 identity (spec §5.1).
+//! Canonical JSON and SHA-256 identity.
 //!
 //! Object keys are sorted bytewise and output is compact, independent of field declaration
 //! order or `serde_json/preserve_order`. Array order is kept: callers sort sets by their key

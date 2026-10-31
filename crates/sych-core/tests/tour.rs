@@ -1,4 +1,4 @@
-//! Guided tour (roadmap M5.1): a deterministic plan that never hides a critical finding or a
+//! Guided tour: a deterministic plan that never hides a critical finding or a
 //! required UNKNOWN, structural validation against the result and the snapshot, one repair,
 //! and staleness without mutation.
 

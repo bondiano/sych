@@ -1,4 +1,4 @@
-//! Effect ledger on real Git snapshots (spec §12.4, roadmap M3.3): paired unsafe/safe
+//! Effect ledger on real Git snapshots: paired unsafe/safe
 //! scenarios of Go transactions and outbox delivery, a registry whose implementation
 //! changed, React cleanup and stale results, cache invalidation and Python lifetime.
 

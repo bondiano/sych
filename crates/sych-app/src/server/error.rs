@@ -1,4 +1,4 @@
-//! The public error envelope (spec §25.3): code, message, retryable and a correlation id;
+//! The public error envelope: code, message, retryable and a correlation id;
 //! never tokens, prompts, source fragments or stack traces.
 
 use axum::Json;

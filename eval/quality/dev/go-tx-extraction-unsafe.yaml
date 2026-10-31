@@ -5,7 +5,7 @@ language: go
 pair: go-tx-extraction
 variant: unsafe
 profiles: [correctness, side_effects]
-rationale: "The ledger insert moves into a helper that writes through s.db instead of the transaction: the SQL is unchanged, but the row is committed on its own and survives a rollback of the order (spec §12.4, Go transaction extraction)."
+rationale: "The ledger insert moves into a helper that writes through s.db instead of the transaction: the SQL is unchanged, but the row is committed on its own and survives a rollback of the order."
 base:
   go.mod: |
     module example.com/shop

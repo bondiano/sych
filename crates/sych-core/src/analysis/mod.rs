@@ -1,4 +1,4 @@
-//! Model analysis without I/O (spec §16): what each role is shown, the contract it answers in
+//! Model analysis without I/O: what each role is shown, the contract it answers in
 //! and the checks that turn its answer into candidates, assessments and findings. Model text
 //! never sets a final status by itself; the reducer still decides the result.
 

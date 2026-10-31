@@ -5,7 +5,7 @@ language: kubernetes
 pair: k8s-selector
 variant: unsafe
 profiles: [infrastructure]
-rationale: "The pod template label was renamed but the Deployment selector was not: the new ReplicaSet's pods do not match the selector, the API rejects the update, and the Service keeps routing to old pods only (spec §14.2, selectors and labels)."
+rationale: "The pod template label was renamed but the Deployment selector was not: the new ReplicaSet's pods do not match the selector, the API rejects the update, and the Service keeps routing to old pods only."
 base:
   k8s/web.yaml: |
     apiVersion: apps/v1

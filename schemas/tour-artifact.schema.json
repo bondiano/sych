@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "TourArtifact",
-  "description": "One tour of one result revision (spec §21.3); never mutated, a regeneration is a new id.",
+  "description": "One tour of one result revision; never mutated, a regeneration is a new id.",
   "type": "object",
   "properties": {
     "generation_provenance": {
@@ -75,7 +75,7 @@
   ],
   "$defs": {
     "CodeRef": {
-      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
+      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model.",
       "type": "object",
       "properties": {
         "blob_oid": {
@@ -234,7 +234,7 @@
       ]
     },
     "SourceSnapshotId": {
-      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`].",
       "$ref": "#/$defs/Sha256Digest"
     },
     "TourId": {

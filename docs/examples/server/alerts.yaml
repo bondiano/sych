@@ -1,4 +1,4 @@
-# Prometheus alert rules for a personal sandbox `sych serve` (spec §26.5). Thresholds are
+# Prometheus alert rules for a personal sandbox `sych serve`. Thresholds are
 # starting points to tune, not SLAs.
 groups:
   - name: sych

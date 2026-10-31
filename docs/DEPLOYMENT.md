@@ -1,4 +1,4 @@
-# Deployment model (M3.4)
+# Deployment model
 
 `.sych/deploy.yaml` (path: `policy.deployment_file`) describes one environment's rollout, as declared by its
 owner. Sych never derives it from Git: `diff_base` and `target_tip` are not the deployed version. Every claim is
@@ -30,7 +30,7 @@ observed: {value: "backfill done up to id 120000", source: "staging job log, 202
 
 ## Transition matrix
 
-Built from the model ([`deploy::matrix`](../crates/sych-core/src/deploy.rs)); every state of spec §13.2 is
+Built from the model ([`deploy::matrix`](../crates/sych-core/src/deploy.rs)); every state below is
 reachable unless a sourced constraint excludes it. A missing description never makes a state `NOT_APPLICABLE`.
 
 | State | What must hold |
@@ -61,7 +61,7 @@ static review is not blocked.
 DB engine, migration framework and controller semantics (locks, transactions, ordering) are prerequisites the
 owner chooses; Sych does not pick them and keeps them outside the confirmed scope until a DB-specific profile exists.
 
-## Migration rules (M3.5)
+## Migration rules
 
 The generic `MIG-*` rules activate on `**/migrations/**`, `**/migrate/**` and `**/*.sql` and are bound to the
 matrix. Every one carries `evaluation_mode: PLAN_REVIEW`: the proposed order and the mechanisms that enforce its
@@ -71,7 +71,7 @@ state: only a sourced `observed` entry of `deploy.yaml` (what the environment re
 switches the obligations to it, and the criterion asks to judge the change against that reported state. A plan never
 stands in for an observation.
 
-**Context (§13.3).** For each changed migration Sych scans the DDL that affects existing code (`DROP`/`RENAME`/`ALTER`/
+**Context.** For each changed migration Sych scans the DDL that affects existing code (`DROP`/`RENAME`/`ALTER`/
 `ADD COLUMN`, `DROP TABLE`, `RENAME TO`) and searches both sides of the repository for the table or column name (at most
 20 hits per side, outside migration paths): the base side holds the old app's readers and writers, the head the new
 app's. Those locations become the obligation's code references, so the reviewer sees them, and a limitation states the

@@ -1,4 +1,4 @@
-//! Import of CI reports into normalized `CiFacts` (spec §15, roadmap M1.14). Reports are
+//! Import of CI reports into normalized `CiFacts`. Reports are
 //! data from outside the snapshot: they are parsed, never executed, and their spans are
 //! mapped onto the head only when the manifest says the head is what was tested.
 

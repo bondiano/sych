@@ -1,4 +1,4 @@
-//! `OpenCode` Go / Go Plus subscription as a [`ModelProvider`] (roadmap M1.12): the documented
+//! `OpenCode` Go / Go Plus subscription as a [`ModelProvider`]: the documented
 //! OpenAI-compatible chat completions of the Go inference path, with Sych's own User-Agent and
 //! one `x-opencode-session` per task. No native schema is claimed: the gateway validates
 //! locally and repairs at most once.

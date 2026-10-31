@@ -1,4 +1,4 @@
-//! Retention of records (spec §20.4): operational rows 30 days, audit and usage 90 days.
+//! Retention of records: operational rows 30 days, audit and usage 90 days.
 //! Unresolved model charges (`RESERVED`, `UNKNOWN`) and publication outcomes that are not final
 //! (`PENDING`, `PUBLISHING`, `UNCERTAIN`) are never removed by age; runs are kept.
 

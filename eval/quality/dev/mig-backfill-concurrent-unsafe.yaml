@@ -5,7 +5,7 @@ language: go
 pair: mig-backfill-concurrent
 variant: unsafe
 profiles: [migration_compatibility]
-rationale: "The backfill copies status into state for every row, unconditionally, while the new app already writes state: a row updated by the app between batches is overwritten with the stale status (spec §13.2, partial backfill + concurrent writes)."
+rationale: "The backfill copies status into state for every row, unconditionally, while the new app already writes state: a row updated by the app between batches is overwritten with the stale status."
 base:
   .sych/deploy.yaml: |
     schema_version: 1

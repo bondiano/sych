@@ -1,5 +1,5 @@
 //! One structured model task: reserve → dispatch → settle → validate, with at most one
-//! repair (spec §16.4, §17.2). Fallback hops belong to the [`Router`](super::Router).
+//! repair. Fallback hops belong to the [`Router`](super::Router).
 
 use schemars::generate::SchemaSettings;
 use schemars::transform::RecursiveTransform;

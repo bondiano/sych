@@ -1,4 +1,4 @@
-//! A real SCM smoke (roadmap M2.1/M2.5): the App's own marked comment is created, read back,
+//! A real SCM smoke: the App's own marked comment is created, read back,
 //! updated, found again by its marker and deleted. It writes to the pull request, so it runs
 //! only on an explicit `doctor --scm-smoke`; the report carries ids and hashes, never tokens.
 

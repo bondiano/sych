@@ -1,4 +1,4 @@
-//! GitHub App credentials (spec §19.5): a short-lived RS256 JWT signs as the App, and
+//! GitHub App credentials: a short-lived RS256 JWT signs as the App, and
 //! installation tokens scoped to one repository are cached until shortly before they expire,
 //! independently of any run.
 

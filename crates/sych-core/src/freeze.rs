@@ -1,4 +1,4 @@
-//! Input freeze and evidence finalization (spec §8.3): external inputs are pinned before
+//! Input freeze and evidence finalization: external inputs are pinned before
 //! analysis; derived evidence on the pinned snapshot is added at finalization.
 
 use schemars::JsonSchema;

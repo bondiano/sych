@@ -1,4 +1,4 @@
-//! Semantic cache (spec §9.6): facts of one side keyed by snapshot, language, server version
+//! Semantic cache: facts of one side keyed by snapshot, language, server version
 //! and server configuration. The access partition is stored with the entry and checked on
 //! every hit, so the same key never serves another repository.
 

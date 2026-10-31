@@ -1,4 +1,4 @@
-//! `/v1` (spec §25): a configured client identity on every request, repository authorization
+//! `/v1`: a configured client identity on every request, repository authorization
 //! by the client's scope, `Idempotency-Key` on every mutating call, and the public error
 //! envelope. 202 means a durable request, not a finished review.
 
@@ -74,7 +74,7 @@ impl Caller {
         }
     }
 
-    /// Repository authorization; another repository is reported as not found (spec §25.3).
+    /// Repository authorization; another repository is reported as not found.
     fn scope(&self, connection: Option<&str>, full_name: Option<&str>) -> Result<(), ApiError> {
         match (connection, full_name) {
             (Some(c), Some(r)) if self.0.allows(c, r) => Ok(()),

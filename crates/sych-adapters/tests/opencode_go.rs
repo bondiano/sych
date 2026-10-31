@@ -1,4 +1,4 @@
-//! `OpenCode` Go adapter fixtures (roadmap M1.12): the `/go` path, Sych's User-Agent, one
+//! `OpenCode` Go adapter fixtures: the `/go` path, Sych's User-Agent, one
 //! session per task, no claimed native schema, and Go billing fields. Loopback only.
 
 use serde_json::{Value, json};

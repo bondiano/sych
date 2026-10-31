@@ -1,4 +1,4 @@
-//! Rule applicability (roadmap M1.4): the generic pack activates only on its changes, a
+//! Rule applicability: the generic pack activates only on its changes, a
 //! missing domain checker never excludes a rule, a repository rule replaces the generic one,
 //! and moved or linked logic keeps its invariant.
 
@@ -359,7 +359,7 @@ excluded_states:
   - {value: contract_phase, source: "contract ships in a separate release (RFC-31)"}
 "#;
 
-/// Migration rules are judged over the reachable rollout states (roadmap M3.5): a declared
+/// Migration rules are judged over the reachable rollout states: a declared
 /// recovery path lets MIG-RECOVERY be assessed, a sourced exclusion drops MIG-CONTRACT.
 #[test]
 fn migration_rules_follow_the_deployment_model() {

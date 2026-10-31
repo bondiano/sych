@@ -1,4 +1,4 @@
-//! Model ledger on the selected backend (roadmap M1.3): concurrent reservations, idempotent
+//! Model ledger on the selected backend: concurrent reservations, idempotent
 //! settlement, unknown charges, monthly subscription fees and billing mismatch.
 
 use std::sync::Arc;

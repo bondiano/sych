@@ -268,7 +268,7 @@ pub fn run_with_candidates(
     execute(args, store, Target::Local { change_key })
 }
 
-/// Reviews into an existing server run under its lease (spec §8.2).
+/// Reviews into an existing server run under its lease.
 pub fn run_claimed(
     args: &ReviewArguments,
     store: StoreConfig,

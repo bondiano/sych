@@ -1,4 +1,4 @@
-//! Guided tour of one saved result (spec §21, roadmap M5.1). The plan is deterministic; the
+//! Guided tour of one saved result. The plan is deterministic; the
 //! artifact is immutable, validated against the result and the snapshot, and rendered with
 //! code read from Git, never from model text. Statuses come from the typed result only.
 
@@ -16,7 +16,7 @@ use crate::{
 
 pub const PLANNER_VERSION: &str = "tour-planner@1";
 pub const RENDERER_VERSION: &str = "tour-renderer@1";
-/// Stops of an ordinary PR (spec §21.2); the overview is never cut to fit them.
+/// Stops of an ordinary PR; the overview is never cut to fit them.
 const MIN_STOPS: usize = 3;
 const MAX_STOPS: usize = 6;
 /// Generation attempts per tour, the first included: one repair at most.
@@ -185,7 +185,7 @@ pub struct TourStep {
     pub example_snippets: Vec<ExampleSnippet>,
 }
 
-/// One tour of one result revision (spec §21.3); never mutated, a regeneration is a new id.
+/// One tour of one result revision; never mutated, a regeneration is a new id.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TourArtifact {
     pub schema_version: SchemaVersion,
@@ -206,7 +206,7 @@ pub struct TourArtifact {
     pub limitations: Vec<String>,
 }
 
-/// Structural problems (spec §21.4); empty means valid structure, not a true explanation.
+/// Structural problems; empty means valid structure, not a true explanation.
 pub fn validate(
     tour: &TourArtifact,
     result: &ReviewResult,
@@ -287,7 +287,7 @@ pub enum TourEvent {
     Error,
 }
 
-/// Spec §21.5: an invalid tour gets one repair, the second invalid one fails.
+/// An invalid tour gets one repair, the second invalid one fails.
 pub fn next(state: &TourState, event: TourEvent) -> TourState {
     use TourEvent::{Error, Generated, Invalid, Requested, Valid};
     use TourState::{Failed, Generating, NotRequested, Ready, Validating};
@@ -348,7 +348,7 @@ pub enum SessionState {
     Dismissed,
 }
 
-/// One actor's progress through one tour (spec §21.8). It never changes the artifact, the
+/// One actor's progress through one tour. It never changes the artifact, the
 /// recommendation, obligations or any approval, and it is not published.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TourSession {

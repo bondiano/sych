@@ -1,5 +1,5 @@
 //! Coverage reports (LCOV, Cobertura XML): which lines ran. Execution only; a covered line
-//! says nothing about whether an assertion checked it (spec §15.4).
+//! says nothing about whether an assertion checked it.
 
 use std::collections::BTreeMap;
 

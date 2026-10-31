@@ -1,4 +1,4 @@
-//! Controlled artifact GC (spec §20.4). Active runs and runs with an unfinished publication
+//! Controlled artifact GC. Active runs and runs with an unfinished publication
 //! (pending, publishing or uncertain) pin their artifacts; results of completed runs live until
 //! retention; artifacts of failed or never-committed runs are orphans removed after a grace
 //! period.

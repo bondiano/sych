@@ -1,4 +1,4 @@
-//! The one advisory summary of a change (spec §18.1): what was reviewed, how complete, the
+//! The one advisory summary of a change: what was reviewed, how complete, the
 //! confirmed problems, the concrete unknowns, optional improvements and nits, cost and links.
 //! A partial result never reads as "no problems".
 

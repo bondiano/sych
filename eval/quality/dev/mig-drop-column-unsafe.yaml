@@ -5,7 +5,7 @@ language: go
 pair: mig-drop-column
 variant: unsafe
 profiles: [migration_compatibility]
-rationale: "The migration drops orders.status in the same release while the running app still selects it; the deployment model declares a rolling update with mixed versions, so the old app hits a missing column (spec §13.2, old app + changed schema)."
+rationale: "The migration drops orders.status in the same release while the running app still selects it; the deployment model declares a rolling update with mixed versions, so the old app hits a missing column."
 base:
   .sych/deploy.yaml: |
     schema_version: 1

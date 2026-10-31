@@ -5,7 +5,7 @@ language: go
 pair: old-frontend-field-removal
 variant: safe
 profiles: [correctness, migration_compatibility]
-rationale: "Expand-only release: the new frontend stops reading legacy_status while the API and the column keep it, so old tabs keep working; removal is left to a later contract release after the window (spec §13.2)."
+rationale: "Expand-only release: the new frontend stops reading legacy_status while the API and the column keep it, so old tabs keep working; removal is left to a later contract release after the window."
 base:
   .sych/deploy.yaml: |
     schema_version: 1

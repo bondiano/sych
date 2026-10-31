@@ -1,4 +1,4 @@
-//! Obligations: concrete questions a review must answer (spec §5.5).
+//! Obligations: concrete questions a review must answer.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,7 +16,7 @@ pub enum RiskLevel {
     Critical,
 }
 
-/// Three-valued rule applicability (spec §11.4).
+/// Three-valued rule applicability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Applicability {
@@ -42,7 +42,7 @@ pub enum ObligationStatus {
     },
 }
 
-/// How a migration obligation is judged (spec §13.4): the plan alone, or an observed
+/// How a migration obligation is judged: the plan alone, or an observed
 /// transition of a real environment, which needs evidence of that environment's state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -78,7 +78,7 @@ pub struct Obligation {
     pub evaluation_mode: Option<EvaluationMode>,
 }
 
-/// A rule exception in force for one obligation (spec §11.6).
+/// A rule exception in force for one obligation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Waiver {
     pub paths: Vec<String>,

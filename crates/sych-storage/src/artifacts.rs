@@ -1,4 +1,4 @@
-//! Local content-addressed artifact directory (spec §20.3). Bytes are immutable: a key is
+//! Local content-addressed artifact directory. Bytes are immutable: a key is
 //! the SHA-256 of the bytes, and every read verifies it.
 
 use std::fs::{self, File, OpenOptions};
@@ -31,7 +31,7 @@ impl ArtifactStore {
         self.root.join(key)
     }
 
-    /// Writes and syncs the bytes before any pointer may reference them (spec §20.2).
+    /// Writes and syncs the bytes before any pointer may reference them.
     pub fn put(&self, key: &str, bytes: &[u8]) -> Result<(), StorageError> {
         let path = self.path(key);
         if let Ok(existing) = fs::read(&path) {

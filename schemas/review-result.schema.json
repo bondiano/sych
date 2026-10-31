@@ -118,7 +118,7 @@
   ],
   "$defs": {
     "Applicability": {
-      "description": "Three-valued rule applicability (spec §11.4).",
+      "description": "Three-valued rule applicability.",
       "type": "string",
       "enum": [
         "APPLIES",
@@ -230,7 +230,7 @@
       ]
     },
     "CodeRef": {
-      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
+      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model.",
       "type": "object",
       "properties": {
         "blob_oid": {
@@ -272,7 +272,7 @@
       ]
     },
     "CostSummary": {
-      "description": "Cost with explicit unknown part; an unknown charge is never recorded as zero (INV-13).",
+      "description": "Cost with explicit unknown part; an unknown charge is never recorded as zero.",
       "type": "object",
       "properties": {
         "known": {
@@ -311,7 +311,7 @@
       ]
     },
     "EvaluationMode": {
-      "description": "How a migration obligation is judged (spec §13.4): the plan alone, or an observed\ntransition of a real environment, which needs evidence of that environment's state.",
+      "description": "How a migration obligation is judged: the plan alone, or an observed\ntransition of a real environment, which needs evidence of that environment's state.",
       "type": "string",
       "enum": [
         "PLAN_REVIEW",
@@ -516,7 +516,7 @@
       ]
     },
     "MicroUsd": {
-      "description": "Money as whole micro-USD; never a float (spec §5.1).",
+      "description": "Money as whole micro-USD; never a float.",
       "type": "integer",
       "format": "uint64",
       "minimum": 0
@@ -721,7 +721,7 @@
       ]
     },
     "Recommendation": {
-      "description": "Computed by the reducer; never a model verdict or SCM approval (spec §5.7).",
+      "description": "Computed by the reducer; never a model verdict or SCM approval.",
       "type": "string",
       "enum": [
         "ATTENTION_REQUIRED",
@@ -757,7 +757,7 @@
           }
         },
         "risk_hints": {
-          "description": "Routing hints from the planner; not evidence of a defect (spec §7.3).",
+          "description": "Routing hints from the planner; not evidence of a defect.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/RiskHint"
@@ -803,7 +803,7 @@
       ]
     },
     "RouteUsage": {
-      "description": "One model route of the run: how it bills and which caps are hard (spec §17.2).",
+      "description": "One model route of the run: how it bills and which caps are hard.",
       "type": "object",
       "properties": {
         "attempts": {
@@ -854,7 +854,7 @@
       "const": 1
     },
     "ScopeManifest": {
-      "description": "Fixed before discovery; may only grow through a new revision (spec §7.4).",
+      "description": "Fixed before discovery; may only grow through a new revision.",
       "type": "object",
       "properties": {
         "excluded": {
@@ -919,7 +919,7 @@
       ]
     },
     "SourceSnapshotId": {
-      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`].",
       "$ref": "#/$defs/Sha256Digest"
     },
     "SuggestedChange": {
@@ -1009,7 +1009,7 @@
       ]
     },
     "Waiver": {
-      "description": "A rule exception in force for one obligation (spec §11.6).",
+      "description": "A rule exception in force for one obligation.",
       "type": "object",
       "properties": {
         "author": {

@@ -1,4 +1,4 @@
-//! Bounded follow-up on one tour stop (spec §21.6, roadmap M5.3). The model sees the stop, a
+//! Bounded follow-up on one tour stop. The model sees the stop, a
 //! brief overview of the review and what typed context queries return; never the whole
 //! repository or another reader's questions. Its answer is prose, never evidence, and a defect
 //! claim in it is a hypothesis for the regular verifier, never a finding of the review.

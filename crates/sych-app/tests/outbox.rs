@@ -1,6 +1,6 @@
-//! Durable outbox and reconciliation traces (roadmap M2.5) on the GitHub fake: one CREATE per
-//! summary whatever is lost, updates by the stored id, reconciliation only of the bot's own
-//! comment, CREATE again only after a complete empty read, a lost close stops the write, and a late older write is repaired.
+//! Durable outbox and reconciliation traces on the GitHub fake: one CREATE per summary whatever is
+//! lost, updates by the stored id, reconciliation only of the bot's own comment, CREATE again only
+//! after a complete empty read, a lost close stops the write, and a late older write is repaired.
 
 use serde_json::json;
 

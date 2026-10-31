@@ -1,4 +1,4 @@
-//! Ledger construction (spec §12.2): effects of each side keyed by construct, kind and
+//! Ledger construction: effects of each side keyed by construct, kind and
 //! target; a key missing on head is looked for elsewhere (a move) before it is called
 //! removed, and kept keys are compared by scope, guard, multiplicity and order.
 

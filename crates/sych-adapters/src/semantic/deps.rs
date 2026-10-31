@@ -1,4 +1,4 @@
-//! Dependencies of a materialized side for semantic analysis (spec §22.4), installed only in
+//! Dependencies of a materialized side for semantic analysis, installed only in
 //! the configured sandbox and never by running repository code: `pnpm install` with scripts
 //! and pnpmfile off, `cargo fetch` into a Sych-owned `CARGO_HOME` (no host credentials).
 

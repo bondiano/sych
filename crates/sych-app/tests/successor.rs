@@ -1,4 +1,4 @@
-//! A late CI report on a real model route (roadmap M2.2): the parent pins a checkpoint for
+//! A late CI report on a real model route: the parent pins a checkpoint for
 //! every accepted answer as it arrives, and its successor answers the tasks whose input the
 //! report did not change from them, without a model call, and links the parent's result.
 //! A changed input asking again is covered on the engine (`checkpoints.rs`).

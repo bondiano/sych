@@ -1,4 +1,4 @@
-//! Candidates (unverified hypotheses) and findings (spec §5.6).
+//! Candidates (unverified hypotheses) and findings.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

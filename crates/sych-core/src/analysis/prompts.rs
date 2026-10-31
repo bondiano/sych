@@ -1,4 +1,4 @@
-//! Versioned prompt templates (spec §16.5): trusted role, output contract and accepted rules
+//! Versioned prompt templates: trusted role, output contract and accepted rules
 //! first; repository text only in fenced data blocks.
 
 use std::fmt::Write;
@@ -47,7 +47,7 @@ pub(super) const CANDIDATES_CONTRACT: &str = "Each candidate has category (DEFEC
     find_callees, find_implementations or search_source). Be brief: at most 4 candidates, the \
     strongest first, and 4 context requests; each text field one sentence.";
 
-/// How a seasoned reviewer picks small remarks (docs/research/review-comments.md).
+/// How a seasoned reviewer picks small remarks.
 const NIT_RULES: [&str; 4] = [
     "A NIT or IMPROVEMENT is at most LOW, does not change behaviour and names the place, the \
      future mistake or confusion it prevents, and the concrete edit; without all three it is not \

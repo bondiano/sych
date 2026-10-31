@@ -1,4 +1,4 @@
-//! `sych eval compare` (spec §27.5): saved `eval measure` reports of one suite and one config —
+//! `sych eval compare`: saved `eval measure` reports of one suite and one config —
 //! baselines A, B and C, or repeats — side by side. Totals come from the reports as written;
 //! the cases listed are those whose outcome differs between reports or between repeated runs
 //! of one report. No model is called.

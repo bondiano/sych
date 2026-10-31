@@ -1,4 +1,4 @@
-//! `ContextBroker` scenarios (roadmap M1.2): what a packet contains, what it leaves out and why.
+//! `ContextBroker` scenarios: what a packet contains, what it leaves out and why.
 
 use std::collections::BTreeMap;
 

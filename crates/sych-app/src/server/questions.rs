@@ -1,4 +1,4 @@
-//! `/v1` follow-up questions on a tour step (spec §21.6, roadmap M5.3). A comprehension
+//! `/v1` follow-up questions on a tour step. A comprehension
 //! question calls the model under the caller's own session budget, with the run's code read
 //! from the engine's mirror; a fact is the caller's own statement; a risk decision records a
 //! scoped waiver and needs the maintainer role. The exchange is the caller's alone: it never

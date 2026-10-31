@@ -1,4 +1,4 @@
-//! Finding lineage, lifecycle history, feedback and waivers (spec §5.6, §11.6, §18.4). One
+//! Finding lineage, lifecycle history, feedback and waivers. One
 //! transaction applies a revision's lineage; history rows are only ever appended.
 
 use sqlx::{Any, Row, Transaction};

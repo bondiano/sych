@@ -1,4 +1,4 @@
-//! Role routing and the bounded fallback loop (roadmap M1.13): deterministic traces on scripted
+//! Role routing and the bounded fallback loop: deterministic traces on scripted
 //! providers and one in-memory ledger, so every hop spends the same run budget.
 
 use std::cell::RefCell;

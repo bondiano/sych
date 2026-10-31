@@ -5,7 +5,7 @@ language: go
 pair: old-frontend-field-removal
 variant: unsafe
 profiles: [correctness, migration_compatibility]
-rationale: "The API stops returning legacy_status and the column is dropped in the same release; the new frontend no longer reads it, but tabs opened before the release run the old bundle, which renders order.legacy_status, for the declared 14-day window (spec §13.2, old open frontend + new backend)."
+rationale: "The API stops returning legacy_status and the column is dropped in the same release; the new frontend no longer reads it, but tabs opened before the release run the old bundle, which renders order.legacy_status, for the declared 14-day window."
 base:
   .sych/deploy.yaml: |
     schema_version: 1

@@ -1,5 +1,5 @@
 //! Effective config: engine defaults, then the trusted server config, then the accepted
-//! repository policy (spec §11.2, §23.1). The reviewed head is only diffed, never applied.
+//! repository policy. The reviewed head is only diffed, never applied.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::str;
@@ -311,7 +311,7 @@ pub struct RuleChange {
     pub change: PolicyChange,
 }
 
-/// Policy proposed by the reviewed head, shown but not applied to this run (spec §11.6).
+/// Policy proposed by the reviewed head, shown but not applied to this run.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PolicyDiff {
     pub files: Vec<PolicyFileChange>,

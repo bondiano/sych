@@ -1,4 +1,4 @@
-//! The worker half of the server (spec §8.2–8.4): claim a job, fetch the pinned commits, wait
+//! The worker half of the server: claim a job, fetch the pinned commits, wait
 //! for expected CI until its deadline, freeze the inputs and review under the lease. No SQL
 //! transaction is held across git, model or SCM calls.
 
@@ -312,7 +312,7 @@ impl Engine {
     }
 }
 
-/// Expected CI reports whose `applies_to` matches a changed path (spec §15.2); default wait.
+/// Expected CI reports whose `applies_to` matches a changed path; default wait.
 /// What a frozen run records about its CI sources: expected, imported and missing.
 fn frozen_sources(ids: &[&str], collected: &Collected) -> serde_json::Value {
     let imported: Vec<_> = collected

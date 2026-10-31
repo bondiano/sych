@@ -1,4 +1,4 @@
-//! `OpenRouter` chat completions as a [`ModelProvider`] (roadmap M1.9). The model and upstream
+//! `OpenRouter` chat completions as a [`ModelProvider`]. The model and upstream
 //! providers are pinned per request: no auto router, no hidden provider fallback. Replies are
 //! streamed: keep-alive comments hold long reasoning open, and a cut stream still names its
 //! generation.

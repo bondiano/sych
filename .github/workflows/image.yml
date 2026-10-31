@@ -1,7 +1,7 @@
 name: Image
 
-# Builds the reviewer image from main only; production runs the digest a human pins in petinfra,
-# so a pull request can never replace the reviewer that reviews it.
+# Builds the reviewer image from main only; production runs the digest a human pins in the
+# deployment repository, so a pull request can never replace the reviewer that reviews it.
 on:
   push:
     branches: [main]

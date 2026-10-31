@@ -1,4 +1,4 @@
-//! Model output checks (roadmap M1.5–M1.7): what the engine accepts from discovery,
+//! Model output checks: what the engine accepts from discovery,
 //! assessment and verification answers ([`verify`]), and what it refuses or downgrades.
 
 use std::collections::BTreeMap;

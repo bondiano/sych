@@ -57,7 +57,7 @@
   ],
   "$defs": {
     "ComparisonMode": {
-      "description": "How `diff_base` was chosen; never an arbitrary commit (spec §6.2).",
+      "description": "How `diff_base` was chosen; never an arbitrary commit.",
       "oneOf": [
         {
           "description": "`diff_base = merge-base(target_tip, head)`.",
@@ -84,7 +84,7 @@
       "pattern": "^sha256:[0-9a-f]{64}$"
     },
     "SourceSnapshotId": {
-      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`].",
       "$ref": "#/$defs/Sha256Digest"
     }
   }

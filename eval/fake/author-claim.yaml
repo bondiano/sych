@@ -1,4 +1,4 @@
-# PR text alone cannot support an obligation (INV-19): the reducer keeps it UNKNOWN.
+# PR text alone cannot support an obligation: the reducer keeps it UNKNOWN.
 schema_version: 1
 evidence:
   - key: pr-description

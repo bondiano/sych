@@ -1,4 +1,4 @@
-//! The normalized SCM contract every provider adapter maps to (spec §19.1, §19.3): errors,
+//! The normalized SCM contract every provider adapter maps to: errors,
 //! capabilities and what a webhook signals. Webhooks are signals; current refs come from the
 //! API.
 
@@ -71,7 +71,7 @@ pub fn map_status(status: u16, rate_limited: bool, call: ScmCall) -> ScmErrorKin
     }
 }
 
-/// What a connection can do, fixed when it is connected or updated (spec §19.1). A missing
+/// What a connection can do, fixed when it is connected or updated. A missing
 /// capability gives a supported fallback or an explicit limitation, never a guess.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[allow(clippy::struct_excessive_bools)] // independent flags of one provider, not states
@@ -114,7 +114,7 @@ impl ProviderCapabilities {
     }
 }
 
-/// A command written in a change comment; accepted only from an authorized actor (§22.5).
+/// A command written in a change comment; accepted only from an authorized actor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ScmCommand {
@@ -123,7 +123,7 @@ pub enum ScmCommand {
     Stop,
 }
 
-/// The normalized meaning of one webhook event (spec §19.3).
+/// The normalized meaning of one webhook event.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ChangeSignal {
@@ -155,7 +155,7 @@ pub enum ChangeSignal {
 }
 
 impl ChangeSignal {
-    /// Seconds equal signals coalesce over (spec §19.3).
+    /// Seconds equal signals coalesce over.
     pub const fn debounce_seconds(&self) -> i64 {
         match self {
             Self::CiCompleted { .. } => 10,
@@ -181,7 +181,7 @@ pub struct WebhookEvent {
     pub installation_id: Option<u64>,
     /// Changes the event concerns; a CI run may name several, or none for a fork.
     pub change_numbers: Vec<u64>,
-    /// The source branch lives in another repository; it is read, never run (spec §19.6).
+    /// The source branch lives in another repository; it is read, never run.
     pub fork: bool,
     pub sender: Option<String>,
     pub signal: Option<ChangeSignal>,

@@ -1,4 +1,4 @@
-//! Materializes one pinned commit into a scratch directory for a language server (spec §9.4).
+//! Materializes one pinned commit into a scratch directory for a language server.
 //!
 //! Blobs are written byte-for-byte from the object database: no checkout, filters,
 //! `export-subst` or hooks, so every file equals its blob and line hashes match `CodeRef`s.

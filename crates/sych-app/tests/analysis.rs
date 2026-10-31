@@ -1,4 +1,4 @@
-//! Model passes over a real snapshot with a scripted provider (roadmap M1.5–M1.8 harness):
+//! Model passes over a real snapshot with a scripted provider:
 //! the engine keeps its statuses, gaps and accounting whatever the model answers.
 
 use serde_json::{Value, json};

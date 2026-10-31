@@ -1,4 +1,4 @@
-//! Finding lifecycle on the server (roadmap M2.7): lineage after each committed revision,
+//! Finding lifecycle on the server: lineage after each committed revision,
 //! feedback and waivers only from actors with the needed repository permission, and a
 //! dismissal that keeps its author and survives later revisions.
 

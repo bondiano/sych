@@ -1,4 +1,4 @@
-//! `OpenRouter` adapter fixtures (roadmap M1.9): pinned routing, structured output request,
+//! `OpenRouter` adapter fixtures: pinned routing, structured output request,
 //! usage/cost, errors after 200, partial answers and unknown charges. Loopback only.
 
 use serde_json::{Value, json};

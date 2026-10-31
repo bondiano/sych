@@ -1,4 +1,4 @@
-//! Checkpoints under a run's fence (spec §8.5): kept while the lease is current; once a write
+//! Checkpoints under a run's fence: kept while the lease is current; once a write
 //! shows the run is no longer worked under it, nothing more is kept and no further model call
 //! is reserved, because its result could never be committed.
 

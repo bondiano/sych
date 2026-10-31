@@ -161,7 +161,7 @@ only as `SUPPORTING` (at most 5 per file), marked as possibly being analysis art
   is taken from parameters, locals `x := db.BeginTx(..)`/`sql.Open` and struct fields of all `.go` files of the same
   directory on the same side, not from the SQL text: `tx.ExecContext` → `*sql.Tx`, `s.db.ExecContext` → `*sql.DB`;
   an unknown receiver stays untyped. `guard` is the condition of the nearest `if` in the function.
-- Python (tree-sitter-python 0.25) — M3 fallback: `import` (`related` is the module file in the snapshot: `a/b.py`,
+- Python (tree-sitter-python 0.25) — syntax fallback: `import` (`related` is the module file in the snapshot: `a/b.py`,
   `a/b/__init__.py`, `src/` layout, relative import, namespace directory; a module outside the snapshot and not from stdlib
   gets `subject: unresolved`), `resource_scope` (`with`/`async with`, `try/finally`), `detached_spawn` /
   `async_task` (`create_task`/`ensure_future` discarded / stored, `Thread(..).start()`), `write_call`
@@ -229,7 +229,7 @@ The ledger is linked to obligations: EFFECT-01 is activated by changed `implemen
 go as `REFUTING` with notes in the reason, the rest as `SUPPORTING`; `dynamic_unknown` is the gap `EFFECT_UNRESOLVED`. Both ledger
 gaps, like `UNSEEN_GAPS`, turn `SUPPORTED` into `UNKNOWN/SEMANTIC_GAP`; `VIOLATED` remains. To view the ledger:
 `sych review --format json` (`effect_ledger`), `sych show RUN --format json` or the `sych-effect-ledger` evidence.
-The unsafe/safe pairs of §12.4 (Tx→DB and a helper with `*sql.Tx`, outbox → goroutine and a preserved call, changed
+The unsafe/safe pairs (Tx→DB and a helper with `*sql.Tx`, outbox → goroutine and a preserved call, changed
 wrapper implementation, React cleanup/stale results, invalidation removed/moved into a hook, Python write outside `with`,
 `getattr`) are tested in [`tests/effect_ledger.rs`](../crates/sych-adapters/tests/effect_ledger.rs). Generating
 runtime tests and full-program analysis are not required.
@@ -269,8 +269,8 @@ means running the project's build. Their evidence is the project's own CI report
 SpotBugs write SARIF; test runners write JUnit), imported like any CI report, or an execution profile on an image that
 already holds the dependencies, since a check runs without network ([CONFIG.md](CONFIG.md)).
 
-Four more stay without a language server for the same reason or a missing build (checked against their releases,
-2026-10-28), with the same CI and execution-profile routes:
+Four more stay without a language server for the same reason or a missing build (checked against their releases),
+with the same CI and execution-profile routes:
 
 - Gleam: `gleam lsp` downloads Hex and git dependencies on start (network), offers push diagnostics only, and
   `gleam check` builds dependencies with rebar3/mix.
@@ -294,7 +294,7 @@ recomputed, and old cache files are not deleted.
 ## ContextBroker
 
 `sych_core::broker` builds one discovery packet per review unit and one verification packet per obligation
-(§9), split into chunks when its required spans do not fit one request together. A packet contains no source text: only `CodeRef`s with hash, selection reasons, priority
+, split into chunks when its required spans do not fit one request together. A packet contains no source text: only `CodeRef`s with hash, selection reasons, priority
 (`REQUIRED → REFUTING → SUPPORTING`), completeness, relations (`called_by`, `calls`, `uses_type`, `implemented_by`, `tested_by`,
 `read_by`, `written_by`, `referenced_by`), records of semantic queries, excluded items with reasons, and gaps. Text is read back via
 `SnapshotReader`, which verifies the hash. Packets are stored as the run's `context_packets` artifact. An example with excluded
@@ -311,11 +311,11 @@ implementations, tests and depth-1 references, and import blocks of the changed 
 TS `import`; auxiliary). Overlapping and adjacent spans of the same file and side are merged, keeping
 all reasons.
 
-§9.3 limits: the unit budget is `context.initial_tokens_per_unit` (16000), a verification packet gets the sum over units, but no
+Limits: the unit budget is `context.initial_tokens_per_unit` (16000), a verification packet gets the sum over units, but no
 more than `context.max_tokens_per_request` (48000); tokens are counted as bytes of text (an upper bound). Files per
 run: `context.max_source_files` (80, does not apply to required spans). 24 semantic queries per unit and 160 per run,
 spans up to 160 lines (merging adjacent spans never exceeds it, and hunk context is only the three lines
-before and the three lines after a change), text blobs up to 512 KiB — constants of §9.3 for now. At equal priority, code goes before prose
+before and the three lines after a change), text blobs up to 512 KiB — fixed constants for now. At equal priority, code goes before prose
 (`.md`, `.txt`, …), so a tight budget drops notes first, and the head side before the diff-base side
 it replaces. Spans of a discovery or verification packet are
 packed first-fit into up to four chunks of the request budget, each chunk its own packet (and, for verification,
@@ -331,7 +331,7 @@ backend `UNSUPPORTED/FAILED`, unresolved locations, query limit, required conten
 without a backend — `NO_SEMANTIC_BACKEND` for Java, Kotlin, Scala, Clojure, Elixir, Gleam, Ruby, PHP, C/C++, Zig, R,
 SQL, C# and Swift; changed CSS/HTML without browser/accessibility/visual reports — `NO_VISUAL_EVIDENCE`); otherwise `SATISFIED`. This is the sufficiency of what was collected, not the truth of the obligation.
 
-§9.4 typed operations (`sych_core::broker::Operation`, a closed enum without extra fields): `read_span`, `read_symbol`,
+Typed operations (`sych_core::broker::Operation`, a closed enum without extra fields): `read_span`, `read_symbol`,
 `find_definition`, `find_references`, `find_implementations`, `find_callers`, `find_callees`,
 `search_source` (fixed string only, one line of up to 200 characters, `git grep -F` over the pinned tree, at most 5 s —
 otherwise `FAILED` with a reason) and
@@ -353,7 +353,7 @@ otherwise `FAILED` with a reason) and
   also end up in queries, and lowercase types do not.
 - Readers and writers: for a non-callable symbol, `documentHighlight` at the position of each of the first 12 references yields
   kind `Read`/`Write`; the rest and references without a kind go into `unresolved` of both sets. A server without
-  `documentHighlightProvider` is `UNSUPPORTED`. This is name-based access in code, not the effect ledger (M3).
+  `documentHighlightProvider` is `UNSUPPORTED`. This is name-based access in code, not the effect ledger.
 - Rust offline without installation: sysroot std is resolved only if its dependencies are already in the cargo cache; otherwise
   rust-analyzer emits a health warning, and diagnostics show false type errors.
 - Go: only host GOOS/GOARCH without tags and with cgo off; without dependency installation gopls cannot see external modules;

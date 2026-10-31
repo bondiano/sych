@@ -1,4 +1,4 @@
-//! GitHub webhook admission checks (spec §19.2): signature over the raw body before anything
+//! GitHub webhook admission checks: signature over the raw body before anything
 //! is parsed, then a normalized [`WebhookEvent`]. GitHub signs no timestamp, so there is no
 //! replay window to check; the delivery id deduplicates instead.
 

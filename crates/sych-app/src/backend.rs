@@ -1,5 +1,5 @@
 //! Model profiles resolved to a callable transport for a local personal run: mode, egress,
-//! model, price and credentials are checked before any request (roadmap M1.9–M1.12).
+//! model, price and credentials are checked before any request.
 
 use std::env;
 use std::fs;

@@ -1,4 +1,4 @@
-//! Role routing and the bounded fallback loop (spec §16.7, roadmap M1.13). A run fixes one
+//! Role routing and the bounded fallback loop. A run fixes one
 //! [`RoutePlan`]: per role the primary profile, then exactly one chain chosen by the priority
 //! profile → role → provider. A task visits each profile of its chain at most once; only the
 //! configured retryable failures move on, and every hop spends the same run budget in the

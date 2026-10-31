@@ -1,5 +1,5 @@
 //! Provider endpoint URLs, parsed rather than prefix-matched: userinfo such as
-//! `http://localhost@elsewhere` would otherwise pass for the host it only names (spec §22.3).
+//! `http://localhost@elsewhere` would otherwise pass for the host it only names.
 
 use url::{Host, Url};
 

@@ -1,4 +1,4 @@
-//! Candidate verification (spec §16.3): every candidate ends CONFIRMED, REJECTED or
+//! Candidate verification: every candidate ends CONFIRMED, REJECTED or
 //! UNRESOLVED, and only a confirmed one with an admissible basis becomes a finding.
 
 use std::cmp::Reverse;
@@ -97,7 +97,7 @@ fn admissible(verdict: &CandidateVerdict, anchors: &[CodeRef]) -> Result<(), Str
         _ if preference && verdict.severity > Severity::Low => {
             Err("a nit or improvement is at most LOW".into())
         }
-        // A reproducible scenario or a concrete trace, never model agreement (spec §16.3).
+        // A reproducible scenario or a concrete trace, never model agreement.
         _ if verdict.severity >= Severity::High
             && (verdict.support != Support::StaticTrace || anchors.len() < 2) =>
         {

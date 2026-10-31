@@ -1,4 +1,4 @@
-//! `schema_version` handling for external JSON documents (spec §5.1, §25.4).
+//! `schema_version` handling for external JSON documents.
 
 use std::borrow::Cow;
 

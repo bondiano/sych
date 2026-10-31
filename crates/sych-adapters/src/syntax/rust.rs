@@ -1,4 +1,4 @@
-//! Rust shapes from `syn` (spec §5.3, roadmap M1.14): async boundaries, guards across
+//! Rust shapes from `syn`: async boundaries, guards across
 //! `.await`, detached tasks, discarded results, `Drop`, public API, cfg and serde attributes.
 //! Macros are not expanded; their bodies are invisible and listed as `UnexpandedMacro`.
 //! Code under a cfg the analysed build skips is `InactiveCfg`; logged `Debug` values are

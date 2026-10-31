@@ -1,4 +1,4 @@
-//! Reading one report out of a CI artifact zip, in memory (spec §15.1): nothing is written to
+//! Reading one report out of a CI artifact zip, in memory: nothing is written to
 //! the host, every entry name is checked, decompression stops at a byte cap and the CRC must
 //! match. Stored and deflate entries only; zip64, encryption and symlinks are refused.
 

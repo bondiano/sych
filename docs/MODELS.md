@@ -1,7 +1,6 @@
 # Model gateway and ledger
 
-Implements roadmap M1.3: §16.4–16.7, §17 of the specification. Transports: OpenRouter (M1.9),
-OpenCode Go (M1.12), GLM Coding Plan via Pi (M1.11) and GPT via Sign in with ChatGPT (M1.10); the router (M1.13) is described below.
+Transports: OpenRouter, OpenCode Go, GLM Coding Plan via Pi and GPT via Sign in with ChatGPT; the router is described below.
 External model calls are made only by an explicit `sych doctor --probe-model PROFILE` and `sych review --models PROFILE`
 ([ANALYSIS.md](ANALYSIS.md)).
 
@@ -14,7 +13,7 @@ External model calls are made only by an explicit `sych doctor --probe-model PRO
   `ModelReply` stores the actual model, upstream provider and generation id separately from the requested ones.
 - `ProviderError.kind` distinguishes `AUTH`, `ENTITLEMENT`, `QUOTA_EXHAUSTED`, `RATE_LIMITED`, `TRANSIENT`,
   `TIMEOUT`, `UNSUPPORTED`, `BILLING_MISMATCH`, `CANCELLED`, `CONFIG`; `dispatched` tells whether the request could have reached the provider.
-- `Prompt` is assembled from the §16.5 layers: role → output contract → trusted rules (system message) → task →
+- `Prompt` is assembled from layers: role → output contract → trusted rules (system message) → task →
   data blocks (user message). Each data block is framed as `<<<DATA nonce label>>>…<<<END nonce>>>`, where the nonce is
   part of the SHA-256 of the content itself, so repository text cannot close its own frame. The versioned template id
   (`discovery@1`) and the schema name are stored in every attempt; chain-of-thought is neither requested nor stored.
@@ -34,7 +33,7 @@ External model calls are made only by an explicit `sych doctor --probe-model PRO
 For each attempt, before sending:
 
 1. Input bound: the number of UTF-8 bytes of the messages + 16 per message (no less than the byte-level BPE token count).
-2. Output bound: 2,000 tokens per request (§17.1); `max_output_tokens` is sent only if the route
+2. Output bound: 2,000 tokens per request; `max_output_tokens` is sent only if the route
    honors it (`output_cap_enforced`).
 3. Monetary upper bound: `api_usage` uses the price card from `price_catalog_file`, rounded up, with no cache
    discounts. No price card or no enforced output cap means `NO_PRICE_BOUND`, and the request is not sent.
@@ -44,7 +43,7 @@ For each attempt, before sending:
    (per purpose `ANALYSIS | TOUR | FOLLOWUP`), money for the day and the UTC calendar month. Output tokens are hard only
    for `api_hard`; for `subscription_observable` the upstream output/quota is soft/unknown, while Sych attempts,
    input and money stay hard.
-5. Verification reserve (§17.1): pure search (discovery, high-risk audit) reserves against caps minus one attempt
+5. Verification reserve: pure search (discovery, high-risk audit) reserves against caps minus one attempt
    and its share of run money (`cap / max_attempts`), so it cannot spend what the verifier needs; the verifier
    sees the full caps. Discovery share: assessment, combined review and the high-risk audit also keep one attempt
    per standalone discovery batch, at most `(max_attempts - 1) / 2`, with the same per-attempt share of money and
@@ -69,7 +68,7 @@ blocks further subscription-only reservations for that provider in the month (`B
 ## Fixed subscription fee
 
 `models.providers.<name>.fixed_fee: { amount_micro_usd, allocated_micro_usd }` is the subscription price per UTC calendar
-month and the share the owner allocates to the model pool ($60/month, D08). The first subscription reservation in a
+month and the share of it allocated to Sych's model pool. The first subscription reservation in a
 month writes a `subscription_fees` row; the share counts toward the monthly limit once, not per request
 and not toward the daily/run limits. Fee/allocation values have no defaults: without them a subscription profile
 is not used.
@@ -88,10 +87,10 @@ is not used.
 
 Prices are micro-USD per million tokens, reasoning is billed as output; the key is the profile's model slug.
 If a profile lists several upstreams, the price of the most expensive one is used. `sych doctor` parses the
-catalog and prints the revision; the operator enters prices from the current rates, Sych does not guess them. An example with
-OpenRouter prices as of 2026-10-25 is `examples/personal/config/prices.json`.
+catalog and prints the revision; the operator enters prices from the current rates, Sych does not guess them. An example is
+[examples/personal/config/prices.json](../examples/personal/config/prices.json); its prices are a snapshot of one revision.
 
-## OpenRouter (M1.9)
+## OpenRouter
 
 Adapter `sych_adapters::openrouter` is a single HTTP `POST {endpoint}/chat/completions`, with no SDK and no agent loop.
 
@@ -100,7 +99,7 @@ Adapter `sych_adapters::openrouter` is a single HTTP `POST {endpoint}/chat/compl
   `allow_fallbacks: false`, `require_parameters: true`, `data_collection: "deny"` and does not send `models`
   (the model fallback list). The profile's price card must cover the most expensive of the listed upstreams.
 - **Reasoning.** The profile's `reasoning_effort: low|medium|high` is sent as `reasoning.effort`; without it the field is not
-  sent. Reasoning counts toward the output cap of a single request (2,000 tokens, §17.1), which is why DeepSeek in the example uses
+  sent. Reasoning counts toward the output cap of a single request (2,000 tokens), which is why DeepSeek in the example uses
   `low`: with the default effort the verify reply was truncated (`TRUNCATED`) after ~1,900 reasoning tokens. The per-request
   cap is `budgets.<purpose>.max_output_tokens_per_request` (default 2,000, no more than `max_output_tokens`);
   the reservation's money upper bound is computed from it. Together with
@@ -119,10 +118,11 @@ Adapter `sych_adapters::openrouter` is a single HTTP `POST {endpoint}/chat/compl
   `RATE_LIMITED` (+`Retry-After`), 503 → `UNSUPPORTED` (no upstream matches the requirements), other 5xx →
   `TRANSIENT`. 400/401/402/403/429/503 and connection refusal count as not dispatched (the reservation is released);
   408, 5xx, a cut-off reply and `error` inside a 200 reply are dispatched, and the charge stays `UNKNOWN`.
-  `finish_reason: length`/unknown → `TRUNCATED`, `content_filter`/`refusal` → `REFUSED`.
+  `finish_reason: length`/unknown → `TRUNCATED`, `content_filter`/`refusal` → `REFUSED`. A reply that did not finish
+  with `stop` logs `finish_reason`, `native_finish_reason` and the beginning of the refusal.
 - **Egress.** Only the provider's `endpoint` from `sych.yaml` (allowlist), no redirects and no system proxy, timeout 90 s.
   The key comes from the `api_key_env` variable and never appears in output or errors. Corporate mode with OpenRouter
-  is rejected by configuration validation (D10).
+  is rejected by configuration validation.
 
 ### Fixtures
 
@@ -131,14 +131,8 @@ Deterministic, no network: capability — a metered route without an enforced ou
 and a failed stream, `length` (`crates/sych-adapters/tests/openrouter.rs`); unknown charge — timeout after dispatch and
 a reply without cost and usage (`gateway.rs`); provider selection — pinned `model`, `provider.order`, `allow_fallbacks:
 false`, `require_parameters` (`openrouter.rs`); the whole path doctor → gateway → ledger → adapter — loopback stub
-(`crates/sych-app/tests/probe.rs`). Loopback stubs answer 404 to foreign connections: local tools
-(for example, `moshi-hook`) poll every new loopback port.
-
-### Development key
-
-The dev key is stored outside the repository in `~/.config/sych/dev.env` (mode 600) as
-`SYCH_OPENROUTER_API_KEY=…`; the checkout's `.envrc` (`dotenv_if_exists "$HOME/.config/sych/dev.env"`, excluded
-via `.git/info/exclude`) loads it through direnv. The key is not committed and is not written to `sych.yaml`.
+(`crates/sych-app/tests/probe.rs`). Loopback stubs answer 404 to foreign connections, since another local tool may
+poll a new loopback port.
 
 ### Probe
 
@@ -153,7 +147,7 @@ charge, charge state, tokens, resolved model, upstream, generation id). The run 
 `model-probe` and closed without a review result. Exit 0 means a valid reply, 4 means no key or `AUTH`,
 3 means another error, 2 means configuration.
 
-## OpenCode Go (M1.12)
+## OpenCode Go
 
 Adapter `sych_adapters::opencode_go` is `POST https://opencode.ai/inference/go/openai/v1/chat/completions`
 ([Go](https://opencode.ai/v2/docs/console/go/), [inference contract](https://opencode.ai/v2/docs/console/api/inference/)).
@@ -168,7 +162,7 @@ SSE chat completions parsing shared with OpenRouter lives in `sych_adapters::cha
   OpenCode auth files are not read.
 - **Schema.** Native structured output is not declared (`response_format` and `max_tokens` are not sent):
   the reply is validated locally, with at most one repair. Output cap and quota are soft (`subscription_observable`).
-- **Extra Usage.** Sych does not enable it and does not check it via the API (there is none). The owner confirms the setting in
+- **Extra Usage.** Sych does not enable it and does not check it via the API (there is none). The operator confirms the setting in
   the Console and sets `overage_disabled: true`; without it the profile does not resolve (`sych doctor` reports this).
   DeepSeek in Go requires the Global region in Settings › Privacy; this is also an account setting, not Sych's.
 - **Money and quota.** `usage.cost` is the reported charge (0 within Go limits is an observed fact, not "free");
@@ -182,7 +176,7 @@ Fixtures: `crates/sych-adapters/tests/opencode_go.rs` (path, headers, session, b
 allowance, balance charge), `crates/sych-core/tests/gateway.rs` (allowance separate from charge, repair in the same
 task), `crates/sych-core/tests/config.rs` (the `/go` boundary).
 
-## GLM Coding Plan via Pi (M1.11)
+## GLM Coding Plan via Pi
 
 Z.ai permits the Coding Plan in supported coding tools ([usage rules](https://docs.z.ai/legal-agreement/subscription-terms),
 [Pi](https://docs.z.ai/devpack/tool/pi)), but not in a custom HTTP client/bot. That is why adapter `sych_adapters::pi`
@@ -200,7 +194,7 @@ runs the real Pi CLI instead of imitating its requests.
   `endpoint: https://api.z.ai/api/coding/paas/v4` (validated; the Standard API `/api/paas/v4` has different billing) and
   `executable_env`. Pi receives the endpoint as the `baseUrl` of the `zai` provider in `models.json`, and the key only as
   `ZAI_API_KEY` in the process environment (not in argv). Sych cannot determine the key type (Coding Plan rather than Standard API);
-  the owner confirms it; `overage_disabled: true` confirms that extra usage is disabled.
+  the operator confirms it; `overage_disabled: true` confirms that extra usage is disabled.
 - **Isolation.** Each request is a new process in a temporary directory: empty `HOME`, `PI_CODING_AGENT_DIR` and
   working directory, `env_clear` (only `PATH` is inherited), flags `--mode json --no-session --no-tools
   --no-extensions --no-skills --no-prompt-templates --no-themes --no-context-files --no-mcp --no-approve --offline`,
@@ -223,11 +217,9 @@ runs the real Pi CLI instead of imitating its requests.
 
 Fixtures: `crates/sych-adapters/tests/pi.rs`; the JSONL in `tests/fixtures/pi` was recorded by a real Pi 1.4.0 against a loopback
 stub (`ok`, `err401`; `quota` is the same stream with code 1308). A stand-in executable checks env, argv, stdin,
-the empty working directory and the pinned endpoint. End-to-end `sych doctor --probe-model` through a real Pi and a loopback stub
-(2026-10-25): `SETTLED`, 50/7 tokens, charge `NULL`, reference 101 micro-USD; the stub received `User-Agent: pi/1.4.0`,
-our system prompt, the fenced packet and a body without `tools`. A real Coding Plan smoke has not been run yet.
+the empty working directory and the pinned endpoint.
 
-## GPT via ChatGPT plan: Sign in with ChatGPT (M1.10)
+## GPT via ChatGPT plan: Sign in with ChatGPT
 
 The transport is SIWC for open-source local clients ([overview](https://developers.openai.com/siwc/token-sharing-open-source),
 [sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in),
@@ -273,11 +265,10 @@ A regular OpenAI API key is not this subscription: a provider with `api_key_env`
 
 Fixtures: `crates/sych-adapters/tests/siwc.rs` (route fields, completed/incomplete/refusal/cut, tool item, error
 codes, refresh with rotation and `0600`, revoked session without inference, missing file/scope) and `tests/siwc_auth.rs`
-(base64url, PKCE RFC 7636, host id, claims, callback). Public discovery of `auth.openai.com` (2026-10-25):
-issuer and endpoints match the constants; authorize opens only in a browser (Cloudflare challenge), so
-a real sign-in and smoke await the owner.
+(base64url, PKCE RFC 7636, host id, claims, callback). The authorize page of `auth.openai.com` opens only in a browser,
+so sign-in itself is not covered by an automated test.
 
-## Router: roles, fallback and premium (M1.13)
+## Router: roles, fallback and premium
 
 `sych_core::model::Router` is a single deterministic loop on top of `Gateway`; there is no separate orchestrator.
 
@@ -320,29 +311,12 @@ a real sign-in and smoke await the owner.
 Fixtures: `crates/sych-core/tests/router.rs` (cheap → subscription → premium in one ledger, auth stop, cooldown
 and return to primary, exhausted cap, unknown charge, unconfigured trigger, no eligible route, a route without a fee
 hands over to the next one, chain priority), `tests/config.rs` (duplicates, self-fallback, reset wait, corporate
-deny-external, subscription local only). End-to-end smoke (2026-10-25, loopback): `review --models roles`, primary
-`cheap_go` on a closed port → `RELEASED`, fallback `glm_sub` through a real Pi 1.4.0 → two attempts (the stub replied
-off-schema) → gap; both routes in `usage_summary.routes`.
+deny-external, subscription local only).
 
 ## Limitations
 
-- Real subscription smokes (ChatGPT plan, GLM Coding Plan, OpenCode Go) have not been run yet: they need the owner's
-  sign-in, keys, `fixed_fee` and a confirmed `overage_disabled`. Fixtures and loopback smokes do not replace them.
+- The subscription transports (ChatGPT plan, GLM Coding Plan, OpenCode Go) are verified by fixtures and loopback stubs,
+  not against the live services: each needs its own sign-in or key, `fixed_fee` and a confirmed `overage_disabled`.
 - Cooldowns live within a single run; they are not persisted across processes.
 - Reconciliation of `UNKNOWN` attempts via `GET /generation` is not implemented yet: the generation id of a cut-off stream
   is in the attempt's error message, but the reservation stays held for now.
-- Real probes with streaming (2026-10-25, price revision `openrouter-2026-10-25`, prices matched the
-  OpenRouter catalog):
-
-  | profile | resolved model | upstream | tokens in/out | charge |
-  |---|---|---|---|---|
-  | `cheap_api` | `deepseek/deepseek-v4.1-flash` | DeepInfra | 127/49 | 39 micro-USD |
-  | `premium_astra` | `openai/gpt-6-astra` | OpenAI | 131/14 | 2,010 micro-USD |
-  | `premium_fable` | `anthropic/claude-fable-5.1` | Anthropic | 348/15 | 4,230 micro-USD |
-
-  Artifacts: [cheap_api](examples/model-probe/openrouter-cheap_api.json),
-  [premium_astra](examples/model-probe/openrouter-premium_astra.json),
-  [premium_fable](examples/model-probe/openrouter-premium_fable.json). The premium probe reservation is 204,110 micro-USD
-  (upper bound at 4,000 output tokens). The first Fable probe returned `REFUSED` without usage, and the charge stayed
-  `UNKNOWN`: the generation was not recorded in OpenRouter, and the retry succeeded. The raw reply of the first request is not available, but now a reply
-  that did not finish with `stop` logs `finish_reason`, `native_finish_reason` and the beginning of the refusal.

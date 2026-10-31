@@ -1,5 +1,5 @@
-//! Syntax facts of changed Rust, TypeScript, Go and Python files on each side (spec §5.3,
-//! §10.6). Parsing runs in process on pinned blobs; nothing from the repository is executed.
+//! Syntax facts of changed Rust, TypeScript, Go and Python files on each side. Parsing runs in
+//! process on pinned blobs; nothing from the repository is executed.
 
 mod cfg;
 mod go;

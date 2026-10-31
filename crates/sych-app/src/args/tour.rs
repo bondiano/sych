@@ -89,7 +89,7 @@ pub struct AskArguments {
     pub models: ModelSelection,
 }
 
-/// Spec §21.6: only a comprehension question calls the model.
+/// Only a comprehension question calls the model.
 #[derive(Clone, Copy, clap::ValueEnum)]
 pub enum AskKind {
     Comprehension,

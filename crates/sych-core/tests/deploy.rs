@@ -1,4 +1,4 @@
-//! Deployment model and transition matrix (roadmap M3.4): what the owner declared, with a
+//! Deployment model and transition matrix: what the owner declared, with a
 //! source per claim; states are excluded only by a sourced constraint, and an unknown initial
 //! version or build → source link is a named gap, never merge-base.
 

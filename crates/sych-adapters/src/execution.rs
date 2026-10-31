@@ -1,4 +1,4 @@
-//! Targeted checks (spec §22.4, roadmap M3.8). Every allowed profile runs on the pinned head,
+//! Targeted checks. Every allowed profile runs on the pinned head,
 //! materialized into a fresh workspace, in docker with no network, bounded memory, CPU and
 //! processes, and no secrets in its environment or mounts. Its stdout is imported as a CI
 //! report bound to the head; a refusal or a failure to run is a gap, never a passed check.
@@ -401,8 +401,9 @@ mod tests {
         );
     }
 
-    /// The retry/outbox trace of eval case go-outbox-goroutine: the base retries a publish after
-    /// a crash, the head drops it. Needs docker: `cargo test -p sych-adapters -- --ignored execution`.
+    /// The retry/outbox trace of eval case go-outbox-goroutine: the base retries a publish after a
+    /// crash, the head drops it. Needs docker: `cargo test -p sych-adapters -- --ignored
+    /// execution`.
     #[test]
     #[ignore = "needs docker"]
     fn a_retry_trace_on_base_and_head_names_the_broken_event_order() {

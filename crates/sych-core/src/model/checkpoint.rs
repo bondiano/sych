@@ -1,4 +1,4 @@
-//! Checkpoints of routed tasks (spec §8.5, §9.6): an accepted answer and everything its call
+//! Checkpoints of routed tasks: an accepted answer and everything its call
 //! depended on. A successor reuses one only when its own task has exactly the same
 //! dependencies, so the model saw the same input under the same contract and config; the
 //! answer is then validated again against the successor's own context.

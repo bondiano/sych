@@ -1,4 +1,4 @@
-//! GLM Coding Plan through the pinned Pi coding agent (roadmap M1.11): Z.ai allows the plan in
+//! GLM Coding Plan through the pinned Pi coding agent: Z.ai allows the plan in
 //! supported tools, so Sych runs the real Pi CLI rather than its own HTTP client. Each request
 //! is one isolated Pi process: empty HOME, agent directory and working directory, every tool,
 //! extension, skill, MCP server and context file off, retries, compaction and cache warming

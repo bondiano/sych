@@ -93,7 +93,7 @@
       "reason_code": "SEMANTIC_PROVIDER_UNAVAILABLE",
       "next_evidence_needed": "Callers of CreateOrder from gopls references.",
       "evidence_ids": [],
-      "limitations": ["no semantic provider in M0"]
+      "limitations": ["no semantic provider"]
     }
   ],
   "unresolved_questions": ["Does any consumer rely on event ordering?"],

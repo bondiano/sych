@@ -1,5 +1,5 @@
-//! GitHub App adapter (roadmap M2.1): webhook admission checks, App credentials and the
-//! normalized read operations of spec §19.1. Writes and reconciliation build on [`Github`].
+//! GitHub App adapter: webhook admission checks, App credentials and the
+//! normalized read operations. Writes and reconciliation build on [`Github`].
 
 mod actions;
 mod app;
@@ -17,7 +17,7 @@ pub use client::{Github, Installation};
 pub use comments::{Comment, MAX_COMMENTS, own_comment};
 pub use reviews::{CheckOutput, CheckRun};
 
-/// GitHub lists at most this many files of a pull request (spec §19.4).
+/// GitHub lists at most this many files of a pull request.
 pub const MAX_PR_FILES: usize = 3000;
 
 /// Capabilities from the permissions an installation was granted. Every read and write the
@@ -143,7 +143,7 @@ impl Github {
         Ok(v["permission"].as_str().unwrap_or("none").to_owned())
     }
 
-    /// Open pull requests, for reconciliation after downtime (spec §19.3).
+    /// Open pull requests, for reconciliation after downtime.
     pub async fn open_pulls(&self, repo: &str, token: &Secret) -> Result<Vec<PullState>, ScmError> {
         let (pulls, _) = self
             .list(&format!("/repos/{repo}/pulls?state=open"), token, 1_000)

@@ -1,4 +1,4 @@
-//! Rule contract `rules.yaml` (spec §11.3, §11.6), effect registry `effects.yaml` (§12.3)
+//! Rule contract `rules.yaml`, effect registry `effects.yaml`
 //! and the deployment model file.
 
 use crate::deploy::DeploymentModel;
@@ -57,7 +57,7 @@ pub struct Acceptance {
     pub criteria: Vec<String>,
 }
 
-/// A scoped waiver; it never rewrites the original `VIOLATED/UNKNOWN` (spec §11.6).
+/// A scoped waiver; it never rewrites the original `VIOLATED/UNKNOWN`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RuleException {

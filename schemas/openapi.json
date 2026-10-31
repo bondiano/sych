@@ -30,7 +30,7 @@
         "type": "object"
       },
       "Applicability": {
-        "description": "Three-valued rule applicability (spec §11.4).",
+        "description": "Three-valued rule applicability.",
         "enum": [
           "APPLIES",
           "DOES_NOT_APPLY",
@@ -202,7 +202,7 @@
         "type": "object"
       },
       "CodeRef": {
-        "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
+        "description": "Exact span inside a pinned blob; resolved by the harness, never by a model.",
         "properties": {
           "blob_oid": {
             "$ref": "#/$defs/GitObjectId"
@@ -244,7 +244,7 @@
         "type": "object"
       },
       "CostSummary": {
-        "description": "Cost with explicit unknown part; an unknown charge is never recorded as zero (INV-13).",
+        "description": "Cost with explicit unknown part; an unknown charge is never recorded as zero.",
         "properties": {
           "known": {
             "$ref": "#/$defs/MicroUsd",
@@ -308,7 +308,7 @@
         "type": "object"
       },
       "ErrorEnvelope": {
-        "description": "Every refused request (spec §25.3): no tokens, prompts, source or stack traces.",
+        "description": "Every refused request: no tokens, prompts, source or stack traces.",
         "properties": {
           "error": {
             "$ref": "#/$defs/ErrorBody"
@@ -321,7 +321,7 @@
         "type": "object"
       },
       "EvaluationMode": {
-        "description": "How a migration obligation is judged (spec §13.4): the plan alone, or an observed\ntransition of a real environment, which needs evidence of that environment's state.",
+        "description": "How a migration obligation is judged: the plan alone, or an observed\ntransition of a real environment, which needs evidence of that environment's state.",
         "enum": [
           "PLAN_REVIEW",
           "OBSERVED_TRANSITION"
@@ -758,7 +758,7 @@
       },
       "HandoffRequest": {
         "additionalProperties": false,
-        "description": "`POST /v1/runs/:id/handoff`: the run's own findings to export (spec §21.7).",
+        "description": "`POST /v1/runs/:id/handoff`: the run's own findings to export.",
         "properties": {
           "finding_ids": {
             "items": {
@@ -796,7 +796,7 @@
         "type": "string"
       },
       "MicroUsd": {
-        "description": "Money as whole micro-USD; never a float (spec §5.1).",
+        "description": "Money as whole micro-USD; never a float.",
         "format": "uint64",
         "minimum": 0,
         "type": "integer"
@@ -1093,7 +1093,7 @@
       },
       "QuestionRequest": {
         "additionalProperties": false,
-        "description": "`POST /v1/runs/:id/tours/:tour/questions`: a bounded follow-up on one step (spec §21.6).",
+        "description": "`POST /v1/runs/:id/tours/:tour/questions`: a bounded follow-up on one step.",
         "properties": {
           "kind": {
             "$ref": "#/$defs/QuestionKind"
@@ -1127,7 +1127,7 @@
         "type": "object"
       },
       "Recommendation": {
-        "description": "Computed by the reducer; never a model verdict or SCM approval (spec §5.7).",
+        "description": "Computed by the reducer; never a model verdict or SCM approval.",
         "enum": [
           "ATTENTION_REQUIRED",
           "NEEDS_EVIDENCE",
@@ -1533,7 +1533,7 @@
             "type": "array"
           },
           "risk_hints": {
-            "description": "Routing hints from the planner; not evidence of a defect (spec §7.3).",
+            "description": "Routing hints from the planner; not evidence of a defect.",
             "items": {
               "$ref": "#/$defs/RiskHint"
             },
@@ -1580,7 +1580,7 @@
         "type": "string"
       },
       "RouteUsage": {
-        "description": "One model route of the run: how it bills and which caps are hard (spec §17.2).",
+        "description": "One model route of the run: how it bills and which caps are hard.",
         "properties": {
           "attempts": {
             "format": "uint32",
@@ -1716,7 +1716,7 @@
         "type": "integer"
       },
       "ScopeManifest": {
-        "description": "Fixed before discovery; may only grow through a new revision (spec §7.4).",
+        "description": "Fixed before discovery; may only grow through a new revision.",
         "properties": {
           "excluded": {
             "items": {
@@ -1790,7 +1790,7 @@
       },
       "SourceSnapshotId": {
         "$ref": "#/$defs/Sha256Digest",
-        "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1)."
+        "description": "Content-derived identity of a [`crate::SourceSnapshot`]."
       },
       "SuggestedChange": {
         "description": "The full new text of exactly the HEAD lines of `code`, which a comment can offer as a\none-click change.",
@@ -1820,7 +1820,7 @@
         "type": "string"
       },
       "TourArtifact": {
-        "description": "One tour of one result revision (spec §21.3); never mutated, a regeneration is a new id.",
+        "description": "One tour of one result revision; never mutated, a regeneration is a new id.",
         "properties": {
           "generation_provenance": {
             "description": "Route and attempts of the generation, e.g. `openrouter/deepseek, 2 attempts`.",
@@ -1899,7 +1899,7 @@
         "type": "string"
       },
       "TourSession": {
-        "description": "One actor's progress through one tour (spec §21.8). It never changes the artifact, the\nrecommendation, obligations or any approval, and it is not published.",
+        "description": "One actor's progress through one tour. It never changes the artifact, the\nrecommendation, obligations or any approval, and it is not published.",
         "properties": {
           "actor": {
             "type": "string"
@@ -2082,7 +2082,7 @@
         "type": "string"
       },
       "Waiver": {
-        "description": "A rule exception in force for one obligation (spec §11.6).",
+        "description": "A rule exception in force for one obligation.",
         "properties": {
           "author": {
             "type": "string"

@@ -1,4 +1,4 @@
-//! Typed provider contract and prompt layers (spec §16.4–16.6).
+//! Typed provider contract and prompt layers.
 
 use std::borrow::Cow;
 use std::fmt::Write;
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::{BillingKind, Enforcement};
 use crate::{AttemptId, MicroUsd, Redactor, TaskId, Timestamp, sha256};
 
-/// What a model call is spent on; each has its own run-level budget (spec §17.1).
+/// What a model call is spent on; each has its own run-level budget.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Purpose {
@@ -27,7 +27,7 @@ impl Purpose {
     }
 }
 
-/// Why Sych dispatched an attempt. Retry and fallback attempts come with the router (M1.13).
+/// Why Sych dispatched an attempt. Retry and fallback attempts come with the router.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AttemptKind {
@@ -44,14 +44,14 @@ impl AttemptKind {
     }
 }
 
-/// Repository or evidence text. It is data for the model, never instructions (spec §22.1).
+/// Repository or evidence text. It is data for the model, never instructions.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataBlock {
     pub label: String,
     pub content: String,
 }
 
-/// Trusted layers in the order of spec §16.5; only `data` comes from the repository.
+/// Trusted layers in prompt order; only `data` comes from the repository.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Prompt {
     /// Versioned template id, e.g. `discovery@1`; recorded with every attempt.
@@ -139,7 +139,7 @@ pub struct ModelRequest {
     pub schema_name: String,
     /// JSON Schema of the expected output; used natively when the provider supports it.
     pub schema: serde_json::Value,
-    /// Absent on routes that forbid the field (spec §17.2).
+    /// Absent on routes that forbid the field.
     pub max_output_tokens: Option<u32>,
     /// The run deadline; the runtime stops waiting for the reply there.
     pub deadline: Option<Timestamp>,
@@ -186,7 +186,7 @@ pub struct ModelReply {
     pub list_cost: Option<MicroUsd>,
 }
 
-/// Distinct provider failures (spec §16.6); none of them is an empty success.
+/// Distinct provider failures; none of them is an empty success.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ErrorKind {
@@ -212,7 +212,7 @@ pub struct ProviderError {
     pub retry_after_seconds: Option<u32>,
 }
 
-/// What an adapter guarantees about one model route (spec §16.6).
+/// What an adapter guarantees about one model route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(clippy::struct_excessive_bools)] // independent declared guarantees
 pub struct Capabilities {

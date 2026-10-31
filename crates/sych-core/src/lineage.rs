@@ -1,4 +1,4 @@
-//! Finding lineage between revisions (spec §5.6, §18.4): what happens to an open finding of the
+//! Finding lineage between revisions: what happens to an open finding of the
 //! previous revision. A missing finding is not a fix: `RESOLVED` needs the criterion checked
 //! again on the new snapshot by a comparable method; a rename never closes anything by itself.
 

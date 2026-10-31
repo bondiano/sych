@@ -1,5 +1,4 @@
-//! `sych tour show|reveal|complete|dismiss`: reading a stored tour (spec §21.5/21.8, roadmap
-//! M5.2). No model is called; code comes from the run's pinned blobs, a newer head marks the
+//! `sych tour show|reveal|complete|dismiss`: reading a stored tour. No model is called; code comes from the run's pinned blobs, a newer head marks the
 //! tour `STALE` without replacing its code, and progress is the reader's own session, never the
 //! artifact, the recommendation, obligations or an approval, and never published.
 

@@ -1,4 +1,4 @@
-//! Typed context operations a model may request (spec §9.4). Arguments are a closed enum
+//! Typed context operations a model may request. Arguments are a closed enum
 //! that rejects unknown fields; there is no shell, URL, database or credential operation.
 
 use schemars::JsonSchema;
@@ -174,7 +174,7 @@ impl Ops<'_> {
             .find(|s| s.definition.path == symbol.path && s.name == symbol.name)
     }
 
-    /// An answered edge is `PARTIAL`: an empty answer does not prove absence (spec §9.4).
+    /// An answered edge is `PARTIAL`: an empty answer does not prove absence.
     fn edge(
         &self,
         symbol: &SymbolRef,

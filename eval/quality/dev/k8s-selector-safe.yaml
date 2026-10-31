@@ -5,7 +5,7 @@ language: kubernetes
 pair: k8s-selector
 variant: safe
 profiles: [infrastructure]
-rationale: "Only the image tag changes; selector and labels still match and the readiness probe gates the rolling update (spec §14.2)."
+rationale: "Only the image tag changes; selector and labels still match and the readiness probe gates the rolling update."
 base:
   k8s/web.yaml: |
     apiVersion: apps/v1

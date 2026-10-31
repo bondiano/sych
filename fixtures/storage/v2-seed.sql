@@ -1,4 +1,4 @@
--- A database at schema v2 (runs, artifacts and the model ledger) as an M1 `sych review` left it:
+-- A database at schema v2 (runs, artifacts and the model ledger) as an early `sych review` left it:
 -- one completed run with its result pointer, a pinned artifact and an UNKNOWN model charge.
 INSERT INTO changes (id, tenant_id, access_scope, change_key, desired_generation)
 VALUES (1, 'local', '/repo', 'main...HEAD', 1);

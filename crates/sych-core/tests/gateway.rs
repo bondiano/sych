@@ -1,4 +1,4 @@
-//! Model gateway scenarios (roadmap M1.3): repair, unknown charges, unsupported routes, budget
+//! Model gateway scenarios: repair, unknown charges, unsupported routes, budget
 //! exhaustion and hard-vs-soft enforcement, on a scripted provider and an in-memory ledger.
 
 use std::sync::atomic::{AtomicI64, Ordering};

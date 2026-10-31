@@ -1,4 +1,4 @@
-//! Expected CI reports of a server run (spec §15.1–15.3): the trusted selector names the exact
+//! Expected CI reports of a server run: the trusted selector names the exact
 //! workflow, event, job, artifact and path; reports are read by provider ids for the exact head,
 //! bound by a checkout manifest, and everything missing becomes a concrete gap.
 

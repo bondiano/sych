@@ -1,9 +1,8 @@
-# CI evidence for a Sych self-review on the SANDBOX MIRROR only (roadmap M2.9). Copy it into the
-# mirror's .github/workflows/ci.yml; it is not active in bondiano/sych, and no production workflow
-# is enabled before R1.
+# Example CI that gives a Sych server evidence for a reviewed repository. Copy it into that
+# repository's .github/workflows/ci.yml and map it with `ci_reports` in the server config.
 #
 # - `pull_request`, never `pull_request_target`: PR code runs without write tokens or secrets.
-# - The job only runs the mirror's own checks; Sych never executes PR code itself.
+# - The job only runs the repository's own checks; Sych never executes PR code itself.
 # - The artifact carries the outcomes and a checkout manifest whose `tested_oid` is the merge
 #   commit GitHub checked out, so the server can bind it as MERGE_RESULT through its parents.
 name: ci

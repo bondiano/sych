@@ -18,7 +18,7 @@
 - [ANALYSIS.md](ANALYSIS.md): model review passes (assessment, discovery, risk audit, verifier) and quality measurements.
 - [MODELS.md](MODELS.md): model providers and subscriptions, role routing, budgets and the cost ledger.
 - [SEMANTIC.md](SEMANTIC.md): pinned language servers and linters, semantic facts and their cache.
-- [STORAGE.md](STORAGE.md): SQLite, content-addressed artifacts, retention and GC.
+- [STORAGE.md](STORAGE.md): PostgreSQL and SQLite, content-addressed artifacts, retention, GC and backup.
 
 ## Running a server
 
@@ -27,10 +27,7 @@
 
 ## Reference
 
-- [SYCH_ROADMAP.md](SYCH_ROADMAP.md): open architecture-review tasks, decisions, evidence and verification limits.
 - [adr/](adr/): architecture decision records.
-- [examples/](examples/): saved outputs: local review, context packets, model probes, model review, quality runs,
-  a real Rust review, semantic facts and server documents.
-- [research/](research/): background research behind rules and eval cases.
+- [examples/](examples/): saved outputs (local review, context packets, semantic facts) and server configuration.
 - [brand/](brand/README.md): logo, icons, avatars and colors.
 - [../schemas/](../schemas/): JSON Schema and OpenAPI generated from the Rust DTOs.

@@ -1,4 +1,4 @@
-//! Reads the `.sych/` policy tree of one pinned commit from Git objects (spec §6.2 step 8).
+//! Reads the `.sych/` policy tree of one pinned commit from Git objects.
 
 use sych_core::RepoPath;
 use sych_core::config::{POLICY_DIR, PolicyFiles};

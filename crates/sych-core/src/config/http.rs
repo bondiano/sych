@@ -1,4 +1,4 @@
-//! The HTTP surface of the server (spec §25, §26.3): bind, API clients with roles and token
+//! The HTTP surface of the server: bind, API clients with roles and token
 //! references, and who may read metrics. A non-loopback bind needs auth and a TLS proxy;
 //! corporate mode always needs auth.
 

@@ -1,4 +1,4 @@
-//! Strict structured output: whole-text JSON, typed validation, one repair (spec §16.4).
+//! Strict structured output: whole-text JSON, typed validation, one repair.
 
 use serde::de::DeserializeOwned;
 

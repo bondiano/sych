@@ -1,4 +1,4 @@
-//! What an advisory publication shows (spec §18.1–18.2, §19.4): provider anchors of verified
+//! What an advisory publication shows: provider anchors of verified
 //! findings, the inline plan of one revision and the bodies. Pure: the publisher renders from
 //! the immutable result and the diff manifest, never from model prose.
 
@@ -13,7 +13,7 @@ use crate::{DiffManifest, Finding, FindingCategory, ReviewLanguage, ReviewResult
 pub use body::inline_body;
 pub use summary::{SummaryContext, render_summary};
 
-/// New inline comments one revision may add (spec §18.2).
+/// New inline comments one revision may add.
 pub const MAX_INLINE: usize = 8;
 /// Unchanged lines around a hunk GitHub shows and accepts comments on.
 pub const DIFF_CONTEXT: u32 = 3;

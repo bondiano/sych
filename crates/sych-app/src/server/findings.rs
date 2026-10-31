@@ -1,5 +1,5 @@
 //! Finding lineage after each committed revision, and feedback and waivers by authorized
-//! actors (spec §5.6, §11.6, §22.5).
+//! actors.
 
 use std::fmt::Display;
 

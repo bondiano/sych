@@ -1,4 +1,4 @@
-//! Running repository tooling (dependency installers) in a sandbox (spec §22.4).
+//! Running repository tooling (dependency installers) in a sandbox.
 //!
 //! Every mount keeps its host path inside the sandbox. bwrap sees the host root read-only
 //! with the home directory, `/tmp`, `/root`, `/run/user` and `/run/secrets` replaced by

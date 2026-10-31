@@ -1,5 +1,5 @@
-//! `/v1` request and response documents (spec §25): the DTOs the server parses and writes, and
-//! the `OpenAPI` description generated from them (spec §25.4).
+//! `/v1` request and response documents: the DTOs the server parses and writes, and
+//! the `OpenAPI` description generated from them.
 
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
@@ -83,7 +83,7 @@ pub struct RevealRequest {
     pub step_id: String,
 }
 
-/// `POST /v1/runs/:id/tours/:tour/questions`: a bounded follow-up on one step (spec §21.6).
+/// `POST /v1/runs/:id/tours/:tour/questions`: a bounded follow-up on one step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct QuestionRequest {
@@ -96,7 +96,7 @@ pub struct QuestionRequest {
     pub waiver: Option<WaiverTerms>,
 }
 
-/// `POST /v1/runs/:id/handoff`: the run's own findings to export (spec §21.7).
+/// `POST /v1/runs/:id/handoff`: the run's own findings to export.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HandoffRequest {
@@ -190,7 +190,7 @@ pub struct ErrorBody {
     pub details: Value,
 }
 
-/// Every refused request (spec §25.3): no tokens, prompts, source or stack traces.
+/// Every refused request: no tokens, prompts, source or stack traces.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ErrorEnvelope {
     pub error: ErrorBody,

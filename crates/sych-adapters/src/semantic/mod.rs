@@ -1,4 +1,4 @@
-//! Semantic backends over pinned language servers (spec §9.4, roadmap M1.1/M1.14).
+//! Semantic backends over pinned language servers.
 //!
 //! Each side of a snapshot is materialized separately from Git objects, so base and head
 //! never share workspace state. Changed constructs are found with `documentSymbol`, then
@@ -52,7 +52,7 @@ pub type Resolve<'a> = dyn Fn(&'static PinnedTool, &str) -> Result<PathBuf, Tool
 
 pub struct Options<'a> {
     pub resolve: &'a Resolve<'a>,
-    /// Facts across runs of the same snapshot (spec §9.6).
+    /// Facts across runs of the same snapshot.
     pub cache: Option<&'a Path>,
     pub tooling: &'a Tooling,
     /// Sych-owned state for installs: the pnpm store and `CARGO_HOME`.
@@ -88,7 +88,7 @@ fn targets(files: &[FileChange], side: SourceSide) -> BTreeMap<Language, Vec<Tar
 }
 
 /// Facts for every side and language with changed source; failures are reported inside.
-/// `cache` holds facts across runs of the same snapshot (spec §9.6).
+/// `cache` holds facts across runs of the same snapshot.
 /// `Err(Unavailable)` when dependency install fails under the `fail` policy.
 #[tracing::instrument(level = "info", name = "semantic", skip_all, fields(snapshot = %snapshot.snapshot.id.0))]
 pub fn collect(

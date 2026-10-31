@@ -1,4 +1,4 @@
-//! `/v1` tour reading (spec §21.8, roadmap M5.2): a stored tour and the caller's own session
+//! `/v1` tour reading: a stored tour and the caller's own session
 //! through it. No model is called, answers stay hidden until revealed, and a session never
 //! changes the result, obligations or an approval, and is never published.
 

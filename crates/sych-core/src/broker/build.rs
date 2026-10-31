@@ -1,4 +1,4 @@
-//! Packet assembly (spec §9.2–9.3): diff and enclosing constructs of both sides, then
+//! Packet assembly: diff and enclosing constructs of both sides, then
 //! diagnostics, then depth-1 callers, implementations, tests and references; overlapping
 //! spans merge; required, refuting and supporting evidence fill the budget in that order.
 
@@ -27,7 +27,7 @@ pub struct Limits {
 }
 
 impl Limits {
-    /// shortcut: request counts and span length are the §9.3 defaults, not yet configurable;
+    /// shortcut: request counts and span length are the default limits, not yet configurable;
     /// move them into `ContextSettings` when a repository needs other values.
     pub fn from_settings(context: &ContextSettings) -> Self {
         Self {

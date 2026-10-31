@@ -1,5 +1,5 @@
 //! `sych handoff`: selected findings of a saved run as a package for a separate author workflow
-//! (spec §21.7, roadmap M5.4). It reads the stored result only: no model, no source edit, no
+//!. It reads the stored result only: no model, no source edit, no
 //! change to the result, and a fixed head is reviewed again rather than marked resolved.
 
 use std::fmt::Write as _;

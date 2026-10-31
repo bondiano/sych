@@ -1,4 +1,4 @@
-//! Follow-up questions over `/v1` (roadmap M5.3): a question is the caller's own, a risk
+//! Follow-up questions over `/v1`: a question is the caller's own, a risk
 //! decision needs the maintainer role and records a waiver without changing the result, and a
 //! comprehension question is answered from the engine's mirror under the caller's own budget.
 

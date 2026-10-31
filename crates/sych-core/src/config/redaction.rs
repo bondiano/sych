@@ -1,4 +1,4 @@
-//! Trusted additions to secret redaction (spec §22.3); built-in rules always stay in force.
+//! Trusted additions to secret redaction; built-in rules always stay in force.
 
 use serde::{Deserialize, Serialize};
 

@@ -1,4 +1,4 @@
-//! The publication outbox (spec §18.3–18.6, §20.2). Before any network write an operation is
+//! The publication outbox. Before any network write an operation is
 //! `PUBLISHING` with its body, request digest, attempt id and fence; the reply and the observed
 //! remote id commit together. A lost reply, a crash or a lost lease is `UNCERTAIN` — never
 //! `PENDING` — and only reconciliation or an audited operator decision moves it on.

@@ -1,4 +1,4 @@
-//! Identifiers and value formats from spec §5.1.
+//! Identifiers and value formats.
 
 use std::borrow::Cow;
 use std::fmt;
@@ -228,7 +228,7 @@ impl JsonSchema for Sha256Digest {
     }
 }
 
-/// Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).
+/// Content-derived identity of a [`crate::SourceSnapshot`].
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]
@@ -242,7 +242,7 @@ pub struct SourceSnapshotId(pub Sha256Digest);
 #[serde(transparent)]
 pub struct PolicySnapshotId(pub Sha256Digest);
 
-/// Money as whole micro-USD; never a float (spec §5.1).
+/// Money as whole micro-USD; never a float.
 #[derive(
     Debug,
     Clone,

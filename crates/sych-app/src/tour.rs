@@ -1,4 +1,4 @@
-//! `sych tour`: a guided tour of a saved run (spec §21, roadmap M5.1). The plan is
+//! `sych tour`: a guided tour of a saved run. The plan is
 //! deterministic, the model writes the prose of its stops, and the artifact is validated
 //! against the result and the re-captured snapshot before it is stored, never rewritten.
 
@@ -52,7 +52,7 @@ fn spans(plan: &TourPlan, reader: &dyn SnapshotReader) -> Vec<DataBlock> {
         .collect()
 }
 
-/// Generates until a valid tour or the attempt cap (spec §21.5): an invalid tour gets one
+/// Generates until a valid tour or the attempt cap: an invalid tour gets one
 /// regeneration told what was wrong; `call` is the model.
 pub async fn generate<F, Fut>(
     plan: &TourPlan,

@@ -1,8 +1,8 @@
-//! Pinned linters on the head's changed files (spec §10.6): ruff for Python, oxlint for
-//! JS/TS (also where no TypeScript backend applies), sqruff for SQL, mago for PHP, jarl for R,
-//! clj-kondo for Clojure, actionlint and zizmor for GitHub workflows. Each is a single verified binary that reads source and its own config but never
-//! executes repository code: it runs on a materialized head with an empty `PATH` and `HOME`,
-//! no network options, and a time bound.
+//! Pinned linters on the head's changed files: ruff for Python, oxlint for JS/TS (also where no
+//! TypeScript backend applies), sqruff for SQL, mago for PHP, jarl for R, clj-kondo for Clojure,
+//! actionlint and zizmor for GitHub workflows. Each is a single verified binary that reads source
+//! and its own config but never executes repository code: it runs on a materialized head with an
+//! empty `PATH` and `HOME`, no network options, and a time bound.
 
 mod run;
 

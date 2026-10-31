@@ -1,4 +1,4 @@
-//! `POST /hooks/github/:connection` (spec §19.2): every check runs on the raw body before it is
+//! `POST /hooks/github/:connection`: every check runs on the raw body before it is
 //! parsed; a 2xx means the receipt and its intents are durable. No model or SCM call here.
 
 use std::sync::Arc;

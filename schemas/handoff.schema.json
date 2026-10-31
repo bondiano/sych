@@ -74,7 +74,7 @@
   ],
   "$defs": {
     "CodeRef": {
-      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model (INV-06).",
+      "description": "Exact span inside a pinned blob; resolved by the harness, never by a model.",
       "type": "object",
       "properties": {
         "blob_oid": {
@@ -341,7 +341,7 @@
       ]
     },
     "SourceSnapshotId": {
-      "description": "Content-derived identity of a [`crate::SourceSnapshot`] (spec §6.1).",
+      "description": "Content-derived identity of a [`crate::SourceSnapshot`].",
       "$ref": "#/$defs/Sha256Digest"
     },
     "Support": {

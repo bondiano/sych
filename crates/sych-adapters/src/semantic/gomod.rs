@@ -1,4 +1,4 @@
-//! Go build configuration of a materialized side (spec §10.3): modules, `go.work`,
+//! Go build configuration of a materialized side: modules, `go.work`,
 //! replacements, toolchain directives and the platform gopls analyses.
 
 use std::collections::BTreeMap;

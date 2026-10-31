@@ -1,4 +1,4 @@
-//! Exit codes (spec §24.1) and how an error chain maps to one.
+//! Exit codes and how an error chain maps to one.
 //!
 //! Commands return `anyhow::Result` and add context as they go; libraries keep their typed
 //! errors. A [`Failure`] states the exit code explicitly; otherwise the first typed cause in

@@ -1,4 +1,4 @@
-//! Retention of records (roadmap M2.4): operational rows go after 30 days and audit or usage
+//! Retention of records: operational rows go after 30 days and audit or usage
 //! after 90, a dry run only counts, and unresolved charges or publication outcomes stay.
 
 use sqlx::AnyPool;

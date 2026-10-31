@@ -1,11 +1,11 @@
-//! SCM connections of the server config (spec §19.5, §22.3): the API address, credentials and
+//! SCM connections of the server config: the API address, credentials and
 //! repositories of each connection are trusted config; a webhook URL never chooses them.
 
 use serde::{Deserialize, Serialize};
 
 use super::{EnvName, Problems, endpoint};
 
-/// Default webhook body limit (spec §19.2).
+/// Default webhook body limit.
 pub const WEBHOOK_BODY_LIMIT: u32 = 2 * 1024 * 1024;
 /// Repositories that are production by definition, whatever a connection says.
 pub const PRODUCTION_REPOSITORIES: &[&str] = &["bondiano/sych"];
@@ -47,7 +47,7 @@ pub struct GithubConnection {
     pub repositories: Vec<String>,
     /// Login of the App's bot user; its own comments never schedule work.
     pub bot_login: String,
-    /// Checks write is requested only when check runs are published (spec §18.7).
+    /// Checks write is requested only when check runs are published.
     #[serde(default)]
     pub checks: bool,
     /// Advisory summary and inline comments are published; off until the owner turns it on.
@@ -62,7 +62,7 @@ pub struct GithubConnection {
     #[serde(default)]
     pub self_review: bool,
     pub reviewer_commit: Option<String>,
-    /// Trusted mapping of repository `expected_reports` ids to exact CI producers (§15.2).
+    /// Trusted mapping of repository `expected_reports` ids to exact CI producers.
     #[serde(default)]
     pub ci_reports: Vec<CiReportSelector>,
     /// Hosts an artifact download may be redirected to; it never carries a credential.
@@ -204,7 +204,7 @@ impl Scm {
                         .iter()
                         .any(|p| p.eq_ignore_ascii_case(r))
                 });
-            // The owner enabled production self-review before R1 (M2.9): only from a pinned build.
+            // Production self-review runs only from a pinned build.
             p.check(
                 !production || c.self_review,
                 format!("{path}.self_review"),
@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn production_and_self_review_need_a_pinned_build() {
-        assert!(errors("      repositories: [bondiano/sych-sandbox]\n").is_empty());
+        assert!(errors("      repositories: [your-org/your-repo]\n").is_empty());
         let prod = errors("      repositories: [bondiano/sych]\n");
         assert!(
             prod.iter().any(|e| e.contains("pinned trusted build")),

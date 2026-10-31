@@ -1,4 +1,4 @@
-//! Syntax facts (spec §5.4, §10.6): observations from parsing changed files, never findings.
+//! Syntax facts: observations from parsing changed files, never findings.
 //!
 //! Patterns are matched on the syntax tree without expanding macros or resolving types, so
 //! a fact says "this shape is here", and its absence proves nothing.

@@ -1,4 +1,4 @@
-//! Diff manifest, resolved source spans and the snapshot reader port (spec §4.4, §5.3, §6).
+//! Diff manifest, resolved source spans and the snapshot reader port.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -115,7 +115,7 @@ pub struct SnapshotTrees {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DiffManifest {
     pub schema_version: SchemaVersion,
-    /// How the diff was produced; part of snapshot identity (spec §6.1).
+    /// How the diff was produced; part of snapshot identity.
     pub method: String,
     pub diff_base: GitObjectId,
     pub head: GitObjectId,

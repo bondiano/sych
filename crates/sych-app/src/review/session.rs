@@ -90,7 +90,7 @@ impl Session<'_> {
     }
 
     /// With the fake adapter and no fake responses there are no assessments, so every
-    /// applicable obligation stays `UNKNOWN/NOT_ASSESSED` instead of being invented (spec §24.5).
+    /// applicable obligation stays `UNKNOWN/NOT_ASSESSED` instead of being invented.
     async fn analyze_and_store(&self, storage: &Storage, run: &RunHandle) -> anyhow::Result<Saved> {
         time::sleep(self.script.delay).await;
         let packets = self.packets(run);

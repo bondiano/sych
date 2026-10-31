@@ -1,4 +1,4 @@
-//! Semantic facts from a language server for one side of a snapshot (spec §5.4, §9.4).
+//! Semantic facts from a language server for one side of a snapshot.
 //!
 //! An answered query is never a proof of global absence: callers via macros, dynamic
 //! dispatch or unloaded dependencies may be missing, so answered edges stay `PARTIAL`.

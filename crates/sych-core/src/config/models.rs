@@ -1,5 +1,5 @@
-//! Model providers, profiles, roles and fallback chains of the server config (spec §16.6–16.7,
-//! §23.2). Secrets are referenced by environment variable name only.
+//! Model providers, profiles, roles and fallback chains of the server config. Secrets are
+//! referenced by environment variable name only.
 
 use std::collections::BTreeMap;
 

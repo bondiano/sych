@@ -17,7 +17,7 @@
       "$ref": "#/$defs/GitObjectId"
     },
     "method": {
-      "description": "How the diff was produced; part of snapshot identity (spec §6.1).",
+      "description": "How the diff was produced; part of snapshot identity.",
       "type": "string"
     },
     "omissions": {

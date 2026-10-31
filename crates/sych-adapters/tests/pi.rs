@@ -1,4 +1,4 @@
-//! Pi CLI adapter fixtures (roadmap M1.11). The event streams under `fixtures/pi` come from the
+//! Pi CLI adapter fixtures. The event streams under `fixtures/pi` come from the
 //! real Pi 1.4.0 run against a loopback Z.ai stub; the process boundary is checked with a
 //! stand-in executable that records what it was given.
 

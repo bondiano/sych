@@ -1,4 +1,4 @@
-//! GitHub Actions reads for CI evidence (spec §15.2): runs of one exact head commit, the jobs
+//! GitHub Actions reads for CI evidence: runs of one exact head commit, the jobs
 //! of one run attempt, the artifacts of one run and an artifact download. The download URL
 //! GitHub redirects to gets no credential and must be https on an allowed host.
 

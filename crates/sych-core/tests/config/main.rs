@@ -1,4 +1,4 @@
-//! Configuration and trusted policy contracts (roadmap M0.3); no external requests.
+//! Configuration and trusted policy contracts; no external requests.
 
 use std::fs;
 use std::path::Path;

@@ -1,4 +1,4 @@
-//! Successor reuse on the real engine (spec §8.5, §9.6): a new run over the same inputs
+//! Successor reuse on the real engine: a new run over the same inputs
 //! takes every answer from its parent's checkpoints without a model call, and a changed
 //! input runs its tasks again.
 
