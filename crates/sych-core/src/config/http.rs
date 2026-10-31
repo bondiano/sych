@@ -3,6 +3,7 @@
 //! corporate mode always needs auth.
 
 use std::net::{IpAddr, SocketAddr};
+use std::path::PathBuf;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -20,6 +21,10 @@ pub struct Http {
     pub metrics_allow: Vec<IpAddr>,
     /// Callers of `/v1`; a request without a known token is refused.
     pub api_clients: Vec<ApiClient>,
+    /// The web UI's build (`web/dist`), served at `/ui`; none when unset. Left out of the
+    /// effective config when unset, so the config hash of a server without a UI stays as it was.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_dir: Option<PathBuf>,
 }
 
 impl Default for Http {
@@ -33,6 +38,7 @@ impl Default for Http {
                 IpAddr::from([0, 0, 0, 0, 0, 0, 0, 1]),
             ],
             api_clients: Vec::new(),
+            ui_dir: None,
         }
     }
 }

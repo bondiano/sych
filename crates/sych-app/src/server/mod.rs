@@ -18,6 +18,7 @@ mod questions;
 pub mod requests;
 pub mod smoke;
 mod tours;
+pub mod ui;
 pub mod views;
 mod worker;
 
@@ -64,6 +65,8 @@ pub struct App {
     pub public_base_url: Option<String>,
     /// OAuth client secrets of the connections people sign in through.
     pub oauth: BTreeMap<String, Secret>,
+    /// The web UI's build, served at `/ui`.
+    pub ui_dir: Option<PathBuf>,
 }
 
 impl App {
@@ -101,6 +104,12 @@ impl App {
                 })?;
             oauth.insert(conn.id.clone(), Secret::new(secret));
         }
+        if let Some(dir) = &config.http.ui_dir
+            && !dir.join("index.html").is_file()
+        {
+            anyhow::bail!("http.ui_dir {} has no index.html", dir.display());
+        }
+
         let mut clients = Vec::new();
         for client in &config.http.api_clients {
             let name = client.token_env.as_str();
@@ -126,6 +135,7 @@ impl App {
             now,
             public_base_url: config.http.public_base_url.clone(),
             oauth,
+            ui_dir: config.http.ui_dir.clone(),
         })
     }
 
@@ -194,10 +204,12 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/runs/{id}/tours/{tour}/dismiss", post(tours::dismiss))
         .route("/v1/runs/{id}/tours/{tour}/questions", post(questions::ask))
         .layer(DefaultBodyLimit::max(API_BODY_LIMIT));
+    let ui = app.ui_dir.as_deref().map(ui::routes).unwrap_or_default();
     Router::new()
         .route("/hooks/github/{connection}", post(hooks::github))
         .layer(DefaultBodyLimit::max(limit))
         .merge(v1)
+        .merge(ui)
         .route("/health/live", get(live))
         .route("/health/ready", get(ready))
         .route("/metrics", get(metrics::metrics))

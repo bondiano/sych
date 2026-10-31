@@ -10,7 +10,8 @@ storage:
 
 http:
   bind: "127.0.0.1:8080"              # a non-loopback bind needs api_clients and behind_tls_proxy
-  public_base_url: null               # e.g. https://sych.example: result links in summaries and the web UI sign-in
+  public_base_url: null               # e.g. https://sych.example (result links in summaries, web UI sign-in)
+  ui_dir: null                        # the web UI's build, served at /ui; /usr/share/sych/ui in the image
   behind_tls_proxy: false
   metrics_allow: ["127.0.0.1", "::1"]
   api_clients:

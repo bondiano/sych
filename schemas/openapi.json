@@ -26,7 +26,6 @@
           "status_url",
           "reused"
         ],
-        "title": "Accepted",
         "type": "object"
       },
       "ApiRole": {
@@ -158,9 +157,8 @@
       },
       "Attempts": {
         "items": {
-          "$ref": "#/$defs/Attempt"
+          "$ref": "#/components/schemas/Attempt"
         },
-        "title": "Array_of_Attempt",
         "type": "array"
       },
       "AuditEvent": {
@@ -209,7 +207,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/$defs/AuditEvent"
+              "$ref": "#/components/schemas/AuditEvent"
             },
             "type": "array"
           },
@@ -225,7 +223,6 @@
         "required": [
           "items"
         ],
-        "title": "Page",
         "type": "object"
       },
       "BillingKind": {
@@ -251,19 +248,18 @@
         "required": [
           "run_id"
         ],
-        "title": "CancelOutcome",
         "type": "object"
       },
       "Candidate": {
         "properties": {
           "anchors": {
             "items": {
-              "$ref": "#/$defs/CodeRef"
+              "$ref": "#/components/schemas/CodeRef"
             },
             "type": "array"
           },
           "category": {
-            "$ref": "#/$defs/FindingCategory"
+            "$ref": "#/components/schemas/FindingCategory"
           },
           "causal_chain": {
             "items": {
@@ -315,17 +311,17 @@
             "type": "array"
           },
           "origin": {
-            "$ref": "#/$defs/CandidateOrigin"
+            "$ref": "#/components/schemas/CandidateOrigin"
           },
           "proposed_severity": {
-            "$ref": "#/$defs/Severity",
+            "$ref": "#/components/schemas/Severity",
             "description": "The proposer's guess; the verifier sets the finding's severity."
           },
           "refutation": {
             "type": "string"
           },
           "verification_status": {
-            "$ref": "#/$defs/VerificationStatus"
+            "$ref": "#/components/schemas/VerificationStatus"
           }
         },
         "required": [
@@ -354,24 +350,24 @@
         "description": "`GET /v1/changes/:id`; its findings are `GET /v1/findings?change_id=`.",
         "properties": {
           "change": {
-            "$ref": "#/$defs/ChangeSummary"
+            "$ref": "#/components/schemas/ChangeSummary"
           },
           "events": {
             "items": {
-              "$ref": "#/$defs/ChangeEvent"
+              "$ref": "#/components/schemas/ChangeEvent"
             },
             "type": "array"
           },
           "publications": {
             "items": {
-              "$ref": "#/$defs/PublicationEntry"
+              "$ref": "#/components/schemas/PublicationEntry"
             },
             "type": "array"
           },
           "runs": {
             "description": "Every generation, oldest first.",
             "items": {
-              "$ref": "#/$defs/RunStatus"
+              "$ref": "#/components/schemas/RunStatus"
             },
             "type": "array"
           }
@@ -382,7 +378,6 @@
           "events",
           "publications"
         ],
-        "title": "ChangeDetail",
         "type": "object"
       },
       "ChangeEvent": {
@@ -417,7 +412,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/$defs/ChangeSummary"
+              "$ref": "#/components/schemas/ChangeSummary"
             },
             "type": "array"
           },
@@ -433,7 +428,6 @@
         "required": [
           "items"
         ],
-        "title": "Page",
         "type": "object"
       },
       "ChangeRef": {
@@ -473,7 +467,7 @@
           "latest_run": {
             "anyOf": [
               {
-                "$ref": "#/$defs/LatestRun"
+                "$ref": "#/components/schemas/LatestRun"
               },
               {
                 "type": "null"
@@ -492,7 +486,7 @@
             "type": "integer"
           },
           "repository": {
-            "$ref": "#/$defs/Repository"
+            "$ref": "#/components/schemas/Repository"
           },
           "scm_state": {
             "description": "`OPEN`, `DRAFT`, `MERGED` or `CLOSED`.",
@@ -540,10 +534,10 @@
         "description": "Exact span inside a pinned blob; resolved by the harness, never by a model.",
         "properties": {
           "blob_oid": {
-            "$ref": "#/$defs/GitObjectId"
+            "$ref": "#/components/schemas/GitObjectId"
           },
           "content_sha256": {
-            "$ref": "#/$defs/Sha256Digest"
+            "$ref": "#/components/schemas/Sha256Digest"
           },
           "end_line": {
             "description": "1-based, inclusive.",
@@ -552,13 +546,13 @@
             "type": "integer"
           },
           "path": {
-            "$ref": "#/$defs/RepoPath"
+            "$ref": "#/components/schemas/RepoPath"
           },
           "side": {
-            "$ref": "#/$defs/SourceSide"
+            "$ref": "#/components/schemas/SourceSide"
           },
           "snapshot_id": {
-            "$ref": "#/$defs/SourceSnapshotId"
+            "$ref": "#/components/schemas/SourceSnapshotId"
           },
           "start_line": {
             "description": "1-based, inclusive.",
@@ -582,11 +576,11 @@
         "description": "Cost with explicit unknown part; an unknown charge is never recorded as zero.",
         "properties": {
           "known": {
-            "$ref": "#/$defs/MicroUsd",
+            "$ref": "#/components/schemas/MicroUsd",
             "description": "Money the providers reported, or the price card computed, for settled API attempts."
           },
           "reference_estimate": {
-            "$ref": "#/$defs/MicroUsd",
+            "$ref": "#/components/schemas/MicroUsd",
             "description": "List-price estimate of the attempts with complete usage; not a charge."
           },
           "unknown_cost_attempts": {
@@ -662,13 +656,12 @@
         "description": "Every refused request: no tokens, prompts, source or stack traces.",
         "properties": {
           "error": {
-            "$ref": "#/$defs/ErrorBody"
+            "$ref": "#/components/schemas/ErrorBody"
           }
         },
         "required": [
           "error"
         ],
-        "title": "ErrorEnvelope",
         "type": "object"
       },
       "EvaluationMode": {
@@ -722,22 +715,22 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/$defs/QuestionKind"
+            "$ref": "#/components/schemas/QuestionKind"
           },
           "question": {
             "type": "string"
           },
           "reply": {
-            "$ref": "#/$defs/Reply"
+            "$ref": "#/components/schemas/Reply"
           },
           "schema_version": {
-            "$ref": "#/$defs/SchemaVersion"
+            "$ref": "#/components/schemas/SchemaVersion"
           },
           "step_id": {
             "type": "string"
           },
           "tour_id": {
-            "$ref": "#/$defs/TourId"
+            "$ref": "#/components/schemas/TourId"
           }
         },
         "required": [
@@ -751,7 +744,6 @@
           "at",
           "reply"
         ],
-        "title": "Exchange",
         "type": "object"
       },
       "ExecutionOutcome": {
@@ -783,10 +775,10 @@
         "description": "A subscription fee for one calendar month (UTC); charged to the monthly pool once, not per\nrequest or run.",
         "properties": {
           "allocated": {
-            "$ref": "#/$defs/MicroUsd"
+            "$ref": "#/components/schemas/MicroUsd"
           },
           "amount": {
-            "$ref": "#/$defs/MicroUsd"
+            "$ref": "#/components/schemas/MicroUsd"
           },
           "period": {
             "description": "`YYYY-MM`.",
@@ -848,19 +840,18 @@
           "scope",
           "rationale"
         ],
-        "title": "FeedbackRequest",
         "type": "object"
       },
       "Finding": {
         "properties": {
           "anchors": {
             "items": {
-              "$ref": "#/$defs/CodeRef"
+              "$ref": "#/components/schemas/CodeRef"
             },
             "type": "array"
           },
           "category": {
-            "$ref": "#/$defs/FindingCategory"
+            "$ref": "#/components/schemas/FindingCategory"
           },
           "consequence": {
             "type": "string"
@@ -876,14 +867,14 @@
             "type": "string"
           },
           "fingerprint": {
-            "$ref": "#/$defs/Sha256Digest"
+            "$ref": "#/components/schemas/Sha256Digest"
           },
           "id": {
             "format": "uuid",
             "type": "string"
           },
           "lifecycle": {
-            "$ref": "#/$defs/Lifecycle"
+            "$ref": "#/components/schemas/Lifecycle"
           },
           "limitations": {
             "default": [],
@@ -917,7 +908,7 @@
             "type": "string"
           },
           "severity": {
-            "$ref": "#/$defs/Severity"
+            "$ref": "#/components/schemas/Severity"
           },
           "suggested_action": {
             "type": "string"
@@ -925,7 +916,7 @@
           "suggested_change": {
             "anyOf": [
               {
-                "$ref": "#/$defs/SuggestedChange"
+                "$ref": "#/components/schemas/SuggestedChange"
               },
               {
                 "type": "null"
@@ -933,7 +924,7 @@
             ]
           },
           "support": {
-            "$ref": "#/$defs/Support"
+            "$ref": "#/components/schemas/Support"
           },
           "title": {
             "type": "string"
@@ -981,14 +972,14 @@
         "properties": {
           "feedback": {
             "items": {
-              "$ref": "#/$defs/FeedbackEntry"
+              "$ref": "#/components/schemas/FeedbackEntry"
             },
             "type": "array"
           },
           "finding": {
             "anyOf": [
               {
-                "$ref": "#/$defs/Finding"
+                "$ref": "#/components/schemas/Finding"
               },
               {
                 "type": "null"
@@ -998,12 +989,12 @@
           },
           "history": {
             "items": {
-              "$ref": "#/$defs/FindingEvent"
+              "$ref": "#/components/schemas/FindingEvent"
             },
             "type": "array"
           },
           "summary": {
-            "$ref": "#/$defs/FindingSummary"
+            "$ref": "#/components/schemas/FindingSummary"
           }
         },
         "required": [
@@ -1011,7 +1002,6 @@
           "history",
           "feedback"
         ],
-        "title": "FindingDetail",
         "type": "object"
       },
       "FindingEvent": {
@@ -1058,7 +1048,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/$defs/FindingSummary"
+              "$ref": "#/components/schemas/FindingSummary"
             },
             "type": "array"
           },
@@ -1074,7 +1064,6 @@
         "required": [
           "items"
         ],
-        "title": "Page",
         "type": "object"
       },
       "FindingSummary": {
@@ -1116,7 +1105,7 @@
             ]
           },
           "repository": {
-            "$ref": "#/$defs/Repository"
+            "$ref": "#/components/schemas/Repository"
           },
           "rule_id": {
             "type": [
@@ -1167,10 +1156,10 @@
         "description": "A readable repository and the caller's role on it.",
         "properties": {
           "repository": {
-            "$ref": "#/$defs/Repository"
+            "$ref": "#/components/schemas/Repository"
           },
           "role": {
-            "$ref": "#/$defs/ApiRole"
+            "$ref": "#/components/schemas/ApiRole"
           }
         },
         "required": [
@@ -1182,7 +1171,7 @@
       "Handoff": {
         "properties": {
           "coverage": {
-            "$ref": "#/$defs/Coverage"
+            "$ref": "#/components/schemas/Coverage"
           },
           "finding_ids": {
             "items": {
@@ -1193,7 +1182,7 @@
           },
           "findings": {
             "items": {
-              "$ref": "#/$defs/HandoffFinding"
+              "$ref": "#/components/schemas/HandoffFinding"
             },
             "type": "array"
           },
@@ -1208,7 +1197,7 @@
             "type": "array"
           },
           "policy_snapshot_id": {
-            "$ref": "#/$defs/PolicySnapshotId"
+            "$ref": "#/components/schemas/PolicySnapshotId"
           },
           "procedure": {
             "items": {
@@ -1230,10 +1219,10 @@
             "type": "string"
           },
           "schema_version": {
-            "$ref": "#/$defs/SchemaVersion"
+            "$ref": "#/components/schemas/SchemaVersion"
           },
           "source_snapshot_id": {
-            "$ref": "#/$defs/SourceSnapshotId"
+            "$ref": "#/components/schemas/SourceSnapshotId"
           }
         },
         "required": [
@@ -1250,19 +1239,18 @@
           "gaps",
           "procedure"
         ],
-        "title": "Handoff",
         "type": "object"
       },
       "HandoffFinding": {
         "properties": {
           "anchors": {
             "items": {
-              "$ref": "#/$defs/CodeRef"
+              "$ref": "#/components/schemas/CodeRef"
             },
             "type": "array"
           },
           "category": {
-            "$ref": "#/$defs/FindingCategory"
+            "$ref": "#/components/schemas/FindingCategory"
           },
           "consequence": {
             "type": "string"
@@ -1293,18 +1281,18 @@
           },
           "requirements": {
             "items": {
-              "$ref": "#/$defs/Requirement"
+              "$ref": "#/components/schemas/Requirement"
             },
             "type": "array"
           },
           "severity": {
-            "$ref": "#/$defs/Severity"
+            "$ref": "#/components/schemas/Severity"
           },
           "suggested_action": {
             "type": "string"
           },
           "support": {
-            "$ref": "#/$defs/Support"
+            "$ref": "#/components/schemas/Support"
           },
           "title": {
             "type": "string"
@@ -1348,7 +1336,7 @@
           "source_snapshot_id": {
             "anyOf": [
               {
-                "$ref": "#/$defs/SourceSnapshotId"
+                "$ref": "#/components/schemas/SourceSnapshotId"
               },
               {
                 "type": "null"
@@ -1361,7 +1349,6 @@
         "required": [
           "finding_ids"
         ],
-        "title": "HandoffRequest",
         "type": "object"
       },
       "LatestRun": {
@@ -1448,7 +1435,7 @@
           "repositories": {
             "description": "A person's roles as GitHub granted them at sign-in; every change is checked again live.",
             "items": {
-              "$ref": "#/$defs/Grant"
+              "$ref": "#/components/schemas/Grant"
             },
             "type": "array"
           },
@@ -1462,7 +1449,6 @@
           "tenant_id",
           "repositories"
         ],
-        "title": "Me",
         "type": "object"
       },
       "MicroUsd": {
@@ -1539,7 +1525,7 @@
         "properties": {
           "acceptable_evidence_kinds": {
             "items": {
-              "$ref": "#/$defs/EvidenceKind"
+              "$ref": "#/components/schemas/EvidenceKind"
             },
             "type": "array"
           },
@@ -1547,18 +1533,18 @@
             "type": "string"
           },
           "applicability": {
-            "$ref": "#/$defs/Applicability"
+            "$ref": "#/components/schemas/Applicability"
           },
           "code_refs": {
             "items": {
-              "$ref": "#/$defs/CodeRef"
+              "$ref": "#/components/schemas/CodeRef"
             },
             "type": "array"
           },
           "evaluation_mode": {
             "anyOf": [
               {
-                "$ref": "#/$defs/EvaluationMode"
+                "$ref": "#/components/schemas/EvaluationMode"
               },
               {
                 "type": "null"
@@ -1598,7 +1584,7 @@
             "type": "array"
           },
           "risk_level": {
-            "$ref": "#/$defs/RiskLevel"
+            "$ref": "#/components/schemas/RiskLevel"
           },
           "rule_id": {
             "type": "string"
@@ -1611,7 +1597,7 @@
           "waivers": {
             "description": "Scoped exceptions in force; they lower the risk decision and never rewrite `status`.",
             "items": {
-              "$ref": "#/$defs/Waiver"
+              "$ref": "#/components/schemas/Waiver"
             },
             "type": "array"
           }
@@ -1635,7 +1621,7 @@
         "description": "What every tour of the result must show, whatever its route.",
         "properties": {
           "coverage": {
-            "$ref": "#/$defs/Coverage"
+            "$ref": "#/components/schemas/Coverage"
           },
           "critical_findings": {
             "description": "Every HIGH and CRITICAL finding.",
@@ -1665,7 +1651,7 @@
         "description": "A path left out of reading or review, with the reason.",
         "properties": {
           "path": {
-            "$ref": "#/$defs/RepoPath"
+            "$ref": "#/components/schemas/RepoPath"
           },
           "reason": {
             "type": "string"
@@ -1678,7 +1664,7 @@
         "type": "object"
       },
       "PolicySnapshotId": {
-        "$ref": "#/$defs/Sha256Digest",
+        "$ref": "#/components/schemas/Sha256Digest",
         "description": "Content-derived identity of a [`crate::PolicySnapshot`]."
       },
       "Provenance": {
@@ -1792,13 +1778,12 @@
           "delivery",
           "relevance"
         ],
-        "title": "PublicationStatus",
         "type": "object"
       },
       "Question": {
         "properties": {
           "kind": {
-            "$ref": "#/$defs/QuestionKind"
+            "$ref": "#/components/schemas/QuestionKind"
           },
           "reveal": {
             "type": "string"
@@ -1827,7 +1812,7 @@
         "description": "`POST /v1/runs/:id/tours/:tour/questions`: a bounded follow-up on one step.",
         "properties": {
           "kind": {
-            "$ref": "#/$defs/QuestionKind"
+            "$ref": "#/components/schemas/QuestionKind"
           },
           "question": {
             "description": "The question; for `FACT_REQUEST`, the caller's own statement of the missing fact.",
@@ -1839,7 +1824,7 @@
           "waiver": {
             "anyOf": [
               {
-                "$ref": "#/$defs/WaiverTerms"
+                "$ref": "#/components/schemas/WaiverTerms"
               },
               {
                 "type": "null"
@@ -1854,7 +1839,6 @@
           "kind",
           "question"
         ],
-        "title": "QuestionRequest",
         "type": "object"
       },
       "Recommendation": {
@@ -1878,7 +1862,7 @@
               },
               "code_refs": {
                 "items": {
-                  "$ref": "#/$defs/CodeRef"
+                  "$ref": "#/components/schemas/CodeRef"
                 },
                 "type": "array"
               },
@@ -1890,7 +1874,7 @@
               "hypotheses": {
                 "description": "After the regular verifier; none of them is a finding of the review or published.",
                 "items": {
-                  "$ref": "#/$defs/Candidate"
+                  "$ref": "#/components/schemas/Candidate"
                 },
                 "type": "array"
               },
@@ -1966,9 +1950,8 @@
       },
       "Repositories": {
         "items": {
-          "$ref": "#/$defs/Repository"
+          "$ref": "#/components/schemas/Repository"
         },
-        "title": "Array_of_Repository",
         "type": "array"
       },
       "Repository": {
@@ -2098,7 +2081,6 @@
             "type": "boolean"
           }
         },
-        "title": "RerunRequest",
         "type": "object"
       },
       "RevealRequest": {
@@ -2112,7 +2094,6 @@
         "required": [
           "step_id"
         ],
-        "title": "RevealRequest",
         "type": "object"
       },
       "ReviewLanguage": {
@@ -2128,12 +2109,12 @@
         "description": "`POST /v1/reviews`.",
         "properties": {
           "change": {
-            "$ref": "#/$defs/ChangeRef"
+            "$ref": "#/components/schemas/ChangeRef"
           },
           "checks": {
             "description": "Execution profiles to run with their parameters instead of every allowed one; the\nserver's profiles still decide whether and how each runs. Independent of `profile`,\nwhich only sets the review depth.",
             "items": {
-              "$ref": "#/$defs/CheckRequest"
+              "$ref": "#/components/schemas/CheckRequest"
             },
             "type": "array"
           },
@@ -2157,13 +2138,12 @@
           "schema_version",
           "change"
         ],
-        "title": "ReviewRequest",
         "type": "object"
       },
       "ReviewResult": {
         "properties": {
           "coverage": {
-            "$ref": "#/$defs/Coverage"
+            "$ref": "#/components/schemas/Coverage"
           },
           "created_at": {
             "format": "date-time",
@@ -2175,27 +2155,27 @@
           },
           "excluded_or_unreviewed": {
             "items": {
-              "$ref": "#/$defs/PathGap"
+              "$ref": "#/components/schemas/PathGap"
             },
             "type": "array"
           },
           "execution_outcome": {
-            "$ref": "#/$defs/ExecutionOutcome"
+            "$ref": "#/components/schemas/ExecutionOutcome"
           },
           "findings": {
             "items": {
-              "$ref": "#/$defs/Finding"
+              "$ref": "#/components/schemas/Finding"
             },
             "type": "array"
           },
           "language": {
-            "$ref": "#/$defs/ReviewLanguage",
+            "$ref": "#/components/schemas/ReviewLanguage",
             "default": "en",
             "description": "The language of the result's prose and of its publication."
           },
           "obligations": {
             "items": {
-              "$ref": "#/$defs/Obligation"
+              "$ref": "#/components/schemas/Obligation"
             },
             "type": "array"
           },
@@ -2207,19 +2187,19 @@
             ]
           },
           "policy_snapshot_id": {
-            "$ref": "#/$defs/PolicySnapshotId"
+            "$ref": "#/components/schemas/PolicySnapshotId"
           },
           "provenance": {
-            "$ref": "#/$defs/Provenance"
+            "$ref": "#/components/schemas/Provenance"
           },
           "recommendation": {
-            "$ref": "#/$defs/Recommendation"
+            "$ref": "#/components/schemas/Recommendation"
           },
           "rejected_candidates": {
             "default": [],
             "description": "Internal by default.",
             "items": {
-              "$ref": "#/$defs/Candidate"
+              "$ref": "#/components/schemas/Candidate"
             },
             "type": "array"
           },
@@ -2237,13 +2217,13 @@
             "type": "string"
           },
           "schema_version": {
-            "$ref": "#/$defs/SchemaVersion"
+            "$ref": "#/components/schemas/SchemaVersion"
           },
           "scope_manifest": {
-            "$ref": "#/$defs/ScopeManifest"
+            "$ref": "#/components/schemas/ScopeManifest"
           },
           "source_snapshot_id": {
-            "$ref": "#/$defs/SourceSnapshotId"
+            "$ref": "#/components/schemas/SourceSnapshotId"
           },
           "unresolved_questions": {
             "items": {
@@ -2252,7 +2232,7 @@
             "type": "array"
           },
           "usage_summary": {
-            "$ref": "#/$defs/UsageSummary"
+            "$ref": "#/components/schemas/UsageSummary"
           }
         },
         "required": [
@@ -2275,7 +2255,6 @@
           "created_at",
           "provenance"
         ],
-        "title": "ReviewResult",
         "type": "object"
       },
       "ReviewUnit": {
@@ -2288,14 +2267,14 @@
           "paths": {
             "description": "Where each file is reported: its new path, or old path when deleted. A renamed file's\nold path is still part of its identity in the diff manifest.",
             "items": {
-              "$ref": "#/$defs/RepoPath"
+              "$ref": "#/components/schemas/RepoPath"
             },
             "type": "array"
           },
           "risk_hints": {
             "description": "Routing hints from the planner; not evidence of a defect.",
             "items": {
-              "$ref": "#/$defs/RiskHint"
+              "$ref": "#/components/schemas/RiskHint"
             },
             "type": "array"
           },
@@ -2317,10 +2296,10 @@
             "type": "string"
           },
           "level": {
-            "$ref": "#/$defs/RiskLevel"
+            "$ref": "#/components/schemas/RiskLevel"
           },
           "path": {
-            "$ref": "#/$defs/RepoPath"
+            "$ref": "#/components/schemas/RepoPath"
           }
         },
         "required": [
@@ -2348,15 +2327,15 @@
             "type": "integer"
           },
           "billing": {
-            "$ref": "#/$defs/BillingKind"
+            "$ref": "#/components/schemas/BillingKind"
           },
           "enforcement": {
-            "$ref": "#/$defs/Enforcement"
+            "$ref": "#/components/schemas/Enforcement"
           },
           "fixed_fee": {
             "anyOf": [
               {
-                "$ref": "#/$defs/FeeShare"
+                "$ref": "#/components/schemas/FeeShare"
               },
               {
                 "type": "null"
@@ -2448,7 +2427,7 @@
             ]
           },
           "usage": {
-            "$ref": "#/$defs/RunUsage"
+            "$ref": "#/components/schemas/RunUsage"
           }
         },
         "required": [
@@ -2494,7 +2473,7 @@
         "properties": {
           "excluded": {
             "items": {
-              "$ref": "#/$defs/PathGap"
+              "$ref": "#/components/schemas/PathGap"
             },
             "type": "array"
           },
@@ -2518,7 +2497,7 @@
           },
           "units": {
             "items": {
-              "$ref": "#/$defs/ReviewUnit"
+              "$ref": "#/components/schemas/ReviewUnit"
             },
             "type": "array"
           }
@@ -2572,9 +2551,8 @@
       },
       "SignIns": {
         "items": {
-          "$ref": "#/$defs/SignIn"
+          "$ref": "#/components/schemas/SignIn"
         },
-        "title": "Array_of_SignIn",
         "type": "array"
       },
       "SourceSide": {
@@ -2586,7 +2564,7 @@
         "type": "string"
       },
       "SourceSnapshotId": {
-        "$ref": "#/$defs/Sha256Digest",
+        "$ref": "#/components/schemas/Sha256Digest",
         "description": "Content-derived identity of a [`crate::SourceSnapshot`]."
       },
       "SubscriptionFee": {
@@ -2615,7 +2593,7 @@
         "description": "The full new text of exactly the HEAD lines of `code`, which a comment can offer as a\none-click change.",
         "properties": {
           "code": {
-            "$ref": "#/$defs/CodeRef"
+            "$ref": "#/components/schemas/CodeRef"
           },
           "replacement": {
             "type": "string"
@@ -2637,7 +2615,7 @@
           "finding_events": {
             "description": "Lifecycle transitions in the period by the state entered: found, resolved, dismissed.",
             "items": {
-              "$ref": "#/$defs/Count"
+              "$ref": "#/components/schemas/Count"
             },
             "type": "array"
           },
@@ -2657,13 +2635,13 @@
           },
           "runs_by_coverage": {
             "items": {
-              "$ref": "#/$defs/Count"
+              "$ref": "#/components/schemas/Count"
             },
             "type": "array"
           },
           "runs_by_state": {
             "items": {
-              "$ref": "#/$defs/Count"
+              "$ref": "#/components/schemas/Count"
             },
             "type": "array"
           },
@@ -2698,7 +2676,6 @@
           "oldest_queued_age_seconds",
           "uncertain_publications"
         ],
-        "title": "Summary",
         "type": "object"
       },
       "Support": {
@@ -2720,7 +2697,7 @@
             "type": "string"
           },
           "language": {
-            "$ref": "#/$defs/ReviewLanguage"
+            "$ref": "#/components/schemas/ReviewLanguage"
           },
           "limitations": {
             "default": [],
@@ -2730,13 +2707,13 @@
             "type": "array"
           },
           "overview": {
-            "$ref": "#/$defs/Overview"
+            "$ref": "#/components/schemas/Overview"
           },
           "planner_version": {
             "type": "string"
           },
           "policy_snapshot_id": {
-            "$ref": "#/$defs/PolicySnapshotId"
+            "$ref": "#/components/schemas/PolicySnapshotId"
           },
           "prompt_version": {
             "type": "string"
@@ -2754,19 +2731,19 @@
             "type": "integer"
           },
           "schema_version": {
-            "$ref": "#/$defs/SchemaVersion"
+            "$ref": "#/components/schemas/SchemaVersion"
           },
           "source_snapshot_id": {
-            "$ref": "#/$defs/SourceSnapshotId"
+            "$ref": "#/components/schemas/SourceSnapshotId"
           },
           "steps": {
             "items": {
-              "$ref": "#/$defs/TourStep"
+              "$ref": "#/components/schemas/TourStep"
             },
             "type": "array"
           },
           "tour_id": {
-            "$ref": "#/$defs/TourId"
+            "$ref": "#/components/schemas/TourId"
           }
         },
         "required": [
@@ -2805,10 +2782,10 @@
             "type": "array"
           },
           "state": {
-            "$ref": "#/$defs/SessionState"
+            "$ref": "#/components/schemas/SessionState"
           },
           "tour_id": {
-            "$ref": "#/$defs/TourId"
+            "$ref": "#/components/schemas/TourId"
           }
         },
         "required": [
@@ -2823,14 +2800,14 @@
         "properties": {
           "code_refs": {
             "items": {
-              "$ref": "#/$defs/CodeRef"
+              "$ref": "#/components/schemas/CodeRef"
             },
             "type": "array"
           },
           "example_snippets": {
             "default": [],
             "items": {
-              "$ref": "#/$defs/ExampleSnippet"
+              "$ref": "#/components/schemas/ExampleSnippet"
             },
             "type": "array"
           },
@@ -2861,7 +2838,7 @@
           "question": {
             "anyOf": [
               {
-                "$ref": "#/$defs/Question"
+                "$ref": "#/components/schemas/Question"
               },
               {
                 "type": "null"
@@ -2889,12 +2866,12 @@
           "exchanges": {
             "description": "The caller's own questions on this tour, oldest first; never another caller's.",
             "items": {
-              "$ref": "#/$defs/Exchange"
+              "$ref": "#/components/schemas/Exchange"
             },
             "type": "array"
           },
           "session": {
-            "$ref": "#/$defs/TourSession",
+            "$ref": "#/components/schemas/TourSession",
             "description": "The caller's own progress; never published and never an approval."
           },
           "stale": {
@@ -2902,7 +2879,7 @@
             "type": "boolean"
           },
           "tour": {
-            "$ref": "#/$defs/TourArtifact",
+            "$ref": "#/components/schemas/TourArtifact",
             "description": "Answers not revealed in this session are blanked."
           }
         },
@@ -2912,7 +2889,6 @@
           "stale",
           "exchanges"
         ],
-        "title": "TourView",
         "type": "object"
       },
       "Usage": {
@@ -2920,7 +2896,7 @@
         "properties": {
           "days": {
             "items": {
-              "$ref": "#/$defs/UsageDay"
+              "$ref": "#/components/schemas/UsageDay"
             },
             "type": "array"
           },
@@ -2930,7 +2906,7 @@
           "subscription_fees": {
             "description": "Only for a caller that reads every repository and asked for no single one.",
             "items": {
-              "$ref": "#/$defs/SubscriptionFee"
+              "$ref": "#/components/schemas/SubscriptionFee"
             },
             "type": "array"
           },
@@ -2944,7 +2920,6 @@
           "days",
           "subscription_fees"
         ],
-        "title": "Usage",
         "type": "object"
       },
       "UsageDay": {
@@ -2988,7 +2963,7 @@
       "UsageSummary": {
         "properties": {
           "cost": {
-            "$ref": "#/$defs/CostSummary"
+            "$ref": "#/components/schemas/CostSummary"
           },
           "input_tokens": {
             "format": "uint64",
@@ -3013,7 +2988,7 @@
           },
           "routes": {
             "items": {
-              "$ref": "#/$defs/RouteUsage"
+              "$ref": "#/components/schemas/RouteUsage"
             },
             "type": "array"
           },
@@ -3045,6 +3020,47 @@
         "type": "string"
       },
       "Waiver": {
+        "description": "A rule exception in force for one obligation.",
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owner": {
+            "type": "string"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "until": {
+            "description": "Completion condition when there is no fixed expiry.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "paths",
+          "reason",
+          "owner",
+          "author"
+        ],
+        "type": "object"
+      },
+      "WaiverEntry": {
         "description": "`GET /v1/waivers`.",
         "properties": {
           "author": {
@@ -3078,7 +3094,7 @@
             "type": "string"
           },
           "repository": {
-            "$ref": "#/$defs/Repository"
+            "$ref": "#/components/schemas/Repository"
           },
           "revoked_at": {
             "format": "int64",
@@ -3107,7 +3123,6 @@
           "author",
           "created_at"
         ],
-        "title": "Waiver",
         "type": "object"
       },
       "WaiverRequest": {
@@ -3154,7 +3169,6 @@
           "reason",
           "owner"
         ],
-        "title": "WaiverRequest",
         "type": "object"
       },
       "WaiverTerms": {
@@ -3200,9 +3214,8 @@
       },
       "Waivers": {
         "items": {
-          "$ref": "#/$defs/Waiver"
+          "$ref": "#/components/schemas/WaiverEntry"
         },
-        "title": "Array_of_Waiver",
         "type": "array"
       }
     },
@@ -5844,7 +5857,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Waiver"
+                  "$ref": "#/components/schemas/WaiverEntry"
                 }
               }
             },

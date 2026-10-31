@@ -5,3 +5,5 @@ target
 .sych-output
 .env
 .env.*
+web/node_modules
+web/dist

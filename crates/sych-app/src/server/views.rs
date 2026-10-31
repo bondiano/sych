@@ -12,7 +12,7 @@ use axum::response::Response;
 use serde::Deserialize;
 use sych_core::api::{
     Attempt, AuditEvent, ChangeDetail, ChangeSummary, FindingDetail, FindingSummary, Grant, Page,
-    Repository, Summary, Usage, Waiver,
+    Repository, Summary, Usage, WaiverEntry,
 };
 use sych_core::config::ApiRole;
 use sych_core::{RunId, Timestamp};
@@ -345,7 +345,7 @@ pub async fn waivers(
     State(app): State<Arc<App>>,
     caller: Caller,
     Query(q): Query<WaiverQuery>,
-) -> Result<Json<Vec<Waiver>>, ApiError> {
+) -> Result<Json<Vec<WaiverEntry>>, ApiError> {
     caller.need(ApiRole::Reader)?;
     if !matches!(
         q.state.as_deref(),

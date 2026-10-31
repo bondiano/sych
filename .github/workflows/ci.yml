@@ -45,6 +45,14 @@ jobs:
       - uses: extractions/setup-just@v2
         with:
           just-version: "1.59.0"
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
       - name: Check
         id: check
         continue-on-error: true

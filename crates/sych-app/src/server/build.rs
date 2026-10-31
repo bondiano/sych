@@ -69,6 +69,7 @@ impl App {
             now: Timestamp::now,
             public_base_url: None,
             oauth: BTreeMap::new(),
+            ui_dir: None,
         }
     }
 }

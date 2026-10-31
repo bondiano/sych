@@ -1,0 +1,4 @@
+dist
+coverage
+pnpm-lock.yaml
+src/modules/Api/schema.gen.d.ts

@@ -470,6 +470,17 @@ or an insufficient role — exit 4.
 
 ### Web UI, sign-in and audit
 
+The dashboard is a Vue app in [`web/`](../web), structured by [FEOD](https://feod.dev): `app` → `pages` → `modules` →
+`common`, with each module used through its `index.ts` only, which the ESLint plugin enforces. Its API types are
+generated from `schemas/openapi.json`. `sych serve` serves the build from `http.ui_dir` at `/ui` on the same origin as
+`/v1`, with `/` redirecting there. The image ships it in `/usr/share/sych/ui`. Every page falls back to `index.html`.
+A missing hashed asset is a 404. The answers carry a same-origin CSP, `nosniff` and `no-cache` (assets: immutable).
+
+Development needs Node 24 and pnpm; `just check` runs `just web-check` (`pnpm check`: generate the API types, oxlint and
+ESLint, Prettier, `vue-tsc`, Vitest and the build). `just web-fmt` formats. Against a local `sych serve` on
+`127.0.0.1:8080`, `cd web && pnpm dev` proxies `/v1` and `/auth` to it (`SYCH_URL` changes the address); sign in there
+with an API client's token.
+
 People sign in to the web UI through the GitHub App's user authorization. Configure it per connection; it needs
 `http.public_base_url`, the https address people open (http only to loopback):
 

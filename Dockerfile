@@ -1,5 +1,15 @@
 # Reviewer image for `sych serve`. The runtime keeps the pinned Rust toolchain: rust-analyzer
 # reads reviewed Rust workspaces through offline `cargo metadata`.
+# The web UI's static build, served by `sych serve` at /ui (`http.ui_dir`).
+FROM docker.io/library/node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS web
+WORKDIR /src/web
+RUN corepack enable
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY web/ ./
+COPY schemas/openapi.json /src/schemas/openapi.json
+RUN pnpm gen:api && pnpm build
+
 FROM docker.io/library/rust:1.94.1-slim-trixie@sha256:cf09adf8c3ebaba10779e5c23ff7fe4df4cccdab8a91f199b0c142c53fef3e1a AS build
 WORKDIR /src
 # `.git` is not in the context: the build names its commit, which a self-review server checks.
@@ -18,6 +28,7 @@ RUN apt-get update \
     && rustup component add rustfmt clippy \
     && useradd --system --uid 10001 --home-dir /data --shell /usr/sbin/nologin sych
 COPY --from=build /usr/local/bin/sych /usr/local/bin/sych
+COPY --from=web /src/web/dist /usr/share/sych/ui
 LABEL org.opencontainers.image.title="Sych" \
       org.opencontainers.image.description="Deterministic code review: a Rust core with bounded model calls" \
       org.opencontainers.image.source="https://github.com/bondiano/sych" \

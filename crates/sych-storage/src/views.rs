@@ -6,7 +6,7 @@ use sqlx::Row;
 use sqlx::any::AnyRow;
 use sych_core::api::{
     Attempt, ChangeEvent, ChangeSummary, FeedbackEntry, FindingEvent, FindingSummary, LatestRun,
-    Page, PublicationEntry, Repository, Waiver,
+    Page, PublicationEntry, Repository, WaiverEntry,
 };
 
 use crate::api::run_view;
@@ -147,8 +147,8 @@ macro_rules! waiver {
     };
 }
 
-fn waiver(r: &AnyRow) -> Result<Waiver, StorageError> {
-    Ok(Waiver {
+fn waiver(r: &AnyRow) -> Result<WaiverEntry, StorageError> {
+    Ok(WaiverEntry {
         id: r.get(0),
         repository: repository(r, 1),
         rule_id: r.get(4),
@@ -428,7 +428,7 @@ impl Storage {
         repository_id: Option<i64>,
         state: Option<&str>,
         now: i64,
-    ) -> Result<Vec<Waiver>, StorageError> {
+    ) -> Result<Vec<WaiverEntry>, StorageError> {
         let rows = sqlx::query(concat!(
             waiver!(),
             visible!("r.id", "$2"),
@@ -450,7 +450,11 @@ impl Storage {
         rows.iter().map(waiver).collect()
     }
 
-    pub async fn waiver(&self, v: Visibility<'_>, id: i64) -> Result<Option<Waiver>, StorageError> {
+    pub async fn waiver(
+        &self,
+        v: Visibility<'_>,
+        id: i64,
+    ) -> Result<Option<WaiverEntry>, StorageError> {
         let row = sqlx::query(concat!(waiver!(), visible!("r.id", "$2"), " AND w.id = $3"))
             .bind(v.tenant_id)
             .bind(v.set())
@@ -467,7 +471,7 @@ impl Storage {
         id: i64,
         actor: &str,
         at: i64,
-    ) -> Result<Option<Waiver>, StorageError> {
+    ) -> Result<Option<WaiverEntry>, StorageError> {
         let mut tx = self.write().await?;
         let revoked: Option<i64> = sqlx::query_scalar(concat!(
             "UPDATE waivers SET revoked_at = $3
