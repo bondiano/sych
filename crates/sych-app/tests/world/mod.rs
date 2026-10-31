@@ -29,9 +29,12 @@ pub mod database;
 
 use database::TestDir;
 
+use crate::fake_github::oauth::CLIENT_SECRET;
 use crate::fake_github::{Shared, lock, pull_json, start, stored_zip};
 
 pub const T0: i64 = 1_800_000_000;
+/// Where people open the UI in every world: the origin a session's changes must come from.
+pub const PUBLIC_BASE: &str = "https://sych.test";
 
 thread_local! {
     /// Each test runs on its own thread, so each has its own clock.
@@ -193,6 +196,7 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
             "repositories": ["o/r"], "bot_login": "sych[bot]", "api_base_url": url, "publish": true,
             "git_base_url": format!("file://{}", dir.path().join("git").display()),
         "artifact_hosts": ["127.0.0.1"],
+        "oauth": {"client_id": "Iv1.test", "client_secret_env": "OAUTH", "web_base_url": url},
         "ci_reports": [{"report": "tests", "workflow": ".github/workflows/ci.yml", "job": "test",
             "artifact": "reports", "path": "junit.xml", "checkout_manifest": "sych-ci.json"}]
         }))
@@ -211,6 +215,8 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
         engine: OnceLock::new(),
         artifacts: dir.path().join("artifacts"),
         now,
+        public_base_url: Some(PUBLIC_BASE.into()),
+        oauth: BTreeMap::from([("gh".into(), Secret::new(CLIENT_SECRET.into()))]),
     });
     let conns = BTreeMap::from([(
         "gh".into(),

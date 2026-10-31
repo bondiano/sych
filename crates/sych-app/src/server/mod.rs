@@ -2,7 +2,9 @@
 //! scheduler, worker and publisher join it as they land.
 
 pub mod api;
+mod auth;
 pub mod build;
+mod caller;
 mod ci;
 mod engine;
 mod error;
@@ -16,7 +18,7 @@ mod questions;
 pub mod requests;
 pub mod smoke;
 mod tours;
-mod views;
+pub mod views;
 mod worker;
 
 use std::collections::BTreeMap;
@@ -58,6 +60,10 @@ pub struct App {
     /// The artifact directory readiness checks.
     pub artifacts: PathBuf,
     pub now: fn() -> Timestamp,
+    /// `http.public_base_url`: the origin a browser session's changes must come from.
+    pub public_base_url: Option<String>,
+    /// OAuth client secrets of the connections people sign in through.
+    pub oauth: BTreeMap<String, Secret>,
 }
 
 impl App {
@@ -78,6 +84,22 @@ impl App {
                     anyhow::anyhow!("{name} is not set (webhook secret of `{}`)", conn.id)
                 })?;
             github.insert(conn.id.clone(), (conn.clone(), Secret::new(secret)));
+        }
+        let mut oauth = BTreeMap::new();
+        for (conn, o) in config
+            .scm
+            .github
+            .iter()
+            .filter_map(|c| Some((c, c.oauth.as_ref()?)))
+        {
+            let name = o.client_secret_env.as_str();
+            let secret = env::var(name)
+                .ok()
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| {
+                    anyhow::anyhow!("{name} is not set (OAuth client secret of `{}`)", conn.id)
+                })?;
+            oauth.insert(conn.id.clone(), Secret::new(secret));
         }
         let mut clients = Vec::new();
         for client in &config.http.api_clients {
@@ -102,6 +124,8 @@ impl App {
             engine: OnceLock::new(),
             artifacts,
             now,
+            public_base_url: config.http.public_base_url.clone(),
+            oauth,
         })
     }
 
@@ -155,6 +179,13 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/runs/{id}/attempts", get(views::attempts))
         .route("/v1/summary", get(views::summary))
         .route("/v1/usage", get(views::usage))
+        .route("/v1/audit", get(views::audit))
+        .route("/v1/me", get(auth::me))
+        .route("/auth/github", get(auth::sign_ins))
+        .route("/auth/github/{connection}/login", get(auth::login))
+        .route("/auth/github/{connection}/callback", get(auth::callback))
+        .route("/auth/token", post(auth::token))
+        .route("/auth/logout", post(auth::logout))
         .route("/v1/publications/{id}", get(api::publication))
         .route("/v1/runs/{id}/handoff", post(handoff::handoff))
         .route("/v1/runs/{id}/tour", get(tours::get_tour))

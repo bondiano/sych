@@ -146,6 +146,20 @@ pub const TABLES: &[Table] = &[
             T("correlation_id"),
             T("metadata"),
             I("at"),
+            I("repository_id"),
+        ],
+    },
+    Table {
+        name: "sessions",
+        primary_key: &["token_sha256"],
+        columns: &[
+            T("token_sha256"),
+            T("tenant_id"),
+            T("actor"),
+            T("kind"),
+            T("access"),
+            I("created_at"),
+            I("expires_at"),
         ],
     },
     Table {

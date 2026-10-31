@@ -54,11 +54,11 @@ async fn imports_all_tables_files_predecessors_nulls_states_and_identities() {
     let before_file = fs::read(source.result_path()).expect("saved result bytes");
     let expected = snapshot(&sqlite, false).await;
     sqlite.close().await;
-    assert_eq!(TABLES.len(), 21);
+    assert_eq!(TABLES.len(), 22);
     assert_eq!(IDENTITY_TABLES.len(), 14);
     assert!(
         expected.iter().all(|rows| !rows.is_empty()),
-        "all 21 source tables are populated"
+        "all 22 source tables are populated"
     );
 
     Storage::import_sqlite(source.path(), &pg.config)

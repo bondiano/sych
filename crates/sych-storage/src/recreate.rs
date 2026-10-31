@@ -2,8 +2,8 @@
 //! by an audited operator decision, or by the reconciler once a complete read found nothing.
 
 use sych_core::Timestamp;
-use uuid::Uuid;
 
+use crate::audit::Audit;
 use crate::publish::MAX_PUBLISH_ATTEMPTS;
 use crate::{Storage, StorageError};
 
@@ -75,18 +75,24 @@ impl Storage {
         .execute(&mut *tx)
         .await?;
         if done.rows_affected() == 1 {
-            sqlx::query(
-                "INSERT INTO audit_events (tenant_id, actor, action, target, correlation_id,
-                     metadata, at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            let repository_id: Option<i64> = sqlx::query_scalar(
+                "SELECT c.repository_id FROM publication_operations o
+                 JOIN runs u ON u.id = o.run_id JOIN changes c ON c.id = u.change_id
+                 WHERE o.id = $1",
             )
-            .bind(tenant_id)
-            .bind(r.actor)
-            .bind(r.action)
-            .bind(format!("publication_operation:{op_id}"))
-            .bind(Uuid::now_v7().to_string())
-            .bind(r.metadata.to_string())
-            .bind(at)
-            .execute(&mut *tx)
+            .bind(op_id)
+            .fetch_one(&mut *tx)
+            .await?;
+            Audit {
+                tenant_id,
+                actor: r.actor,
+                action: r.action,
+                target: format!("publication_operation:{op_id}"),
+                repository_id,
+                metadata: r.metadata.clone(),
+                at,
+            }
+            .record(&mut tx)
             .await?;
         }
 

@@ -273,6 +273,16 @@ impl ServerConfig {
         self.validate_models(&mut p);
         self.validate_budgets(&mut p);
         self.scm.validate(&mut p);
+        p.check(
+            self.scm.github.iter().all(|c| c.oauth.is_none())
+                || self
+                    .http
+                    .public_base_url
+                    .as_deref()
+                    .is_some_and(|u| super::endpoint::callable(u).is_some()),
+            "http.public_base_url",
+            "GitHub sign-in needs the https address people open (http only to loopback)",
+        );
         for (field, problem) in self.execution.problems() {
             p.check(false, field, problem);
         }

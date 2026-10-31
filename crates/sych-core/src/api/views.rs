@@ -7,6 +7,7 @@ use serde_json::{Map, Value, json};
 
 use super::{RunStatus, component};
 use crate::Finding;
+use crate::config::ApiRole;
 
 /// One page, newest first; pass `next_before` as `before` for the next one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -23,6 +24,46 @@ pub struct Repository {
     pub connection_id: String,
     /// `owner/name`.
     pub full_name: String,
+}
+
+/// A readable repository and the caller's role on it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Grant {
+    pub repository: Repository,
+    pub role: ApiRole,
+}
+
+/// `GET /v1/me`: who the caller is and what it may do where.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Me {
+    /// `github:<login>` for a person, the client name for an API client.
+    pub actor: String,
+    /// `user` or `client`.
+    pub kind: String,
+    pub tenant_id: String,
+    /// A person's roles as GitHub granted them at sign-in; every change is checked again live.
+    pub repositories: Vec<Grant>,
+}
+
+/// `GET /auth/github`: a connection people sign in through.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SignIn {
+    pub connection_id: String,
+    pub login_url: String,
+}
+
+/// `GET /v1/audit`: one recorded action.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AuditEvent {
+    pub id: i64,
+    pub actor: String,
+    pub action: String,
+    /// `run:<id>`, `finding:<id>`, `waiver:<id>`, `publication_operation:<id>` or `session`.
+    pub target: String,
+    /// `None` for actions of no single repository, such as signing in.
+    pub repository_id: Option<i64>,
+    pub metadata: serde_json::Value,
+    pub at: i64,
 }
 
 /// The newest generation's run of a change.
@@ -269,6 +310,12 @@ pub(super) fn paths(
     let usage = component::<Usage>(c, "Usage");
     let waivers = component::<Vec<Waiver>>(c, "Waivers");
     let waiver = component::<Waiver>(c, "Waiver");
+    let me = component::<Me>(c, "Me");
+    let audit = component::<Page<AuditEvent>>(c, "AuditPage");
+    let sign_ins = component::<Vec<SignIn>>(c, "SignIns");
+    let object = json!({"type": "object"});
+    let mut sign_in = read("Connections people sign in through", &sign_ins);
+    sign_in["security"] = json!([]);
     let repository = ("repository_id", "integer", "only this repository");
     let before = (
         "before",
@@ -295,6 +342,12 @@ pub(super) fn paths(
         "/v1/waivers": {"get": with_query(read("Waivers of the repositories the caller may read", &waivers),
             &[repository, ("state", "string", "`active`, `expired` or `revoked`")])},
         "/v1/waivers/{id}/revoke": {"post": op("Revoke a waiver; a revoked one keeps its time", true, &waiver)},
+        "/v1/me": {"get": read("The caller and its role on each readable repository", &me)},
+        "/v1/audit": {"get": with_query(read("Recorded actions on repositories the caller maintains", &audit),
+            &[("action", "string", "only this action"), before, limit])},
+        "/auth/github": {"get": sign_in},
+        "/auth/token": {"post": read("Exchange an API client's bearer token for a browser session", &object)},
+        "/auth/logout": {"post": read("End the caller's browser session", &object)},
     });
     match paths {
         Value::Object(map) => map,

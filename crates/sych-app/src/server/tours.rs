@@ -45,7 +45,7 @@ pub(super) async fn tour_id(
     named: Option<&str>,
 ) -> Result<TourId, ApiError> {
     let storage = &app.storage;
-    let tenant = &caller.0.tenant_id;
+    let tenant = &caller.tenant_id;
     match named {
         Some(t) => {
             let id = TourId(t.parse().map_err(|_| {
@@ -80,7 +80,7 @@ pub(super) async fn open(
     run: RunId,
     id: TourId,
 ) -> Result<(TourArtifact, TourSession), ApiError> {
-    let tenant = &caller.0.tenant_id;
+    let tenant = &caller.tenant_id;
     let tour = match app.storage.load_artifact(tenant, run, &tour_role(id)).await {
         Err(StorageError::ArtifactUnavailable(_)) => {
             return Err(status(
@@ -93,10 +93,10 @@ pub(super) async fn open(
     };
     let session = app
         .storage
-        .tour_session(tenant, id, &caller.0.name)
+        .tour_session(tenant, id, &caller.actor)
         .await
         .map_err(|e| storage_error(&e))?
-        .unwrap_or_else(|| TourSession::start(id, &caller.0.name));
+        .unwrap_or_else(|| TourSession::start(id, &caller.actor));
     Ok((tour, session))
 }
 
@@ -112,7 +112,7 @@ pub(super) async fn view(
     let run = run_of(run_view)?;
     let result = app
         .storage
-        .load_result(&caller.0.tenant_id, run)
+        .load_result(&caller.tenant_id, run)
         .await
         .map_err(|e| status(StatusCode::CONFLICT, "NO_RESULT", e.to_string()))?;
     let newer = app
@@ -123,7 +123,7 @@ pub(super) async fn view(
         .is_some_and(|l| l.run_id != run_view.run_id);
     let exchanges = app
         .storage
-        .exchanges(&caller.0.tenant_id, tour.tour_id, &caller.0.name)
+        .exchanges(&caller.tenant_id, tour.tour_id, &caller.actor)
         .await
         .map_err(|e| storage_error(&e))?;
     Ok(TourView {
@@ -142,7 +142,7 @@ pub async fn get_tour(
     Query(q): Query<TourQuery>,
 ) -> Result<Json<TourView>, ApiError> {
     caller.need(ApiRole::Reader)?;
-    let run_view = visible_run(&app, &caller, &id).await?;
+    let run_view = visible_run(&app, &caller, &id, ApiRole::Reader).await?;
     let run = run_of(&run_view)?;
     let tour = tour_id(&app, &caller, run, q.tour.as_deref()).await?;
     let (t, session) = open(&app, &caller, run, tour).await?;
@@ -161,7 +161,7 @@ async fn change_session(
 ) -> Result<Response, ApiError> {
     // A personal session is a reader's own progress, not a decision about the change.
     caller.need(ApiRole::Reader)?;
-    let run_view = visible_run(app, caller, id).await?;
+    let run_view = visible_run(app, caller, id, ApiRole::Reader).await?;
     let run = run_of(&run_view)?;
     let tour = tour_id(app, caller, run, Some(tour)).await?;
     let resource = format!("{id}/{tour}");
@@ -169,7 +169,7 @@ async fn change_session(
         let (t, session) = open(app, caller, run, tour).await?;
         let session = change(&t, session)?;
         app.storage
-            .save_tour_session(&caller.0.tenant_id, run, &session, now(app))
+            .save_tour_session(&caller.tenant_id, run, &session, now(app))
             .await
             .map_err(|e| storage_error(&e))?;
         Ok((

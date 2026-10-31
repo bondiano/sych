@@ -278,8 +278,7 @@ pub fn openapi() -> Value {
             json!({"description": summary,
             "content": {"application/json": {"schema": response}}}),
         );
-        let mut o =
-            json!({"summary": summary, "security": [{"bearer": []}], "responses": responses});
+        let mut o = json!({"summary": summary, "security": [{"bearer": []}, {"session": []}], "responses": responses});
         if let Some(body) = body {
             o["requestBody"] =
                 json!({"required": true, "content": {"application/json": {"schema": body}}});
@@ -316,7 +315,8 @@ pub fn openapi() -> Value {
     let mut doc = json!({
         "openapi": "3.1.0",
         "info": {"title": "Sych", "version": env!("CARGO_PKG_VERSION")},
-        "components": {"schemas": c, "securitySchemes": {"bearer": {"type": "http", "scheme": "bearer"}}},
+        "components": {"schemas": c, "securitySchemes": {"bearer": {"type": "http", "scheme": "bearer"},
+            "session": {"type": "apiKey", "in": "cookie", "name": "sych_session"}}},
         "paths": {
             "/v1/reviews": {"post": op("Request a review; 202 is durable admission", Some(&review), 202, &accepted, true, &[400, 401, 403, 404, 409, 413, 429, 503])},
             "/v1/runs/{id}": {"get": op("Run state, stage, usage and links", None, 200, &status, false, &[401, 403, 404, 503])},

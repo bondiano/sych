@@ -23,7 +23,12 @@ pub fn publish(args: &RunActionArguments) -> anyhow::Result<ExitCode> {
     let op = block_on(async move {
         let storage = Storage::open(&store).await?;
         storage
-            .enqueue_publication(&client.tenant_id, &args.run, Timestamp::now().as_second())
+            .enqueue_publication(
+                &client.tenant_id,
+                &args.run,
+                &client.name,
+                Timestamp::now().as_second(),
+            )
             .await
     })?
     .map_err(|e| Failure::invalid(e.to_string()))?;

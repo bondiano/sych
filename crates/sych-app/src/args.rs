@@ -425,7 +425,7 @@ pub struct ReconcileArguments {
     /// Publication operation an operator allows to be created again
     #[arg(long, requires_all = ["actor", "reason"])]
     pub allow_create: Option<i64>,
-    /// Who decides; recorded in the audit log
+    /// Who decides: a configured API client with the writer role, recorded in the audit log
     #[arg(long)]
     pub actor: Option<String>,
     /// Why a duplicate is acceptable; recorded in the audit log

@@ -10,6 +10,7 @@ use sych_core::api::{
 };
 
 use crate::api::run_view;
+use crate::audit::Audit;
 use crate::{RunView, Storage, StorageError};
 
 /// What a caller may read: its tenant and, unless every repository there, their ids.
@@ -50,7 +51,7 @@ pub struct FindingFilter {
 }
 
 /// `limit + 1` rows in, one page out: the extra row only says another page exists.
-fn page<T>(mut items: Vec<T>, limit: i64, id: impl Fn(&T) -> i64) -> Page<T> {
+pub(crate) fn page<T>(mut items: Vec<T>, limit: i64, id: impl Fn(&T) -> i64) -> Page<T> {
     let more = usize::try_from(limit).is_ok_and(|l| items.len() > l);
     if more {
         items.pop();
@@ -464,20 +465,36 @@ impl Storage {
         &self,
         v: Visibility<'_>,
         id: i64,
+        actor: &str,
         at: i64,
     ) -> Result<Option<Waiver>, StorageError> {
         let mut tx = self.write().await?;
-        sqlx::query(concat!(
+        let revoked: Option<i64> = sqlx::query_scalar(concat!(
             "UPDATE waivers SET revoked_at = $3
              WHERE id = $4 AND tenant_id = $1 AND revoked_at IS NULL AND ",
-            visible!("repository_id", "$2")
+            visible!("repository_id", "$2"),
+            " RETURNING repository_id"
         ))
         .bind(v.tenant_id)
         .bind(v.set())
         .bind(at)
         .bind(id)
-        .execute(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await?;
+        if let Some(repository_id) = revoked {
+            Audit {
+                tenant_id: v.tenant_id,
+                actor,
+                action: "WAIVER_REVOKED",
+                target: format!("waiver:{id}"),
+                repository_id: Some(repository_id),
+                metadata: serde_json::json!({}),
+                at,
+            }
+            .record(&mut tx)
+            .await?;
+        }
+
         let row = sqlx::query(concat!(waiver!(), visible!("r.id", "$2"), " AND w.id = $3"))
             .bind(v.tenant_id)
             .bind(v.set())

@@ -3,6 +3,7 @@
 //! unit test verifies that); a deterministic transport fake, not the real GitHub smoke.
 #![allow(dead_code, clippy::many_single_char_names)]
 
+pub mod oauth;
 mod reviews;
 
 use std::collections::BTreeMap;
@@ -219,7 +220,13 @@ async fn permission(
         .get(&login)
         .cloned()
         .unwrap_or_else(|| "none".into());
-    Json(json!({"permission": level})).into_response()
+    // `permission` folds maintain into write and triage into read, as GitHub does.
+    let legacy = match level.as_str() {
+        "maintain" => "write",
+        "triage" => "read",
+        other => other,
+    };
+    Json(json!({"permission": legacy, "role_name": level})).into_response()
 }
 
 async fn list_comments(
@@ -479,6 +486,13 @@ pub async fn start() -> (String, Shared) {
             get(artifact_zip),
         )
         .route("/blob/{id}", get(blob))
+        .route("/login/oauth/access_token", post(oauth::access_token))
+        .route("/user", get(oauth::current_user))
+        .route("/user/installations", get(oauth::installations))
+        .route(
+            "/user/installations/{id}/repositories",
+            get(oauth::repositories),
+        )
         .with_state(Arc::clone(&state));
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let url = format!("http://{}", listener.local_addr().expect("addr"));

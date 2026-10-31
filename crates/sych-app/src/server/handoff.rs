@@ -25,10 +25,10 @@ pub async fn handoff(
 ) -> Result<Json<Handoff>, ApiError> {
     caller.need(ApiRole::Reader)?;
     let request: HandoffRequest = parse(&body)?;
-    let run = run_of(&visible_run(&app, &caller, &id).await?)?;
+    let run = run_of(&visible_run(&app, &caller, &id, ApiRole::Reader).await?)?;
     let result = app
         .storage
-        .load_result(&caller.0.tenant_id, run)
+        .load_result(&caller.tenant_id, run)
         .await
         .map_err(|e| status(StatusCode::CONFLICT, "NO_RESULT", e.to_string()))?;
     handoff::package(

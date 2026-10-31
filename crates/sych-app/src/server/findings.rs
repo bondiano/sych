@@ -44,6 +44,35 @@ impl Engine {
         Ok(pending.len())
     }
 
+    /// `login`'s level on `connection`'s `full_name`, read from GitHub now.
+    pub(super) async fn level(
+        &self,
+        connection: &str,
+        full_name: &str,
+        login: &str,
+    ) -> Result<String, Refused> {
+        let unavailable = |e: &dyn Display| Refused::Unavailable(e.to_string());
+        let conn = self
+            .conns
+            .get(connection)
+            .ok_or_else(|| Refused::Unavailable("connection is not configured".into()))?;
+        let now = (self.now)().as_second();
+        let installation = conn
+            .gh
+            .installation(full_name, now)
+            .await
+            .map_err(|e| unavailable(&e))?;
+        let token = conn
+            .gh
+            .token(installation.id, full_name, now)
+            .await
+            .map_err(|e| unavailable(&e))?;
+        conn.gh
+            .permission(full_name, login, &token)
+            .await
+            .map_err(|e| unavailable(&e))
+    }
+
     /// The actor's repository permission, if it is one of `allowed`.
     async fn authorize(
         &self,
@@ -51,26 +80,15 @@ impl Engine {
         actor: &str,
         allowed: &[&str],
     ) -> Result<(), Refused> {
-        let unavailable = |e: &dyn Display| Refused::Unavailable(e.to_string());
         let change = self
             .app
             .storage
             .change(change_id)
             .await
-            .map_err(|e| unavailable(&e))?;
-        let conn = self
-            .conns
-            .get(&change.connection_id)
-            .ok_or_else(|| Refused::Unavailable("connection is not configured".into()))?;
-        let token = self
-            .token(conn, &change)
-            .await
-            .map_err(|e| unavailable(&e))?;
-        let level = conn
-            .gh
-            .permission(&change.full_name, actor, &token)
-            .await
-            .map_err(|e| unavailable(&e))?;
+            .map_err(|e| Refused::Unavailable(e.to_string()))?;
+        let level = self
+            .level(&change.connection_id, &change.full_name, actor)
+            .await?;
         if allowed.contains(&level.as_str()) {
             Ok(())
         } else {
