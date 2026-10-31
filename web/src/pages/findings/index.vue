@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import { useQueryParam } from '@/common/composables/useQueryParam'
+import { toId } from '@/common/utilities/toId'
 import { FindingFilters, FindingsTable, useFindings } from '@/modules/Findings'
 import { RepositorySelect } from '@/modules/Session'
 import { ErrorNotice, LoadMore } from '@/modules/Ui'
@@ -11,7 +12,7 @@ const state = useQueryParam('state')
 const severity = useQueryParam('severity')
 const findings = useFindings(
   computed(() => ({
-    repository_id: repository.value ? Number(repository.value) : undefined,
+    repository_id: toId(repository.value),
     state: state.value,
     severity: severity.value,
   })),

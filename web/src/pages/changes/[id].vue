@@ -31,7 +31,8 @@ const rows = computed(() => findings.data.value?.pages.flatMap((p) => p.items) ?
     </header>
     <section v-if="latest">
       <h2 class="mb-3 text-lg font-medium">Latest review</h2>
-      <ResultSummary v-if="result.data.value" :result="result.data.value" />
+      <ErrorNotice v-if="result.error.value" :error="result.error.value" />
+      <ResultSummary v-else-if="result.data.value" :result="result.data.value" />
       <p v-else-if="result.data.value === null" class="text-sm text-muted-foreground">
         No result to show: the run has not committed one, or retention deleted it.
       </p>

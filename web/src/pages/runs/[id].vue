@@ -42,14 +42,16 @@ const attempts = useAttempts(id)
     </header>
     <section>
       <h2 class="mb-3 text-lg font-medium">Result</h2>
-      <ResultSummary v-if="result.data.value" :result="result.data.value" />
+      <ErrorNotice v-if="result.error.value" :error="result.error.value" />
+      <ResultSummary v-else-if="result.data.value" :result="result.data.value" />
       <p v-else-if="result.data.value === null" class="text-sm text-muted-foreground">
         No result to show: the run has not committed one, or retention deleted it.
       </p>
     </section>
     <section>
       <h2 class="mb-3 text-lg font-medium">Model calls</h2>
-      <AttemptsTable v-if="attempts.data.value" :attempts="attempts.data.value" />
+      <ErrorNotice v-if="attempts.error.value" :error="attempts.error.value" />
+      <AttemptsTable v-else-if="attempts.data.value" :attempts="attempts.data.value" />
     </section>
   </div>
 </template>

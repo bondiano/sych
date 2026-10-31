@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import { useQueryParam } from '@/common/composables/useQueryParam'
+import { toId } from '@/common/utilities/toId'
 import { CostByDay, SummaryTiles, useSummary, useUsage } from '@/modules/Overview'
 import { RepositorySelect } from '@/modules/Session'
 import {
@@ -16,7 +17,7 @@ import {
 
 const repository = useQueryParam('repository')
 const period = useQueryParam('days')
-const repositoryId = computed(() => (repository.value ? Number(repository.value) : undefined))
+const repositoryId = computed(() => toId(repository.value))
 const days = computed(() => Number(period.value ?? 30))
 const summary = useSummary(repositoryId, days)
 const usage = useUsage(repositoryId, days)

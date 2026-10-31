@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import { useQueryParam } from '@/common/composables/useQueryParam'
+import { toId } from '@/common/utilities/toId'
 import { ChangesTable, useChanges } from '@/modules/Changes'
 import { RepositorySelect } from '@/modules/Session'
 import {
@@ -18,7 +19,7 @@ const repository = useQueryParam('repository')
 const state = useQueryParam('state')
 const changes = useChanges(
   computed(() => ({
-    repository_id: repository.value ? Number(repository.value) : undefined,
+    repository_id: toId(repository.value),
     state: state.value,
   })),
 )

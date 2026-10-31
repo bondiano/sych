@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/vue-query'
-import type { Ref } from 'vue'
+import { computed, type Ref } from 'vue'
 
 import { api, ApiError, unwrap } from '@/modules/Api'
 
@@ -18,6 +18,8 @@ export function useRun(id: Ref<string>) {
 export function useResult(id: Ref<string>) {
   return useQuery({
     queryKey: ['result', id],
+    // A change without a run yet has no result to ask for.
+    enabled: computed(() => id.value !== ''),
     queryFn: async () => {
       try {
         return unwrap(await api.GET('/v1/runs/{id}/result', { params: { path: { id: id.value } } }))

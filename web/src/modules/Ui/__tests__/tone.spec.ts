@@ -12,6 +12,7 @@ describe('tone', () => {
 
   it('leaves an unmapped value neutral and nothing unlabelled', () => {
     expect(tone('SOMETHING_NEW')).toBeUndefined()
+    expect(tone('constructor')).toBeUndefined()
     expect(tone(null)).toBeUndefined()
     expect(label('NEEDS_EVIDENCE')).toBe('needs evidence')
     expect(label(undefined)).toBe('—')

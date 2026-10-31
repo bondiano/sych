@@ -284,11 +284,12 @@ fn path_parameters(doc: &mut Value) {
                 json!({"name": name, "in": "path", "required": true, "schema": schema})
             })
             .collect();
-        for operation in item
-            .as_object_mut()
-            .into_iter()
-            .flat_map(|o| o.values_mut())
-        {
+        // Only operations: a path item may also hold shared parameters, servers or a summary.
+        for operation in item.as_object_mut().into_iter().flat_map(|o| {
+            o.iter_mut()
+                .filter(|(m, _)| matches!(m.as_str(), "get" | "post" | "put" | "patch" | "delete"))
+                .map(|(_, operation)| operation)
+        }) {
             let mut parameters = declared.clone();
             if let Some(Value::Array(own)) = operation.get("parameters") {
                 parameters.extend(own.iter().cloned());
