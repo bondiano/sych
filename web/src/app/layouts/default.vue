@@ -9,6 +9,11 @@ const router = useRouter()
 const queries = useQueryClient()
 const { data: me } = useMe()
 const logo = `${import.meta.env.BASE_URL}sych.png`
+const LINKS = [
+  { to: '/', label: 'Overview' },
+  { to: '/changes', label: 'Pull requests' },
+  { to: '/findings', label: 'Findings' },
+]
 
 async function leave() {
   await signOut(queries)
@@ -24,8 +29,15 @@ async function leave() {
         Sych
       </RouterLink>
       <nav class="flex gap-4 text-sm" aria-label="Main">
-        <RouterLink to="/" class="text-muted-foreground" active-class="text-foreground">
-          Overview
+        <RouterLink
+          v-for="link in LINKS"
+          :key="link.to"
+          :to="link.to"
+          class="text-muted-foreground"
+          :exact-active-class="link.to === '/' ? 'text-foreground! font-medium' : ''"
+          :active-class="link.to === '/' ? '' : 'text-foreground! font-medium'"
+        >
+          {{ link.label }}
         </RouterLink>
       </nav>
       <div class="ml-auto flex items-center gap-3 text-sm">

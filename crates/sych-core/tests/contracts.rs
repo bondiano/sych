@@ -128,6 +128,28 @@ fn every_openapi_reference_resolves() {
     }
 }
 
+/// Every `{name}` of a path template is a required path parameter of each of its operations.
+#[test]
+fn every_path_template_names_its_parameters() {
+    let doc = api::openapi();
+    let paths = doc["paths"].as_object().expect("paths");
+    for (path, item) in paths {
+        let names: Vec<&str> = path
+            .split('/')
+            .filter_map(|s| s.strip_prefix('{')?.strip_suffix('}'))
+            .collect();
+        for (method, operation) in item.as_object().expect("item") {
+            for name in &names {
+                let declared = operation["parameters"].as_array().is_some_and(|ps| {
+                    ps.iter()
+                        .any(|p| p["in"] == "path" && p["name"] == *name && p["required"] == true)
+                });
+                assert!(declared, "{method} {path} does not declare {{{name}}}");
+            }
+        }
+    }
+}
+
 /// The `OpenAPI` description of `/v1`, generated from the same DTOs (`just schemas`).
 #[test]
 fn generated_openapi_matches_committed() {

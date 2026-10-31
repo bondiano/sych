@@ -1,35 +1,44 @@
 <script setup lang="ts">
-import { useMe } from '@/modules/Session'
+import { computed } from 'vue'
+
+import { useQueryParam } from '@/common/composables/useQueryParam'
+import { CostByDay, SummaryTiles, useSummary, useUsage } from '@/modules/Overview'
+import { RepositorySelect } from '@/modules/Session'
 import {
-  Badge,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  ErrorNotice,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
 } from '@/modules/Ui'
 
-const { data: me, isPending } = useMe()
+const repository = useQueryParam('repository')
+const period = useQueryParam('days')
+const repositoryId = computed(() => (repository.value ? Number(repository.value) : undefined))
+const days = computed(() => Number(period.value ?? 30))
+const summary = useSummary(repositoryId, days)
+const usage = useUsage(repositoryId, days)
 </script>
 
 <template>
-  <Card>
-    <CardHeader>
-      <CardTitle>Repositories</CardTitle>
-      <CardDescription>What you can read here, and your role on each.</CardDescription>
-    </CardHeader>
-    <CardContent>
-      <Skeleton v-if="isPending" class="h-6 w-64" />
-      <p v-else-if="!me?.repositories.length" class="text-sm text-muted-foreground">
-        No repositories: your GitHub account reaches none that Sych reviews.
-      </p>
-      <ul v-else class="space-y-2">
-        <li v-for="g in me.repositories" :key="g.repository.id" class="flex items-center gap-3">
-          <span class="font-mono text-sm">{{ g.repository.full_name }}</span>
-          <Badge variant="secondary">{{ g.role }}</Badge>
-        </li>
-      </ul>
-    </CardContent>
-  </Card>
+  <div class="space-y-6">
+    <div class="flex flex-wrap items-center gap-3">
+      <h1 class="mr-auto text-xl font-semibold">Overview</h1>
+      <RepositorySelect v-model="repository" />
+      <Select :model-value="String(days)" @update:model-value="period = String($event)">
+        <SelectTrigger class="w-36" aria-label="Period"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem v-for="d in [7, 30, 90]" :key="d" :value="String(d)"
+            >Last {{ d }} days</SelectItem
+          >
+        </SelectContent>
+      </Select>
+    </div>
+    <ErrorNotice v-if="summary.error.value" :error="summary.error.value" />
+    <Skeleton v-else-if="!summary.data.value" class="h-40 w-full" />
+    <SummaryTiles v-else :summary="summary.data.value" />
+    <CostByDay v-if="usage.data.value" :usage="usage.data.value" />
+  </div>
 </template>
