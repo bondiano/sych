@@ -38,7 +38,8 @@ const waivable = computed(() => !!finding.data.value?.summary.rule_id && allowed
       </RouterLink>
       <FindingDetail :detail="finding.data.value" class="pt-4" />
     </div>
-    <div v-if="triage || waivable" class="space-y-6">
+    <!-- Keyed by the finding: a param-only navigation must not carry one finding's draft into another. -->
+    <div v-if="triage || waivable" :key="id" class="space-y-6">
       <Card v-if="triage">
         <CardHeader><CardTitle>Your feedback</CardTitle></CardHeader>
         <CardContent><FeedbackForm :finding-id="id" /></CardContent>
