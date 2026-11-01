@@ -457,7 +457,7 @@ mod tests {
         let reply = block_on(Backend::OpenRouter(p).complete(&request)).expect("runtime");
         assert!(
             started.elapsed() < Duration::from_secs(10),
-            "not the 90 s transport timeout"
+            "not the 300 s transport timeout"
         );
         let error = reply.expect_err("no reply");
         assert_eq!(error.kind, ErrorKind::Timeout);
