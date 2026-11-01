@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import { useQueryClient } from '@tanstack/vue-query'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { signOut, useMe } from '@/modules/Session'
+import { canSomewhere, signOut, useMe } from '@/modules/Session'
 import { Button, Separator } from '@/modules/Ui'
 
 const router = useRouter()
 const queries = useQueryClient()
 const { data: me } = useMe()
 const logo = `${import.meta.env.BASE_URL}sych.png`
-const LINKS = [
+const links = computed(() => [
   { to: '/', label: 'Overview' },
   { to: '/changes', label: 'Pull requests' },
   { to: '/findings', label: 'Findings' },
-]
+  { to: '/waivers', label: 'Waivers' },
+  ...(canSomewhere(me.value, 'maintainer') ? [{ to: '/audit', label: 'Audit' }] : []),
+])
 
 async function leave() {
   await signOut(queries)
@@ -30,7 +33,7 @@ async function leave() {
       </RouterLink>
       <nav class="flex gap-4 text-sm" aria-label="Main">
         <RouterLink
-          v-for="link in LINKS"
+          v-for="link in links"
           :key="link.to"
           :to="link.to"
           class="text-muted-foreground"
