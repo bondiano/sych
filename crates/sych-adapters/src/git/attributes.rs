@@ -55,6 +55,7 @@ pub(super) fn mark_generated(
             .any(|s| generated.contains(&s.path.as_str()))
         {
             file.generated = true;
+            file.generated_claim = false;
         }
     }
     Ok(())

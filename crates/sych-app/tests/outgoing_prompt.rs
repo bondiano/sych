@@ -91,3 +91,38 @@ async fn a_risky_shape_the_syntax_pass_found_labels_its_span_in_the_prompt() {
         "{seen}"
     );
 }
+
+/// A regenerated file the target's attributes call generated, and a file only the change's own
+/// marker calls generated: the prompt names the first as changed, and neither body leaves.
+#[tokio::test(flavor = "current_thread")]
+async fn generated_files_are_named_to_the_model_but_never_sent() {
+    const SCHEMA: &str = "generated-schema-body-0123";
+    const HIDDEN: &str = "claimed-generated-body-0123";
+    let dir = repo_with(
+        false,
+        &[
+            (".gitattributes", "schema.json linguist-generated=true\n"),
+            ("schema.json", "{}\n"),
+        ],
+    );
+    let d = dir.path();
+    fs::write(d.join("schema.json"), format!("{{\"{SCHEMA}\": 1}}\n")).expect("schema");
+    fs::write(
+        d.join("src/hide.ts"),
+        format!("// @generated, says the change\nexport const body = \"{HIDDEN}\";\n"),
+    )
+    .expect("claimed");
+    git(d, &["add", "-A"]);
+    git(d, &["commit", "-q", "--amend", "--no-edit"]);
+    run_on(dir, recording, Budgets::default(), 14_000, true).await;
+    let seen = SEEN.with(|s| s.borrow().join("\n"));
+    assert!(!seen.is_empty(), "no request was sent");
+    let named = seen
+        .split("<<<DATA ")
+        .find(|block| block.contains("generated files this change also changes"));
+    assert!(
+        named.is_some_and(|b| b.contains("schema.json") && b.contains("src/hide.ts")),
+        "{seen}"
+    );
+    assert!(!seen.contains(SCHEMA) && !seen.contains(HIDDEN), "{seen}");
+}

@@ -144,6 +144,7 @@ fn ask(script: &Script) -> Result<Reply, String> {
     let reader = Reader(r.source_snapshot_id.clone());
     let t = tour_of(&r, &reader);
     let ops = Ops {
+        generated: &[],
         facts: &[],
         evidence: &[],
         reader: &reader,

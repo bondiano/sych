@@ -11,8 +11,9 @@ use sych_core::publication::{
     render_summary,
 };
 use sych_core::{
-    Coverage, DiffManifest, ExecutionOutcome, Finding, FindingCategory, GitObjectId,
-    ReviewLanguage, ReviewResult, Severity, SourceSide, SuggestedChange, decode, sha256,
+    Coverage, DiffManifest, ExecutionOutcome, Finding, FindingCategory, GENERATED_IN_CHANGE,
+    GitObjectId, PathGap, ReviewLanguage, ReviewResult, Severity, SourceSide, SuggestedChange,
+    decode, sha256,
 };
 
 fn fixture(name: &str) -> PathBuf {
@@ -331,4 +332,21 @@ fn an_oversized_summary_keeps_every_problem_heading() {
     assert!(text.len() <= 60_000, "{} bytes", text.len());
     assert!((0..200).all(|i| text.contains(&format!(": Long defect {i}\n"))));
     assert!(text.contains("1 more not shown") && !text.contains(&"x".repeat(500)));
+}
+
+/// A file only the change's own marker calls generated was never shown to the reviewer: the
+/// summary says so above everything folded away.
+#[test]
+fn a_file_hidden_by_the_change_is_named_for_a_human() {
+    let mut r = result();
+    r.excluded_or_unreviewed.push(PathGap {
+        path: "src/hide.rs".parse().expect("path"),
+        reason: GENERATED_IN_CHANGE.into(),
+    });
+    let text = render_summary(&r, &[], &ctx());
+    let line = text
+        .find("**hidden by this change** `src/hide.rs`")
+        .expect("named");
+    assert!(text.find("<details>").is_none_or(|folded| line < folded));
+    assert!(text.contains("check it by hand"));
 }

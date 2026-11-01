@@ -51,6 +51,8 @@ pub struct ReviewPlan {
 
 pub const NOT_ASSESSED: &str = "NOT_ASSESSED";
 pub const LIMIT_MAX_SOURCE_FILES: &str = "LIMIT_MAX_SOURCE_FILES";
+/// Hidden from the models only because the change's own content marks it generated.
+pub const GENERATED_IN_CHANGE: &str = "GENERATED_IN_CHANGE";
 
 /// The side a file is shown and grouped by: new, or old for a deletion. Not its identity:
 /// rule and semantic matching use both sides through [`paths`].
@@ -82,6 +84,10 @@ fn unreviewed_reason(file: &FileChange) -> Option<String> {
         .find(|l| l.as_str() == "SECRET_PATH" || l.as_str() == "PATH_NOT_UTF8")
     {
         return Some(code.clone());
+    }
+
+    if file.generated_claim {
+        return Some(GENERATED_IN_CHANGE.into());
     }
 
     match reporting_side(file)?.content {

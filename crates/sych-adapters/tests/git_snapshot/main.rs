@@ -16,6 +16,8 @@ use sych_core::{
 };
 use tempfile::TempDir;
 
+mod generated;
+
 const MAX_BLOB: u64 = 1 << 20;
 
 /// Deterministic git for building fixtures: fixed identity and dates, no user config.
@@ -221,7 +223,11 @@ fn diverging_branches_keep_every_file_and_pin_three_positions() {
     assert_eq!(kind("vendor/sub"), Some(ContentKind::Submodule));
     assert_eq!(kind("latin1.txt"), Some(ContentKind::NonUtf8Text));
     assert_eq!(kind("huge.txt"), Some(ContentKind::NotRead));
-    assert!(by_path("gen/api.rs").generated);
+    let marked = by_path("gen/api.rs");
+    assert!(
+        !marked.generated && marked.generated_claim,
+        "a marker the change itself writes is only its claim"
+    );
     assert!(
         by_path("huge.txt")
             .limitations
@@ -306,41 +312,6 @@ fn same_inputs_give_the_same_snapshot_id() {
     assert_ne!(
         explicit.snapshot.id, a.snapshot.id,
         "comparison mode is part of identity"
-    );
-}
-
-#[test]
-fn linguist_generated_comes_from_the_target_tip_only() {
-    let dir = repo();
-    let d = dir.path();
-    write(
-        d,
-        ".gitattributes",
-        b"data/*.json linguist-generated=true\n",
-    );
-    commit(d, "base");
-    git(d, &["checkout", "-q", "-b", "feature"]);
-    write(
-        d,
-        ".gitattributes",
-        b"data/*.json linguist-generated=true\nsrc/*.rs linguist-generated\n",
-    );
-    write(d, "data/report.json", b"{}\n");
-    write(d, "src/lib.rs", b"pub fn hidden() {}\n");
-    commit(d, "feature");
-    let snap = capture(d, "main", "feature", None).expect("snapshot");
-    let generated = |p: &str| {
-        snap.manifest
-            .files
-            .iter()
-            .find(|f| f.new.as_ref().is_some_and(|s| s.path == path(p)))
-            .expect(p)
-            .generated
-    };
-    assert!(generated("data/report.json"));
-    assert!(
-        !generated("src/lib.rs"),
-        "the change's own attributes are not trusted"
     );
 }
 

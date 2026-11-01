@@ -77,6 +77,7 @@ fn file(path: &str, content: ContentKind) -> FileChange {
         }),
         similarity: None,
         generated: false,
+        generated_claim: false,
         hunks: Vec::new(),
         limitations: Vec::new(),
     }

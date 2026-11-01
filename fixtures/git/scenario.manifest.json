@@ -16,6 +16,7 @@
       },
       "similarity": null,
       "generated": false,
+      "generated_claim": false,
       "hunks": [],
       "limitations": []
     },
@@ -31,6 +32,7 @@
       },
       "similarity": null,
       "generated": false,
+      "generated_claim": false,
       "hunks": [
         {
           "old_start": 0,
@@ -55,6 +57,7 @@
       },
       "similarity": null,
       "generated": false,
+      "generated_claim": false,
       "hunks": [],
       "limitations": []
     },
@@ -69,7 +72,8 @@
         "line_count": 2
       },
       "similarity": null,
-      "generated": true,
+      "generated": false,
+      "generated_claim": true,
       "hunks": [
         {
           "old_start": 0,
@@ -92,6 +96,7 @@
       "new": null,
       "similarity": null,
       "generated": false,
+      "generated_claim": false,
       "hunks": [
         {
           "old_start": 1,
@@ -114,6 +119,7 @@
       },
       "similarity": null,
       "generated": false,
+      "generated_claim": false,
       "hunks": [],
       "limitations": [
         "BLOB_TOO_LARGE: 1048577 bytes > 1048576"
@@ -131,6 +137,7 @@
       },
       "similarity": null,
       "generated": false,
+      "generated_claim": false,
       "hunks": [
         {
           "old_start": 0,
@@ -155,6 +162,7 @@
       },
       "similarity": null,
       "generated": false,
+      "generated_claim": false,
       "hunks": [],
       "limitations": []
     },
@@ -176,6 +184,7 @@
       },
       "similarity": null,
       "generated": false,
+      "generated_claim": false,
       "hunks": [
         {
           "old_start": 2,
@@ -204,6 +213,7 @@
       },
       "similarity": 82,
       "generated": false,
+      "generated_claim": false,
       "hunks": [
         {
           "old_start": 5,
@@ -226,6 +236,7 @@
       },
       "similarity": null,
       "generated": false,
+      "generated_claim": false,
       "hunks": [],
       "limitations": []
     }

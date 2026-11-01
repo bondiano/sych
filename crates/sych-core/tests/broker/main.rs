@@ -20,6 +20,7 @@ use sych_core::{
 
 mod chunks;
 mod compiled;
+mod generated;
 mod ledger;
 mod lint;
 mod syntax;
@@ -153,6 +154,7 @@ fn manifest() -> DiffManifest {
             }),
             similarity: None,
             generated: false,
+            generated_claim: false,
             hunks: vec![Hunk {
                 old_start: 0,
                 old_lines: 0,
@@ -506,6 +508,7 @@ fn operations_answer_from_facts_and_stay_partial() {
     let reader = Reader::new();
     let facts = [facts(&reader)];
     let ops = Ops {
+        generated: &[],
         facts: &facts,
         evidence: &[],
         reader: &reader,
