@@ -16,14 +16,13 @@ pub fn run(args: &ServeArguments, role: Role) -> anyhow::Result<ExitCode> {
     let store = store_config(Some(&args.config), &server)?;
     let bind = server.http.bind.parse()?;
     let conns = connections(&server)?;
+    let shown = config::shown(&args.config)?;
     block_on(async {
         let storage = Storage::open(&store).await?;
-        let app = Arc::new(App::new(
-            &server,
-            storage,
-            store.artifacts.clone(),
-            Timestamp::now,
-        )?);
+        let app = Arc::new(App {
+            config: Some(shown),
+            ..App::new(&server, storage, store.artifacts.clone(), Timestamp::now)?
+        });
         let engine = engine(
             Arc::clone(&app),
             conns,
