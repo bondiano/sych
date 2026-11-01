@@ -47,6 +47,7 @@ function send() {
     expires_at: expires.value ? new Date(expires.value).toISOString() : null,
     until: until.value.trim() || null,
   }
+  recorded.value = undefined
   waiver.mutate(
     { body, key: key.value },
     {
