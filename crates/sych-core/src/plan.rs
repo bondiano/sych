@@ -78,16 +78,16 @@ fn excluded_reason(file: &FileChange) -> Option<&'static str> {
 
 /// Content that should have been reviewed but cannot be.
 fn unreviewed_reason(file: &FileChange) -> Option<String> {
-    if file.generated_claim {
-        return Some(GENERATED_IN_CHANGE.into());
-    }
-
     if let Some(code) = file
         .limitations
         .iter()
         .find(|l| l.as_str() == "SECRET_PATH" || l.as_str() == "PATH_NOT_UTF8")
     {
         return Some(code.clone());
+    }
+
+    if file.generated_claim {
+        return Some(GENERATED_IN_CHANGE.into());
     }
 
     match reporting_side(file)?.content {

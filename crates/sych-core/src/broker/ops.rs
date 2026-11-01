@@ -229,6 +229,9 @@ impl Ops<'_> {
         let limit = limit.clamp(1, MAX_LIMIT);
         match self.reader.search(side, query, paths, limit + 1) {
             Ok(mut hits) => {
+                // A literal search over the pinned tree is complete unless the reader cut it off;
+                // dropping hits afterwards never makes a cut answer whole.
+                let cut = hits.len() > limit;
                 hits.retain(|r| !is_secret_path(r.path.as_str()));
                 let found = hits.len();
                 hits.retain(|r| !self.generated.contains(&r.path));
@@ -240,8 +243,7 @@ impl Ops<'_> {
                     ));
                 }
 
-                // A literal search over the pinned tree is complete unless it was cut off.
-                if hits.len() > limit {
+                if cut {
                     hits.truncate(limit);
                     limitations.push(format!("first {limit} hits"));
                     OpResult::refs(OpStatus::Partial, hits, limitations)

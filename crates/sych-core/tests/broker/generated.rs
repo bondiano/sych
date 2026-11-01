@@ -80,6 +80,26 @@ fn context_requests_neither_read_nor_find_generated_files() {
         "{:?}",
         hits.limitations
     );
+    let cut = ops.run(&Operation::SearchSource {
+        query: "Store".into(),
+        paths: Vec::new(),
+        side: SourceSide::Head,
+        limit: 1,
+    });
+    assert_eq!(
+        cut.status,
+        OpStatus::Partial,
+        "dropping a generated hit never makes a cut answer whole"
+    );
+}
+
+#[test]
+fn a_secret_path_outranks_a_claim_of_being_generated() {
+    let mut claimed = manifest();
+    claimed.files[0].generated_claim = true;
+    claimed.files[0].limitations.push("SECRET_PATH".into());
+    let (plan, _) = run_on(&claimed, limits(), &[], &[], &EffectLedger::default(), &[]);
+    assert_eq!(plan.unreviewed[0].reason, "SECRET_PATH");
 }
 
 #[test]

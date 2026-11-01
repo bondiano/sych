@@ -138,11 +138,15 @@ pub struct DiffManifest {
 impl DiffManifest {
     /// Both paths of every [`FileChange::hidden`] file: what context requests never read.
     pub fn hidden_paths(&self) -> Vec<RepoPath> {
-        self.files
+        let mut paths: Vec<RepoPath> = self
+            .files
             .iter()
             .filter(|f| f.hidden())
             .flat_map(|f| f.old.iter().chain(&f.new).map(|s| s.path.clone()))
-            .collect()
+            .collect();
+        // A modified file has the same path on both sides.
+        paths.dedup();
+        paths
     }
 }
 
