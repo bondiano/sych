@@ -428,6 +428,11 @@ pub async fn commit_result(w: &World, defects: u32) -> String {
 
 /// Claims the queued job of `head` and commits a result with `defects` findings under it.
 pub async fn commit_claimed(w: &World, head: &str, defects: u32) {
+    commit_claimed_under(w, head, defects, b"policy").await;
+}
+
+/// [`commit_claimed`] under the policy snapshot whose rules are `policy`.
+pub async fn commit_claimed_under(w: &World, head: &str, defects: u32, policy: &[u8]) {
     let head = head.to_owned();
     let s = &w.app.storage;
     let c = s.claim("w", 60, now()).await.expect("claim").expect("job");
@@ -439,7 +444,7 @@ pub async fn commit_claimed(w: &World, head: &str, defects: u32) {
         max_blob_bytes: 1 << 20,
     })
     .expect("snapshot");
-    let policy = sych_core::PolicySnapshotId(sha256(b"policy"));
+    let policy = sych_core::PolicySnapshotId(sha256(policy));
     s.prepare_run(
         &c.fence,
         &c.run,

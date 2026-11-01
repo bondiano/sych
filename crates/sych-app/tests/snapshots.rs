@@ -4,6 +4,7 @@
 
 use reqwest::StatusCode;
 use serde_json::Value;
+use sqlx::AnyPool;
 
 mod fake_github;
 mod http;
@@ -11,7 +12,7 @@ mod world;
 
 use http::{call, listen};
 use world::database::inspect;
-use world::{commit, commit_claimed, git, world};
+use world::{commit, commit_claimed, commit_claimed_under, git, world};
 
 async fn get(url: &str, who: &str, path: &str) -> (StatusCode, Value) {
     call(url, "GET", path, Some(who), None, &Value::Null).await
@@ -50,32 +51,27 @@ async fn a_completed_run_serves_the_snapshots_its_result_names() {
     let (status, _) = get(&url, "outsider", &path).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "out of scope");
 
-    // Run 1's pin swapped for the source snapshot of run 2, at another head: not its evidence.
-    // On top of the reviewed head, so the findings' anchors stay in the diff.
+    // Run 1's pins swapped for those of run 2, at another head under another policy: neither
+    // is evidence of run 1's result.
     git(&w.origin, &["checkout", "-q", "pr"]);
     let next = commit(&w.origin, "src/c.rs", "pub fn c() {}\n");
     git(&w.origin, &["checkout", "-q", "main"]);
     w.open_pull(&next, &w.base, false);
     w.pr_event("d-2", "synchronize", &next).await;
     w.schedule(6).await;
-    commit_claimed(&w, &next, 1).await;
+    commit_claimed_under(&w, &next, 1, b"other rules").await;
     let later = w.run_ids().await[1].clone();
     let db = inspect(w.dir.config()).await;
-    sqlx::query(
-        "UPDATE run_artifacts SET sha256 = (SELECT sha256 FROM run_artifacts
-                WHERE run_id = $2 AND role = 'source_snapshot')
-            WHERE run_id = $1 AND role = 'source_snapshot'",
-    )
-    .bind(&run)
-    .bind(&later)
-    .execute(&db)
-    .await
-    .expect("swap");
-    let (status, refused) = get(&url, "reader", &path).await;
-    assert_eq!(
-        (status, refused["error"]["code"].as_str()),
-        (StatusCode::CONFLICT, Some("SNAPSHOT_MISMATCH"))
-    );
+    for role in ["source_snapshot", "policy_snapshot"] {
+        let original = pin(&db, &run, role, &later).await;
+        let (status, refused) = get(&url, "reader", &path).await;
+        assert_eq!(
+            (status, refused["error"]["code"].as_str()),
+            (StatusCode::CONFLICT, Some("SNAPSHOT_MISMATCH")),
+            "{role}"
+        );
+        restore(&db, &run, role, &original).await;
+    }
 
     // The source snapshot's retention is shorter than the result's.
     sqlx::query(
@@ -89,4 +85,35 @@ async fn a_completed_run_serves_the_snapshots_its_result_names() {
     assert_eq!(status, StatusCode::OK, "{pruned}");
     assert!(pruned["source"].is_null(), "{pruned}");
     assert_eq!(pruned["policy"], *policy);
+}
+
+/// Points run `run`'s `role` at the artifact run `from` pins under it; returns the old digest.
+async fn pin(db: &AnyPool, run: &str, role: &str, from: &str) -> String {
+    let original: String =
+        sqlx::query_scalar("SELECT sha256 FROM run_artifacts WHERE run_id = $1 AND role = $2")
+            .bind(run)
+            .bind(role)
+            .fetch_one(db)
+            .await
+            .expect("pin");
+    let swapped: String =
+        sqlx::query_scalar("SELECT sha256 FROM run_artifacts WHERE run_id = $1 AND role = $2")
+            .bind(from)
+            .bind(role)
+            .fetch_one(db)
+            .await
+            .expect("other pin");
+    assert_ne!(original, swapped, "{role} differs between the runs");
+    restore(db, run, role, &swapped).await;
+    original
+}
+
+async fn restore(db: &AnyPool, run: &str, role: &str, digest: &str) {
+    sqlx::query("UPDATE run_artifacts SET sha256 = $3 WHERE run_id = $1 AND role = $2")
+        .bind(run)
+        .bind(role)
+        .bind(digest)
+        .execute(db)
+        .await
+        .expect("repin");
 }
