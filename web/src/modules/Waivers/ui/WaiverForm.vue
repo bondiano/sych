@@ -29,7 +29,9 @@ const ready = computed(
     list.value.length > 0 &&
     owner.value.trim() !== '' &&
     reason.value.trim() !== '' &&
-    (expires.value !== '' || until.value.trim() !== ''),
+    (expires.value !== '' || until.value.trim() !== '') &&
+    // A waiver that has already expired would accept nothing.
+    (expires.value === '' || new Date(expires.value).getTime() > Date.now()),
 )
 
 // Changed content is a new request; resending the same content replays the first.

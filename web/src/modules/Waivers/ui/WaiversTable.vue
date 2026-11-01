@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useIntervalFn, useNow } from '@vueuse/core'
+import { computed } from 'vue'
+
 import { formatTime } from '@/common/utilities/formatTime'
 import type { Schemas } from '@/modules/Api'
 import { can, useMe } from '@/modules/Session'
@@ -22,7 +25,9 @@ defineProps<{ waivers: Schemas['WaiverEntry'][] }>()
 
 const { data: me } = useMe()
 const revoke = useRevokeWaiver()
-const now = Date.now() / 1000
+// Ticks, so an open page moves a waiver to expiring and expired as time passes.
+const clock = useNow({ scheduler: (tick) => useIntervalFn(tick, 60_000) })
+const now = computed(() => clock.value.getTime() / 1000)
 </script>
 
 <template>
