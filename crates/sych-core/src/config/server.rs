@@ -79,6 +79,27 @@ pub struct ServerConfig {
 pub struct Storage {
     pub database_url_env: Option<EnvName>,
     pub artifact_store: Option<ArtifactStore>,
+    #[serde(default)]
+    pub retention: Retention,
+}
+
+/// How long history rows stay before `sych cache prune` deletes them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Retention {
+    /// Settled or released model attempts; unresolved charges stay whatever their age.
+    pub model_attempts_days: u32,
+    /// The change event log.
+    pub change_events_days: u32,
+}
+
+impl Default for Retention {
+    fn default() -> Self {
+        Self {
+            model_attempts_days: 90,
+            change_events_days: 90,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -269,6 +290,16 @@ impl ServerConfig {
             "workers.heartbeat_seconds",
             "must be greater than zero and shorter than lease_seconds",
         );
+        let r = self.storage.retention;
+        for (path, days) in [
+            (
+                "storage.retention.model_attempts_days",
+                r.model_attempts_days,
+            ),
+            ("storage.retention.change_events_days", r.change_events_days),
+        ] {
+            positive(&mut p, path, Some(days.into()));
+        }
         self.http.validate(self.mode, &mut p);
         self.validate_models(&mut p);
         self.validate_budgets(&mut p);

@@ -1,19 +1,28 @@
-//! Retention of records: operational rows 30 days, event logs and usage 90 days, sessions once
-//! expired. Unresolved model charges (`RESERVED`, `UNKNOWN`) and publication outcomes that are
-//! not final (`PENDING`, `PUBLISHING`, `UNCERTAIN`) are never removed by age; runs and the audit
-//! log are kept.
+//! Retention of records: operational rows 30 days, final publication operations 90 days, the
+//! change event log and settled usage as `storage.retention` says, sessions once expired.
+//! Unresolved model charges (`RESERVED`, `UNKNOWN`) and publication outcomes that are not final
+//! (`PENDING`, `PUBLISHING`, `UNCERTAIN`) are never removed by age; runs and the audit log are
+//! kept.
 
 use sqlx::Row;
 use sych_core::Timestamp;
+use sych_core::config::Retention;
 
 use crate::{Storage, StorageError};
 
 const DAY: i64 = 86_400;
-const OPERATIONAL: i64 = 30 * DAY;
-const AUDIT: i64 = 90 * DAY;
 
-/// `(table, rule, count, delete)`; both statements bind the cutoff once.
-const RULES: &[(&str, &str, &str, &str, i64)] = &[
+/// A rule's age in seconds under the configured retention.
+type Age = fn(&Retention) -> i64;
+
+const OPERATIONAL: Age = |_| 30 * DAY;
+const PUBLICATIONS: Age = |_| 90 * DAY;
+const EXPIRED: Age = |_| 0;
+const CHANGE_EVENTS: Age = |r| i64::from(r.change_events_days) * DAY;
+const MODEL_ATTEMPTS: Age = |r| i64::from(r.model_attempts_days) * DAY;
+
+/// `(table, rule, count, delete, age)`; both statements bind the cutoff once.
+const RULES: &[(&str, &str, &str, &str, Age)] = &[
     (
         "change_intents",
         "consumed over 30 days ago",
@@ -41,24 +50,24 @@ const RULES: &[(&str, &str, &str, &str, i64)] = &[
     ),
     (
         "change_events",
-        "logged over 90 days ago",
+        "logged before storage.retention.change_events_days",
         "SELECT count(*) FROM change_events WHERE at < $1",
         "DELETE FROM change_events WHERE at < $1",
-        AUDIT,
+        CHANGE_EVENTS,
     ),
     (
         "sessions",
         "expired",
         "SELECT count(*) FROM sessions WHERE expires_at < $1",
         "DELETE FROM sessions WHERE expires_at < $1",
-        0,
+        EXPIRED,
     ),
     (
         "model_attempts",
-        "settled or released over 90 days ago; unknown charges stay",
+        "settled or released before storage.retention.model_attempts_days; unknown charges stay",
         "SELECT count(*) FROM model_attempts WHERE created_at < $1 AND state IN ('SETTLED', 'RELEASED')",
         "DELETE FROM model_attempts WHERE created_at < $1 AND state IN ('SETTLED', 'RELEASED')",
-        AUDIT,
+        MODEL_ATTEMPTS,
     ),
     (
         "publication_operations",
@@ -67,7 +76,7 @@ const RULES: &[(&str, &str, &str, &str, i64)] = &[
              AND state IN ('DELIVERED', 'FAILED', 'CANCELLED', 'SUPERSEDED')",
         "DELETE FROM publication_operations WHERE finished_at < $1
              AND state IN ('DELIVERED', 'FAILED', 'CANCELLED', 'SUPERSEDED')",
-        AUDIT,
+        PUBLICATIONS,
     ),
 ];
 
@@ -83,12 +92,13 @@ impl Storage {
     pub async fn prune_records(
         &self,
         now: Timestamp,
+        retention: &Retention,
         dry_run: bool,
     ) -> Result<Vec<RecordPrune>, StorageError> {
         let mut out = Vec::new();
         let mut tx = self.write().await?;
         for (table, rule, count, delete, age) in RULES {
-            let cutoff = now.as_second() - age;
+            let cutoff = now.as_second() - age(retention);
             let rows: i64 = sqlx::query(*count)
                 .bind(cutoff)
                 .fetch_one(&mut *tx)

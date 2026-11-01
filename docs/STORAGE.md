@@ -69,7 +69,8 @@ rewritten.
 | artifacts without a completed/active run (failure, unfinished commit) | after a 1-hour grace period |
 | mirrors (`<data>/mirrors/…`, source cache) | 7 days since the last fetch; not while the repository is in an active run |
 | `change_intents` (consumed), `inbox_events` without a live intent, `jobs` (terminal) | 30 days |
-| `change_events`, `model_attempts` (`SETTLED`/`RELEASED`), publication operations (final) | 90 days |
+| `change_events`, `model_attempts` (`SETTLED`/`RELEASED`) | `storage.retention.change_events_days` and `model_attempts_days`, 90 days by default |
+| publication operations (final) | 90 days |
 | `sessions` | once expired (8 hours after sign-in) |
 | `audit_events` | not deleted |
 | `model_attempts` `RESERVED`/`UNKNOWN`, operations `PENDING/PUBLISHING/UNCERTAIN` | not deleted by age |
