@@ -425,6 +425,9 @@ as `before`, gives the next one. Times are Unix seconds, money micro-USD.
 | `GET /v1/waivers[?repository_id=&state=]` | reader | waivers, newest first; `state` is `active`, `expired` or `revoked` |
 | `POST /v1/waivers/:id/revoke` | maintainer | 200 with the waiver; the next review no longer applies it; a revoked one keeps its time |
 | `GET /v1/publications/:id` | reader | delivery, relevance, remote id, error |
+| `GET /v1/publications[?repository_id=]` | reader | `PUBLISHING` and `UNCERTAIN` operations, oldest first, with their pull request, attempts and reconcile deadline |
+| `POST /v1/publications/:id/reconcile` | writer | `{reason}`: the decision `sych reconcile --allow-create` records — an `UNCERTAIN` operation with no known remote object goes back to `PENDING` and audit keeps the reason and the duplicate risk; anything else — 409 `NOT_RECREATABLE` |
+| `GET /v1/jobs[?repository_id=&state=&before=&limit=]` | writer | jobs, newest first, with the run each serves (state, failure) and the pull request; only repositories the caller writes to; finished jobs while retention keeps them (30 days) |
 | `GET /v1/repositories` | reader | repositories the caller may read |
 | `GET /v1/changes[?repository_id=&state=&before=&limit=]` | reader | pull requests, newest first, with the latest run and open findings |
 | `GET /v1/changes/:id` | reader | every generation's run, the event log and publication attempts; findings are `GET /v1/findings?change_id=` |

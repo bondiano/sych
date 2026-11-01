@@ -1351,6 +1351,123 @@
         ],
         "type": "object"
       },
+      "JobEntry": {
+        "description": "`GET /v1/jobs`: one unit of a run's work and the run it serves.",
+        "properties": {
+          "attempts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "change_id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "finished_at": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lease_until": {
+            "description": "Until when a worker holds a `CLAIMED` job.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "max_attempts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "next_attempt_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "number": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "repository": {
+            "$ref": "#/components/schemas/Repository"
+          },
+          "run_failure": {
+            "description": "Why the run failed, once it has.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "run_state": {
+            "type": "string"
+          },
+          "state": {
+            "description": "`QUEUED`, `CLAIMED`, `DONE`, `FAILED` or `CANCELLED`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "attempts",
+          "max_attempts",
+          "next_attempt_at",
+          "created_at",
+          "run_id",
+          "run_state",
+          "change_id",
+          "repository"
+        ],
+        "type": "object"
+      },
+      "JobPage": {
+        "description": "One page, newest first; pass `next_before` as `before` for the next one.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JobEntry"
+            },
+            "type": "array"
+          },
+          "next_before": {
+            "description": "`None` on the last page.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "LatestRun": {
         "description": "The newest generation's run of a change.",
         "properties": {
@@ -1849,6 +1966,20 @@
           "NO_BLOCKING_FINDINGS_IN_SCOPE"
         ],
         "type": "string"
+      },
+      "ReconcileRequest": {
+        "additionalProperties": false,
+        "description": "`POST /v1/publications/:id/reconcile`: create an `UNCERTAIN` publication again.",
+        "properties": {
+          "reason": {
+            "description": "Recorded in audit with the duplicate risk the decision accepts.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
       },
       "Reply": {
         "oneOf": [
@@ -2890,6 +3021,75 @@
           "exchanges"
         ],
         "type": "object"
+      },
+      "UnresolvedPublication": {
+        "description": "`GET /v1/publications`: a publication operation no one has settled yet.",
+        "properties": {
+          "attempts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "change_id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "description": "The operation's id, as `GET /v1/publications/:id` takes it.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "number": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reconcile_deadline": {
+            "description": "When the reconciler stops looking for the object and an operator decides.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "repository": {
+            "$ref": "#/components/schemas/Repository"
+          },
+          "slot": {
+            "type": "string"
+          },
+          "state": {
+            "description": "`PUBLISHING`, or `UNCERTAIN` when it may have reached GitHub.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "change_id",
+          "repository",
+          "slot",
+          "state",
+          "attempts",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "UnresolvedPublications": {
+        "items": {
+          "$ref": "#/components/schemas/UnresolvedPublication"
+        },
+        "type": "array"
       },
       "Usage": {
         "description": "`GET /v1/usage`.",
@@ -4233,6 +4433,119 @@
         "summary": "Structured feedback"
       }
     },
+    "/v1/jobs": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this repository",
+            "in": "query",
+            "name": "repository_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`QUEUED`, `CLAIMED`, `DONE`, `FAILED` or `CANCELLED`",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the `next_before` of the previous page",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "1 to 200, 50 by default",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPage"
+                }
+              }
+            },
+            "description": "Jobs newest first, with the run each serves"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Jobs newest first, with the run each serves"
+      }
+    },
     "/v1/me": {
       "get": {
         "responses": {
@@ -4306,6 +4619,92 @@
           }
         ],
         "summary": "The caller and its role on each readable repository"
+      }
+    },
+    "/v1/publications": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this repository",
+            "in": "query",
+            "name": "repository_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnresolvedPublications"
+                }
+              }
+            },
+            "description": "PUBLISHING and UNCERTAIN publications, oldest first"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "PUBLISHING and UNCERTAIN publications, oldest first"
       }
     },
     "/v1/publications/{id}": {
@@ -4382,6 +4781,121 @@
           }
         ],
         "summary": "Delivery, relevance and reconciliation state"
+      }
+    },
+    "/v1/publications/{id}/reconcile": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReconcileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationStatus"
+                }
+              }
+            },
+            "description": "Create an UNCERTAIN publication again; a duplicate comment may appear"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Create an UNCERTAIN publication again; a duplicate comment may appear"
       }
     },
     "/v1/repositories": {

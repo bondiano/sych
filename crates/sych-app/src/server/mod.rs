@@ -15,6 +15,7 @@ pub mod metrics;
 pub mod mirrors;
 mod publisher;
 mod questions;
+mod queue;
 pub mod requests;
 pub mod smoke;
 mod tours;
@@ -197,6 +198,9 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/auth/token", post(auth::token))
         .route("/auth/logout", post(auth::logout))
         .route("/v1/publications/{id}", get(api::publication))
+        .route("/v1/publications", get(queue::publications))
+        .route("/v1/publications/{id}/reconcile", post(queue::reconcile))
+        .route("/v1/jobs", get(queue::jobs))
         .route("/v1/runs/{id}/handoff", post(handoff::handoff))
         .route("/v1/runs/{id}/tour", get(tours::get_tour))
         .route("/v1/runs/{id}/tours/{tour}/reveal", post(tours::reveal))

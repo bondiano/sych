@@ -15,6 +15,7 @@ const links = computed(() => [
   { to: '/changes', label: 'Pull requests' },
   { to: '/findings', label: 'Findings' },
   { to: '/waivers', label: 'Waivers' },
+  { to: '/queue', label: 'Queue' },
   ...(canSomewhere(me.value, 'maintainer') ? [{ to: '/audit', label: 'Audit' }] : []),
 ])
 

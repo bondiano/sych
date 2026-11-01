@@ -45,6 +45,7 @@ const tiles = computed(() => {
     },
     {
       title: 'Queue',
+      to: '/queue',
       value: String(s.queued_jobs),
       note: s.queued_jobs
         ? `oldest waits ${formatAge(s.oldest_queued_age_seconds)}`
@@ -58,7 +59,10 @@ const tiles = computed(() => {
   <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
     <Card v-for="t in tiles" :key="t.title">
       <CardHeader>
-        <CardDescription>{{ t.title }}</CardDescription>
+        <CardDescription>
+          <RouterLink v-if="t.to" :to="t.to" class="hover:underline">{{ t.title }}</RouterLink>
+          <template v-else>{{ t.title }}</template>
+        </CardDescription>
         <CardTitle class="text-2xl tabular-nums">{{ t.value }}</CardTitle>
       </CardHeader>
       <CardContent class="text-sm text-muted-foreground">{{ t.note }}</CardContent>

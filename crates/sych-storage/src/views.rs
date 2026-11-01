@@ -61,7 +61,7 @@ pub(crate) fn page<T>(mut items: Vec<T>, limit: i64, id: impl Fn(&T) -> i64) -> 
     Page { items, next_before }
 }
 
-fn repository(r: &AnyRow, at: usize) -> Repository {
+pub(crate) fn repository(r: &AnyRow, at: usize) -> Repository {
     Repository {
         id: r.get(at),
         connection_id: r.get(at + 1),
