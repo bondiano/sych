@@ -7,11 +7,11 @@ use super::context::Context;
 use crate::model::{DataBlock, Prompt};
 use crate::{Candidate, PlannedObligation};
 
-pub const DISCOVERY: &str = "discovery@6";
-pub const RISK_AUDIT: &str = "risk_audit@5";
+pub const DISCOVERY: &str = "discovery@7";
+pub const RISK_AUDIT: &str = "risk_audit@6";
 pub const ASSESSMENT: &str = "assessment@4";
 pub const VERIFY: &str = "verify@5";
-pub const REVIEW: &str = "review@5";
+pub const REVIEW: &str = "review@6";
 
 /// The fields of one assessment; `ob` names the obligation id the answer must carry.
 fn assessment_fields(ob: &str) -> String {
@@ -63,6 +63,12 @@ const NIT_RULES: [&str; 4] = [
     "At most 3 nits per review unit, the most useful first. When unsure whether something is a \
      defect, ask about one concrete scenario in the claim instead of asserting it.",
 ];
+
+/// An open question the shown code already answers is a miss, not an UNKNOWN (#95).
+const QUESTION_RULE: &str = "Before leaving an open question about what the code is meant to do, \
+    look for the answer in the spans: removed BASE lines, doc comments, messages and names state \
+    the intent. If they answer it and the change breaks that intent, propose a candidate instead; \
+    if they answer it otherwise, drop the question. Keep only questions the spans cannot answer.";
 
 const ANCHORS: &str = "Anchors name a handed-out span and lines inside it: \
     {\"ref_id\": \"ref-N\", \"start_line\": a, \"end_line\": b}, using the line numbers printed in \
@@ -147,6 +153,7 @@ pub fn discovery(context: &Context, obligations: &[&PlannedObligation], unit: &s
         ),
         rules: {
             let mut rules = shared_rules(context);
+            rules.push(QUESTION_RULE.to_owned());
             rules.extend(NIT_RULES.map(str::to_owned));
             rules
         },

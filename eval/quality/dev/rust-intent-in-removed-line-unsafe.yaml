@@ -1,0 +1,74 @@
+schema_version: 1
+id: rust-intent-in-removed-line-unsafe
+split: development
+language: rust
+variant: unsafe
+profiles: [correctness]
+rationale: "Already-published inline comments start counting against the budget for new ones; the removed line and the doc comment state the opposite (issue #95)."
+base:
+  Cargo.toml: |
+    [package]
+    name = "reviews"
+    version = "0.1.0"
+    edition = "2024"
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod plan;
+  src/plan.rs: |
+    pub const MAX_INLINE: usize = 8;
+
+    pub enum Placement {
+        Inline,
+        Summary(String),
+    }
+
+    /// Places each finding inline, at most [`MAX_INLINE`] new ones per revision; a finding
+    /// published inline before stays inline.
+    pub fn plan(already_inline: &[bool]) -> Vec<Placement> {
+        let mut new_inline = 0;
+        already_inline
+            .iter()
+            .map(|&already| {
+                if already || new_inline < MAX_INLINE {
+                    new_inline += usize::from(!already);
+                    Placement::Inline
+                } else {
+                    Placement::Summary(format!("over the {MAX_INLINE} new inline comments of a revision"))
+                }
+            })
+            .collect()
+    }
+head:
+  src/plan.rs: |
+    pub const MAX_INLINE: usize = 8;
+
+    pub enum Placement {
+        Inline,
+        Summary(String),
+    }
+
+    /// Places each finding inline, at most [`MAX_INLINE`] new ones per revision; a finding
+    /// published inline before stays inline.
+    pub fn plan(already_inline: &[bool]) -> Vec<Placement> {
+        let mut new_inline = 0;
+        already_inline
+            .iter()
+            .map(|&already| {
+                if already || new_inline < MAX_INLINE {
+                    new_inline += 1;
+                    Placement::Inline
+                } else {
+                    Placement::Summary(format!("over the {MAX_INLINE} new inline comments of a revision"))
+                }
+            })
+            .collect()
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "new inline comment budget in plan"
+      required_condition: "some findings were already published inline"
+      evidence_locations:
+        - { side: HEAD, path: src/plan.rs, start_line: 16, end_line: 16 }
