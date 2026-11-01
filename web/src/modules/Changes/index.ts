@@ -1,5 +1,6 @@
-export { useChange, useChanges } from './queries'
+export { ACTIVE_STATES, useCancelRun, useChange, useChanges, useRerun } from './queries'
 export type { ChangeFilter } from './queries'
 export { default as ChangeLog } from './ui/ChangeLog.vue'
 export { default as ChangeRuns } from './ui/ChangeRuns.vue'
 export { default as ChangesTable } from './ui/ChangesTable.vue'
+export { default as RerunForm } from './ui/RerunForm.vue'
