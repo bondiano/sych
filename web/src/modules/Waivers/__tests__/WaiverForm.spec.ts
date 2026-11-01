@@ -31,6 +31,7 @@ function form() {
 
 afterEach(() => {
   sent.length = 0
+  replies.length = 0
 })
 
 describe('WaiverForm', () => {
