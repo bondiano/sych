@@ -7,6 +7,9 @@ storage:
   artifact_store:
     kind: local
     path: "./.sych-data/artifacts"
+  retention:                          # what `sych cache prune` keeps; at least 1 day
+    model_attempts_days: 90           # settled usage; unknown charges stay whatever their age
+    change_events_days: 90            # the change event log
 
 http:
   bind: "127.0.0.1:8080"              # a non-loopback bind needs api_clients and behind_tls_proxy

@@ -1,7 +1,10 @@
-//! Retention of records: operational rows go after 30 days and audit or usage
-//! after 90, a dry run only counts, and unresolved charges or publication outcomes stay.
+//! Retention of records: operational rows go after 30 days, the event log and settled usage
+//! after `storage.retention` (90 days by default), a dry run only counts, and unresolved charges
+//! or publication outcomes stay.
 
 use sqlx::AnyPool;
+use sych_core::config::Retention;
+use sych_storage::{RecordPrune, Storage};
 
 mod support;
 
@@ -16,18 +19,20 @@ async fn count(pool: &AnyPool, sql: &'static str) -> i64 {
         .expect("count selected database")
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn old_records_go_unresolved_ones_stay_and_a_dry_run_deletes_nothing() {
-    let (dir, s) = migrated().await;
-    let pool = support::database::inspect(dir.config()).await;
-    let id = change(&s).await;
+fn rows(plan: &[RecordPrune], table: &str) -> i64 {
+    plan.iter().find(|r| r.table == table).map_or(0, |r| r.rows)
+}
+
+/// A committed run with its change events, one settled and one unknown model charge at `T0`.
+async fn seeded(s: &Storage, pool: &AnyPool) {
+    let id = change(s).await;
     let intent = s.open_intents().await.expect("intents")[0].id;
     s.consume_intent(intent, at(1)).await.expect("consume");
     s.generate(id, &inputs("h"), 1_800_001_000, 3, at(2))
         .await
         .expect("gen");
-    let c = claim(&s, "w", 3).await;
-    finish(&s, &c, 4).await.expect("commit");
+    let c = claim(s, "w", 3).await;
+    finish(s, &c, 4).await.expect("commit");
     for state in ["SETTLED", "UNKNOWN"] {
         sqlx::query(
             "INSERT INTO model_attempts (id, tenant_id, run_id, purpose, kind, template, profile,
@@ -40,18 +45,24 @@ async fn old_records_go_unresolved_ones_stay_and_a_dry_run_deletes_nothing() {
         .bind(c.run.id.to_string())
         .bind(state)
         .bind(1_800_000_000_i64)
-        .execute(&pool)
+        .execute(pool)
         .await
         .expect("attempt");
     }
+}
 
-    let month = s.prune_records(at(31 * DAY), true).await.expect("plan");
-    let planned = |table: &str| {
-        month
-            .iter()
-            .find(|r| r.table == table)
-            .map_or(0, |r| r.rows)
-    };
+#[tokio::test(flavor = "current_thread")]
+async fn old_records_go_unresolved_ones_stay_and_a_dry_run_deletes_nothing() {
+    let (dir, s) = migrated().await;
+    let pool = support::database::inspect(dir.config()).await;
+    seeded(&s, &pool).await;
+    let retention = Retention::default();
+
+    let month = s
+        .prune_records(at(31 * DAY), &retention, true)
+        .await
+        .expect("plan");
+    let planned = |table: &str| rows(&month, table);
     assert_eq!(
         (
             planned("change_intents"),
@@ -67,7 +78,9 @@ async fn old_records_go_unresolved_ones_stay_and_a_dry_run_deletes_nothing() {
         "dry run deletes nothing"
     );
 
-    s.prune_records(at(91 * DAY), false).await.expect("prune");
+    s.prune_records(at(91 * DAY), &retention, false)
+        .await
+        .expect("prune");
     assert_eq!(count(&pool, "SELECT count(*) FROM inbox_events").await, 0);
     assert_eq!(count(&pool, "SELECT count(*) FROM change_events").await, 0);
     assert_eq!(
@@ -85,6 +98,35 @@ async fn old_records_go_unresolved_ones_stay_and_a_dry_run_deletes_nothing() {
         1,
         "runs stay"
     );
+    pool.close().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn the_event_log_and_settled_usage_follow_the_configured_days() {
+    let (dir, s) = migrated().await;
+    let pool = support::database::inspect(dir.config()).await;
+    seeded(&s, &pool).await;
+    let retention = Retention {
+        model_attempts_days: 10,
+        change_events_days: 20,
+    };
+
+    let early = s
+        .prune_records(at(9 * DAY), &retention, true)
+        .await
+        .expect("plan");
+    assert_eq!(rows(&early, "model_attempts"), 0, "younger than 10 days");
+    let usage = s
+        .prune_records(at(11 * DAY), &retention, true)
+        .await
+        .expect("plan");
+    assert_eq!(rows(&usage, "model_attempts"), 1, "only the settled charge");
+    assert_eq!(rows(&usage, "change_events"), 0, "younger than 20 days");
+    let events = s
+        .prune_records(at(21 * DAY), &retention, true)
+        .await
+        .expect("plan");
+    assert!(rows(&events, "change_events") > 0);
     pool.close().await;
 }
 

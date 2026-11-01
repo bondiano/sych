@@ -430,6 +430,27 @@ fn endpoint_userinfo_is_not_a_loopback_host() {
 }
 
 #[test]
+fn history_retention_defaults_to_90_days_and_is_never_zero() {
+    let personal = read("examples/personal/sych.yaml");
+    let config = ServerConfig::parse("sych.yaml", &personal).expect("valid");
+    assert_eq!(
+        (
+            config.storage.retention.model_attempts_days,
+            config.storage.retention.change_events_days
+        ),
+        (90, 90)
+    );
+    let zero = personal.replacen(
+        "storage:\n",
+        "storage:\n  retention:\n    change_events_days: 0\n",
+        1,
+    );
+    let errors = ServerConfig::parse("sych.yaml", &zero).expect_err("rejected");
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].path, "storage.retention.change_events_days");
+}
+
+#[test]
 fn redaction_additions_are_validated_and_added_to_the_defaults() {
     let personal = read("examples/personal/sych.yaml");
     let with = |patterns: &str| {
