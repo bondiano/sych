@@ -76,6 +76,7 @@ describe('WaiverForm', () => {
     expect(wrapper.text()).toContain('down')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
+    expect(sent[0]?.key).toBeTruthy()
     expect(sent.map((s) => s.key)).toEqual([sent[0]?.key, sent[0]?.key])
     expect(sent[0]?.body).toMatchObject({ paths: ['src/a.ts'], expires_at: null })
   })
