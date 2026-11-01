@@ -18,6 +18,7 @@ const TONES = new Map<string, Tone>([
   ['UNCERTAIN', 'warn'],
   ['RESERVED', 'warn'],
   ['WAITING_EVIDENCE', 'warn'],
+  ['EXPIRING', 'warn'],
   ['ATTENTION_REQUIRED', 'bad'],
   ['FAILED', 'bad'],
   ['VIOLATED', 'bad'],
@@ -31,6 +32,8 @@ const TONES = new Map<string, Tone>([
   ['NOT_APPLICABLE', 'off'],
   ['RELEASED', 'off'],
   ['STALE', 'off'],
+  ['EXPIRED', 'off'],
+  ['REVOKED', 'off'],
 ])
 
 export function tone(value: string | null | undefined): Tone | undefined {

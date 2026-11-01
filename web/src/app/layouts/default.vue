@@ -13,6 +13,7 @@ const LINKS = [
   { to: '/', label: 'Overview' },
   { to: '/changes', label: 'Pull requests' },
   { to: '/findings', label: 'Findings' },
+  { to: '/waivers', label: 'Waivers' },
 ]
 
 async function leave() {

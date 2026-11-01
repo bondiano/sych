@@ -5,15 +5,19 @@ import { useRoute } from 'vue-router'
 import { FeedbackForm, FindingDetail, useFinding } from '@/modules/Findings'
 import { can, useMe } from '@/modules/Session'
 import { Card, CardContent, CardHeader, CardTitle, ErrorNotice, Skeleton } from '@/modules/Ui'
+import { WaiverForm } from '@/modules/Waivers'
 
 const route = useRoute()
 const id = computed(() => Number(route.params.id))
 const finding = useFinding(id)
 const { data: me } = useMe()
-const triage = computed(() => {
+const allowed = (role: 'triage' | 'maintainer') => {
   const repository = finding.data.value?.summary.repository.id
-  return repository !== undefined && can(me.value, 'triage', repository)
-})
+  return repository !== undefined && can(me.value, role, repository)
+}
+const triage = computed(() => allowed('triage'))
+// A waiver accepts a rule; a model finding has none and is settled by feedback instead.
+const waivable = computed(() => !!finding.data.value?.summary.rule_id && allowed('maintainer'))
 </script>
 
 <template>
@@ -34,9 +38,22 @@ const triage = computed(() => {
       </RouterLink>
       <FindingDetail :detail="finding.data.value" class="pt-4" />
     </div>
-    <Card v-if="triage">
-      <CardHeader><CardTitle>Your feedback</CardTitle></CardHeader>
-      <CardContent><FeedbackForm :finding-id="id" /></CardContent>
-    </Card>
+    <!-- Keyed by the finding: a param-only navigation must not carry one finding's draft into another. -->
+    <div v-if="triage || waivable" :key="id" class="space-y-6">
+      <Card v-if="triage">
+        <CardHeader><CardTitle>Your feedback</CardTitle></CardHeader>
+        <CardContent><FeedbackForm :finding-id="id" /></CardContent>
+      </Card>
+      <Card v-if="waivable">
+        <CardHeader><CardTitle>Waive this rule</CardTitle></CardHeader>
+        <CardContent>
+          <WaiverForm
+            :change-id="finding.data.value.summary.change_id"
+            :rule-id="finding.data.value.summary.rule_id ?? ''"
+            :path="finding.data.value.summary.path"
+          />
+        </CardContent>
+      </Card>
+    </div>
   </div>
 </template>
