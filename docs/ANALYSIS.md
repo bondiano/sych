@@ -25,19 +25,19 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    risk audit leave one attempt per standalone discovery batch, at most half of `max_attempts` less the
    verifier's attempt, so a PR with many required rules is still searched. If a discovery batch (item 3) shows an obligation's verification packet
    in full (each of its spans lies within the batch spans, nothing required is excluded), the assessment
-   runs in the same call as discovery: `review@5` returns `assessments` and hypotheses. For a small PR this is
+   runs in the same call as discovery: `review@6` returns `assessments` and hypotheses. For a small PR this is
    one call instead of assessment + discovery. The remaining obligations each get a separate `assessment@4`.
    Combined and separate calls share one queue in that obligation order (a combined call ranks by its most
-   important obligation). An obligation without exactly one assessment in the `review@5` reply is
+   important obligation). An obligation without exactly one assessment in the `review@6` reply is
    `UNKNOWN/MODEL_FAILED` ("ob-N has no single assessment"); a criterion without exactly one result is `UNKNOWN`. An obligation whose verification packet was split into chunks gets one
    `assessment@4` per chunk; `context_limited` merges them per rule: a violation in any chunk stands, then an
    unknown, then support. The packet holding a required span that fits no chunk (`REQUIRED_OVER_BUDGET`) gets
    no call, and the obligation stays `UNKNOWN/CONTEXT_LIMIT` unless another chunk shows a violation.
-2. **Risk audit** (`risk_audit@5`) — for HIGH/CRITICAL risk obligations, a separate search over each chunk of the
+2. **Risk audit** (`risk_audit@6`) — for HIGH/CRITICAL risk obligations, a separate search over each chunk of the
    obligation's verification packet.
    It does not see the discovery output and runs even when discovery is empty; this is not a promise of
    statistical independence of errors.
-3. **Discovery** (`discovery@6`) — over the discovery packets of review units with the list of their obligations. Adjacent
+3. **Discovery** (`discovery@7`) — over the discovery packets of review units with the list of their obligations. Adjacent
    packets are merged into one call as long as their tokens fit in `context.max_tokens_per_request`: for a
    small PR this is one discovery instead of a call per unit.
 4. **Verify** (`verify@5`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
@@ -90,6 +90,8 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
   an empty array. More than 20 candidates is `CANDIDATE_OVERFLOW`: the extra ones are dropped, which is a gap and `LIMIT_REACHED`
   (coverage `PARTIAL`); more than 4 context requests are rejected by count. The model's `unresolved_questions` go
   into the result's `unresolved_questions` as `open question: …`, without changing the execution outcome and coverage.
+  The prompt asks to keep only questions the shown spans cannot answer: when removed lines, doc comments or messages
+  state the intent and the change breaks it, that is a candidate, not a question.
 - **Context requests** are a closed enum `read_lines | find_references | find_callers | find_callees |
   find_implementations | search_source` without hashes or commands; it is translated into a typed broker operation, answered by `Ops` against the pinned
   snapshot (fixed-string search up to 5 s, secret paths are not read, up to 3 spans per answer). The answer is added to the
