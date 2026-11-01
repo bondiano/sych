@@ -46,6 +46,7 @@ fn changed(path: &str) -> FileChange {
         new: Some(side(path)),
         similarity: None,
         generated: false,
+        generated_claim: false,
         hunks: Vec::new(),
         limitations: Vec::new(),
     }

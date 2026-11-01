@@ -40,6 +40,7 @@ fn changed(path: &str) -> FileChange {
         }),
         similarity: None,
         generated: false,
+        generated_claim: false,
         hunks: Vec::new(),
         limitations: Vec::new(),
     }

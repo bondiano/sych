@@ -19,7 +19,8 @@ use sych_core::config::{Role, RunMode};
 use sych_core::model::{AttemptRecord, Ledger, Limits, ModelProvider, Prompt, Purpose, Router};
 use sych_core::tour::{QuestionKind, TourArtifact, TourStep};
 use sych_core::{
-    MicroUsd, ReviewResult, RunId, SchemaVersion, SnapshotReader, Timestamp, VerificationStatus,
+    GENERATED_IN_CHANGE, MicroUsd, RepoPath, ReviewResult, RunId, SchemaVersion, SnapshotReader,
+    Timestamp, VerificationStatus,
 };
 use sych_storage::{RunLedger, Storage, TENANT_LOCAL};
 
@@ -323,10 +324,19 @@ pub async fn explain(
         router: &router,
         attempts: RefCell::new(Vec::new()),
     };
+    // The run's own account of what was generated: the diff manifest may be gone by now.
+    let generated: Vec<RepoPath> = report
+        .review_result
+        .excluded_or_unreviewed
+        .iter()
+        .filter(|g| matches!(g.reason.as_str(), "GENERATED" | GENERATED_IN_CHANGE))
+        .map(|g| g.path.clone())
+        .collect();
     let ops = Ops {
         facts: &report.semantic_facts,
         evidence: &report.evidence,
         reader,
+        generated: &generated,
     };
     let mut reply = answer(&model, (tour, step), &report.review_result, &ops, question)
         .await

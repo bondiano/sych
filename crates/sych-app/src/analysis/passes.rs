@@ -194,10 +194,12 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         context: &mut Context,
         out: &mut Outcome,
     ) {
+        let generated = self.snap.manifest.hidden_paths();
         let ops = Ops {
             facts: &self.facts.semantic,
             evidence: self.evidence,
             reader: self.snap,
+            generated: &generated,
         };
         for ask in asks {
             let answered = ask.answer(&ops, context, MAX_REFS_PER_ANSWER);

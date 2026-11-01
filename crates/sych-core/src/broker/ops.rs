@@ -102,6 +102,9 @@ pub struct Ops<'a> {
     pub facts: &'a [SemanticFacts],
     pub evidence: &'a [Evidence],
     pub reader: &'a dyn SnapshotReader,
+    /// Generated files of the change ([`crate::DiffManifest::hidden_paths`]): never read for a
+    /// model, nor found by its searches.
+    pub generated: &'a [RepoPath],
 }
 
 impl Ops<'_> {
@@ -153,6 +156,10 @@ impl Ops<'_> {
     fn read(&self, code_ref: &CodeRef) -> OpResult {
         if is_secret_path(code_ref.path.as_str()) {
             return OpResult::failed("secret path".into());
+        }
+
+        if self.generated.contains(&code_ref.path) {
+            return OpResult::unsupported("generated file: not shown to reviewers");
         }
 
         match self.reader.read_span(code_ref) {
@@ -223,12 +230,23 @@ impl Ops<'_> {
         match self.reader.search(side, query, paths, limit + 1) {
             Ok(mut hits) => {
                 hits.retain(|r| !is_secret_path(r.path.as_str()));
+                let found = hits.len();
+                hits.retain(|r| !self.generated.contains(&r.path));
+                let mut limitations = Vec::new();
+                if hits.len() < found {
+                    limitations.push(format!(
+                        "{} hits in generated files are not shown",
+                        found - hits.len()
+                    ));
+                }
+
                 // A literal search over the pinned tree is complete unless it was cut off.
                 if hits.len() > limit {
                     hits.truncate(limit);
-                    OpResult::refs(OpStatus::Partial, hits, vec![format!("first {limit} hits")])
+                    limitations.push(format!("first {limit} hits"));
+                    OpResult::refs(OpStatus::Partial, hits, limitations)
                 } else {
-                    OpResult::refs(OpStatus::CompleteForQuery, hits, Vec::new())
+                    OpResult::refs(OpStatus::CompleteForQuery, hits, limitations)
                 }
             }
             Err(err) => OpResult::failed(err.to_string()),

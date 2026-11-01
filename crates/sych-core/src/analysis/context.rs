@@ -11,12 +11,32 @@ use crate::broker::{EvidencePacket, Priority, REQUIRED_OVER_BUDGET};
 use crate::model::DataBlock;
 use crate::{
     BindingKind, CodeRef, Completeness, DiffManifest, Evidence, EvidenceBinding, EvidenceId,
-    EvidenceKind, Producer, ReviewLanguage, SchemaVersion, SnapshotReader, SourceSide,
+    EvidenceKind, FileChange, Producer, ReviewLanguage, SchemaVersion, SnapshotReader, SourceSide,
     SourceSnapshot, Timestamp, TrustClass, Validity, canonical_sha256, derived_uuid,
 };
 
 /// Removed lines of one test or CI file shown verbatim; the rest is only counted.
 const MAX_REMOVED_LINES: u32 = 40;
+/// Generated files named in one prompt; the rest are counted.
+const MAX_HIDDEN_LISTED: usize = 50;
+
+/// `old -> new STATUS: N lines removed, M added;` of one changed file.
+fn change_line(file: &FileChange) -> String {
+    let mut names: Vec<&str> = file
+        .old
+        .iter()
+        .chain(&file.new)
+        .map(|s| s.path.as_str())
+        .collect();
+    names.dedup();
+    let removed: u32 = file.hunks.iter().map(|h| h.old_lines).sum();
+    let added: u32 = file.hunks.iter().map(|h| h.new_lines).sum();
+    format!(
+        "{} {:?}: {removed} lines removed, {added} added;",
+        names.join(" -> "),
+        file.status
+    )
+}
 
 /// Lines inside one handed-out span; the model never writes paths or hashes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -133,7 +153,8 @@ impl Context {
     }
 
     /// Every hunk of the changed files that the spans show, so a model can tell a shown hunk
-    /// is its file's whole change: lines no hunk lists are unchanged.
+    /// is its file's whole change: lines no hunk lists are unchanged. Generated files the change
+    /// also touches are named without content, so their absence is never read as "not changed".
     pub fn add_changes(&mut self, manifest: &DiffManifest) {
         let mut content = String::new();
         for file in &manifest.files {
@@ -142,16 +163,7 @@ impl Context {
                 continue;
             }
 
-            let mut names: Vec<&str> = sides.iter().map(|p| p.as_str()).collect();
-            names.dedup();
-            let removed: u32 = file.hunks.iter().map(|h| h.old_lines).sum();
-            let added: u32 = file.hunks.iter().map(|h| h.new_lines).sum();
-            let _ = write!(
-                content,
-                "{} {:?}: {removed} lines removed, {added} added;",
-                names.join(" -> "),
-                file.status
-            );
+            content.push_str(&change_line(file));
             for h in &file.hunks {
                 let _ = write!(
                     content,
@@ -169,6 +181,27 @@ impl Context {
                 content,
             });
         }
+
+        let hidden: Vec<&FileChange> = manifest.files.iter().filter(|f| f.hidden()).collect();
+        if hidden.is_empty() {
+            return;
+        }
+
+        let mut content = String::new();
+        for file in hidden.iter().take(MAX_HIDDEN_LISTED) {
+            content.push_str(&change_line(file));
+            content.push('\n');
+        }
+        if hidden.len() > MAX_HIDDEN_LISTED {
+            let _ = writeln!(content, "{} more", hidden.len() - MAX_HIDDEN_LISTED);
+        }
+
+        self.blocks.push(DataBlock {
+            label: "generated files this change also changes; never shown or reviewed: do not \
+                    report them as missing, stale or not regenerated"
+                .into(),
+            content,
+        });
     }
 
     /// The lines every changed test or CI file loses, shown or not: a removed assertion or

@@ -7,7 +7,8 @@ use std::fmt::Write;
 use super::body::{agent_prompt, badge, category, details, lines, task};
 use super::{Placement, Planned, reason_text, tr};
 use crate::{
-    Coverage, Finding, FindingCategory, ObligationStatus, ReviewResult, Severity, SourceSide,
+    Coverage, Finding, FindingCategory, GENERATED_IN_CHANGE, ObligationStatus, ReviewResult,
+    Severity, SourceSide,
 };
 
 /// What the summary needs besides the result.
@@ -265,7 +266,25 @@ fn unknowns(out: &mut String, result: &ReviewResult, detail: Detail) {
         .map(|(_, text)| text)
         .chain(result.unresolved_questions.iter().cloned())
         .collect();
-    if required.is_empty() && other.is_empty() {
+    // Only the change's own marker kept these from the reviewer: a reader must look at them.
+    let hidden: Vec<String> = result
+        .excluded_or_unreviewed
+        .iter()
+        .filter(|g| g.reason == GENERATED_IN_CHANGE)
+        .map(|g| {
+            format!(
+                "{} `{}` — {}",
+                tr(l, "**hidden by this change**", "**скрыт этим изменением**"),
+                g.path,
+                tr(
+                    l,
+                    "its own content marks it generated; the reviewer did not see it, check it by hand",
+                    "его собственное содержимое объявляет его сгенерированным; ревьюер его не видел, проверьте вручную"
+                )
+            )
+        })
+        .collect();
+    if hidden.is_empty() && required.is_empty() && other.is_empty() {
         return;
     }
 
@@ -277,8 +296,12 @@ fn unknowns(out: &mut String, result: &ReviewResult, detail: Detail) {
             "Unknown and missing checks",
             "Неизвестное и непроверенное"
         ),
-        required.len() + other.len()
+        hidden.len() + required.len() + other.len()
     );
+    for h in &hidden {
+        let _ = writeln!(out, "- {h}");
+    }
+
     for (_, u) in &required {
         let _ = writeln!(out, "- {u}");
     }

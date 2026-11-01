@@ -474,10 +474,13 @@ fn file_change(
         (true, false) => whole_file(line_count(&old).unwrap_or(0), 0, false),
         _ => Vec::new(),
     };
+    // A marker the change itself writes is the author's word, not the target's: it hides the
+    // file from the models but the review says so.
+    let generated = old.as_ref().is_some_and(|s| s.generated);
     Ok(FileChange {
         status: entry.status,
-        generated: old.as_ref().is_some_and(|s| s.generated)
-            || new.as_ref().is_some_and(|s| s.generated),
+        generated,
+        generated_claim: !generated && new.as_ref().is_some_and(|s| s.generated),
         old: old.map(|s| s.side),
         new: new.map(|s| s.side),
         similarity: entry.similarity,

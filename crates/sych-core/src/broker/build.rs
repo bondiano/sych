@@ -205,9 +205,10 @@ fn request(
     }
 }
 
-/// Declared unread by the planner (`GENERATED`): its hunks are never packed as context.
+/// Declared unread by the planner (`GENERATED`, `GENERATED_IN_CHANGE`): its hunks are never
+/// packed as context.
 fn generated(manifest: &DiffManifest, path: &RepoPath) -> bool {
-    file_for(manifest, path).is_some_and(|f| f.generated)
+    file_for(manifest, path).is_some_and(FileChange::hidden)
 }
 
 pub(super) fn file_for<'a>(manifest: &'a DiffManifest, path: &RepoPath) -> Option<&'a FileChange> {
@@ -245,7 +246,7 @@ fn packet(
         .collect();
     let mut requests = 0;
     for path in units.iter().flat_map(|u| &u.paths) {
-        let Some(file) = file_for(input.manifest, path).filter(|f| !f.generated) else {
+        let Some(file) = file_for(input.manifest, path).filter(|f| !f.hidden()) else {
             continue;
         };
         for side in [SourceSide::DiffBase, SourceSide::Head] {

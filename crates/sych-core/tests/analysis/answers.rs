@@ -17,6 +17,7 @@ fn an_answer_cut_to_fewer_refs_says_it_is_partial() {
         },
     };
     let ops = Ops {
+        generated: &[],
         facts: &[],
         evidence: &[],
         reader: &reader,

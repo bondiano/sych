@@ -70,6 +70,10 @@ builds the `CodeRef` itself through the snapshot reader with a hash check.
 A further DATA block lists every hunk of each changed file the spans show (`-start,count +start,count` and the lines
 removed and added), so the model can tell that a shown hunk is its file's whole change: for example, that a test
 file only gained lines, which `TEST-INTEGRITY` otherwise could not settle from the spans alone.
+Generated files the change also touches are listed in their own block, by path, status and line counts, at most 50,
+and never with their content. A model therefore knows a regenerated file did change, and does not report it as stale.
+A context request never reads them either: `read_span` and `read_symbol` answer `UNSUPPORTED`, and a search leaves
+out their hits and says how many it dropped.
 An obligation about the tests themselves (the shipped `TEST-INTEGRITY`) also gets the removed lines of every changed
 test and CI file, shown or not, read verbatim from BASE (up to 40 lines per file, the rest counted), and
 "0 lines removed" for a file that only gained lines: a weakened assertion or gate is visible even when the file's
