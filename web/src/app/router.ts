@@ -26,6 +26,11 @@ export function createAppRouter() {
         meta: { title: 'Finding' },
       },
       {
+        path: '/waivers',
+        component: () => import('@/pages/waivers/index.vue'),
+        meta: { title: 'Waivers' },
+      },
+      {
         path: '/runs/:id',
         component: () => import('@/pages/runs/[id].vue'),
         meta: { title: 'Run' },
