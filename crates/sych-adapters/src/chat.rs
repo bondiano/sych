@@ -13,7 +13,7 @@ use sych_core::model::{
 };
 use sych_core::{MicroUsd, redact};
 
-/// Model request timeout: a 12000-token reply at ~66 tokens/s of `deepseek-v4.1-flash` takes about 180 s, and
+/// Timeout of one model request, over HTTP or through the `pi` subprocess alike: a 12000-token reply at ~66 tokens/s of `deepseek-v4.1-flash` takes about 180 s, and
 /// a 22k-in, 7.5k-out review pass took 113 s, past the former 90 s (`sych#93`).
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 
