@@ -3,6 +3,8 @@ import { formatMicroUsd } from '@/common/utilities/formatMicroUsd'
 import { formatTime } from '@/common/utilities/formatTime'
 import type { Schemas } from '@/modules/Api'
 import {
+  Button,
+  ErrorNotice,
   StatusBadge,
   Table,
   TableBody,
@@ -12,10 +14,15 @@ import {
   TableRow,
 } from '@/modules/Ui'
 
-defineProps<{ runs: Schemas['RunStatus'][] }>()
+import { ACTIVE_STATES, useCancelRun } from '../queries'
+
+defineProps<{ runs: Schemas['RunStatus'][]; canCancel?: boolean }>()
+
+const cancel = useCancelRun()
 </script>
 
 <template>
+  <ErrorNotice v-if="cancel.error.value" :error="cancel.error.value" title="Not cancelled" />
   <Table>
     <TableHeader>
       <TableRow>
@@ -26,6 +33,7 @@ defineProps<{ runs: Schemas['RunStatus'][] }>()
         <TableHead class="text-right">Cost</TableHead>
         <TableHead>Started</TableHead>
         <TableHead>Failure</TableHead>
+        <TableHead v-if="canCancel" />
       </TableRow>
     </TableHeader>
     <TableBody>
@@ -48,6 +56,17 @@ defineProps<{ runs: Schemas['RunStatus'][] }>()
         <TableCell class="text-muted-foreground">{{ formatTime(r.created_at) }}</TableCell>
         <TableCell class="max-w-xs truncate text-muted-foreground" :title="r.failure ?? ''">
           {{ r.failure ?? '' }}
+        </TableCell>
+        <TableCell v-if="canCancel" class="text-right">
+          <Button
+            v-if="ACTIVE_STATES.includes(r.state)"
+            variant="outline"
+            size="sm"
+            :disabled="cancel.isPending.value"
+            @click="cancel.mutate(r.run_id)"
+          >
+            Cancel
+          </Button>
         </TableCell>
       </TableRow>
     </TableBody>
