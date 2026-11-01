@@ -417,6 +417,7 @@ as `before`, gives the next one. Times are Unix seconds, money micro-USD.
 | `POST /v1/reviews` | writer | 202 `{request_id, run_id, status_url, reused}` — durable admission; `publish` defaults to `false` and is enabled only where the connection publishes; optional `checks: [{profile, params}]` run only those execution profiles ([CONFIG.md](CONFIG.md)) |
 | `GET /v1/runs/:id` | reader | state, stage, coverage, usage, link to the result |
 | `GET /v1/runs/:id/result` | reader | immutable `ReviewResult`; before commit — 409 `NO_RESULT`; once retention deleted it — 409 `RESULT_PRUNED` |
+| `GET /v1/runs/:id/snapshots` | reader | `{run_id, source, policy}`: the `SourceSnapshot` (repository, target ref and tip, diff base, head, comparison) and `PolicySnapshot` (source, rule and config hashes) the result is bound to, so a merge gate checks what was reviewed, not only the ids; `source` is `null` once its 7-day retention deleted it; before commit — 409 `NO_RESULT`; result or policy snapshot deleted by retention — 409 `RESULT_PRUNED`; pinned snapshots the result does not name — 409 `SNAPSHOT_MISMATCH` |
 | `GET /v1/runs/:id/attempts` | reader | the run's model attempts as the ledger recorded them; an unknown charge is `null`, never 0 |
 | `POST /v1/runs/:id/cancel` | writer | active → `CANCELLED`; a committed one stays in its terminal state |
 | `POST /v1/changes/:id/reruns` | writer | 202, a new generation from the current PR state |
