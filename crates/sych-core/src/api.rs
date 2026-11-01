@@ -9,7 +9,7 @@ use crate::analysis::followup::Exchange;
 use crate::config::CheckRequest;
 use crate::handoff::Handoff;
 use crate::tour::{QuestionKind, TourArtifact, TourSession};
-use crate::{FindingId, ReviewResult, SourceSnapshotId, Timestamp};
+use crate::{FindingId, PolicySnapshot, ReviewResult, SourceSnapshot, SourceSnapshotId, Timestamp};
 
 mod views;
 
@@ -147,6 +147,17 @@ pub struct RunStatus {
     pub parent_run_id: Option<String>,
     /// Obligations the run could not assess; `None` before it finished.
     pub unknown_obligations: Option<i64>,
+}
+
+/// `GET /v1/runs/:id/snapshots`: the source and policy snapshots a completed result is bound
+/// to, so a gate checks what was reviewed (repository, head, base, policy source) and not only
+/// the ids.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct RunSnapshots {
+    pub run_id: String,
+    /// `null` once its shorter retention pruned it; the result stays readable.
+    pub source: Option<SourceSnapshot>,
+    pub policy: PolicySnapshot,
 }
 
 /// `POST /v1/runs/:id/cancel`: the state after the call; a committed run keeps its own.
@@ -320,6 +331,7 @@ pub fn openapi() -> Value {
     let exchange = component::<Exchange>(&mut c, "Exchange");
     let handoff_request = component::<HandoffRequest>(&mut c, "HandoffRequest");
     let handoff = component::<Handoff>(&mut c, "Handoff");
+    let snapshots = component::<RunSnapshots>(&mut c, "RunSnapshots");
     let error = component::<ErrorEnvelope>(&mut c, "ErrorEnvelope");
     let errors = |codes: &[u16]| -> Map<String, Value> {
         codes
@@ -388,6 +400,7 @@ pub fn openapi() -> Value {
             "/v1/reviews": {"post": op("Request a review; 202 is durable admission", Some(&review), 202, &accepted, true, &[400, 401, 403, 404, 409, 413, 429, 503])},
             "/v1/runs/{id}": {"get": op("Run state, stage, usage and links", None, 200, &status, false, &[401, 403, 404, 503])},
             "/v1/runs/{id}/result": {"get": op("The immutable result", None, 200, &result, false, &[401, 403, 404, 409, 503])},
+            "/v1/runs/{id}/snapshots": {"get": op("The source and policy snapshots the result is bound to", None, 200, &snapshots, false, &[401, 403, 404, 409, 503])},
             "/v1/runs/{id}/cancel": {"post": op("Cancel an active run; committed results keep their state", None, 200, &cancel, true, &[400, 401, 403, 404, 409, 503])},
             "/v1/changes/{id}/reruns": {"post": op("An explicit new generation", Some(&rerun), 202, &accepted, true, &[400, 401, 403, 404, 409, 429, 503])},
             "/v1/findings/{id}/feedback": {"post": op("Structured feedback", Some(&feedback), 201, &created, true, &[400, 401, 403, 404, 409, 503])},

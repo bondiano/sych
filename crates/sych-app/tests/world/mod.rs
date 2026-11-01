@@ -20,7 +20,7 @@ use sych_app::server::build::{self, EngineConfig};
 use sych_app::server::{App, Conn, Counters, Engine, binding};
 use sych_core::config::{ApiClient, GithubConnection, ServerConfig};
 use sych_core::sha256;
-use sych_core::{ReviewResult, RunId, Timestamp};
+use sych_core::{PolicySnapshot, PolicySource, ReviewResult, RunId, SchemaVersion, Timestamp};
 use sych_core::{SourceSide, decode};
 use sych_storage::{Admitted, ArtifactKind, Storage};
 
@@ -463,12 +463,32 @@ pub async fn commit_claimed(w: &World, head: &str, defects: u32) {
     )
     .await
     .expect("manifest");
+    // Pinned like a real review's inputs, so the result names these snapshots.
+    let kind = ArtifactKind::SourceSnapshot;
+    s.put_artifact(&c.run, "source_snapshot", kind, &snap.snapshot, now())
+        .await
+        .expect("source snapshot");
+    let policy_snapshot = PolicySnapshot {
+        schema_version: SchemaVersion,
+        id: policy.clone(),
+        source: PolicySource::EngineDefaults,
+        rules_hash: sha256(b"rules"),
+        config_hash: sha256(b"config"),
+        authorization_policy_version: 1,
+        created_at: now(),
+    };
+    let kind = ArtifactKind::PolicySnapshot;
+    s.put_artifact(&c.run, "policy_snapshot", kind, &policy_snapshot, now())
+        .await
+        .expect("policy snapshot");
     let text = fs::read_to_string(
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/core/v1/review-result.json"),
     )
     .expect("fixture");
     let mut result: ReviewResult = decode(&text).expect("result");
     result.run_id = c.run.id;
+    result.source_snapshot_id = snap.snapshot.id.clone();
+    result.policy_snapshot_id = policy;
     let path = "src/b.rs".parse().expect("path");
     let anchor = snap
         .code_ref(SourceSide::Head, &path, 1, 1)

@@ -572,6 +572,21 @@
         ],
         "type": "object"
       },
+      "ComparisonMode": {
+        "description": "How `diff_base` was chosen; never an arbitrary commit.",
+        "oneOf": [
+          {
+            "const": "MERGE_BASE",
+            "description": "`diff_base = merge-base(target_tip, head)`.",
+            "type": "string"
+          },
+          {
+            "const": "EXPLICIT_DIFF_BASE",
+            "description": "`diff_base` was given explicitly for a two-dot comparison.",
+            "type": "string"
+          }
+        ]
+      },
       "CostSummary": {
         "description": "Cost with explicit unknown part; an unknown charge is never recorded as zero.",
         "properties": {
@@ -1663,9 +1678,86 @@
         ],
         "type": "object"
       },
+      "PolicySnapshot": {
+        "properties": {
+          "authorization_policy_version": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "config_hash": {
+            "$ref": "#/components/schemas/Sha256Digest"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "$ref": "#/components/schemas/PolicySnapshotId"
+          },
+          "rules_hash": {
+            "$ref": "#/components/schemas/Sha256Digest"
+          },
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "source": {
+            "$ref": "#/components/schemas/PolicySource"
+          }
+        },
+        "required": [
+          "schema_version",
+          "id",
+          "source",
+          "rules_hash",
+          "config_hash",
+          "authorization_policy_version",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "PolicySnapshotId": {
         "$ref": "#/components/schemas/Sha256Digest",
         "description": "Content-derived identity of a [`crate::PolicySnapshot`]."
+      },
+      "PolicySource": {
+        "description": "Where active rules came from. The reviewed head is never a policy source.",
+        "oneOf": [
+          {
+            "description": "Engine defaults only; no repository policy was accepted.",
+            "properties": {
+              "kind": {
+                "const": "engine_defaults",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Policy read from an accepted ref pinned to a commit.",
+            "properties": {
+              "commit": {
+                "$ref": "#/components/schemas/GitObjectId"
+              },
+              "kind": {
+                "const": "trusted_ref",
+                "type": "string"
+              },
+              "ref_name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "ref_name",
+              "commit"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "Provenance": {
         "properties": {
@@ -2365,6 +2457,33 @@
         ],
         "type": "object"
       },
+      "RunSnapshots": {
+        "description": "`GET /v1/runs/:id/snapshots`: the source and policy snapshots a completed result is bound\nto, so a gate checks what was reviewed (repository, head, base, policy source) and not only\nthe ids.",
+        "properties": {
+          "policy": {
+            "$ref": "#/components/schemas/PolicySnapshot"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceSnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`null` once its shorter retention pruned it; the result stays readable."
+          }
+        },
+        "required": [
+          "run_id",
+          "policy"
+        ],
+        "type": "object"
+      },
       "RunStatus": {
         "description": "`GET /v1/runs/:id`.",
         "properties": {
@@ -2562,6 +2681,62 @@
           "TARGET_TIP"
         ],
         "type": "string"
+      },
+      "SourceSnapshot": {
+        "description": "Immutable source positions of one review. `target_tip` and `diff_base` are separate fields.",
+        "properties": {
+          "comparison": {
+            "$ref": "#/components/schemas/ComparisonMode"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "diff_base": {
+            "$ref": "#/components/schemas/GitObjectId"
+          },
+          "diff_manifest_hash": {
+            "$ref": "#/components/schemas/Sha256Digest"
+          },
+          "head": {
+            "$ref": "#/components/schemas/GitObjectId"
+          },
+          "id": {
+            "$ref": "#/components/schemas/SourceSnapshotId"
+          },
+          "repository": {
+            "description": "Opaque repository identity, not a host path.",
+            "type": "string"
+          },
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "source_manifest_hash": {
+            "$ref": "#/components/schemas/Sha256Digest"
+          },
+          "target_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_tip": {
+            "$ref": "#/components/schemas/GitObjectId"
+          }
+        },
+        "required": [
+          "schema_version",
+          "id",
+          "repository",
+          "target_tip",
+          "diff_base",
+          "head",
+          "comparison",
+          "source_manifest_hash",
+          "diff_manifest_hash",
+          "created_at"
+        ],
+        "type": "object"
       },
       "SourceSnapshotId": {
         "$ref": "#/components/schemas/Sha256Digest",
@@ -5037,6 +5212,91 @@
           }
         ],
         "summary": "The immutable result"
+      }
+    },
+    "/v1/runs/{id}/snapshots": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSnapshots"
+                }
+              }
+            },
+            "description": "The source and policy snapshots the result is bound to"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "The source and policy snapshots the result is bound to"
       }
     },
     "/v1/runs/{id}/tour": {

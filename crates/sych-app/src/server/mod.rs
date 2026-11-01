@@ -17,6 +17,7 @@ mod publisher;
 mod questions;
 pub mod requests;
 pub mod smoke;
+mod snapshots;
 mod tours;
 pub mod ui;
 pub mod views;
@@ -176,6 +177,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/reviews", post(api::create_review))
         .route("/v1/runs/{id}", get(api::get_run))
         .route("/v1/runs/{id}/result", get(api::get_result))
+        .route("/v1/runs/{id}/snapshots", get(snapshots::snapshots))
         .route("/v1/runs/{id}/cancel", post(api::cancel_run))
         .route("/v1/changes/{id}/reruns", post(api::rerun))
         .route("/v1/findings/{id}/feedback", post(api::feedback))
