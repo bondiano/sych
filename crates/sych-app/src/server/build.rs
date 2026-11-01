@@ -70,6 +70,7 @@ impl App {
             public_base_url: None,
             oauth: BTreeMap::new(),
             ui_dir: None,
+            config: None,
         }
     }
 }

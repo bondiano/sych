@@ -43,6 +43,8 @@ pub struct Me {
     pub tenant_id: String,
     /// A person's roles as GitHub granted them at sign-in; every change is checked again live.
     pub repositories: Vec<Grant>,
+    /// An operator who maintains every repository and so sees `/v1/admin`.
+    pub admin: bool,
 }
 
 /// `GET /auth/github`: a connection people sign in through.

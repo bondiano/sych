@@ -280,6 +280,7 @@ pub async fn logout(State(app): State<Arc<App>>, headers: HeaderMap) -> Result<R
 pub async fn me(State(app): State<Arc<App>>, caller: Caller) -> Result<Json<Me>, ApiError> {
     let repositories = grants(&app, &caller).await?;
     Ok(Json(Me {
+        admin: super::admin::operator(&caller),
         kind: caller.kind().into(),
         actor: caller.actor,
         tenant_id: caller.tenant_id,

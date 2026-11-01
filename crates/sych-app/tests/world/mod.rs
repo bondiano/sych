@@ -16,6 +16,7 @@ use sych_adapters::git::{LocalSnapshot, SnapshotRequest};
 use sych_adapters::github::webhook::parse;
 use sych_adapters::github::{AppKey, Github, Secret};
 use sych_app::args::{ModelSelection, Switch};
+use sych_app::config::shown;
 use sych_app::server::build::{self, EngineConfig};
 use sych_app::server::{App, Conn, Counters, Engine, binding};
 use sych_core::config::{ApiClient, GithubConnection, ServerConfig};
@@ -218,6 +219,7 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
         public_base_url: Some(PUBLIC_BASE.into()),
         oauth: BTreeMap::from([("gh".into(), Secret::new(CLIENT_SECRET.into()))]),
         ui_dir: None,
+        config: Some(shown(&config_path).expect("shown config")),
     });
     let conns = BTreeMap::from([(
         "gh".into(),

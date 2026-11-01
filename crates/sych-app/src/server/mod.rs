@@ -1,6 +1,7 @@
 //! `sych serve`: one process with webhook admission and health; the
 //! scheduler, worker and publisher join it as they land.
 
+mod admin;
 pub mod api;
 mod auth;
 pub mod build;
@@ -68,6 +69,9 @@ pub struct App {
     pub oauth: BTreeMap<String, Secret>,
     /// The web UI's build, served at `/ui`.
     pub ui_dir: Option<PathBuf>,
+    /// The effective config with secrets redacted, for `GET /v1/admin/config`; `None` where
+    /// the process was not started from a config file.
+    pub config: Option<serde_json::Value>,
 }
 
 impl App {
@@ -137,6 +141,7 @@ impl App {
             public_base_url: config.http.public_base_url.clone(),
             oauth,
             ui_dir: config.http.ui_dir.clone(),
+            config: None,
         })
     }
 
@@ -201,6 +206,9 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/publications", get(queue::publications))
         .route("/v1/publications/{id}/reconcile", post(queue::reconcile))
         .route("/v1/jobs", get(queue::jobs))
+        .route("/v1/admin/connections", get(admin::connection_views))
+        .route("/v1/admin/deliveries", get(admin::deliveries))
+        .route("/v1/admin/config", get(admin::config))
         .route("/v1/runs/{id}/handoff", post(handoff::handoff))
         .route("/v1/runs/{id}/tour", get(tours::get_tour))
         .route("/v1/runs/{id}/tours/{tour}/reveal", post(tours::reveal))

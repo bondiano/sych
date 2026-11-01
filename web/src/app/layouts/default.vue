@@ -17,6 +17,7 @@ const links = computed(() => [
   { to: '/waivers', label: 'Waivers' },
   { to: '/queue', label: 'Queue' },
   ...(canSomewhere(me.value, 'maintainer') ? [{ to: '/audit', label: 'Audit' }] : []),
+  ...(me.value?.admin ? [{ to: '/admin', label: 'Admin' }] : []),
 ])
 
 async function leave() {

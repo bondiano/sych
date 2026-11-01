@@ -8,6 +8,7 @@ const me: Schemas['Me'] = {
   actor: 'github:alice',
   kind: 'user',
   tenant_id: 'local',
+  admin: false,
   repositories: [
     { repository: { id: 1, connection_id: 'gh', full_name: 'o/r' }, role: 'triage' },
     { repository: { id: 2, connection_id: 'gh', full_name: 'o/s' }, role: 'reader' },

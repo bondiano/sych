@@ -76,6 +76,14 @@ fn read_policy_dir(repo: &Path) -> io::Result<PolicyFiles> {
     Ok(files)
 }
 
+/// The effective server config at `config` as `sych config validate` prints it, secrets
+/// redacted; what `GET /v1/admin/config` answers.
+pub fn shown(config: &Path) -> anyhow::Result<serde_json::Value> {
+    let json = serde_json::to_string(&effective(Some(config), None)?)?;
+    let text = sych_core::redact(&json);
+    Ok(serde_json::from_str(&text).unwrap_or_else(|_| serde_json::Value::String(text.into())))
+}
+
 /// Effective config of the server config and, when given, the working-tree `.sych/`.
 pub fn effective(config: Option<&Path>, repo: Option<&Path>) -> anyhow::Result<EffectiveConfig> {
     let server = read_server(config)?;
