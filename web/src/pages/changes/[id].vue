@@ -2,9 +2,10 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 
-import { ChangeLog, ChangeRuns, useChange } from '@/modules/Changes'
+import { ChangeLog, ChangeRuns, RerunForm, useChange } from '@/modules/Changes'
 import { FindingsTable, useFindings } from '@/modules/Findings'
 import { ResultSummary, useResult } from '@/modules/Runs'
+import { can, useMe } from '@/modules/Session'
 import { ErrorNotice, LoadMore, Skeleton } from '@/modules/Ui'
 
 const route = useRoute()
@@ -14,6 +15,11 @@ const latest = computed(() => change.data.value?.change.latest_run?.run_id ?? ''
 const result = useResult(latest)
 const findings = useFindings(computed(() => ({ change_id: id.value })))
 const rows = computed(() => findings.data.value?.pages.flatMap((p) => p.items) ?? [])
+const { data: me } = useMe()
+const writer = computed(() => {
+  const repository = change.data.value?.change.repository.id
+  return repository !== undefined && can(me.value, 'writer', repository)
+})
 </script>
 
 <template>
@@ -28,6 +34,11 @@ const rows = computed(() => findings.data.value?.pages.flatMap((p) => p.items) ?
         {{ change.data.value.change.scm_state?.toLowerCase() }} · head
         <span class="font-mono">{{ change.data.value.change.head_sha?.slice(0, 12) }}</span>
       </p>
+      <RerunForm
+        v-if="writer && ['OPEN', 'DRAFT'].includes(change.data.value.change.scm_state ?? 'OPEN')"
+        :change-id="id"
+        class="pt-2"
+      />
     </header>
     <section v-if="latest">
       <h2 class="mb-3 text-lg font-medium">Latest review</h2>
@@ -48,7 +59,7 @@ const rows = computed(() => findings.data.value?.pages.flatMap((p) => p.items) ?
     </section>
     <section>
       <h2 class="mb-3 text-lg font-medium">Revisions</h2>
-      <ChangeRuns :runs="change.data.value.runs" />
+      <ChangeRuns :runs="change.data.value.runs" :can-cancel="writer" />
     </section>
     <ChangeLog :change="change.data.value" />
   </div>

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { Schemas } from '@/modules/Api'
 
-import { can } from '../roles'
+import { can, canSomewhere } from '../roles'
 
 const me: Schemas['Me'] = {
   actor: 'github:alice',
@@ -25,5 +25,13 @@ describe('can', () => {
   it('grants nothing on an unknown repository or before the caller is known', () => {
     expect(can(me, 'reader', 3)).toBe(false)
     expect(can(undefined, 'reader', 1)).toBe(false)
+  })
+})
+
+describe('canSomewhere', () => {
+  it('needs the role on at least one repository', () => {
+    expect(canSomewhere(me, 'triage')).toBe(true)
+    expect(canSomewhere(me, 'maintainer')).toBe(false)
+    expect(canSomewhere(undefined, 'reader')).toBe(false)
   })
 })
