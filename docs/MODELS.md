@@ -120,7 +120,7 @@ Adapter `sych_adapters::openrouter` is a single HTTP `POST {endpoint}/chat/compl
   408, 5xx, a cut-off reply and `error` inside a 200 reply are dispatched, and the charge stays `UNKNOWN`.
   `finish_reason: length`/unknown → `TRUNCATED`, `content_filter`/`refusal` → `REFUSED`. A reply that did not finish
   with `stop` logs `finish_reason`, `native_finish_reason` and the beginning of the refusal.
-- **Egress.** Only the provider's `endpoint` from `sych.yaml` (allowlist), no redirects and no system proxy, timeout 90 s.
+- **Egress.** Only the provider's `endpoint` from `sych.yaml` (allowlist), no redirects and no system proxy, timeout 300 s.
   The key comes from the `api_key_env` variable and never appears in output or errors. Corporate mode with OpenRouter
   is rejected by configuration validation.
 
@@ -201,7 +201,7 @@ runs the real Pi CLI instead of imitating its requests.
   `PI_SKIP_VERSION_CHECK=1`, `PI_TELEMETRY=0`. `settings.json`: `retry.enabled: false`,
   `retry.provider.maxRetries: 0`, `compaction.enabled: false`, `cacheWarming: off`, `defaultProjectTrust: never`.
   The system message is the `--system-prompt` file; everything else is a single prompt on stdin (repair passes the previous reply in the same
-  prompt). A 90 s timeout kills the process; upstream spend stays unknown.
+  prompt). A 300 s timeout kills the process; upstream spend stays unknown.
 - **Reply.** The single assistant `message_end` after `agent_settled` is taken from the JSONL. `tool_execution_start`,
   `auto_retry_start`, `compaction_start`, a second model turn, `toolUse` → `UNSUPPORTED`; a stream without `agent_settled` →
   dispatched `TRANSIENT`; `length` → `TRUNCATED`; `aborted` → `CANCELLED`. JSON is checked by the shared local
