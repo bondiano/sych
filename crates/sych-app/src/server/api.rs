@@ -52,6 +52,20 @@ pub(super) fn storage_error(e: &dyn Display) -> ApiError {
     )
 }
 
+/// A result that is not committed yet or whose evidence retention deleted: a conflict, not an
+/// outage.
+pub(super) fn result_error(e: StorageError) -> ApiError {
+    match e {
+        StorageError::NotCompleted { .. } => {
+            status(StatusCode::CONFLICT, "NO_RESULT", e.to_string())
+        }
+        StorageError::ArtifactUnavailable(_) => {
+            status(StatusCode::CONFLICT, "RESULT_PRUNED", e.to_string())
+        }
+        e => storage_error(&e),
+    }
+}
+
 fn request_error(e: &RequestError) -> ApiError {
     match e {
         RequestError::NotFound(m) => status(StatusCode::NOT_FOUND, "NOT_FOUND", m.clone()),
@@ -284,15 +298,7 @@ pub async fn get_result(
         .storage
         .load_result(&caller.tenant_id, run)
         .await
-        .map_err(|e| match e {
-            StorageError::NotCompleted { .. } => {
-                status(StatusCode::CONFLICT, "NO_RESULT", e.to_string())
-            }
-            StorageError::ArtifactUnavailable(_) => {
-                status(StatusCode::CONFLICT, "RESULT_PRUNED", e.to_string())
-            }
-            e => storage_error(&e),
-        })?;
+        .map_err(result_error)?;
     Ok(Json(
         serde_json::to_value(result).map_err(|e| storage_error(&e))?,
     ))

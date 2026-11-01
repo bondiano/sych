@@ -12,7 +12,7 @@ use sych_core::{PolicySnapshot, SourceSnapshot};
 use sych_storage::StorageError;
 
 use super::App;
-use super::api::{Caller, status, storage_error, visible_run};
+use super::api::{Caller, result_error, status, storage_error, visible_run};
 use super::error::ApiError;
 use super::tours::run_of;
 
@@ -26,20 +26,15 @@ pub async fn snapshots(
     let run = run_of(&view)?;
     let storage = &app.storage;
     let tenant = &caller.tenant_id;
-    let pruned = |e: StorageError| match e {
-        StorageError::NotCompleted { .. } => {
-            status(StatusCode::CONFLICT, "NO_RESULT", e.to_string())
-        }
-        StorageError::ArtifactUnavailable(_) => {
-            status(StatusCode::CONFLICT, "RESULT_PRUNED", e.to_string())
-        }
-        e => storage_error(&e),
-    };
-    let result = storage.load_result(tenant, run).await.map_err(pruned)?;
+    let result = storage
+        .load_result(tenant, run)
+        .await
+        .map_err(result_error)?;
+    // Same retention as the result.
     let policy: PolicySnapshot = storage
         .load_artifact(tenant, run, "policy_snapshot")
         .await
-        .map_err(pruned)?;
+        .map_err(result_error)?;
     // The source snapshot has a shorter retention than the result.
     let source: Option<SourceSnapshot> =
         match storage.load_artifact(tenant, run, "source_snapshot").await {
