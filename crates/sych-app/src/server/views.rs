@@ -27,7 +27,7 @@ use super::error::ApiError;
 const DAY: i64 = 86_400;
 
 /// Repository ids the caller may read; `None` for every repository of its tenant.
-async fn readable(app: &App, caller: &Caller) -> Result<Option<Vec<i64>>, ApiError> {
+pub(super) async fn readable(app: &App, caller: &Caller) -> Result<Option<Vec<i64>>, ApiError> {
     if caller.reads_everything() {
         return Ok(None);
     }
@@ -57,14 +57,14 @@ pub(super) async fn grants(app: &App, caller: &Caller) -> Result<Vec<Grant>, Api
         .collect())
 }
 
-fn visibility<'a>(caller: &'a Caller, ids: Option<&'a [i64]>) -> Visibility<'a> {
+pub(super) fn visibility<'a>(caller: &'a Caller, ids: Option<&'a [i64]>) -> Visibility<'a> {
     Visibility {
         tenant_id: &caller.tenant_id,
         repositories: ids,
     }
 }
 
-fn invalid(message: &str) -> ApiError {
+pub(super) fn invalid(message: &str) -> ApiError {
     status(
         StatusCode::BAD_REQUEST,
         "INVALID_REQUEST",
@@ -72,11 +72,11 @@ fn invalid(message: &str) -> ApiError {
     )
 }
 
-fn not_found() -> ApiError {
+pub(super) fn not_found() -> ApiError {
     status(StatusCode::NOT_FOUND, "NOT_FOUND", "no such object")
 }
 
-fn limit(requested: Option<i64>) -> Result<i64, ApiError> {
+pub(super) fn limit(requested: Option<i64>) -> Result<i64, ApiError> {
     match requested {
         None => Ok(50),
         Some(l) if (1..=200).contains(&l) => Ok(l),

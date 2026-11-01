@@ -11,8 +11,10 @@ use crate::handoff::Handoff;
 use crate::tour::{QuestionKind, TourArtifact, TourSession};
 use crate::{FindingId, PolicySnapshot, ReviewResult, SourceSnapshot, SourceSnapshotId, Timestamp};
 
+mod queue;
 mod views;
 
+pub use queue::{JobEntry, ReconcileRequest, UnresolvedPublication};
 pub use views::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -313,6 +315,15 @@ fn path_parameters(doc: &mut Value) {
     }
 }
 
+/// What a read refuses with; a mutation can also conflict.
+fn refusals(mutating: bool) -> &'static [u16] {
+    if mutating {
+        &[400, 401, 403, 404, 409, 503]
+    } else {
+        &[400, 401, 403, 404, 503]
+    }
+}
+
 /// The `OpenAPI` 3.1 description of `/v1`, from the same DTOs the server uses.
 pub fn openapi() -> Value {
     let mut c = Map::new();
@@ -382,15 +393,11 @@ pub fn openapi() -> Value {
     get_tour["parameters"] = json!([{"name": "tour", "in": "query", "required": false,
         "description": "a tour id of this run; the newest when omitted",
         "schema": {"type": "string", "format": "uuid"}}]);
-    // Reads answer 200 or the usual refusals; the one mutation also conflicts.
-    let views = views::paths(&mut c, &|summary, mutating, response| {
-        let fail: &[u16] = if mutating {
-            &[400, 401, 403, 404, 409, 503]
-        } else {
-            &[400, 401, 403, 404, 503]
-        };
-        op(summary, None, 200, response, mutating, fail)
-    });
+    let simple = |summary: &str, mutating: bool, response: &Value| {
+        op(summary, None, 200, response, mutating, refusals(mutating))
+    };
+    let views = views::paths(&mut c, &simple);
+    let queue = queue::paths(&mut c, &simple);
     let mut doc = json!({
         "openapi": "3.1.0",
         "info": {"title": "Sych", "version": env!("CARGO_PKG_VERSION")},
@@ -415,6 +422,7 @@ pub fn openapi() -> Value {
         }
     });
     merge(&mut doc, views);
+    merge(&mut doc, queue);
     path_parameters(&mut doc);
     doc
 }
