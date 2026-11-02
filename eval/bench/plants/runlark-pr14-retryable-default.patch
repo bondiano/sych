@@ -1,0 +1,12 @@
+diff --git a/crates/runlark-worker/src/sych_client.rs b/crates/runlark-worker/src/sych_client.rs
+index 83602b7..8aed6c7 100644
+--- a/crates/runlark-worker/src/sych_client.rs
++++ b/crates/runlark-worker/src/sych_client.rs
+@@ -200,6 +200,6 @@ async fn parse<T: for<'de> Deserialize<'de>>(
+         code: error["code"].as_str().unwrap_or("UNKNOWN").to_owned(),
+         retryable: error["retryable"]
+             .as_bool()
+-            .unwrap_or(status.is_server_error()),
++            .unwrap_or(status.is_client_error()),
+     })
+ }

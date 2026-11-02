@@ -1,0 +1,86 @@
+# Server config of the large-PR benchmark (scripts/large-pr-bench): the production model and
+# budgets of the self-review bot (petinfra ansible/roles/sych/templates/sych.yaml.j2, 2026-11-02)
+# with only the cheap profile, so a local run never calls a premium model. Paths are relative
+# to this file; the script copies it into its output directory.
+schema_version: 1
+mode: personal
+
+storage:
+  database_url_env: SYCH_DATABASE_URL
+  artifact_store:
+    kind: local
+    path: "./artifacts"
+
+http:
+  bind: "127.0.0.1:8080"
+  public_base_url: null
+
+workers:
+  concurrency: 1
+  lease_seconds: 60
+  heartbeat_seconds: 15
+
+models:
+  providers:
+    openrouter:
+      adapter: openrouter
+      endpoint: "https://openrouter.ai/api/v1"
+      api_key_env: SYCH_OPENROUTER_API_KEY
+      allowed_modes: [personal_local, personal_service]
+  profiles:
+    cheap_api:
+      provider: openrouter
+      model: deepseek/deepseek-v4.1-flash
+      billing_kind: api_usage
+      enforcement: api_hard
+      upstreams: [deepinfra/fp8, fireworks, together]
+      reasoning_effort: low
+  roles:
+    reviewer: cheap_api
+    verifier: cheap_api
+    # Production audits with premium_astra; the benchmark measures the cheap model alone.
+    risk_auditor: cheap_api
+    explainer: cheap_api
+    followup: cheap_api
+  fallback:
+    on: [rate_limited, transient, timeout, unsupported_capability]
+    cooldown_seconds: 30
+    revert_policy: cooldown_expiry
+    wait_for_usage_reset: false
+  price_catalog_file: "./prices.json"
+
+budgets:
+  analysis:
+    max_cost_micro_usd: 3000000
+    max_attempts: 30
+    max_input_tokens: 1280000
+    max_output_tokens: 360000
+    max_output_tokens_per_request: 12000
+    max_parallel_calls: 2
+    active_deadline_seconds: 600
+  tour:
+    max_cost_micro_usd: 100000
+    max_attempts: 2
+  followup_session:
+    max_cost_micro_usd: 150000
+  # A benchmark pass runs several large reviews in a day.
+  tenant_daily:
+    max_cost_micro_usd: 15000000
+  tenant_monthly:
+    max_cost_micro_usd: 60000000
+
+execution:
+  enabled: false
+  allowed_profiles: []
+
+tooling:
+  dependency_install: false
+
+publication:
+  mode: advisory
+  max_new_inline_comments: 8
+  publish_check: false
+
+logging:
+  raw_prompts: false
+  raw_responses: false

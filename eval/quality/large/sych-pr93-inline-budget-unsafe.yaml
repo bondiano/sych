@@ -1,0 +1,19 @@
+schema_version: 1
+id: sych-pr93-inline-budget-unsafe
+split: development
+language: rust
+variant: unsafe
+profiles: [correctness, project_rules, side_effects, migration_compatibility, infrastructure, nitpicks]
+rationale: "Sych #93 (26 files, the 17-unit PR whose review truncated) with the #95 defect planted in publication::plan: already-published inline comments count against the budget for new ones."
+repository_fixture:
+  repo: sych
+  base_ref: "ccdb22e9"
+  # Built by scripts/large-pr-bench from refs/pull/93/head and eval/bench/plants/sych-pr93-inline-budget.patch.
+  head_ref: "refs/heads/bench/sych-pr93-inline-budget"
+expected:
+  findings:
+    - category: defect
+      semantic_target: "new inline comment budget in publication::plan"
+      required_condition: "some findings were already published inline"
+      evidence_locations:
+        - { side: HEAD, path: crates/sych-core/src/publication/mod.rs, start_line: 152, end_line: 152 }

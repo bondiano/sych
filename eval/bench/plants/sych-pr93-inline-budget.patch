@@ -1,0 +1,13 @@
+diff --git a/crates/sych-core/src/publication/mod.rs b/crates/sych-core/src/publication/mod.rs
+index 11d3ebb..23e2ef4 100644
+--- a/crates/sych-core/src/publication/mod.rs
++++ b/crates/sych-core/src/publication/mod.rs
+@@ -149,7 +149,7 @@ pub fn plan(
+                     reason: "the provider rejected the inline position".into(),
+                 },
+                 (_, Placement::Inline { anchor }) if already || new_inline < MAX_INLINE => {
+-                    new_inline += usize::from(!already);
++                    new_inline += 1;
+                     Placement::Inline { anchor }
+                 }
+                 (_, Placement::Inline { .. }) => Placement::Summary {

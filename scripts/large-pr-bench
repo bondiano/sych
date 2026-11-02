@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# Measures how completely, how cheaply and how fast large PRs are reviewed with the production
+# model profile (eval/bench/sych.yaml) over eval/quality/large: real PRs of sych and runlark,
+# two of them with a planted defect from eval/bench/plants/.
+# Usage: scripts/large-pr-bench [RUNS] — runs per case, default 2.
+# Spends real money through SYCH_OPENROUTER_API_KEY: up to the per-run cap for every review.
+# SYCH_BENCH_CACHE keeps the clones (default ~/.cache/sych-bench), SYCH_BENCH_OUT the results,
+# SYCH_BENCH_CONFIG another server config to compare (default eval/bench/sych.yaml),
+# SYCH_BIN the binary (default: cargo run of this checkout).
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+runs="${1:-2}"
+cache="${SYCH_BENCH_CACHE:-$HOME/.cache/sych-bench}"
+out="${SYCH_BENCH_OUT:-$cache/runs/$(date -u +%Y%m%dT%H%M%SZ)}"
+: "${SYCH_OPENROUTER_API_KEY:?set SYCH_OPENROUTER_API_KEY (a key with a spending limit)}"
+if [[ -n "${SYCH_BIN:-}" ]]; then
+    sych=("$SYCH_BIN")
+else
+    sych=(cargo run --locked -q --manifest-path "$root/Cargo.toml" -p sych-app --bin sych --)
+fi
+
+clone() {
+    local name="$1" url="$2"
+    shift 2
+    [[ -d "$cache/$name" ]] || git clone -q "$url" "$cache/$name"
+    git -C "$cache/$name" fetch -q origin "$@"
+}
+
+# A fixed author and date give the planted commit the same id on every machine.
+plant() {
+    local repo="$1" head="$2" patch="$3" tree
+    tree="$(mktemp -d)"
+    git -C "$cache/$repo" worktree add -q --detach "$tree" "$head"
+    git -C "$tree" apply "$root/eval/bench/plants/$patch.patch"
+    GIT_AUTHOR_DATE="2026-11-02T00:00:00Z" GIT_COMMITTER_DATE="2026-11-02T00:00:00Z" \
+        git -C "$tree" -c user.name=sych-bench -c user.email=bench@sych.invalid \
+        commit -q -a -m "bench: $patch"
+    git -C "$cache/$repo" branch -f "bench/$patch" "$(git -C "$tree" rev-parse HEAD)"
+    git -C "$cache/$repo" worktree remove --force "$tree"
+}
+
+mkdir -p "$cache" "$out"
+clone sych https://github.com/bondiano/sych.git \
+    '+refs/pull/90/head:refs/pull/90/head' '+refs/pull/93/head:refs/pull/93/head'
+clone runlark https://github.com/bondiano/runlark.git '+refs/pull/14/head:refs/pull/14/head'
+plant sych refs/pull/93/head sych-pr93-inline-budget
+plant runlark refs/pull/14/head runlark-pr14-retryable-default
+
+cp "${SYCH_BENCH_CONFIG:-$root/eval/bench/sych.yaml}" "$out/sych.yaml"
+cp "$root/examples/personal/config/prices.json" "$out/prices.json"
+export SYCH_DATABASE_URL="sqlite://$out/sych.db"
+"${sych[@]}" db migrate --config "$out/sych.yaml" >"$out/migrate.log" 2>&1
+"${sych[@]}" eval measure --suite "$root/eval/quality/large" --config "$out/sych.yaml" \
+    --models cheap_api --runs "$runs" --repo "sych=$cache/sych" --repo "runlark=$cache/runlark" \
+    --output "$out/report.json" >"$out/measure.log" 2>&1
+# Coverage also counts generated files nobody reviews; the execution outcome is the model's part.
+for run in $(jq -r '.runs[].measured.run_id // empty' "$out/report.json"); do
+    "${sych[@]}" show --run "$run" --config "$out/sych.yaml" 2>/dev/null | jq -c '.review_result | {
+        run_id, execution_outcome,
+        failed_passes: [(.unresolved_questions // [])[] | select(test("did not complete"))] | length
+    }' || echo "large-pr-bench: no outcome for run $run" >&2
+done >"$out/outcomes.jsonl"
+
+python3 -I - "$out" <<'EOF'
+import json, sqlite3, sys
+out = sys.argv[1]
+report = json.load(open(f"{out}/report.json"))
+db = sqlite3.connect(f"file:{out}/sych.db?mode=ro", uri=True)
+outcomes = {o["run_id"]: o for o in map(json.loads, open(f"{out}/outcomes.jsonl"))}
+rows = []
+totals = {"runs": 0, "executed": 0, "truncated": 0, "cost": 0, "matched": 0, "expected": 0}
+for run in report["runs"]:
+    m = run.get("measured")
+    if m is None:
+        rows.append({"case": run["id"], "error": run.get("error")})
+        continue
+    attempts = db.execute(
+        "SELECT output_tokens, output_tokens_bound, reasoning_tokens, created_at, settled_at"
+        " FROM model_attempts WHERE run_id = ?", (m["run_id"],)).fetchall()
+    # A reply that used its whole output bound was cut, whatever the provider called it; a
+    # route without a hard output cap records no bound.
+    truncated = sum(1 for o, bound, *_ in attempts if None not in (o, bound) and o >= bound)
+    times = [t for a in attempts for t in a[3:] if t is not None]
+    outcome = outcomes.get(m["run_id"], {})
+    row = {
+        "case": run["id"],
+        "outcome": outcome.get("execution_outcome"),
+        "failed_passes": outcome.get("failed_passes"),
+        "coverage": m["coverage"],
+        "found": f'{m["matched_expected"]}/{m["expected_findings"]}',
+        "attempts": len(attempts),
+        "truncated": truncated,
+        "max_reasoning": max((a[2] or 0 for a in attempts), default=0),
+        "seconds": max(times) - min(times) if times else 0,
+        "usd": m["cost_known_micro_usd"] / 1e6,
+        "unknown_cost": m["unknown_cost_attempts"],
+    }
+    rows.append(row)
+    totals["runs"] += 1
+    totals["executed"] += outcome.get("execution_outcome") == "PLAN_EXECUTED"
+    totals["truncated"] += truncated
+    totals["cost"] += m["cost_known_micro_usd"]
+    totals["matched"] += m["matched_expected"]
+    totals["expected"] += m["expected_findings"]
+json.dump({"runs": rows, "totals": totals}, open(f"{out}/stats.json", "w"), indent=2)
+for row in rows:
+    print("  ".join(f"{k}={v}" for k, v in row.items()))
+print(f'plan executed {totals["executed"]}/{totals["runs"]}  truncated attempts {totals["truncated"]}'
+      f'  found {totals["matched"]}/{totals["expected"]}  known cost ${totals["cost"] / 1e6:.3f}')
+print(f"results: {out}")
+EOF
