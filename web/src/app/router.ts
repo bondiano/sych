@@ -36,6 +36,11 @@ export function createAppRouter() {
         meta: { title: 'Queue' },
       },
       {
+        path: '/policy',
+        component: () => import('@/pages/policy/index.vue'),
+        meta: { title: 'Policy' },
+      },
+      {
         path: '/admin',
         component: () => import('@/pages/admin/index.vue'),
         meta: { title: 'Administration' },

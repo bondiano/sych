@@ -79,7 +79,12 @@ fn read_policy_dir(repo: &Path) -> io::Result<PolicyFiles> {
 /// The effective server config at `config` as `sych config validate` prints it, secrets
 /// redacted; what `GET /v1/admin/config` answers.
 pub fn shown(config: &Path) -> anyhow::Result<serde_json::Value> {
-    let json = serde_json::to_string(&effective(Some(config), None)?)?;
+    redacted(&effective(Some(config), None)?)
+}
+
+/// `effective` as `sych config validate` prints it: secrets redacted.
+pub fn redacted(effective: &EffectiveConfig) -> anyhow::Result<serde_json::Value> {
+    let json = serde_json::to_string(effective)?;
     let text = sych_core::redact(&json);
     Ok(serde_json::from_str(&text).unwrap_or_else(|_| serde_json::Value::String(text.into())))
 }
@@ -92,18 +97,42 @@ pub fn effective(config: Option<&Path>, repo: Option<&Path>) -> anyhow::Result<E
         .transpose()
         .map_err(|err| Failure::invalid(format!("cannot read {POLICY_DIR}: {err}")))?
         .unwrap_or_default();
-    let origin = config.map_or_else(|| "<engine defaults>".into(), |p| p.display().to_string());
     let policy_origin = repo.map_or_else(String::new, |r| {
         format!("{} (working tree, not a trusted ref)", r.display())
     });
+    build(config, server.as_deref(), &files, &policy_origin)
+}
+
+/// Effective config of the server config and the policy `files` read at `policy_origin`, as
+/// `sych config validate --repo` builds it; the server reads a run's trusted ref this way.
+pub fn with_policy(
+    config: Option<&Path>,
+    files: &PolicyFiles,
+    policy_origin: &str,
+) -> anyhow::Result<EffectiveConfig> {
+    build(
+        config,
+        read_server(config)?.as_deref(),
+        files,
+        policy_origin,
+    )
+}
+
+fn build(
+    config: Option<&Path>,
+    server: Option<&str>,
+    files: &PolicyFiles,
+    policy_origin: &str,
+) -> anyhow::Result<EffectiveConfig> {
+    let origin = config.map_or_else(|| "<engine defaults>".into(), |p| p.display().to_string());
     EffectiveConfig::build(
         &ServerInput {
             origin: &origin,
-            text: server.as_deref(),
+            text: server,
         },
         &PolicyInput {
-            origin: &policy_origin,
-            files: &files,
+            origin: policy_origin,
+            files,
         },
     )
     .map_err(|errors| Failure::config(&errors).into())

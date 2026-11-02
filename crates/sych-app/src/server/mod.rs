@@ -14,6 +14,7 @@ mod handoff;
 mod hooks;
 pub mod metrics;
 pub mod mirrors;
+mod policy;
 mod publisher;
 mod questions;
 mod queue;
@@ -190,6 +191,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/waivers", get(views::waivers).post(api::waiver))
         .route("/v1/waivers/{id}/revoke", post(views::revoke))
         .route("/v1/repositories", get(views::repositories))
+        .route("/v1/repositories/{id}/policy", get(policy::policy))
         .route("/v1/changes", get(views::changes))
         .route("/v1/changes/{id}", get(views::change))
         .route("/v1/findings", get(views::findings))
