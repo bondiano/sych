@@ -18,7 +18,7 @@ sych explain --run RUN_ID --obligation EFFECT-01 --format markdown
 - `--base` is the target ref: policy is taken only from its tip, and the diff is computed from the `merge-base`; `--diff-base` sets
   an exact two-dot comparison.
 - A changed file is not read, but stays in scope as excluded `GENERATED`, when the target tip's `.gitattributes`
-  sets `linguist-generated` for it, or its `BASE` version's first kilobyte already carried a marker (`@generated`,
+  sets `linguist-generated` or `linguist-vendored` for it (third-party code, fixtures defective on purpose), or its `BASE` version's first kilobyte already carried a marker (`@generated`,
   `DO NOT EDIT`, `Code generated`). As with policy, a change's own `.gitattributes` does not count. A marker only
   the change writes still keeps the file from the models, but it is reported as unreviewed `GENERATED_IN_CHANGE`:
   coverage is partial, and the summary names the file for a human to check. A change cannot quietly hide its code

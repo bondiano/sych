@@ -39,6 +39,37 @@ fn linguist_generated_comes_from_the_target_tip_only() {
 }
 
 #[test]
+fn linguist_vendored_keeps_a_file_unread_from_the_target_tip_only() {
+    let dir = repo();
+    let d = dir.path();
+    write(d, ".gitattributes", b"fixtures/** linguist-vendored=true\n");
+    commit(d, "base");
+    git(d, &["checkout", "-q", "-b", "feature"]);
+    write(
+        d,
+        ".gitattributes",
+        b"fixtures/** linguist-vendored=true\nsrc/*.rs linguist-vendored\n",
+    );
+    write(d, "fixtures/planted.patch", b"-ok\n+broken on purpose\n");
+    write(d, "src/lib.rs", b"pub fn hidden() {}\n");
+    commit(d, "feature");
+    let snap = capture(d, "main", "feature", None).expect("snapshot");
+    let unread = |p: &str| {
+        snap.manifest
+            .files
+            .iter()
+            .find(|f| f.new.as_ref().is_some_and(|s| s.path == path(p)))
+            .expect(p)
+            .generated
+    };
+    assert!(unread("fixtures/planted.patch"));
+    assert!(
+        !unread("src/lib.rs"),
+        "the change's own attributes are not trusted"
+    );
+}
+
+#[test]
 fn a_marker_counts_when_the_target_already_carried_it() {
     let dir = repo();
     let d = dir.path();

@@ -7,3 +7,5 @@ web/pnpm-lock.yaml linguist-generated=true
 site/package-lock.json linguist-generated=true
 # Copied in by the shadcn-vue CLI from its registry; changed by re-running it, not by hand.
 web/src/modules/Ui/components/ui/** linguist-vendored=true
+# Benchmark fixtures that plant defects on purpose; reviewing them as the change's code reports the plants.
+eval/bench/plants/** linguist-vendored=true

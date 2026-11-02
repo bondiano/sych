@@ -1,5 +1,5 @@
-//! `linguist-generated` from `.gitattributes` of the target tip: the trusted revision, as for
-//! policy, so a change cannot mark its own code as generated to keep it unread.
+//! `linguist-generated` and `linguist-vendored` from `.gitattributes` of the target tip: the
+//! trusted revision, as for policy, so a change cannot mark its own code to keep it unread.
 
 use std::str;
 
@@ -7,9 +7,11 @@ use sych_core::{FileChange, GitObjectId};
 
 use super::{Git, SnapshotError};
 
-const ATTRIBUTE: &str = "linguist-generated";
+/// Either keeps a file from the models: generated output, or third-party code and fixtures the
+/// repository does not review as its own.
+const ATTRIBUTES: [&str; 2] = ["linguist-generated", "linguist-vendored"];
 
-/// Marks `files` whose old or new path the target tip's attributes declare generated. A git
+/// Marks `files` whose old or new path the target tip's attributes declare generated or vendored. A git
 /// without `check-attr --source` (before 2.40) marks nothing, so every file stays read.
 pub(super) fn mark_generated(
     git: &Git,
@@ -27,21 +29,16 @@ pub(super) fn mark_generated(
 
     // shortcut: paths go through argv; switch to `--stdin` if a change ever nears ARG_MAX.
     let out = git.output(
-        [
-            "check-attr",
-            "-z",
-            "--source",
-            target_tree.hex(),
-            ATTRIBUTE,
-            "--",
-        ]
-        .into_iter()
-        .chain(paths),
+        ["check-attr", "-z", "--source", target_tree.hex()]
+            .into_iter()
+            .chain(ATTRIBUTES)
+            .chain(["--"])
+            .chain(paths),
     )?;
     if !out.status.success() {
         tracing::warn!(
             stderr = %String::from_utf8_lossy(&out.stderr).trim(),
-            "git check-attr failed; linguist-generated is not applied"
+            "git check-attr failed; linguist-generated and linguist-vendored are not applied"
         );
         return Ok(());
     }
@@ -61,7 +58,7 @@ pub(super) fn mark_generated(
     Ok(())
 }
 
-/// Paths of `check-attr -z` output (`path NUL attribute NUL value NUL`) whose value is set.
+/// Paths of `check-attr -z` output (`path NUL attribute NUL value NUL`) with any attribute set.
 fn generated_paths(out: &[u8]) -> Vec<&str> {
     out.split(|b| *b == 0)
         .collect::<Vec<_>>()
@@ -80,5 +77,12 @@ mod tests {
         let out = b"a.json\0linguist-generated\0true\0b.rs\0linguist-generated\0unspecified\0\
                     c.json\0linguist-generated\0set\0d.json\0linguist-generated\0false\0";
         assert_eq!(generated_paths(out), ["a.json", "c.json"]);
+    }
+
+    #[test]
+    fn a_vendored_path_is_marked_as_well() {
+        let out = b"a.ts\0linguist-generated\0unspecified\0a.ts\0linguist-vendored\0true\0\
+                    b.ts\0linguist-generated\0unspecified\0b.ts\0linguist-vendored\0unspecified\0";
+        assert_eq!(generated_paths(out), ["a.ts"]);
     }
 }
