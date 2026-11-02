@@ -3,6 +3,7 @@ name = "sych-adapters"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 readme = "README.md"
 description = "Sych adapters: Git, model, pinned tools and semantic providers"

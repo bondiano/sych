@@ -1,0 +1,74 @@
+---
+title: Sych
+description: Deterministic code review. A Rust core decides what must be checked and computes the verdict; models only propose hypotheses inside fixed budgets.
+template: splash
+editUrl: false
+hero:
+  tagline: Code review with a deterministic core. Every finding cites exact code, and every gap shows up as UNKNOWN instead of silence.
+  image:
+    file: ../../assets/brand/symbol-transparent.png
+    alt: Sych, the little owl
+  actions:
+    - text: Install in one prompt
+      link: /sych/install/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/bondiano/sych
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, Code, LinkCard, TabItem, Tabs } from '@astrojs/starlight/components';
+import install from '../../../../docs/INSTALL.md?raw';
+
+export const prompts = [...install.matchAll(/^### \d+\. (.+)\n[\s\S]*?```text\n([\s\S]*?)\n```/gm)].map(
+	([, label, code]) => ({ label, code }),
+);
+
+## Paste one prompt into your coding agent
+
+<Tabs>
+	{prompts.map((p) => (
+		<TabItem label={p.label}>
+			<Code code={p.code} lang="text" />
+		</TabItem>
+	))}
+</Tabs>
+
+## How it reviews
+
+<CardGrid>
+	<Card title="Pinned snapshot" icon="seti:git">
+		Reads Git objects only (no work tree, hooks or filters) and pins the target tip, diff base and
+		head. Policy comes from the target tip, never from the reviewed head.
+	</Card>
+	<Card title="Obligations, not vibes" icon="list-format">
+		A deterministic planner turns rules into obligations. The reducer accepts `SUPPORTED` only with
+		complete evidence of an acceptable kind.
+	</Card>
+	<Card title="Facts before models" icon="magnifier">
+		Semantic facts from pinned language servers, syntax facts, pinned linters and CI reports bound to
+		the tested commit.
+	</Card>
+	<Card title="Bounded models" icon="setting">
+		Role routing with bounded fallback. A cost upper bound is checked before every call, and a durable
+		ledger records the charge after it.
+	</Card>
+	<Card title="UNKNOWN instead of silence" icon="warning">
+		Whatever cannot be shown with evidence stays UNKNOWN with a reason, and coverage says what was not
+		reviewed.
+	</Card>
+	<Card title="GitHub App" icon="github">
+		Verified webhooks, durable jobs, a summary with inline comments, finding lineage, waivers and a
+		`/v1` API. Sych reviews its own pull requests.
+	</Card>
+</CardGrid>
+
+## Read next
+
+<CardGrid>
+	<LinkCard title="Local review" href="/sych/local-review/" description="review, show and explain: output formats and exit codes." />
+	<LinkCard title="Configuration" href="/sych/config/" description="sych.yaml, .sych/ rule packs, waivers and redaction." />
+	<LinkCard title="Server" href="/sych/server/" description="The GitHub App: admission, scheduler, CI evidence and publication." />
+	<LinkCard title="How the analysis works" href="/sych/analysis/" description="Assessment, discovery, risk audit, verifier and measured quality." />
+</CardGrid>

@@ -1,0 +1,43 @@
+/* Sych brand: Night/Graphite surfaces, Amber and Rust Orange accents, Inter (docs/brand/README.md). */
+:root {
+	--sl-font: 'Inter Variable', system-ui, sans-serif;
+	--sl-color-accent-low: #3a2a06;
+	--sl-color-accent: #f97416;
+	--sl-color-accent-high: #ffc83d;
+	--sl-color-white: #f6f4ee;
+	--sl-color-gray-1: #e7e4dc;
+	--sl-color-gray-2: #c4c7cc;
+	--sl-color-gray-3: #9ca3af;
+	--sl-color-gray-4: #5b6470;
+	--sl-color-gray-5: #2a3441;
+	--sl-color-gray-6: #101923;
+	--sl-color-black: #0b1016;
+}
+
+:root[data-theme='light'] {
+	--sl-color-accent-low: #ffe9b0;
+	--sl-color-accent: #c2560a;
+	--sl-color-accent-high: #6b2f05;
+	--sl-color-white: #0b1016;
+	--sl-color-gray-1: #101923;
+	--sl-color-gray-2: #2a3441;
+	--sl-color-gray-3: #4b5563;
+	--sl-color-gray-4: #9ca3af;
+	--sl-color-gray-5: #e2ded3;
+	--sl-color-gray-6: #eeebe3;
+	--sl-color-gray-7: #f3f1ea;
+	--sl-color-black: #f6f4ee;
+}
+
+.hero h1 {
+	letter-spacing: -0.02em;
+}
+
+.hero .tagline {
+	max-width: 36rem;
+}
+
+/* The owl reads better slightly smaller than Starlight's default hero image. */
+.hero > img {
+	max-width: 18rem;
+}

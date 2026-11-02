@@ -1,0 +1,113 @@
+name: Release
+
+# A `v*` tag builds the CLI on native runners and drafts the GitHub release with the archives.
+# The image is not rebuilt: the tag names the reviewer image image.yml built for the same commit.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          # Native runners: aws-lc-sys, ring and the bundled SQLite need a C toolchain for the target.
+          # Ubuntu 22.04 keeps the glibc floor at 2.35.
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-22.04-arm
+          - target: aarch64-apple-darwin
+            runner: macos-14
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install the pinned Rust toolchain
+        run: |
+          if ! command -v rustup >/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          cargo --version
+      - name: Build
+        env:
+          SYCH_BUILD_COMMIT: ${{ github.sha }}
+          TARGET: ${{ matrix.target }}
+        run: cargo build --release --locked -p sych-app --bin sych --target "$TARGET"
+      - name: Package
+        env:
+          TARGET: ${{ matrix.target }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          bin="target/$TARGET/release/sych"
+          test "$("$bin" --version)" = "sych $version"
+          name="sych-$version-$TARGET"
+          mkdir -p "dist/$name"
+          cp "$bin" LICENSE README.md "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sych-${{ matrix.target }}
+          path: dist/*.tar.gz*
+          retention-days: 7
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      # A draft: the notes are written and the release published by hand.
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+            --title "Sych ${TAG#v}" --notes "Release notes follow." dist/*
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag the reviewer image of this commit
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          image=ghcr.io/bondiano/sych
+          if ! docker buildx imagetools inspect "$image:$GITHUB_SHA" >/dev/null; then
+            echo "::error::$image:$GITHUB_SHA is missing; let image.yml finish on main first" >&2
+            exit 1
+          fi
+          docker buildx imagetools create --tag "$image:${TAG#v}" "$image:$GITHUB_SHA"
+          echo "$image:${TAG#v}" >> "$GITHUB_STEP_SUMMARY"
