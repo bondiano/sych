@@ -232,6 +232,44 @@
         ],
         "type": "string"
       },
+      "BudgetUse": {
+        "description": "The tenant's spend against its budgets today and this month (UTC): settled charges and\nreservations still held, as the ledger counts them before a call.",
+        "properties": {
+          "day_limit_micro_usd": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "day_spent_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "month_forecast_micro_usd": {
+            "description": "The month's spend so far over its elapsed days, times the days of the month.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "month_limit_micro_usd": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "month_spent_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day_spent_micro_usd",
+          "month_spent_micro_usd",
+          "month_forecast_micro_usd"
+        ],
+        "type": "object"
+      },
       "CancelOutcome": {
         "description": "`POST /v1/runs/:id/cancel`: the state after the call; a committed run keeps its own.",
         "properties": {
@@ -345,6 +383,46 @@
           "STATIC"
         ],
         "type": "string"
+      },
+      "ChangeCost": {
+        "description": "Model calls of one pull request.",
+        "properties": {
+          "attempts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "change_id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cost_known_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "number": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "repository": {
+            "description": "`owner/name`.",
+            "type": "string"
+          },
+          "unknown_cost_attempts": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "change_id",
+          "repository",
+          "attempts",
+          "cost_known_micro_usd",
+          "unknown_cost_attempts"
+        ],
+        "type": "object"
       },
       "ChangeDetail": {
         "description": "`GET /v1/changes/:id`; its findings are `GET /v1/findings?change_id=`.",
@@ -670,6 +748,99 @@
           "$ref": "#/components/schemas/ConnectionView"
         },
         "type": "array"
+      },
+      "CostBreakdown": {
+        "description": "`GET /v1/analytics/cost`: model calls made since `since`.",
+        "properties": {
+          "budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BudgetUse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only for a caller of every repository without `repository_id`: budgets are the tenant's."
+          },
+          "by_model": {
+            "description": "By the model that answered, else the one requested.",
+            "items": {
+              "$ref": "#/components/schemas/CostRow"
+            },
+            "type": "array"
+          },
+          "by_purpose": {
+            "items": {
+              "$ref": "#/components/schemas/CostRow"
+            },
+            "type": "array"
+          },
+          "by_repository": {
+            "items": {
+              "$ref": "#/components/schemas/CostRow"
+            },
+            "type": "array"
+          },
+          "since": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "superseded_micro_usd": {
+            "description": "Known cost of runs a newer revision superseded.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "top_changes": {
+            "description": "The ten pull requests with the highest known cost.",
+            "items": {
+              "$ref": "#/components/schemas/ChangeCost"
+            },
+            "type": "array"
+          },
+          "useful_findings": {
+            "description": "Findings someone judged `USEFUL` in the period, for the cost per useful finding.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "since",
+          "by_repository",
+          "by_model",
+          "by_purpose",
+          "top_changes",
+          "superseded_micro_usd",
+          "useful_findings"
+        ],
+        "type": "object"
+      },
+      "CostRow": {
+        "description": "Model calls of one repository, model or purpose; an unknown charge is counted, never added\nas zero.",
+        "properties": {
+          "attempts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cost_known_micro_usd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "unknown_cost_attempts": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "attempts",
+          "cost_known_micro_usd",
+          "unknown_cost_attempts"
+        ],
+        "type": "object"
       },
       "CostSummary": {
         "description": "Cost with explicit unknown part; an unknown charge is never recorded as zero.",
@@ -1742,6 +1913,34 @@
           "category",
           "judgement",
           "count"
+        ],
+        "type": "object"
+      },
+      "Latency": {
+        "description": "`GET /v1/analytics/latency`: runs and jobs created since `since`.",
+        "properties": {
+          "queue_wait": {
+            "$ref": "#/components/schemas/Spread",
+            "description": "From a job's creation to its first claim; jobs are kept 30 days."
+          },
+          "run_duration": {
+            "$ref": "#/components/schemas/Spread",
+            "description": "From a run's creation to its completion."
+          },
+          "since": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "to_delivery": {
+            "$ref": "#/components/schemas/Spread",
+            "description": "From a run's creation to its first delivered publication."
+          }
+        },
+        "required": [
+          "since",
+          "to_delivery",
+          "run_duration",
+          "queue_wait"
         ],
         "type": "object"
       },
@@ -3245,6 +3444,33 @@
         "$ref": "#/components/schemas/Sha256Digest",
         "description": "Content-derived identity of a [`crate::SourceSnapshot`]."
       },
+      "Spread": {
+        "description": "Durations of one kind in seconds; percentiles by nearest rank, `None` without samples.",
+        "properties": {
+          "n": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "p50_seconds": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "p90_seconds": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "n"
+        ],
+        "type": "object"
+      },
       "SubscriptionFee": {
         "description": "A fixed subscription fee of the tenant; not attributed to a repository.",
         "properties": {
@@ -4465,6 +4691,101 @@
         "summary": "Webhook deliveries newest first, kept 30 days"
       }
     },
+    "/v1/analytics/cost": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this repository",
+            "in": "query",
+            "name": "repository_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Unix seconds; 30 days ago by default",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostBreakdown"
+                }
+              }
+            },
+            "description": "Model cost over readable repositories, and the tenant's budget use"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Model cost over readable repositories, and the tenant's budget use"
+      }
+    },
     "/v1/analytics/honesty": {
       "get": {
         "parameters": [
@@ -4558,6 +4879,101 @@
           }
         ],
         "summary": "Why reviews over readable repositories stopped short"
+      }
+    },
+    "/v1/analytics/latency": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this repository",
+            "in": "query",
+            "name": "repository_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Unix seconds; 30 days ago by default",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Latency"
+                }
+              }
+            },
+            "description": "Time to delivery, run duration and queue wait"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Time to delivery, run duration and queue wait"
       }
     },
     "/v1/analytics/quality": {

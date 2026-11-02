@@ -19,6 +19,7 @@ use sych_app::args::{ModelSelection, Switch};
 use sych_app::config::shown;
 use sych_app::server::build::{self, EngineConfig};
 use sych_app::server::{App, Conn, Counters, Engine, binding};
+use sych_core::config::Budgets;
 use sych_core::config::{ApiClient, GithubConnection, ServerConfig};
 use sych_core::sha256;
 use sych_core::{PolicySnapshot, PolicySource, ReviewResult, RunId, SchemaVersion, Timestamp};
@@ -220,6 +221,7 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
         oauth: BTreeMap::from([("gh".into(), Secret::new(CLIENT_SECRET.into()))]),
         ui_dir: None,
         config: Some(shown(&config_path).expect("shown config")),
+        budgets: Budgets::default(),
     });
     let conns = BTreeMap::from([(
         "gh".into(),

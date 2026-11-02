@@ -42,7 +42,7 @@ use axum::{Json, Router};
 use serde_json::json;
 use sych_adapters::github::Secret;
 use sych_core::Timestamp;
-use sych_core::config::{ApiClient, GithubConnection, ServerConfig};
+use sych_core::config::{ApiClient, Budgets, GithubConnection, ServerConfig};
 use sych_storage::Storage;
 use tokio::net::TcpListener;
 use tokio::signal;
@@ -75,6 +75,8 @@ pub struct App {
     /// The effective config with secrets redacted, for `GET /v1/admin/config`; `None` where
     /// the process was not started from a config file.
     pub config: Option<serde_json::Value>,
+    /// The tenant's budgets, for the spend the analytics and metrics set against them.
+    pub budgets: Budgets,
 }
 
 impl App {
@@ -145,6 +147,7 @@ impl App {
             oauth,
             ui_dir: config.http.ui_dir.clone(),
             config: None,
+            budgets: config.budgets.clone(),
         })
     }
 
@@ -202,6 +205,8 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/usage", get(views::usage))
         .route("/v1/analytics/quality", get(analytics::quality))
         .route("/v1/analytics/honesty", get(analytics::honesty))
+        .route("/v1/analytics/cost", get(analytics::cost))
+        .route("/v1/analytics/latency", get(analytics::latency))
         .route("/v1/audit", get(views::audit))
         .route("/v1/me", get(auth::me))
         .route("/auth/github", get(auth::sign_ins))

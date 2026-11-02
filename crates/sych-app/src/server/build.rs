@@ -12,7 +12,7 @@ use anyhow::Context;
 use sych_adapters::github::{AppKey, Github};
 use sych_core::Timestamp;
 use sych_core::config::{
-    ANALYSIS_DEADLINE_SECONDS, ApiClient, ApiRole, Mode, RunMode, ServerConfig,
+    ANALYSIS_DEADLINE_SECONDS, ApiClient, ApiRole, Budgets, Mode, RunMode, ServerConfig,
 };
 use sych_storage::{Storage, StoreConfig};
 use uuid::Uuid;
@@ -71,6 +71,7 @@ impl App {
             oauth: BTreeMap::new(),
             ui_dir: None,
             config: None,
+            budgets: Budgets::default(),
         }
     }
 }
