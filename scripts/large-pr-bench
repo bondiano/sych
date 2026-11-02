@@ -5,6 +5,7 @@
 # Usage: scripts/large-pr-bench [RUNS] — runs per case, default 2.
 # Spends real money through SYCH_OPENROUTER_API_KEY: up to the per-run cap for every review.
 # SYCH_BENCH_CACHE keeps the clones (default ~/.cache/sych-bench), SYCH_BENCH_OUT the results,
+# SYCH_BENCH_CONFIG another server config to compare (default eval/bench/sych.yaml),
 # SYCH_BIN the binary (default: cargo run of this checkout).
 set -euo pipefail
 
@@ -46,7 +47,7 @@ clone runlark https://github.com/bondiano/runlark.git '+refs/pull/14/head:refs/p
 plant sych refs/pull/93/head sych-pr93-inline-budget
 plant runlark refs/pull/14/head runlark-pr14-retryable-default
 
-cp "$root/eval/bench/sych.yaml" "$out/sych.yaml"
+cp "${SYCH_BENCH_CONFIG:-$root/eval/bench/sych.yaml}" "$out/sych.yaml"
 cp "$root/examples/personal/config/prices.json" "$out/prices.json"
 export SYCH_DATABASE_URL="sqlite://$out/sych.db"
 "${sych[@]}" db migrate --config "$out/sych.yaml" >"$out/migrate.log" 2>&1
