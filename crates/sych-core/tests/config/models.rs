@@ -43,6 +43,15 @@ fn a_call_shape_bound_is_at_least_one() {
         errors[0].path,
         "models.profiles.cheap_api.max_units_per_call"
     );
+    let zero = shaped.replace(
+        "max_shown_tokens_per_call: 6000",
+        "max_shown_tokens_per_call: 0",
+    );
+    let errors = ServerConfig::parse("sych.yaml", &zero).expect_err("rejected");
+    assert_eq!(
+        errors[0].path,
+        "models.profiles.cheap_api.max_shown_tokens_per_call"
+    );
 }
 
 #[test]
