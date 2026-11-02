@@ -34,22 +34,26 @@ const ready = computed(
     (expires.value === '' || new Date(expires.value).getTime() > Date.now()),
 )
 
-// Changed content is a new request; resending the same content replays the first.
-watch([paths, owner, reason, expires, until], () => (key.value = idempotencyKey()))
+const body = computed(() => ({
+  change_id: props.changeId,
+  rule_id: props.ruleId,
+  paths: list.value,
+  owner: owner.value.trim(),
+  reason: reason.value.trim(),
+  expires_at: expires.value ? new Date(expires.value).toISOString() : null,
+  until: until.value.trim() || null,
+}))
+
+// Changed content is a new request; resending the same content, whitespace aside, replays the first.
+watch(
+  () => JSON.stringify(body.value),
+  () => (key.value = idempotencyKey()),
+)
 
 function send() {
-  const body = {
-    change_id: props.changeId,
-    rule_id: props.ruleId,
-    paths: list.value,
-    owner: owner.value.trim(),
-    reason: reason.value.trim(),
-    expires_at: expires.value ? new Date(expires.value).toISOString() : null,
-    until: until.value.trim() || null,
-  }
   recorded.value = undefined
   waiver.mutate(
-    { body, key: key.value },
+    { body: body.value, key: key.value },
     {
       onSuccess: (data) => {
         recorded.value = (data as { waiver_id?: number } | undefined)?.waiver_id
