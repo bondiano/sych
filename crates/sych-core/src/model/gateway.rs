@@ -420,6 +420,47 @@ mod tests {
         assert!(change.contains("\"null\""), "{change}");
     }
 
+    /// Strict `OpenAI` rejects the whole request when any object leaves a property out of
+    /// `required`, so every output schema lists all of them at every level.
+    #[test]
+    fn output_schemas_require_every_property() {
+        fn missing(schema: &serde_json::Value, path: &str, out: &mut Vec<String>) {
+            match schema {
+                serde_json::Value::Object(map) => {
+                    if let Some(props) = map.get("properties").and_then(|p| p.as_object()) {
+                        let required = map.get("required").and_then(|r| r.as_array());
+                        for key in props.keys() {
+                            if !required.is_some_and(|r| r.iter().any(|k| k == key)) {
+                                out.push(format!("{path}.{key}"));
+                            }
+                        }
+                    }
+
+                    for (key, value) in map {
+                        missing(value, &format!("{path}/{key}"), out);
+                    }
+                }
+                serde_json::Value::Array(items) => {
+                    for value in items {
+                        missing(value, path, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        for (name, schema) in [
+            ("discovery", output_schema::<DiscoveryOutput>()),
+            ("review", output_schema::<ReviewOutput>()),
+            ("assessment", output_schema::<AssessmentOutput>()),
+            ("verify", output_schema::<VerifyOutput>()),
+        ] {
+            let mut out = Vec::new();
+            missing(&serde_json::to_value(schema).expect("json"), name, &mut out);
+            assert!(out.is_empty(), "not in required: {out:?}");
+        }
+    }
+
     #[test]
     fn a_candidate_schema_demands_an_anchor() {
         let schema = serde_json::to_value(output_schema::<DiscoveryOutput>()).expect("json");
