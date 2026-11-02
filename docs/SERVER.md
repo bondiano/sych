@@ -446,6 +446,7 @@ as `before`, gives the next one. Times are Unix seconds, money micro-USD.
 | `GET /v1/analytics/honesty[?repository_id=&since=]` | reader | why reviews of runs created in the period stopped short, 30 days by default: `outcomes` — runs by how the plan ended (`PLAN_EXECUTED`, `LIMIT_REACHED`, `RETRIES_EXHAUSTED`, `INPUT_UNAVAILABLE`); `gaps` — paths excluded or left unreviewed by reason code; `unknown` — `UNKNOWN` obligations by reason code; `coverage_by_day` — runs per UTC day and those that did not cover their whole scope. The reasons are recorded when a run completes, so they outlive the pruned result; `unrecorded_runs` counts runs completed before that and in none of the lists |
 | `GET /v1/analytics/cost[?repository_id=&since=]` | reader | model calls made in the period, 30 days by default, by repository, model (the one that answered, else the one requested) and purpose, each with attempts, known cost and calls of unknown cost; the ten pull requests of highest known cost; `superseded_micro_usd` — known cost of runs a newer revision superseded; `useful_findings` — findings someone judged `USEFUL` in the period. `budget` only for a caller of every repository without `repository_id`: the tenant's spend today and this UTC month as the ledger counts it (settled charges and held reservations), the `budgets.tenant_daily`/`tenant_monthly` caps and the month's forecast from its elapsed days. Settled calls are kept for `storage.retention` |
 | `GET /v1/analytics/latency[?repository_id=&since=]` | reader | `n`, median and p90 in seconds of: `to_delivery` — a run's creation to its first delivered publication; `run_duration` — creation to completion; `queue_wait` — a job's creation to its first claim (jobs are kept 30 days, claims are recorded from this version on) |
+| `GET /v1/reports/weekly[?repository_id=&format=json\|markdown]` | reader | the four analytics above over the last seven days in one document, `{since, until, quality, honesty, cost, latency}`; `format=markdown` is the same as `text/markdown` to paste or post, a share only from five outcomes; another format — 400 |
 | `POST /v1/runs/:id/handoff` | reader | the run's own findings (`{finding_ids, source_snapshot_id?}`) as a `handoff@1` package ([LOCAL_REVIEW.md](LOCAL_REVIEW.md#handing-off-a-fix)); no model, no change, nothing published; a foreign finding — 400 `FOREIGN_FINDING`, another snapshot — 409 `SNAPSHOT_MISMATCH` |
 | `GET /v1/runs/:id/tour[?tour=]` | reader | the newest (or named) tour as the caller's own session sees it: unrevealed answers blanked, `stale` once the result revision or the change's generation moved on; source is not included, only `code_refs`; a pruned tour — 409 `TOUR_UNAVAILABLE` |
 | `POST /v1/runs/:id/tours/:tour/reveal\|complete\|dismiss` | reader | the caller's session (the actor is the API client), never published and never an approval; `reveal` takes `{step_id}`; finishing a finished session — 409 `SESSION_FINISHED` |
@@ -541,10 +542,13 @@ retention already removed stays without a repository. `sych reconcile
 Metrics (only bounded labels — states, coverage, judgement, reasons; no paths or ids): runs by
 state and coverage, `UNKNOWN` obligations, jobs by state and queue age, model attempts by ledger state,
 tokens, known cost, held reservations/unknown charges, cost of superseded runs, publications by state,
-outbox lag, `UNCERTAIN` age, repairs, feedback by judgement, bytes and number of artifacts, webhooks
+outbox lag, `UNCERTAIN` age, repairs, feedback by judgement, bytes and number of artifacts, tour sessions
+by state and follow-up questions, budget spend and caps (`sych_budget_spent_micro_usd` and
+`sych_budget_limit_micro_usd` by `scope` `daily`/`monthly`: the highest tenant's spend today and this UTC month,
+held reservations included, against `budgets.tenant_daily`/`tenant_monthly`), webhooks
 (`stored`/`duplicate`/`rejected` by reason). Rules — [examples/server/alerts.yaml](examples/server/alerts.yaml):
 storage failure, a stuck queue, unknown writes and charges, webhook signatures, credentials, a mass drop in
-completeness, held budget. Tour and session metrics are not exported.
+completeness, held budget, 80% and 100% of a tenant budget.
 
 ### Personal sandbox runbook
 

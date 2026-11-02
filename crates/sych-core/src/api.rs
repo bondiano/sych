@@ -14,6 +14,7 @@ use crate::{FindingId, PolicySnapshot, ReviewResult, SourceSnapshot, SourceSnaps
 mod admin;
 mod analytics;
 mod queue;
+mod report;
 mod views;
 
 pub use admin::{ConnectionView, Delivery, ScmReadFailure};
@@ -22,6 +23,7 @@ pub use analytics::{
     SeverityCount, Spread, month_forecast,
 };
 pub use queue::{JobEntry, ReconcileRequest, UnresolvedPublication};
+pub use report::WeeklyReport;
 pub use views::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

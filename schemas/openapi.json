@@ -4190,6 +4190,40 @@
           "$ref": "#/components/schemas/WaiverEntry"
         },
         "type": "array"
+      },
+      "WeeklyReport": {
+        "description": "`GET /v1/reports/weekly`: the seven days to `until` over the repositories the caller reads.",
+        "properties": {
+          "cost": {
+            "$ref": "#/components/schemas/CostBreakdown"
+          },
+          "honesty": {
+            "$ref": "#/components/schemas/Honesty"
+          },
+          "latency": {
+            "$ref": "#/components/schemas/Latency"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "since": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "until": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "since",
+          "until",
+          "quality",
+          "honesty",
+          "cost",
+          "latency"
+        ],
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -6312,6 +6346,105 @@
           }
         ],
         "summary": "Create an UNCERTAIN publication again; a duplicate comment may appear"
+      }
+    },
+    "/v1/reports/weekly": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this repository",
+            "in": "query",
+            "name": "repository_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`json` (default) or `markdown`, served as text/markdown",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "markdown"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeeklyReport"
+                }
+              }
+            },
+            "description": "The analytics of the last seven days as JSON or Markdown"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "The analytics of the last seven days as JSON or Markdown"
       }
     },
     "/v1/repositories": {

@@ -101,14 +101,31 @@ const QUEUE_WAIT: &str = concat!(
     " AND j.created_at >= $4"
 );
 
-// Spend as the ledger counts it before a call: settled charges and held reservations.
-const SPENT: &str = "SELECT
-     CAST(coalesce(sum(CASE WHEN day = $2 THEN CASE state
-         WHEN 'SETTLED' THEN coalesce(charge_micro_usd, 0)
-         WHEN 'RELEASED' THEN 0 ELSE reserved_micro_usd END END), 0) AS BIGINT),
-     CAST(coalesce(sum(CASE state WHEN 'SETTLED' THEN coalesce(charge_micro_usd, 0)
-         WHEN 'RELEASED' THEN 0 ELSE reserved_micro_usd END), 0) AS BIGINT)
-     FROM model_attempts WHERE tenant_id = $1 AND month = $3";
+/// One attempt's spend as the ledger counts it before a call: settled charges and held
+/// reservations.
+macro_rules! spent {
+    () => {
+        "CASE state WHEN 'SETTLED' THEN coalesce(charge_micro_usd, 0)
+             WHEN 'RELEASED' THEN 0 ELSE reserved_micro_usd END"
+    };
+}
+
+const SPENT: &str = concat!(
+    "SELECT CAST(coalesce(sum(CASE WHEN day = $2 THEN ",
+    spent!(),
+    " END), 0) AS BIGINT), CAST(coalesce(sum(",
+    spent!(),
+    "), 0) AS BIGINT) FROM model_attempts WHERE tenant_id = $1 AND month = $3"
+);
+
+const BUSIEST: &str = concat!(
+    "SELECT CAST(coalesce(max(t.today), 0) AS BIGINT), CAST(coalesce(max(t.month), 0) AS BIGINT)
+     FROM (SELECT sum(CASE WHEN day = $1 THEN ",
+    spent!(),
+    " ELSE 0 END) AS today, sum(",
+    spent!(),
+    ") AS month FROM model_attempts WHERE month = $2 GROUP BY tenant_id) t"
+);
 
 fn cost_row(r: &AnyRow) -> CostRow {
     CostRow {
@@ -169,6 +186,20 @@ impl Storage {
     ) -> Result<(i64, i64), StorageError> {
         let row = sqlx::query(SPENT)
             .bind(tenant_id)
+            .bind(day)
+            .bind(month)
+            .fetch_one(self.pool())
+            .await?;
+        Ok((row.get(0), row.get(1)))
+    }
+
+    /// The highest spend of any tenant on UTC `day` and over its `month`, for `/metrics`.
+    pub(crate) async fn busiest_spend(
+        &self,
+        day: &str,
+        month: &str,
+    ) -> Result<(i64, i64), StorageError> {
+        let row = sqlx::query(BUSIEST)
             .bind(day)
             .bind(month)
             .fetch_one(self.pool())
