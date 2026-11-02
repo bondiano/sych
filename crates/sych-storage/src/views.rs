@@ -234,6 +234,24 @@ impl Storage {
         Ok(rows.iter().map(run_view).collect())
     }
 
+    /// The newest run of the repository that pinned a policy snapshot.
+    pub async fn latest_policy_run(
+        &self,
+        tenant_id: &str,
+        repository_id: i64,
+    ) -> Result<Option<String>, StorageError> {
+        Ok(sqlx::query_scalar(
+            "SELECT u.id FROM runs u JOIN changes c ON c.id = u.change_id
+             JOIN run_artifacts ra ON ra.run_id = u.id AND ra.role = 'policy_snapshot'
+             WHERE c.tenant_id = $1 AND c.repository_id = $2
+             ORDER BY u.created_at DESC, u.id DESC LIMIT 1",
+        )
+        .bind(tenant_id)
+        .bind(repository_id)
+        .fetch_optional(self.pool())
+        .await?)
+    }
+
     /// The change's event log, oldest first.
     pub async fn change_log(&self, change_id: i64) -> Result<Vec<ChangeEvent>, StorageError> {
         let rows = sqlx::query(

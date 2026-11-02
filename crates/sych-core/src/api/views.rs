@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use super::{RunStatus, component};
-use crate::Finding;
 use crate::config::ApiRole;
+use crate::{Finding, PolicySnapshot};
 
 /// One page, newest first; pass `next_before` as `before` for the next one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -24,6 +24,23 @@ pub struct Repository {
     pub connection_id: String,
     /// `owner/name`.
     pub full_name: String,
+}
+
+/// `GET /v1/repositories/:id/policy`: the policy of the repository's newest run that pinned
+/// one, read again from the mirror at the snapshot's source. Read only: policy changes by a pull
+/// request to `.sych/`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct RepositoryPolicyView {
+    pub repository: Repository,
+    pub run_id: String,
+    /// The source and hashes the run pinned.
+    pub snapshot: PolicySnapshot,
+    /// Whether the policy read now has the snapshot's hashes; not once the server config or
+    /// the engine changed since that run.
+    pub matches_snapshot: bool,
+    /// As `sych config validate --repo` prints it at that source, secrets redacted, without
+    /// the server layer, which only an operator reads at `/v1/admin/config`.
+    pub effective: Value,
 }
 
 /// A readable repository and the caller's role on it.
@@ -303,6 +320,7 @@ pub(super) fn paths(
 ) -> Map<String, Value> {
     let read = |summary: &str, response: &Value| op(summary, false, response);
     let repositories = component::<Vec<Repository>>(c, "Repositories");
+    let policy = component::<RepositoryPolicyView>(c, "RepositoryPolicyView");
     let changes = component::<Page<ChangeSummary>>(c, "ChangePage");
     let change = component::<ChangeDetail>(c, "ChangeDetail");
     let findings = component::<Page<FindingSummary>>(c, "FindingPage");
@@ -325,8 +343,15 @@ pub(super) fn paths(
         "the `next_before` of the previous page",
     );
     let limit = ("limit", "integer", "1 to 200, 50 by default");
+    let mut get_policy = read(
+        "The policy of the repository's newest run, read from the mirror at its source",
+        &policy,
+    );
+    // A source the mirror lost or a policy the server now refuses is a conflict, not an outage.
+    get_policy["responses"]["409"] = get_policy["responses"]["404"].clone();
     let paths = json!({
         "/v1/repositories": {"get": read("Repositories the caller may read", &repositories)},
+        "/v1/repositories/{id}/policy": {"get": get_policy},
         "/v1/changes": {"get": with_query(read("Pull requests, newest first", &changes),
             &[repository, ("state", "string", "`OPEN`, `DRAFT`, `MERGED` or `CLOSED`"), before, limit])},
         "/v1/changes/{id}": {"get": read("A pull request with its runs, events and publications", &change)},

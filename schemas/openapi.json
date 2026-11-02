@@ -2352,6 +2352,36 @@
         ],
         "type": "object"
       },
+      "RepositoryPolicyView": {
+        "description": "`GET /v1/repositories/:id/policy`: the policy of the repository's newest run that pinned\none, read again from the mirror at the snapshot's source. Read only: policy changes by a pull\nrequest to `.sych/`.",
+        "properties": {
+          "effective": {
+            "description": "As `sych config validate --repo` prints it at that source, secrets redacted, without\nthe server layer, which only an operator reads at `/v1/admin/config`."
+          },
+          "matches_snapshot": {
+            "description": "Whether the policy read now has the snapshot's hashes; not once the server config or\nthe engine changed since that run.",
+            "type": "boolean"
+          },
+          "repository": {
+            "$ref": "#/components/schemas/Repository"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/PolicySnapshot",
+            "description": "The source and hashes the run pinned."
+          }
+        },
+        "required": [
+          "repository",
+          "run_id",
+          "snapshot",
+          "matches_snapshot",
+          "effective"
+        ],
+        "type": "object"
+      },
       "Requirement": {
         "description": "A requirement a finding violates or depends on, with the review's status for it.",
         "oneOf": [
@@ -5583,6 +5613,102 @@
           }
         ],
         "summary": "Repositories the caller may read"
+      }
+    },
+    "/v1/repositories/{id}/policy": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryPolicyView"
+                }
+              }
+            },
+            "description": "The policy of the repository's newest run, read from the mirror at its source"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "The policy of the repository's newest run, read from the mirror at its source"
       }
     },
     "/v1/reviews": {
