@@ -66,6 +66,7 @@ fn route(billing: BillingKind) -> Route {
             usage_reported: true,
             cost_reported: true,
             hidden_calls: false,
+            reasoning_off: false,
         },
     }
 }

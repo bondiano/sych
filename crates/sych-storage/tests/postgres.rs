@@ -154,6 +154,7 @@ fn reservation(run: &RunHandle, money: u64) -> Reservation {
                 usage_reported: true,
                 cost_reported: true,
                 hidden_calls: false,
+                reasoning_off: false,
             },
         },
         money: MicroUsd(money),

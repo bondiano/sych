@@ -28,6 +28,7 @@ fn request(task_id: TaskId) -> ModelRequest {
         schema: json!({ "type": "object" }),
         max_output_tokens: None,
         deadline: None,
+        reasoning_off: false,
     }
 }
 

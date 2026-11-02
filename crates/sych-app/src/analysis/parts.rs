@@ -10,7 +10,7 @@ use sych_core::SchemaVersion;
 use sych_core::analysis::{Context, Discovered};
 use sych_core::model::{Ledger, ModelProvider};
 
-use super::{AnalysisRecord, Engine, Outcome};
+use super::{AnalysisRecord, Engine, Outcome, PassStatus};
 
 /// A pass and its part of the outcome.
 pub(super) type Task<'a, T> = LocalBoxFuture<'a, (Outcome, T)>;
@@ -31,6 +31,10 @@ pub(super) type Reviewed<'a> = (
     Context,
     Option<Discovered>,
 );
+
+/// A review and the obligations it assessed, which are assessed alone when it is cut short;
+/// a standalone assessment has none.
+pub(super) type Assessing<'a> = Option<(Reviewed<'a>, Vec<&'a PlannedObligation>)>;
 
 impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     /// An empty outcome for one pass.
@@ -68,6 +72,21 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
 }
 
 impl Outcome {
+    /// Appends a pass cut short that is done again over smaller batches: its calls stay
+    /// accounted, its gaps and unfinished assessments do not.
+    pub(super) fn absorb_cut(&mut self, part: Outcome) {
+        let (r, p) = (&mut self.record, part.record);
+        r.passes.extend(p.passes.into_iter().map(|mut pass| {
+            if let PassStatus::Failed { failure } = pass.status {
+                pass.status = PassStatus::Split { failure };
+            }
+
+            pass
+        }));
+        r.attempts.extend(p.attempts);
+        r.hops.extend(p.hops);
+    }
+
     /// Appends one pass's part; same-location findings are merged at the end, most severe kept.
     pub(super) fn absorb(&mut self, part: Outcome) {
         self.assessments.extend(part.assessments);

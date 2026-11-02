@@ -21,6 +21,7 @@ pub const CAPABILITIES: Capabilities = Capabilities {
     usage_reported: true,
     cost_reported: true,
     hidden_calls: false,
+    reasoning_off: true,
 };
 
 /// Credentials are held only here and never formatted; there is no `Debug`.
@@ -104,7 +105,9 @@ pub fn request_body(
     }
 
     // With `require_parameters` an upstream that cannot bound reasoning is not used.
-    if let Some(effort) = reasoning {
+    if request.reasoning_off {
+        body["reasoning"] = json!({ "effort": "none" });
+    } else if let Some(effort) = reasoning {
         body["reasoning"] = json!({ "effort": effort.as_str() });
     }
 

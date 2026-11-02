@@ -27,6 +27,10 @@ External model calls are made only by an explicit `sych doctor --probe-model PRO
 - An invalid reply gets at most one repair: the original messages + the model's reply + the schema error. A repair is
   a separate attempt with its own reservation in the same budget. A second error is `TaskFailure::Schema`.
   `TRUNCATED` and `REFUSED` replies do not count as a result.
+- A `TRUNCATED` reply that spent reasoning tokens, on a route that can turn reasoning off (OpenRouter), is asked once more
+  with the same messages and `reasoning.effort: none` (`NO_REASONING` attempt, its own reservation): replaying the same
+  request reproduces the cut, while without reasoning the output cap holds the answer. A multi-unit review or discovery is
+  not asked again but split by the engine ([ANALYSIS.md](ANALYSIS.md)).
 
 ## Budget before dispatch
 
@@ -300,7 +304,8 @@ so sign-in itself is not covered by an automated test.
   task; there is no waiting for reset.
 - **Cooldown.** A profile that failed on a trigger rests for `max(cooldown_seconds, Retry-After)`; subsequent tasks in the run
   skip it (`SKIPPED`, "cooling down until …") and after expiry start from the primary again
-  (`revert_policy: cooldown_expiry`).
+  (`revert_policy: cooldown_expiry`). A timeout without `Retry-After` is one slow generation, not an outage: the task moves
+  down its chain, and the profile stays usable for the run's other tasks.
 - **Outcome.** `hops` in the `analysis` artifact: role, profile and `ANSWERED | FELL_BACK | STOPPED | SKIPPED` with failure/
   reason. All skipped → `NO_ELIGIBLE_ROUTE` with reasons; a failed pass becomes a gap in the result (PARTIAL), not
   an empty success. `usage_summary.routes` lists each route with attempts, quota attempts and fixed fee separately.

@@ -103,10 +103,17 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         out: &mut Outcome,
     ) -> (Context, Option<Discovered>) {
         let prompt = prompts::review(&context, linked, assessed, &self.title(batch));
-        let outcome = self
-            .router
-            .leaving::<ReviewOutput>(Role::Reviewer, &prompt, "review", kept)
-            .await;
+        // A cut multi-unit review is split by the engine instead of asked again.
+        let router = &self.router;
+        let outcome = if batch.len() > 1 {
+            router
+                .splittable::<ReviewOutput>(Role::Reviewer, &prompt, "review", kept)
+                .await
+        } else {
+            router
+                .leaving::<ReviewOutput>(Role::Reviewer, &prompt, "review", kept)
+                .await
+        };
         record(out, prompts::REVIEW, batch, None, &outcome);
         let (assessments, discovery) = match outcome.value {
             Ok(output) => {
@@ -175,10 +182,17 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         } else {
             Role::Reviewer
         };
-        let outcome = self
-            .router
-            .leaving::<DiscoveryOutput>(role, prompt, "discovery", kept)
-            .await;
+        let router = &self.router;
+        // A cut multi-unit search is split by the engine instead of asked again.
+        let outcome = if batch.len() > 1 {
+            router
+                .splittable::<DiscoveryOutput>(role, prompt, "discovery", kept)
+                .await
+        } else {
+            router
+                .leaving::<DiscoveryOutput>(role, prompt, "discovery", kept)
+                .await
+        };
         record(out, &prompt.template, batch, obligation, &outcome);
         let key = format!("{}:{batch:?}", prompt.template);
         let found = validate_discovery(outcome.value.ok()?, &key, context, obligations, self.snap);

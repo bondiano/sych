@@ -56,6 +56,7 @@ fn reservation(run: RunId) -> Reservation {
                 usage_reported: true,
                 cost_reported: true,
                 hidden_calls: false,
+                reasoning_off: false,
             },
         },
         money: MicroUsd(10),

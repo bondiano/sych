@@ -31,6 +31,7 @@ pub const CAPABILITIES: Capabilities = Capabilities {
     usage_reported: true,
     cost_reported: false,
     hidden_calls: false,
+    reasoning_off: false,
 };
 
 /// Refresh this long before the access token expires.

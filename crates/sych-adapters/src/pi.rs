@@ -36,6 +36,7 @@ pub const CAPABILITIES: Capabilities = Capabilities {
     usage_reported: true,
     cost_reported: false,
     hidden_calls: false,
+    reasoning_off: false,
 };
 
 /// Agent-directory settings: no hidden retries, compaction, cache refreshes or project trust.

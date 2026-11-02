@@ -16,7 +16,7 @@ use sych_core::analysis::{
 use sych_core::broker::{EvidencePacket, OpStatus, REQUIRED_OVER_BUDGET};
 use sych_core::config::{BillingKind, Enforcement, ReasoningEffort, Role};
 use sych_core::model::{
-    AttemptRecord, Denied, HopRecord, Ledger, ModelProvider, RoutePlan, Router, TaskFailure,
+    AttemptRecord, HopRecord, Ledger, ModelProvider, RoutePlan, Router, TaskFailure,
 };
 use sych_core::{
     Assessment, Candidate, CodeRef, Evidence, FeeShare, Finding, NOT_ASSESSED, ObligationId,
@@ -26,8 +26,10 @@ use sych_core::{
 
 mod parts;
 mod passes;
+mod redo;
 
-use parts::{Combined, Reviewed, Task};
+use parts::{Assessing, Combined, Task};
+use redo::cut_short;
 
 /// Answers kept per context ask; each is a span the verifier sees.
 const MAX_REFS_PER_ANSWER: usize = 3;
@@ -36,8 +38,16 @@ const MAX_REFS_PER_ANSWER: usize = 3;
 #[serde(tag = "status", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PassStatus {
     Done,
-    Failed { failure: TaskFailure },
-    Skipped { reason: String },
+    Failed {
+        failure: TaskFailure,
+    },
+    Skipped {
+        reason: String,
+    },
+    /// Cut short and done again over smaller batches; its calls are still accounted.
+    Split {
+        failure: TaskFailure,
+    },
 }
 
 /// One planned model call and what happened to it; no prompt text.
@@ -135,21 +145,6 @@ pub struct Engine<'a, P, L> {
     pub language: sych_core::ReviewLanguage,
 }
 
-/// The search's discovery was denied by the run's input-token cap, so it made no call.
-fn discovery_out_of_tokens(part: &Outcome) -> bool {
-    part.record.passes.iter().any(|p| {
-        p.template == prompts::DISCOVERY
-            && matches!(
-                &p.status,
-                PassStatus::Failed {
-                    failure: TaskFailure::Budget {
-                        denied: Denied::InputTokens { .. }
-                    }
-                }
-            )
-    })
-}
-
 fn needs_assessment(planned: &PlannedObligation) -> bool {
     matches!(&planned.obligation.status,
         ObligationStatus::Unknown { reason_code, .. } if reason_code == NOT_ASSESSED)
@@ -217,7 +212,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         // Combined and standalone calls share one queue in the obligations' order, so a tight
         // budget is spent on the required and riskier ones first.
         let rank = |id: ObligationId| planned.iter().position(|p| p.obligation.id == id);
-        let mut assessing: Vec<(usize, Task<'_, Option<Reviewed<'_>>>)> = Vec::new();
+        let mut assessing: Vec<(usize, Task<'_, Assessing<'_>>)> = Vec::new();
         let mut assessed_in_review = Vec::new();
         for (batch, context, linked, assessed) in reviews {
             assessed_in_review.extend(assessed.iter().map(|&i| linked[i].obligation.id));
@@ -226,6 +221,8 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                 .filter_map(|&i| rank(linked[i].obligation.id))
                 .min()
                 .unwrap_or(usize::MAX);
+            let obligations: Vec<&PlannedObligation> =
+                assessed.iter().map(|&i| linked[i]).collect();
             assessing.push((
                 first,
                 Box::pin(async move {
@@ -240,7 +237,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                             &mut part,
                         )
                         .await;
-                    (part, Some((batch, linked, context, found)))
+                    (part, Some(((batch, linked, context, found), obligations)))
                 }),
             ));
         }
@@ -261,10 +258,23 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         assessing.sort_by_key(|(rank, _)| *rank);
         let assessing = assessing.into_iter().map(|(_, task)| task).collect();
         let mut reviewed = Vec::new();
+        let mut unreviewed = Vec::new();
         for (part, review) in self.each(assessing).await {
-            out.absorb(part);
-            reviewed.extend(review);
+            match review {
+                Some((_, obligations)) if cut_short(&part) => {
+                    out.absorb_cut(part);
+                    unreviewed.extend(obligations);
+                }
+                Some((review, _)) => {
+                    out.absorb(part);
+                    reviewed.push(review);
+                }
+                None => out.absorb(part),
+            }
         }
+        // Its units go to discovery below, which splits them further.
+        self.assess_alone(unreviewed, assessing_keeps, &mut out)
+            .await;
 
         let done: Vec<&Vec<usize>> = reviewed.iter().map(|(batch, ..)| *batch).collect();
         let mut searching = self.audits(&planned, audit_keeps);
@@ -280,21 +290,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                 async move { (self.search(batch).await, Some(batch)) },
             ));
         }
-        let mut retry = Vec::new();
-        for (part, batch) in self.each(searching).await {
-            match batch {
-                Some(batch) if discovery_out_of_tokens(&part) => {
-                    out.record.attempts.extend(part.record.attempts);
-                    out.record.hops.extend(part.record.hops);
-                    retry.push(batch);
-                }
-                _ => out.absorb(part),
-            }
-        }
-        // A sibling in flight held its whole byte bound; settled, it may have left room.
-        for batch in retry {
-            out.absorb(self.search(batch).await);
-        }
+        self.searches(searching, &mut out).await;
         out.findings = merge_overlapping(out.findings);
         out.record.candidates.clone_from(&out.candidates);
         out

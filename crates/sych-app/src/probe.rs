@@ -88,6 +88,8 @@ pub fn probe(config: &Path, server: &ServerConfig, name: &str) -> anyhow::Result
             deadline: None,
             now: Timestamp::now,
             redactor: &redactor,
+            // A probe checks the route as configured; one paid attempt is enough.
+            retry_flat: false,
         };
         let outcome = gateway.structured::<Echo>(&prompt(), "probe").await;
         storage
