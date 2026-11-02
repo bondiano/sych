@@ -57,7 +57,7 @@ export SYCH_DATABASE_URL="sqlite://$out/sych.db"
 for run in $(jq -r '.runs[].measured.run_id // empty' "$out/report.json"); do
     "${sych[@]}" show --run "$run" --config "$out/sych.yaml" 2>/dev/null | jq -c '.review_result | {
         run_id, execution_outcome,
-        failed_passes: [.unresolved_questions[] | select(test("did not complete"))] | length
+        failed_passes: [(.unresolved_questions // [])[] | select(test("did not complete"))] | length
     }'
 done >"$out/outcomes.jsonl"
 
@@ -77,8 +77,9 @@ for run in report["runs"]:
     attempts = db.execute(
         "SELECT output_tokens, output_tokens_bound, reasoning_tokens, created_at, settled_at"
         " FROM model_attempts WHERE run_id = ?", (m["run_id"],)).fetchall()
-    # A reply that used its whole output bound was cut, whatever the provider called it.
-    truncated = sum(1 for o, bound, *_ in attempts if o is not None and o >= bound)
+    # A reply that used its whole output bound was cut, whatever the provider called it; a
+    # route without a hard output cap records no bound.
+    truncated = sum(1 for o, bound, *_ in attempts if None not in (o, bound) and o >= bound)
     times = [t for a in attempts for t in a[3:] if t is not None]
     outcome = outcomes.get(m["run_id"], {})
     row = {
