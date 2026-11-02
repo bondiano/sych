@@ -12,10 +12,12 @@ use crate::tour::{QuestionKind, TourArtifact, TourSession};
 use crate::{FindingId, PolicySnapshot, ReviewResult, SourceSnapshot, SourceSnapshotId, Timestamp};
 
 mod admin;
+mod analytics;
 mod queue;
 mod views;
 
 pub use admin::{ConnectionView, Delivery, ScmReadFailure};
+pub use analytics::{Judged, Quality, SeverityCount};
 pub use queue::{JobEntry, ReconcileRequest, UnresolvedPublication};
 pub use views::*;
 
@@ -398,7 +400,8 @@ pub fn openapi() -> Value {
     let simple = |summary: &str, mutating: bool, response: &Value| {
         op(summary, None, 200, response, mutating, refusals(mutating))
     };
-    let views = views::paths(&mut c, &simple);
+    let mut views = views::paths(&mut c, &simple);
+    views.extend(analytics::paths(&mut c, &simple));
     let queue = queue::paths(&mut c, &simple);
     let admin = admin::paths(&mut c, &simple);
     let mut doc = json!({
