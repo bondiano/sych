@@ -152,6 +152,12 @@ async fn private_metrics_do_not_relax_the_public_peer_allowlist() {
     assert_eq!(response.status(), StatusCode::OK);
     let text = response.text().await.expect("metrics");
     assert!(text.contains("sych_artifact_bytes 0"));
+    assert!(text.contains("sych_budget_spent_micro_usd{scope=\"daily\"} 0"));
+    assert!(
+        text.contains("sych_budget_limit_micro_usd{scope=\"monthly\"} 60000000"),
+        "{text}"
+    );
+    assert!(text.contains("sych_tour_questions 0"));
     assert!(!text.contains(SECRET));
     let response = client
         .get(format!("{url}/v1/runs/1"))

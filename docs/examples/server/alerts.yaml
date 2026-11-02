@@ -30,3 +30,9 @@ groups:
       - alert: SychBudgetHeld
         expr: sych_reserved_micro_usd > 3000000
         annotations: {summary: "Over $3 is reserved or unknown: a budget leak or a stuck provider."}
+      - alert: SychBudgetNearlySpent
+        expr: sych_budget_spent_micro_usd / sych_budget_limit_micro_usd >= 0.8
+        annotations: {summary: "A tenant has spent 80% of its daily or monthly budget; reviews stop at 100%."}
+      - alert: SychBudgetSpent
+        expr: sych_budget_spent_micro_usd / sych_budget_limit_micro_usd >= 1
+        annotations: {summary: "A tenant budget is spent: new model calls are refused until the day or month turns."}

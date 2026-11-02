@@ -227,3 +227,44 @@ async fn cost_counts_unknown_charges_apart_and_budgets_only_for_the_whole_tenant
         json!({"n": 0, "p50_seconds": null, "p90_seconds": null})
     );
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn the_weekly_report_is_json_or_markdown_over_the_callers_repositories() {
+    let w = world(None).await;
+    commit_result(&w, 1).await;
+    let url = listen(&w).await;
+
+    let (status, report) = get(&url, "reader", "/v1/reports/weekly").await;
+    assert_eq!(status, StatusCode::OK, "{report}");
+    assert_eq!(
+        report["until"]
+            .as_i64()
+            .zip(report["since"].as_i64())
+            .map(|(u, s)| u - s),
+        Some(7 * 86_400)
+    );
+    assert_eq!(report["latency"]["run_duration"]["n"], 1, "{report}");
+    assert!(report["cost"]["budget"].is_null(), "a scoped caller");
+
+    let reply = reqwest::Client::new()
+        .get(format!("{url}/v1/reports/weekly?format=markdown"))
+        .bearer_auth("reader-token-0123456789")
+        .send()
+        .await
+        .expect("send");
+    let kind = reply.headers()["content-type"]
+        .to_str()
+        .unwrap_or("")
+        .to_owned();
+    let text = reply.text().await.expect("text");
+    assert!(kind.starts_with("text/markdown"), "{kind}");
+    assert!(text.starts_with("# Sych weekly report"), "{text}");
+    assert!(text.contains("- Incomplete coverage:"), "{text}");
+
+    assert_eq!(
+        get(&url, "reader", "/v1/reports/weekly?format=pdf").await.0,
+        StatusCode::BAD_REQUEST
+    );
+    let (_, nothing) = get(&url, "outsider", "/v1/reports/weekly").await;
+    assert_eq!(nothing["latency"]["run_duration"]["n"], 0);
+}

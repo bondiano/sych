@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use axum::extract::{ConnectInfo, State};
 use axum::http::StatusCode;
+use sych_core::config::{Budget, Budgets};
 use sych_storage::Metrics;
 
 use super::App;
@@ -54,17 +55,48 @@ fn labelled(out: &mut String, name: &str, label: &str, help: &str, values: &[(St
 /// A labelled family: name, label, help and its rows.
 type Family<'a> = (&'a str, &'a str, &'a str, &'a [(String, i64)]);
 
-/// Renders the storage numbers and the in-process counters.
-pub fn render(m: &Metrics, c: &Counters) -> String {
+/// Renders the storage numbers, the budgets they are spent against and the in-process counters.
+pub fn render(m: &Metrics, b: &Budgets, c: &Counters) -> String {
     let mut out = String::new();
     families(&mut out, m);
     gauges(&mut out, m);
+    budgets(&mut out, m, b);
     webhooks(&mut out, c);
     out
 }
 
+/// Spend and its cap per budget scope; a scope without a cap has no limit row.
+fn budgets(out: &mut String, m: &Metrics, b: &Budgets) {
+    let spent = [
+        ("daily".to_owned(), m.spent_today_micro_usd),
+        ("monthly".to_owned(), m.spent_this_month_micro_usd),
+    ];
+    let cap = |b: &Budget| {
+        b.max_cost_micro_usd
+            .map(|c| i64::try_from(c.0).unwrap_or(i64::MAX))
+    };
+    let limits: Vec<(String, i64)> = [("daily", &b.tenant_daily), ("monthly", &b.tenant_monthly)]
+        .into_iter()
+        .filter_map(|(scope, budget)| cap(budget).map(|c| (scope.to_owned(), c)))
+        .collect();
+    labelled(
+        out,
+        "sych_budget_spent_micro_usd",
+        "scope",
+        "Highest tenant spend today and this UTC month, held reservations included.",
+        &spent,
+    );
+    labelled(
+        out,
+        "sych_budget_limit_micro_usd",
+        "scope",
+        "The tenant budget cap of the scope.",
+        &limits,
+    );
+}
+
 fn families(out: &mut String, m: &Metrics) {
-    let rows: [Family<'_>; 6] = [
+    let rows: [Family<'_>; 7] = [
         ("sych_runs", "state", "Runs by state.", &m.runs_by_state),
         (
             "sych_runs_by_coverage",
@@ -90,6 +122,12 @@ fn families(out: &mut String, m: &Metrics) {
             "judgement",
             "Feedback by judgement.",
             &m.feedback_by_judgement,
+        ),
+        (
+            "sych_tour_sessions",
+            "state",
+            "Tour sessions by state.",
+            &m.tour_sessions_by_state,
         ),
     ];
     for (name, label, help, values) in rows {
@@ -155,6 +193,11 @@ fn gauges(out: &mut String, m: &Metrics) {
             m.artifact_bytes,
         ),
         ("sych_artifacts", "Stored artifacts.", m.artifacts),
+        (
+            "sych_tour_questions",
+            "Follow-up questions asked on tour steps.",
+            m.tour_questions,
+        ),
     ];
     for (name, help, value) in gauges {
         gauge(out, name, help, value);
@@ -205,5 +248,5 @@ pub async fn scrape(State(app): State<Arc<App>>) -> Result<String, StatusCode> {
         .metrics((app.now)())
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    Ok(render(&m, &app.counters))
+    Ok(render(&m, &app.budgets, &app.counters))
 }

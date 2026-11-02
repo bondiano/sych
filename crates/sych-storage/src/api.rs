@@ -88,6 +88,12 @@ pub struct Metrics {
     pub feedback_by_judgement: Vec<(String, i64)>,
     pub artifact_bytes: i64,
     pub artifacts: i64,
+    pub tour_sessions_by_state: Vec<(String, i64)>,
+    /// Follow-up questions asked on tour steps.
+    pub tour_questions: i64,
+    /// The highest spend of any tenant today and this UTC month, as the ledger counts it.
+    pub spent_today_micro_usd: i64,
+    pub spent_this_month_micro_usd: i64,
 }
 
 impl Storage {
@@ -281,6 +287,12 @@ impl Storage {
 
     pub async fn metrics(&self, now: Timestamp) -> Result<Metrics, StorageError> {
         let at = now.as_second();
+        let spent = self
+            .busiest_spend(
+                &now.strftime("%Y-%m-%d").to_string(),
+                &now.strftime("%Y-%m").to_string(),
+            )
+            .await?;
         let pairs = |sql: &'static str| async move {
             let rows = sqlx::query(sql).fetch_all(self.pool()).await?;
             Ok::<_, StorageError>(
@@ -360,6 +372,14 @@ impl Storage {
                 "SELECT CAST(coalesce(sum(size), 0) AS BIGINT) + 0 * CAST($1 AS BIGINT) FROM artifacts",
             ).await?,
             artifacts: one("SELECT count(*) + 0 * CAST($1 AS BIGINT) FROM artifacts").await?,
+            tour_sessions_by_state: pairs(
+                "SELECT state, count(*) FROM tour_sessions GROUP BY state ORDER BY state",
+            )
+            .await?,
+            tour_questions: one("SELECT count(*) + 0 * CAST($1 AS BIGINT) FROM tour_exchanges")
+                .await?,
+            spent_today_micro_usd: spent.0,
+            spent_this_month_micro_usd: spent.1,
         })
     }
 }

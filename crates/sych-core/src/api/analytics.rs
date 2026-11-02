@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use super::component;
+use super::report::WeeklyReport;
 use super::views::Count;
 use crate::Timestamp;
 
@@ -174,6 +175,7 @@ pub(super) fn paths(
     let honesty = component::<Honesty>(c, "Honesty");
     let cost = component::<CostBreakdown>(c, "CostBreakdown");
     let latency = component::<Latency>(c, "Latency");
+    let weekly = component::<WeeklyReport>(c, "WeeklyReport");
     let period = json!([
         {"name": "repository_id", "in": "query", "required": false,
             "description": "only this repository", "schema": {"type": "integer"}},
@@ -204,11 +206,24 @@ pub(super) fn paths(
         &latency,
     );
     get_latency["parameters"] = period;
+    let mut get_weekly = op(
+        "The analytics of the last seven days as JSON or Markdown",
+        false,
+        &weekly,
+    );
+    get_weekly["parameters"] = json!([
+        {"name": "repository_id", "in": "query", "required": false,
+            "description": "only this repository", "schema": {"type": "integer"}},
+        {"name": "format", "in": "query", "required": false,
+            "description": "`json` (default) or `markdown`, served as text/markdown",
+            "schema": {"type": "string", "enum": ["json", "markdown"]}},
+    ]);
     let paths = json!({
         "/v1/analytics/quality": {"get": get_quality},
         "/v1/analytics/honesty": {"get": get_honesty},
         "/v1/analytics/cost": {"get": get_cost},
         "/v1/analytics/latency": {"get": get_latency},
+        "/v1/reports/weekly": {"get": get_weekly},
     });
     match paths {
         Value::Object(map) => map,

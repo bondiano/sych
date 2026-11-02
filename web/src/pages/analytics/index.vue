@@ -50,6 +50,11 @@ const latency = useLatency(repositoryId, days)
     </div>
     <p class="text-sm text-muted-foreground">
       A share needs five outcomes; below that only the counts are shown.
+      <a
+        :href="`/v1/reports/weekly?format=markdown${repositoryId ? `&repository_id=${repositoryId}` : ''}`"
+        class="underline"
+        >Weekly report as Markdown</a
+      >.
     </p>
     <h2 class="text-lg font-semibold">Usefulness</h2>
     <ErrorNotice v-if="quality.error.value" :error="quality.error.value" />

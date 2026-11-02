@@ -207,6 +207,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/analytics/honesty", get(analytics::honesty))
         .route("/v1/analytics/cost", get(analytics::cost))
         .route("/v1/analytics/latency", get(analytics::latency))
+        .route("/v1/reports/weekly", get(analytics::weekly))
         .route("/v1/audit", get(views::audit))
         .route("/v1/me", get(auth::me))
         .route("/auth/github", get(auth::sign_ins))
