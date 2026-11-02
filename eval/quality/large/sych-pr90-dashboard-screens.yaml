@@ -1,0 +1,14 @@
+schema_version: 1
+id: sych-pr90-dashboard-screens
+split: development
+language: typescript
+variant: safe
+profiles: [correctness, project_rules, side_effects, migration_compatibility, infrastructure, nitpicks]
+rationale: "Sych #90 as merged: 77 files of dashboard screens. Not labelled for defects; it measures whether a large PR is reviewed completely, at what cost and in what time, so its findings count as unlabelled, not as false."
+repository_fixture:
+  repo: sych
+  base_ref: "680a07b5"
+  head_ref: "refs/pull/90/head"
+expected:
+  forbidden_claims:
+    - "Tests or the build were run."

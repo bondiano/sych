@@ -245,6 +245,16 @@ differs between reports or between repeated runs of one report, with the outcome
 another case set or another config hash are refused (exit 2); a report without `config_sha256` gives
 `config_sha256: null`, so equal budgets are not proven.
 
+### Large pull requests
+
+`eval/quality/large/` holds real large PRs of Sych and Runlark (26–77 files); two carry a defect planted by
+`eval/bench/plants/`. `scripts/large-pr-bench [RUNS]` clones both repositories into `~/.cache/sych-bench`, builds the
+planted branches, reviews every case `RUNS` times (default 2) with the production model and budgets of
+`eval/bench/sych.yaml` and prints one line per run: execution outcome, failed passes, coverage, defects found,
+attempts, attempts that used their whole output bound, the largest reasoning, seconds and cost. Coverage also counts
+generated files nobody reviews (`Cargo.lock`, `schemas/openapi.json`), so `PLAN_EXECUTED` is the measure of the
+model's part. It spends real money through `SYCH_OPENROUTER_API_KEY`.
+
 ### Scoring by meaning
 
 `eval measure` matches a finding to a label when their anchors overlap. Its totals are location matches: a finding

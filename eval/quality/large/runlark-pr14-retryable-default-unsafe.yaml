@@ -1,0 +1,19 @@
+schema_version: 1
+id: runlark-pr14-retryable-default-unsafe
+split: development
+language: rust
+variant: unsafe
+profiles: [correctness, project_rules, side_effects, migration_compatibility, infrastructure, nitpicks]
+rationale: "Runlark #14 (29 files) with a defect planted in the Sych client: an error without `retryable` defaults to retrying client errors and giving up on server errors."
+repository_fixture:
+  repo: runlark
+  base_ref: "40ade130"
+  # Built by scripts/large-pr-bench from refs/pull/14/head and eval/bench/plants/runlark-pr14-retryable-default.patch.
+  head_ref: "refs/heads/bench/runlark-pr14-retryable-default"
+expected:
+  findings:
+    - category: defect
+      semantic_target: "default retryable flag of a Sych API error"
+      required_condition: "the error body has no retryable field"
+      evidence_locations:
+        - { side: HEAD, path: crates/runlark-worker/src/sych_client.rs, start_line: 203, end_line: 203 }
