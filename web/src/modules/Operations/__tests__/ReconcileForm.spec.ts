@@ -27,7 +27,7 @@ vi.stubGlobal(
 const { default: ReconcileForm } = await import('../ui/ReconcileForm.vue')
 
 describe('ReconcileForm', () => {
-  it('needs a reason and resends a failed decision with its key', async () => {
+  it('needs a reason and resends a failed decision with its key, whitespace aside', async () => {
     replies.push(
       new Response('{"error":{"code":"DEPENDENCY_UNAVAILABLE","message":"down"}}', {
         status: 503,
@@ -43,11 +43,13 @@ describe('ReconcileForm', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(wrapper.text()).toContain('down')
+    await wrapper.find('textarea').setValue('no comment on the PR')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(sent).toHaveLength(2)
     expect(sent[0]?.url).toMatch(/\/v1\/publications\/4\/reconcile$/)
     expect(sent[0]?.body).toEqual({ reason: 'no comment on the PR' })
+    expect(sent[0]?.key).toMatch(/\S/)
     expect(sent[1]?.key).toBe(sent[0]?.key)
   })
 })

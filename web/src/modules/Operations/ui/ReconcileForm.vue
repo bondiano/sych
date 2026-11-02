@@ -14,7 +14,11 @@ const reconcile = useReconcile()
 const id = computed(() => `reason-${props.publicationId}`)
 
 // Changed content is a new request; resending the same content replays the first.
-watch(reason, () => (key.value = idempotencyKey()))
+// The key follows what is sent: a whitespace-only edit is the same request.
+watch(
+  () => reason.value.trim(),
+  () => (key.value = idempotencyKey()),
+)
 
 function send() {
   reconcile.mutate({ id: props.publicationId, reason: reason.value.trim(), key: key.value })
