@@ -86,7 +86,7 @@ const merged = computed(() =>
           }}</CardTitle>
         </CardHeader>
         <CardContent class="text-sm text-muted-foreground">
-          pull requests by the severity they left open
+          pull requests by the severity they left open, findings updated in this period
         </CardContent>
       </Card>
     </div>

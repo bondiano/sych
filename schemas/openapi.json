@@ -3059,7 +3059,7 @@
         "type": "string"
       },
       "SeverityCount": {
-        "description": "Merged pull requests with open findings of one severity; a pull request counts once per\nseverity it left open.",
+        "description": "Merged pull requests with open findings of one severity, among findings updated in the\nperiod; a pull request counts once per severity it left open.",
         "properties": {
           "changes": {
             "format": "int64",

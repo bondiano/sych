@@ -79,6 +79,15 @@ async fn latest_judgements_and_settled_findings_of_readable_repositories() {
 
     let (_, later) = get(&url, "reader", "/v1/analytics/quality?since=99999999999").await;
     assert_eq!(later["judgements"], json!([]));
+    let (_, other) = get(
+        &url,
+        "reader",
+        "/v1/analytics/quality?since=0&repository_id=999",
+    )
+    .await;
+    assert_eq!(other["settled"], json!([]), "only the asked repository");
+    let (_, recent) = get(&url, "reader", "/v1/analytics/quality").await;
+    assert_eq!(recent["settled"], quality["settled"], "30 days by default");
     let (_, nothing) = get(&url, "outsider", "/v1/analytics/quality?since=0").await;
     assert_eq!(
         (

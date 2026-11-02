@@ -24,8 +24,8 @@ pub struct Judged {
     pub count: i64,
 }
 
-/// Merged pull requests with open findings of one severity; a pull request counts once per
-/// severity it left open.
+/// Merged pull requests with open findings of one severity, among findings updated in the
+/// period; a pull request counts once per severity it left open.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct SeverityCount {
     pub severity: Option<String>,

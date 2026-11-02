@@ -15,12 +15,17 @@ const row = (rule_id: string | null, judgement: string, count: number): Schemas[
 
 describe('breakdown', () => {
   it('sums judgements per value, a missing one as unknown', () => {
-    const rows = [row('A', 'USEFUL', 2), row('A', 'FALSE_POSITIVE', 1), row(null, 'WONT_FIX', 4)]
+    const rows = [
+      row('A', 'USEFUL', 2),
+      row('A', 'FALSE_POSITIVE', 1),
+      row('A', 'NOT_USEFUL', 1),
+      row(null, 'WONT_FIX', 4),
+    ]
     expect(breakdown(rows, 'rule_id')).toEqual([
+      { key: 'A', total: 4, useful: 2, notUseful: 1, falsePositive: 1, wontFix: 0 },
       { key: 'unknown', total: 4, useful: 0, notUseful: 0, falsePositive: 0, wontFix: 4 },
-      { key: 'A', total: 3, useful: 2, notUseful: 0, falsePositive: 1, wontFix: 0 },
     ])
-    expect(breakdown(rows, 'severity').map((b) => [b.key, b.total])).toEqual([['unknown', 7]])
+    expect(breakdown(rows, 'severity').map((b) => [b.key, b.total])).toEqual([['unknown', 8]])
   })
 })
 
