@@ -25,7 +25,7 @@ groups:
         expr: increase(sych_runs{state="FAILED"}[30m]) > 0 and on() sych_jobs{state="FAILED"} > 0
         annotations: {summary: "Check the server log for UNAUTHORIZED: an App key, token or model credential may be broken."}
       - alert: SychCompletenessDegraded
-        expr: sych_runs_by_coverage{coverage="Partial"} / ignoring(coverage) sum(sych_runs_by_coverage) > 0.8
+        expr: sych_runs_by_coverage{coverage="PARTIAL"} / ignoring(coverage) sum(sych_runs_by_coverage) > 0.8
         annotations: {summary: "Most results are partial: CI, semantic or budget gaps across the board."}
       - alert: SychBudgetHeld
         expr: sych_reserved_micro_usd > 3000000

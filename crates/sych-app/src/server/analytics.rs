@@ -5,7 +5,7 @@ use std::sync::Arc;
 use axum::Json;
 use axum::extract::{Query, State};
 use serde::Deserialize;
-use sych_core::api::Quality;
+use sych_core::api::{Honesty, Quality};
 use sych_core::config::ApiRole;
 
 use super::App;
@@ -34,4 +34,21 @@ pub async fn quality(
         .await
         .map_err(|e| storage_error(&e))?;
     Ok(Json(quality))
+}
+
+/// `GET /v1/analytics/honesty`: 30 days by default.
+pub async fn honesty(
+    State(app): State<Arc<App>>,
+    caller: Caller,
+    Query(q): Query<PeriodQuery>,
+) -> Result<Json<Honesty>, ApiError> {
+    caller.need(ApiRole::Reader)?;
+    let since = q.since.unwrap_or(now(&app).as_second() - 30 * DAY);
+    let ids = readable(&app, &caller).await?;
+    let honesty = app
+        .storage
+        .honesty(visibility(&caller, ids.as_deref()), q.repository_id, since)
+        .await
+        .map_err(|e| storage_error(&e))?;
+    Ok(Json(honesty))
 }

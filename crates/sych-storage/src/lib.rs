@@ -376,7 +376,7 @@ impl Storage {
         .bind(int(usage.cost.known.0))
         .bind(i64::from(usage.cost.unknown_cost_attempts))
         .bind(now.as_second())
-        .bind(format!("{:?}", result.coverage))
+        .bind(analytics::coverage(result.coverage))
         .bind(int(result
             .obligations
             .iter()
@@ -399,6 +399,7 @@ impl Storage {
             )));
         }
 
+        analytics::record_reasons(&mut tx, result).await?;
         // A server run's job and its publication intent commit with the result.
         if let Some(fence) = fence {
             jobs::finish_job(&mut tx, fence, "DONE", None, now.as_second()).await?;

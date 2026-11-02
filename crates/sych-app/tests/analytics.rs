@@ -98,3 +98,51 @@ async fn latest_judgements_and_settled_findings_of_readable_repositories() {
         (&json!([]), &json!([]), &json!([]))
     );
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn reasons_outlive_the_result_and_older_runs_are_counted_apart() {
+    let w = world(None).await;
+    commit_result(&w, 1).await;
+    let url = listen(&w).await;
+
+    let (status, honesty) = get(&url, "reader", "/v1/analytics/honesty?since=0").await;
+    assert_eq!(status, StatusCode::OK, "{honesty}");
+    let runs: i64 = honesty["outcomes"]
+        .as_array()
+        .expect("outcomes")
+        .iter()
+        .filter_map(|c| c["count"].as_i64())
+        .sum();
+    assert_eq!(
+        (runs, honesty["unrecorded_runs"].as_i64()),
+        (1, Some(0)),
+        "{honesty}"
+    );
+    let day = &honesty["coverage_by_day"][0];
+    assert_eq!(day["runs"], 1, "{honesty}");
+    assert_eq!(day["day"].as_i64().map(|d| d % 86_400), Some(0));
+    let (_, summary) = get(&url, "reader", "/v1/summary?since=0").await;
+    let coverage = summary["runs_by_coverage"][0]["key"].as_str().unwrap_or("");
+    assert!(
+        ["COMPLETE_FOR_SCOPE", "PARTIAL", "UNAVAILABLE"].contains(&coverage),
+        "coverage as the API spells it: {summary}"
+    );
+
+    sqlx::query("DELETE FROM run_reasons")
+        .execute(&inspect(w.dir.config()).await)
+        .await
+        .expect("a run from before the table");
+    let (_, older) = get(&url, "reader", "/v1/analytics/honesty?since=0").await;
+    assert_eq!(
+        (&older["outcomes"], older["unrecorded_runs"].as_i64()),
+        (&json!([]), Some(1))
+    );
+    let (_, nothing) = get(&url, "outsider", "/v1/analytics/honesty?since=0").await;
+    assert_eq!(
+        (
+            nothing["unrecorded_runs"].as_i64(),
+            &nothing["coverage_by_day"]
+        ),
+        (Some(0), &json!([]))
+    );
+}

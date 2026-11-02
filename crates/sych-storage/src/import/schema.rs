@@ -8,7 +8,7 @@ use crate::{MIGRATOR, POSTGRES_MIGRATOR, StorageError};
 
 use super::{Column, Kind, Table};
 
-const TABLES: [&str; 22] = [
+const TABLES: [&str; 23] = [
     "repositories",
     "changes",
     "runs",
@@ -21,6 +21,7 @@ const TABLES: [&str; 22] = [
     "tour_sessions",
     "tour_exchanges",
     "run_artifacts",
+    "run_reasons",
     "model_attempts",
     "jobs",
     "change_events",

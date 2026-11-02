@@ -719,6 +719,30 @@
         ],
         "type": "string"
       },
+      "CoverageDay": {
+        "description": "Runs of one UTC day; `partial` did not cover their whole scope.",
+        "properties": {
+          "day": {
+            "description": "The day's start.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "partial": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "runs": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "runs",
+          "partial"
+        ],
+        "type": "object"
+      },
       "Delivery": {
         "description": "`GET /v1/admin/deliveries`: one received webhook and what admission decided; no payload.",
         "properties": {
@@ -1511,6 +1535,56 @@
         },
         "required": [
           "finding_ids"
+        ],
+        "type": "object"
+      },
+      "Honesty": {
+        "description": "`GET /v1/analytics/honesty`: runs created since `since` that finished a review.",
+        "properties": {
+          "coverage_by_day": {
+            "items": {
+              "$ref": "#/components/schemas/CoverageDay"
+            },
+            "type": "array"
+          },
+          "gaps": {
+            "description": "Paths excluded or left unreviewed, by reason code.",
+            "items": {
+              "$ref": "#/components/schemas/Count"
+            },
+            "type": "array"
+          },
+          "outcomes": {
+            "description": "Runs by how the plan ended: `PLAN_EXECUTED`, `LIMIT_REACHED`, `RETRIES_EXHAUSTED` or\n`INPUT_UNAVAILABLE`.",
+            "items": {
+              "$ref": "#/components/schemas/Count"
+            },
+            "type": "array"
+          },
+          "since": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unknown": {
+            "description": "`UNKNOWN` obligations by reason code.",
+            "items": {
+              "$ref": "#/components/schemas/Count"
+            },
+            "type": "array"
+          },
+          "unrecorded_runs": {
+            "description": "Runs completed before reasons were recorded: in none of the counts above.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "since",
+          "outcomes",
+          "gaps",
+          "unknown",
+          "unrecorded_runs",
+          "coverage_by_day"
         ],
         "type": "object"
       },
@@ -4389,6 +4463,101 @@
           }
         ],
         "summary": "Webhook deliveries newest first, kept 30 days"
+      }
+    },
+    "/v1/analytics/honesty": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this repository",
+            "in": "query",
+            "name": "repository_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Unix seconds; 30 days ago by default",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Honesty"
+                }
+              }
+            },
+            "description": "Why reviews over readable repositories stopped short"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Why reviews over readable repositories stopped short"
       }
     },
     "/v1/analytics/quality": {

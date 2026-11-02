@@ -1,9 +1,14 @@
 //! Analytics behind the dashboard over the repositories a caller may read: how people judged
-//! findings and how the findings of finished pull requests settled. Counts only.
+//! findings, how the findings of finished pull requests settled, and why reviews stopped short.
+//! Counts only. The reasons are copied from a result when its run completes, so they outlive the
+//! result's pruning.
+
+use std::collections::BTreeMap;
 
 use sqlx::Row;
 use sqlx::any::AnyRow;
-use sych_core::api::{Count, Judged, Quality, SeverityCount};
+use sych_core::api::{Count, CoverageDay, Honesty, Judged, Quality, SeverityCount};
+use sych_core::{Coverage, ExecutionOutcome, ObligationStatus, ReviewResult};
 
 use crate::{Storage, StorageError, Visibility};
 
@@ -38,6 +43,90 @@ const MERGED_WITH_OPEN: &str = concat!(
     scoped!("c.repository_id"),
     " AND f.updated_at >= $4 GROUP BY f.severity ORDER BY coalesce(f.severity, '')"
 );
+
+// Runs completed since the table exists have an `OUTCOME` row; the others are counted apart.
+const REASONS: &str = concat!(
+    "SELECT x.kind, x.reason, CAST(sum(x.occurrences) AS BIGINT) FROM run_reasons x
+     JOIN runs u ON u.id = x.run_id JOIN changes c ON c.id = u.change_id WHERE u.tenant_id = $1",
+    scoped!("c.repository_id"),
+    " AND u.created_at >= $4 GROUP BY x.kind, x.reason ORDER BY x.kind, x.reason"
+);
+
+const UNRECORDED: &str = concat!(
+    "SELECT count(*) FROM runs u JOIN changes c ON c.id = u.change_id
+     WHERE u.tenant_id = $1 AND u.coverage IS NOT NULL",
+    scoped!("c.repository_id"),
+    " AND u.created_at >= $4 AND NOT EXISTS (SELECT 1 FROM run_reasons x
+         WHERE x.run_id = u.id AND x.kind = 'OUTCOME')"
+);
+
+const COVERAGE_BY_DAY: &str = concat!(
+    "SELECT CAST(u.created_at / 86400 AS BIGINT) * 86400, count(*),
+         CAST(sum(CASE WHEN u.coverage = 'COMPLETE_FOR_SCOPE' THEN 0 ELSE 1 END) AS BIGINT)
+     FROM runs u JOIN changes c ON c.id = u.change_id
+     WHERE u.tenant_id = $1 AND u.coverage IS NOT NULL",
+    scoped!("c.repository_id"),
+    " AND u.created_at >= $4 GROUP BY CAST(u.created_at / 86400 AS BIGINT)
+     ORDER BY CAST(u.created_at / 86400 AS BIGINT)"
+);
+
+/// Coverage as the API spells it.
+pub(crate) fn coverage(c: Coverage) -> &'static str {
+    match c {
+        Coverage::CompleteForScope => "COMPLETE_FOR_SCOPE",
+        Coverage::Partial => "PARTIAL",
+        Coverage::Unavailable => "UNAVAILABLE",
+    }
+}
+
+fn outcome(o: ExecutionOutcome) -> &'static str {
+    match o {
+        ExecutionOutcome::PlanExecuted => "PLAN_EXECUTED",
+        ExecutionOutcome::LimitReached => "LIMIT_REACHED",
+        ExecutionOutcome::RetriesExhausted => "RETRIES_EXHAUSTED",
+        ExecutionOutcome::InputUnavailable => "INPUT_UNAVAILABLE",
+    }
+}
+
+/// The leading code of a reason, without the detail some reasons carry after it.
+fn code(reason: &str) -> &str {
+    let end = reason
+        .find(|c: char| !(c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_'))
+        .unwrap_or(reason.len());
+    if end == 0 { "OTHER" } else { &reason[..end] }
+}
+
+/// The result's outcome, gaps by reason and UNKNOWN obligations by reason code, in the
+/// transaction that completes its run.
+pub(crate) async fn record_reasons(
+    tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+    result: &ReviewResult,
+) -> Result<(), StorageError> {
+    let mut reasons = BTreeMap::from([(("OUTCOME", outcome(result.execution_outcome)), 1_i64)]);
+    let gaps = result
+        .excluded_or_unreviewed
+        .iter()
+        .map(|g| ("GAP", code(&g.reason)));
+    let unknown = result.obligations.iter().filter_map(|o| match &o.status {
+        ObligationStatus::Unknown { reason_code, .. } => Some(("UNKNOWN", code(reason_code))),
+        _ => None,
+    });
+    for key in gaps.chain(unknown) {
+        *reasons.entry(key).or_default() += 1;
+    }
+    for ((kind, reason), occurrences) in reasons {
+        sqlx::query(
+            "INSERT INTO run_reasons (run_id, kind, reason, occurrences) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(result.run_id.to_string())
+        .bind(kind)
+        .bind(reason)
+        .bind(occurrences)
+        .execute(&mut **tx)
+        .await?;
+    }
+    Ok(())
+}
 
 impl Storage {
     /// Judgements and settled findings since `since` over readable repositories.
@@ -81,6 +170,43 @@ impl Storage {
         })
     }
 
+    /// Why reviews since `since` stopped short, over readable repositories.
+    pub async fn honesty(
+        &self,
+        v: Visibility<'_>,
+        repository_id: Option<i64>,
+        since: i64,
+    ) -> Result<Honesty, StorageError> {
+        let rows = |sql| self.period_rows(sql, v, repository_id, since);
+        let reasons = rows(REASONS).await?;
+        let of = |kind: &str| {
+            reasons
+                .iter()
+                .filter(|r| r.get::<String, _>(0) == kind)
+                .map(|r| Count {
+                    key: r.get(1),
+                    count: r.get(2),
+                })
+                .collect()
+        };
+        Ok(Honesty {
+            since,
+            outcomes: of("OUTCOME"),
+            gaps: of("GAP"),
+            unknown: of("UNKNOWN"),
+            unrecorded_runs: rows(UNRECORDED).await?.first().map_or(0, |r| r.get(0)),
+            coverage_by_day: rows(COVERAGE_BY_DAY)
+                .await?
+                .iter()
+                .map(|r| CoverageDay {
+                    day: r.get(0),
+                    runs: r.get(1),
+                    partial: r.get(2),
+                })
+                .collect(),
+        })
+    }
+
     async fn period_rows(
         &self,
         sql: &'static str,
@@ -95,5 +221,17 @@ impl Storage {
             .bind(since)
             .fetch_all(self.pool())
             .await?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::code;
+
+    #[test]
+    fn a_reason_keeps_only_its_leading_code() {
+        assert_eq!(code("BLOB_TOO_LARGE: 2 MiB"), "BLOB_TOO_LARGE");
+        assert_eq!(code("K8S_MANIFESTS_MISSING"), "K8S_MANIFESTS_MISSING");
+        assert_eq!(code("free text"), "OTHER");
     }
 }
