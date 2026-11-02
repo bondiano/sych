@@ -114,6 +114,14 @@ pub struct Profile {
     /// Bounds reasoning, which counts against the per-request output cap; omitted when unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<ReasoningEffort>,
+    /// Review units one discovery call of this profile shows at most: some models reason past
+    /// the output cap over many units. Unset: as many as the shown tokens allow.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_units_per_call: Option<u32>,
+    /// Shown tokens one discovery call of this profile carries at most, under
+    /// `context.max_tokens_per_request`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_shown_tokens_per_call: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

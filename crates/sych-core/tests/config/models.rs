@@ -29,6 +29,32 @@ fn openrouter_needs_pinned_upstreams_and_never_serves_corporate_code() {
 }
 
 #[test]
+fn a_call_shape_bound_is_at_least_one() {
+    let personal = read("examples/personal/sych.yaml");
+    let pinned = "      upstreams: [deepinfra/fp8, fireworks, together]\n";
+    let shaped = personal.replace(
+        pinned,
+        &format!("{pinned}      max_units_per_call: 2\n      max_shown_tokens_per_call: 6000\n"),
+    );
+    assert!(ServerConfig::parse("sych.yaml", &shaped).is_ok());
+    let zero = shaped.replace("max_units_per_call: 2", "max_units_per_call: 0");
+    let errors = ServerConfig::parse("sych.yaml", &zero).expect_err("rejected");
+    assert_eq!(
+        errors[0].path,
+        "models.profiles.cheap_api.max_units_per_call"
+    );
+    let zero = shaped.replace(
+        "max_shown_tokens_per_call: 6000",
+        "max_shown_tokens_per_call: 0",
+    );
+    let errors = ServerConfig::parse("sych.yaml", &zero).expect_err("rejected");
+    assert_eq!(
+        errors[0].path,
+        "models.profiles.cheap_api.max_shown_tokens_per_call"
+    );
+}
+
+#[test]
 fn opencode_go_stays_on_the_go_path() {
     let personal = read("examples/personal/sych.yaml");
     let text = personal.replace(

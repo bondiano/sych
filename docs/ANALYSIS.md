@@ -39,7 +39,8 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    statistical independence of errors.
 3. **Discovery** (`discovery@7`) — over the discovery packets of review units with the list of their obligations. Adjacent
    packets are merged into one call as long as their tokens fit in `context.max_tokens_per_request`: for a
-   small PR this is one discovery instead of a call per unit.
+   small PR this is one discovery instead of a call per unit. The reviewer's primary profile may bound a call further
+   with `max_units_per_call` and `max_shown_tokens_per_call` ([MODELS.md](MODELS.md)).
 4. **Verify** (`verify@5`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
    requests. When the verifier leaves candidates `UNRESOLVED` without asking anything, the engine itself searches HEAD
    for the identifiers their claims name in backticks (two per candidate, four per call) and runs the second round

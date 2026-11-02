@@ -68,6 +68,9 @@ pub struct Resolved {
     pub route: Route,
     pub upstreams: Vec<String>,
     pub reasoning_effort: Option<ReasoningEffort>,
+    /// How much one discovery call of this profile may show (`models.profiles.*`).
+    pub max_units_per_call: Option<u32>,
+    pub max_shown_tokens_per_call: Option<u32>,
     pub price: Option<PriceCard>,
     pub price_revision: Option<String>,
     pub fixed_fee: Option<FixedFee>,
@@ -263,6 +266,8 @@ pub fn resolve(
         },
         upstreams: profile.upstreams.clone(),
         reasoning_effort: profile.reasoning_effort,
+        max_units_per_call: profile.max_units_per_call,
+        max_shown_tokens_per_call: profile.max_shown_tokens_per_call,
         price,
         price_revision,
         fixed_fee: provider.fixed_fee,

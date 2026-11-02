@@ -214,7 +214,7 @@ pub async fn run_on(
         repo.path(),
         answer,
         budgets,
-        batch_tokens,
+        (batch_tokens, usize::MAX),
         verify,
         BTreeMap::new(),
     )
@@ -257,7 +257,7 @@ pub async fn run_reusing(
     repo: &Path,
     answer: fn(&ModelRequest) -> Result<ModelReply, ProviderError>,
     budgets: Budgets,
-    batch_tokens: u32,
+    (batch_tokens, batch_units): (u32, usize),
     verify: bool,
     reuse: BTreeMap<Sha256Digest, Checkpoint>,
 ) -> (Outcome, Vec<String>, Vec<Checkpoint>) {
@@ -336,6 +336,7 @@ pub async fn run_reusing(
         evidence: &packet_evidence,
         known: Vec::new(),
         batch_tokens,
+        batch_units,
         risk_audit: true,
         verify,
         parallel: budgets
