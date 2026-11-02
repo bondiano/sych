@@ -3,7 +3,7 @@
 
 use sych_core::scm::{ChangeSignal, RepositoryRef, WebhookEvent};
 use sych_core::sha256;
-use sych_storage::{Admitted, Connection};
+use sych_storage::{Admitted, Connection, DeliveryFilter};
 
 mod support;
 
@@ -155,4 +155,32 @@ async fn capabilities_are_fixed_per_binding() {
     assert_eq!(a.expect("read"), Some(caps));
     let b = s.repository_capabilities(&conn("b", "gh-b"), "42").await;
     assert_eq!(b.expect("read"), None, "another tenant sees no binding");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn an_underscore_in_a_connection_id_matches_only_itself() {
+    let (_dir, s) = migrated().await;
+    for (n, id) in ["a_b", "axb"].into_iter().enumerate() {
+        s.admit(
+            &conn("local", id),
+            &format!("d-{n}"),
+            &sha256(id.as_bytes()),
+            &push("a"),
+            true,
+            at(0),
+        )
+        .await
+        .expect("admit");
+    }
+    let filter = DeliveryFilter {
+        limit: 10,
+        ..DeliveryFilter::default()
+    };
+    let page = s.deliveries(&["axb"], &filter).await.expect("deliveries");
+    let ids: Vec<&str> = page
+        .items
+        .iter()
+        .map(|d| d.connection_id.as_str())
+        .collect();
+    assert_eq!(ids, ["axb"]);
 }

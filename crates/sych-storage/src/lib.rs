@@ -5,6 +5,7 @@
 
 #[macro_use]
 mod sql;
+mod admin;
 mod admission;
 mod api;
 mod artifacts;
@@ -40,6 +41,7 @@ use sych_core::{
 };
 use thiserror::Error;
 
+pub use admin::DeliveryFilter;
 pub use admission::{Admitted, Connection, Intent, MAX_DEBOUNCES};
 pub use api::{IDEMPOTENCY_TTL_SECONDS, Idempotency, Metrics, RunView};
 pub use artifacts::ArtifactStore;

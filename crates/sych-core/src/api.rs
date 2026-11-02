@@ -11,9 +11,11 @@ use crate::handoff::Handoff;
 use crate::tour::{QuestionKind, TourArtifact, TourSession};
 use crate::{FindingId, PolicySnapshot, ReviewResult, SourceSnapshot, SourceSnapshotId, Timestamp};
 
+mod admin;
 mod queue;
 mod views;
 
+pub use admin::{ConnectionView, Delivery, ScmReadFailure};
 pub use queue::{JobEntry, ReconcileRequest, UnresolvedPublication};
 pub use views::*;
 
@@ -398,6 +400,7 @@ pub fn openapi() -> Value {
     };
     let views = views::paths(&mut c, &simple);
     let queue = queue::paths(&mut c, &simple);
+    let admin = admin::paths(&mut c, &simple);
     let mut doc = json!({
         "openapi": "3.1.0",
         "info": {"title": "Sych", "version": env!("CARGO_PKG_VERSION")},
@@ -423,6 +426,7 @@ pub fn openapi() -> Value {
     });
     merge(&mut doc, views);
     merge(&mut doc, queue);
+    merge(&mut doc, admin);
     path_parameters(&mut doc);
     doc
 }
