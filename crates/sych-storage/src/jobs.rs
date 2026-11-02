@@ -331,6 +331,16 @@ impl Storage {
             .map(|r| (r.get(0), r.get(1), r.get(2), r.get(3)))
             .collect())
     }
+
+    /// `lease_until` of the run's claimed job; `None` when no job of it is claimed.
+    pub async fn lease_until(&self, run: &str) -> Result<Option<i64>, StorageError> {
+        let row =
+            sqlx::query("SELECT lease_until FROM jobs WHERE run_id = $1 AND state = 'CLAIMED'")
+                .bind(run)
+                .fetch_optional(self.pool())
+                .await?;
+        Ok(row.map(|r| r.get(0)))
+    }
 }
 
 pub(crate) async fn finish_job(
