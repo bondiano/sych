@@ -28,3 +28,27 @@ export function useHonesty(repositoryId: Ref<number | undefined>, days: Ref<numb
     },
   })
 }
+
+/** Model cost of the last `days` days, and the tenant's budget use for a caller of all of it. */
+export function useCost(repositoryId: Ref<number | undefined>, days: Ref<number>) {
+  return useQuery({
+    queryKey: ['cost', repositoryId, days],
+    queryFn: async () => {
+      const since = Math.floor(Date.now() / 1000) - days.value * DAY
+      const query = { repository_id: repositoryId.value, since }
+      return unwrap(await api.GET('/v1/analytics/cost', { params: { query } }))
+    },
+  })
+}
+
+/** Time to delivery, run duration and queue wait of the last `days` days. */
+export function useLatency(repositoryId: Ref<number | undefined>, days: Ref<number>) {
+  return useQuery({
+    queryKey: ['latency', repositoryId, days],
+    queryFn: async () => {
+      const since = Math.floor(Date.now() / 1000) - days.value * DAY
+      const query = { repository_id: repositoryId.value, since }
+      return unwrap(await api.GET('/v1/analytics/latency', { params: { query } }))
+    },
+  })
+}

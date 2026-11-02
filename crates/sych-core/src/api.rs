@@ -17,7 +17,10 @@ mod queue;
 mod views;
 
 pub use admin::{ConnectionView, Delivery, ScmReadFailure};
-pub use analytics::{CoverageDay, Honesty, Judged, Quality, SeverityCount};
+pub use analytics::{
+    BudgetUse, ChangeCost, CostBreakdown, CostRow, CoverageDay, Honesty, Judged, Latency, Quality,
+    SeverityCount, Spread, month_forecast,
+};
 pub use queue::{JobEntry, ReconcileRequest, UnresolvedPublication};
 pub use views::*;
 

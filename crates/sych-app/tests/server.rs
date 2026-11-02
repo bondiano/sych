@@ -11,6 +11,7 @@ use sych_adapters::github::Secret;
 use sych_adapters::github::webhook::sign;
 use sych_app::server::{App, Counters, router};
 use sych_core::Timestamp;
+use sych_core::config::Budgets;
 use sych_core::config::GithubConnection;
 use sych_storage::Storage;
 use tokio::net::TcpListener;
@@ -61,6 +62,7 @@ async fn start(max_body_bytes: u32) -> Server {
         oauth: BTreeMap::new(),
         ui_dir: None,
         config: None,
+        budgets: Budgets::default(),
     });
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let url = format!("http://{}", listener.local_addr().expect("addr"));

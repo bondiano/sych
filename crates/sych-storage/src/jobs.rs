@@ -39,7 +39,7 @@ impl Storage {
         let mut tx = self.write().await?;
         let row = sqlx::query(
             "UPDATE jobs SET state = 'CLAIMED', owner = $1, lease_epoch = lease_epoch + 1,
-                 lease_until = $2, attempts = attempts + 1
+                 lease_until = $2, attempts = attempts + 1, claimed_at = coalesce(claimed_at, $3)
              WHERE id = (SELECT id FROM jobs WHERE state = 'QUEUED' AND next_attempt_at <= $3
                  ORDER BY next_attempt_at, id LIMIT 1)
              RETURNING id, lease_epoch, run_id, attempts, deadline",

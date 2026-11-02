@@ -207,7 +207,7 @@ impl Storage {
         })
     }
 
-    async fn period_rows(
+    pub(crate) async fn period_rows(
         &self,
         sql: &'static str,
         v: Visibility<'_>,

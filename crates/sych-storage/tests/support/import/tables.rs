@@ -273,6 +273,7 @@ pub const TABLES: &[Table] = &[
             T("last_error"),
             I("created_at"),
             I("finished_at"),
+            I("claimed_at"),
         ],
     },
     Table {

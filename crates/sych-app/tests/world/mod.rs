@@ -207,6 +207,8 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
     let store = dir.config().clone();
     Storage::migrate(&store).await.expect("migrate");
     let config_path = server_config(dir.path(), endpoint, extra);
+    let text = fs::read_to_string(&config_path).expect("config");
+    let server = ServerConfig::parse("sych.yaml", &text).expect("server config");
     let app = Arc::new(App {
         storage: Storage::open(&store).await.expect("open"),
         github: BTreeMap::from([("gh".into(), (config.clone(), Secret::new("s".into())))]),
@@ -220,6 +222,7 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
         oauth: BTreeMap::from([("gh".into(), Secret::new(CLIENT_SECRET.into()))]),
         ui_dir: None,
         config: Some(shown(&config_path).expect("shown config")),
+        budgets: server.budgets.clone(),
     });
     let conns = BTreeMap::from([(
         "gh".into(),
@@ -229,8 +232,6 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
             config,
         },
     )]);
-    let text = fs::read_to_string(&config_path).expect("config");
-    let server = ServerConfig::parse("sych.yaml", &text).expect("server config");
     let built = build::engine(
         Arc::clone(&app),
         conns,
