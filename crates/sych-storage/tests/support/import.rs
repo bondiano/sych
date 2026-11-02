@@ -159,6 +159,8 @@ pub async fn seed_rows(pool: &AnyPool, run: &RunHandle, result: &ReviewResult, n
                 '{run_id}', '{{"question":"Why π?","answer":""}}', {T0});
             INSERT INTO run_artifacts VALUES ('{run_id}', 'pruned', 'import-tenant', 'repo:o/r',
                 '{pruned}');
+            INSERT INTO run_reasons VALUES ('{run_id}', 'GAP', 'BLOB_TOO_LARGE',
+                9007199254740993);
             INSERT INTO model_attempts (id, tenant_id, run_id, purpose, kind, template, profile,
                 provider, requested_model, resolved_model, generation_id, billing_kind, enforcement,
                 day, month, reserved_micro_usd, input_tokens_bound, output_tokens_bound, state,
@@ -194,5 +196,5 @@ pub async fn seed_rows(pool: &AnyPool, run: &RunHandle, result: &ReviewResult, n
             INSERT INTO feedback VALUES (91, 'import-tenant', 1, 101, 'dev', 'USEFUL',
                 'finding', 'kept exactly, including π and trailing space ', NULL, {T0});
         "#, run_id = run.id, result_id = result.result_id, pruned = sha256(b"pruned"), T0 = now)))
-            .execute(pool).await.expect("seed all 22 current-schema tables");
+            .execute(pool).await.expect("seed all 23 current-schema tables");
 }

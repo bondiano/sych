@@ -216,6 +216,11 @@ pub const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "run_reasons",
+        primary_key: &["run_id", "kind", "reason"],
+        columns: &[T("run_id"), T("kind"), T("reason"), I("occurrences")],
+    },
+    Table {
         name: "model_attempts",
         primary_key: &["id"],
         columns: &[
