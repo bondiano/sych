@@ -421,6 +421,18 @@ mod tests {
     }
 
     #[test]
+    fn a_not_applicable_basis_is_required_and_nullable() {
+        let schema = serde_json::to_value(output_schema::<AssessmentOutput>()).expect("json");
+        let required = schema["required"].as_array().expect("required");
+        assert!(
+            required.iter().any(|r| r == "not_applicable_basis"),
+            "{schema}"
+        );
+        let basis = schema["properties"]["not_applicable_basis"].to_string();
+        assert!(basis.contains("\"null\""), "{basis}");
+    }
+
+    #[test]
     fn a_candidate_schema_demands_an_anchor() {
         let schema = serde_json::to_value(output_schema::<DiscoveryOutput>()).expect("json");
         let anchors = &schema["properties"]["candidates"]["items"]["properties"]["anchors"];

@@ -51,6 +51,8 @@ pub struct AssessmentOutput {
     /// What evidence would settle an UNKNOWN.
     pub missing_inputs: Vec<String>,
     /// Checkable basis, only with `NOT_APPLICABLE`.
+    /// Strict structured outputs need it listed as required; serde still reads a missing one.
+    #[schemars(required, extend("type" = ["string", "null"]))]
     pub not_applicable_basis: Option<String>,
 }
 
