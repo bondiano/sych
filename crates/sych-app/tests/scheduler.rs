@@ -18,7 +18,7 @@ mod world;
 use fake_github::{lock, pull_json};
 use sych_app::server::JOB_SLACK_SECONDS;
 use sych_core::config::ANALYSIS_DEADLINE_SECONDS;
-use world::{advance, commit, now, world, world_server};
+use world::{World, advance, commit, now, world, world_server};
 
 #[tokio::test(flavor = "current_thread")]
 async fn events_become_bounded_generations_and_only_new_inputs_run_again() {
@@ -299,6 +299,19 @@ async fn a_crashed_worker_is_reaped_and_missed_webhooks_are_reconciled() {
     assert_eq!(change.scm_state.as_deref(), Some("CLOSED"));
 }
 
+/// Waits, up to 2 s, for a heartbeat at the current time: the run's claimed job then holds a
+/// full lease from now. The test clock moves only after it, so a slow runner cannot let the
+/// lease lapse between heartbeats.
+async fn renewed(w: &World, run: &str) -> bool {
+    for _ in 0..400 {
+        match w.app.storage.lease_until(run).await.expect("lease") {
+            Some(until) if until >= now().as_second() + 60 => return true,
+            _ => time::sleep(Duration::from_millis(5)).await,
+        }
+    }
+    false
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn a_slow_preparation_keeps_its_lease() {
     let w = world(None).await;
@@ -306,13 +319,14 @@ async fn a_slow_preparation_keeps_its_lease() {
     w.open_pull(&head, &w.base, false);
     w.pr_event("d-1", "opened", &head).await;
     w.schedule(6).await;
-    lock(&w.fake).token_delay = Some(Duration::from_millis(300));
+    let run = w.run_ids().await.remove(0);
+    lock(&w.fake).token_delay = Some(Duration::from_secs(1));
     // Past the cached token's expiry, so the job asks for a new one; that request outlasts
     // the 60 s lease twice over while heartbeats renew it.
     advance(7_200);
     let clock = async {
         for _ in 0..4 {
-            time::sleep(Duration::from_millis(50)).await;
+            assert!(renewed(&w, &run).await, "a heartbeat renews the lease");
             advance(30);
         }
     };
@@ -328,13 +342,14 @@ async fn a_second_worker_cannot_claim_a_job_still_preparing() {
     w.open_pull(&head, &w.base, false);
     w.pr_event("d-1", "opened", &head).await;
     w.schedule(6).await;
-    lock(&w.fake).token_delay = Some(Duration::from_millis(300));
+    let run = w.run_ids().await.remove(0);
+    lock(&w.fake).token_delay = Some(Duration::from_secs(1));
     advance(7_200);
     // A second worker reaps and claims at every tick while the first one is still fetching.
     let rival = async {
         let mut taken = Vec::new();
         for _ in 0..4 {
-            time::sleep(Duration::from_millis(50)).await;
+            assert!(renewed(&w, &run).await, "a heartbeat renews the lease");
             advance(30);
             let reaped = w.app.storage.reap(now()).await.expect("reap");
             let claim = w.app.storage.claim("w2", 60, now()).await.expect("claim");
