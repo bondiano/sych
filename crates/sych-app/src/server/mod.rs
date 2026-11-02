@@ -2,6 +2,7 @@
 //! scheduler, worker and publisher join it as they land.
 
 mod admin;
+mod analytics;
 pub mod api;
 mod auth;
 pub mod build;
@@ -199,6 +200,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/runs/{id}/attempts", get(views::attempts))
         .route("/v1/summary", get(views::summary))
         .route("/v1/usage", get(views::usage))
+        .route("/v1/analytics/quality", get(analytics::quality))
         .route("/v1/audit", get(views::audit))
         .route("/v1/me", get(auth::me))
         .route("/auth/github", get(auth::sign_ins))
