@@ -15,7 +15,8 @@ pub struct DeliveryFilter {
     pub limit: i64,
 }
 
-/// The bound form a `LIKE` over connection ids matches; config ids are `[A-Za-z0-9_-]`.
+/// The bound form a `LIKE` over connection ids matches; config ids are `[A-Za-z0-9_-]`, so the
+/// query escapes `_` with `!`, which an id never holds.
 fn set(connections: &[&str]) -> String {
     connections
         .iter()
@@ -78,7 +79,7 @@ impl Storage {
         let rows = sqlx::query(
             "SELECT id, connection_id, delivery_id, event, action, decision, received_at
              FROM inbox_events
-             WHERE $1 LIKE ('%,' || connection_id || ',%')
+             WHERE $1 LIKE ('%,' || replace(connection_id, '_', '!_') || ',%') ESCAPE '!'
                  AND (CAST($2 AS TEXT) IS NULL OR decision = $2)
                  AND (CAST($3 AS BIGINT) IS NULL OR id < $3)
              ORDER BY id DESC LIMIT $4",
