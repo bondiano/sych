@@ -3,7 +3,7 @@ import { computed } from 'vue'
 
 import { useQueryParam } from '@/common/composables/useQueryParam'
 import { toId } from '@/common/utilities/toId'
-import { QualityView, useQuality } from '@/modules/Analytics'
+import { HonestyView, QualityView, useHonesty, useQuality } from '@/modules/Analytics'
 import { RepositorySelect } from '@/modules/Session'
 import {
   ErrorNotice,
@@ -20,6 +20,7 @@ const period = useQueryParam('days')
 const repositoryId = computed(() => toId(repository.value))
 const days = computed(() => toId(period.value) ?? 30)
 const quality = useQuality(repositoryId, days)
+const honesty = useHonesty(repositoryId, days)
 </script>
 
 <template>
@@ -39,8 +40,13 @@ const quality = useQuality(repositoryId, days)
     <p class="text-sm text-muted-foreground">
       A share needs five outcomes; below that only the counts are shown.
     </p>
+    <h2 class="text-lg font-semibold">Usefulness</h2>
     <ErrorNotice v-if="quality.error.value" :error="quality.error.value" />
     <Skeleton v-else-if="!quality.data.value" class="h-40 w-full" />
     <QualityView v-else :quality="quality.data.value" />
+    <h2 class="text-lg font-semibold">Honesty</h2>
+    <ErrorNotice v-if="honesty.error.value" :error="honesty.error.value" />
+    <Skeleton v-else-if="!honesty.data.value" class="h-40 w-full" />
+    <HonestyView v-else :honesty="honesty.data.value" />
   </div>
 </template>

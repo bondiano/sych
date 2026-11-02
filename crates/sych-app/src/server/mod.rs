@@ -201,6 +201,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/summary", get(views::summary))
         .route("/v1/usage", get(views::usage))
         .route("/v1/analytics/quality", get(analytics::quality))
+        .route("/v1/analytics/honesty", get(analytics::honesty))
         .route("/v1/audit", get(views::audit))
         .route("/v1/me", get(auth::me))
         .route("/auth/github", get(auth::sign_ins))
