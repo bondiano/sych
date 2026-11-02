@@ -25,13 +25,21 @@ const rationale = ref('')
 const key = ref(idempotencyKey())
 const feedback = useFeedback(computed(() => props.findingId))
 
-// Changed content is a new request; resending the same content replays the first.
-watch([judgement, rationale], () => (key.value = idempotencyKey()))
+const body = computed(() => ({
+  judgement: judgement.value,
+  scope: 'finding' as const,
+  rationale: rationale.value.trim(),
+}))
+
+// Changed content is a new request; resending the same content, whitespace aside, replays the first.
+watch(
+  () => JSON.stringify(body.value),
+  () => (key.value = idempotencyKey()),
+)
 
 function send() {
-  const body = { judgement: judgement.value, scope: 'finding', rationale: rationale.value.trim() }
   feedback.mutate(
-    { body, key: key.value },
+    { body: body.value, key: key.value },
     {
       onSuccess: () => {
         rationale.value = ''

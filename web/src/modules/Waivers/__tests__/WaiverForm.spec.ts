@@ -56,7 +56,7 @@ describe('WaiverForm', () => {
     expect(wrapper.text()).toContain('Waiver 7 recorded')
   })
 
-  it('needs a future expiry or a condition, and resends a failure with its key', async () => {
+  it('needs a future expiry or a condition, and resends a failure with its key, whitespace aside', async () => {
     replies.push(
       new Response('{"error":{"code":"DEPENDENCY_UNAVAILABLE","message":"down"}}', {
         status: 503,
@@ -74,6 +74,7 @@ describe('WaiverForm', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(wrapper.text()).toContain('down')
+    await wrapper.find('#waiver-owner').setValue(' alice ')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(sent[0]?.key).toBeTruthy()

@@ -48,7 +48,7 @@ describe('FeedbackForm', () => {
     expect(sent[0]?.key).toMatch(/^[0-9a-f-]{36}$/)
   })
 
-  it('resends a failed submission with its key, and new content with a new one', async () => {
+  it('resends a failed submission with its key, whitespace aside, and new content with a new one', async () => {
     replies.push(
       new Response('{"error":{"code":"DEPENDENCY_UNAVAILABLE","message":"down"}}', {
         status: 503,
@@ -60,6 +60,7 @@ describe('FeedbackForm', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(wrapper.text()).toContain('down')
+    await wrapper.find('textarea').setValue('first ')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     await wrapper.find('textarea').setValue('second')
