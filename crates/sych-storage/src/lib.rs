@@ -7,6 +7,7 @@
 mod sql;
 mod admin;
 mod admission;
+mod analytics;
 mod api;
 mod artifacts;
 mod audit;

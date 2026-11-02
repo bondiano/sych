@@ -24,7 +24,7 @@ use super::api::{
 };
 use super::error::ApiError;
 
-const DAY: i64 = 86_400;
+pub(super) const DAY: i64 = 86_400;
 
 /// Repository ids the caller may read; `None` for every repository of its tenant.
 pub(super) async fn readable(app: &App, caller: &Caller) -> Result<Option<Vec<i64>>, ApiError> {

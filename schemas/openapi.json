@@ -1631,6 +1631,46 @@
         ],
         "type": "object"
       },
+      "Judged": {
+        "description": "Findings of one rule in one repository that people judged the same way; a person's latest\njudgement of a finding counts once.",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "judgement": {
+            "description": "`USEFUL`, `NOT_USEFUL`, `FALSE_POSITIVE` or `WONT_FIX`.",
+            "type": "string"
+          },
+          "repository": {
+            "description": "`owner/name`.",
+            "type": "string"
+          },
+          "rule_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "severity": {
+            "description": "`None` for findings recorded before severity was stored.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "repository",
+          "category",
+          "judgement",
+          "count"
+        ],
+        "type": "object"
+      },
       "LatestRun": {
         "description": "The newest generation's run of a change.",
         "properties": {
@@ -2139,6 +2179,41 @@
           "publication_id",
           "delivery",
           "relevance"
+        ],
+        "type": "object"
+      },
+      "Quality": {
+        "description": "`GET /v1/analytics/quality`: since `since`, by the time of the judgement or of the finding's\nlast update.",
+        "properties": {
+          "judgements": {
+            "items": {
+              "$ref": "#/components/schemas/Judged"
+            },
+            "type": "array"
+          },
+          "merged_with_open": {
+            "items": {
+              "$ref": "#/components/schemas/SeverityCount"
+            },
+            "type": "array"
+          },
+          "settled": {
+            "description": "Findings of merged or closed pull requests by state, without `OBSOLETE`: the addressed\nrate is `RESOLVED` over all of them.",
+            "items": {
+              "$ref": "#/components/schemas/Count"
+            },
+            "type": "array"
+          },
+          "since": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "since",
+          "judgements",
+          "settled",
+          "merged_with_open"
         ],
         "type": "object"
       },
@@ -2982,6 +3057,25 @@
           "CRITICAL"
         ],
         "type": "string"
+      },
+      "SeverityCount": {
+        "description": "Merged pull requests with open findings of one severity, among findings updated in the\nperiod; a pull request counts once per severity it left open.",
+        "properties": {
+          "changes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "severity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "changes"
+        ],
+        "type": "object"
       },
       "Sha256Digest": {
         "pattern": "^sha256:[0-9a-f]{64}$",
@@ -4295,6 +4389,101 @@
           }
         ],
         "summary": "Webhook deliveries newest first, kept 30 days"
+      }
+    },
+    "/v1/analytics/quality": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this repository",
+            "in": "query",
+            "name": "repository_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Unix seconds; 30 days ago by default",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quality"
+                }
+              }
+            },
+            "description": "Judgements and settled findings over readable repositories"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Judgements and settled findings over readable repositories"
       }
     },
     "/v1/audit": {
