@@ -8,7 +8,7 @@ use sych_core::analysis::packet_evidence;
 use sych_core::broker::{
     BrokerInput, EvidencePacket, PacketResolution, build_packets, context_gaps, context_limited,
 };
-use sych_core::config::BillingKind;
+use sych_core::config::{BillingKind, Role};
 use sych_core::model::{ChargeState, Limits as ModelLimits, Purpose};
 use sych_core::{
     DEFAULT_ATTENTION_THRESHOLD, Evidence, EvidenceManifest, ExecutionOutcome,
@@ -95,6 +95,12 @@ impl Session<'_> {
         let reuse = checkpoints::parent(storage, run, self.parent).await;
         tracing::info!(reusable = reuse.len(), "parent checkpoints read");
         let ledger = RunLedger::new(storage, run, Timestamp::now);
+        // The reviewer's primary profile bounds what one discovery call shows.
+        let reviewer = (model.plan.chains.get(&Role::Reviewer))
+            .and_then(|chain| chain.first())
+            .and_then(|name| model.profiles.get(name)?.as_ref().ok());
+        let shown = reviewer.and_then(|r| r.max_shown_tokens_per_call);
+        let units = reviewer.and_then(|r| r.max_units_per_call);
         let engine = Engine {
             router: model.router(&ledger, run.id, Purpose::Analysis, limits, deadline, reuse),
             snap: self.snap,
@@ -108,7 +114,10 @@ impl Session<'_> {
                 .iter()
                 .flat_map(|e| e.code_refs.iter().cloned())
                 .collect(),
-            batch_tokens: self.limits.request_tokens,
+            batch_tokens: shown.map_or(self.limits.request_tokens, |s| {
+                s.min(self.limits.request_tokens)
+            }),
+            batch_units: units.map_or(usize::MAX, |u| usize::try_from(u).unwrap_or(usize::MAX)),
             risk_audit: self.risk_audit,
             verify: self.verify,
             parallel: self

@@ -21,7 +21,7 @@ async fn a_successor_reuses_its_parents_answers_only_for_unchanged_inputs() {
             repo.path(),
             supported_and_empty,
             Budgets::default(),
-            14_000,
+            (14_000, usize::MAX),
             true,
             reuse,
         )

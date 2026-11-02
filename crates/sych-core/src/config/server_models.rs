@@ -31,6 +31,19 @@ impl ServerConfig {
                 &path,
                 "set exactly one of `model` and `model_env`",
             );
+            for (field, value) in [
+                ("max_units_per_call", profile.max_units_per_call),
+                (
+                    "max_shown_tokens_per_call",
+                    profile.max_shown_tokens_per_call,
+                ),
+            ] {
+                p.check(
+                    value != Some(0),
+                    format!("{path}.{field}"),
+                    "must be at least 1",
+                );
+            }
         }
         for (name, profile) in &m.profiles {
             // `--models fake|roles` are selectors, so a profile with that name could never be picked.

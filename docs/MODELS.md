@@ -108,6 +108,9 @@ Adapter `sych_adapters::openrouter` is a single HTTP `POST {endpoint}/chat/compl
   cap is `budgets.<purpose>.max_output_tokens_per_request` (default 2,000, no more than `max_output_tokens`);
   the reservation's money upper bound is computed from it. Together with
   `require_parameters`, an upstream that does not support the parameter is not selected.
+- **Call shape.** `max_units_per_call` and `max_shown_tokens_per_call` of a profile bound one discovery call when the
+  profile is the reviewer's primary: a model that reasons past the output cap over many review units gets fewer per call
+  (more calls, each shorter). Unset, a call takes as many units as fit `context.max_tokens_per_request`.
 - **Structured output.** `response_format: json_schema` with `strict: true`; local strict validation and
   repair always run. `require_parameters` prevents OpenRouter from silently choosing an upstream without schema support.
 - **Streaming.** The request is sent with `stream: true`: keep-alive comments `: OPENROUTER PROCESSING` keep the connection

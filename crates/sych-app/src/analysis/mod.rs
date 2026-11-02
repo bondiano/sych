@@ -133,8 +133,12 @@ pub struct Engine<'a, P, L> {
     pub evidence: &'a [Evidence],
     /// Locations existing diagnostics already report.
     pub known: Vec<CodeRef>,
-    /// Shown tokens one discovery request may batch (`context.max_tokens_per_request`).
+    /// Shown tokens one discovery request may batch (`context.max_tokens_per_request`, or
+    /// less for the reviewer's profile).
     pub batch_tokens: u32,
+    /// Review units one discovery request may batch (the reviewer profile's
+    /// `max_units_per_call`); `usize::MAX` without a bound.
+    pub batch_units: usize,
     /// The independent high-risk search; off only for an evaluation baseline.
     pub risk_audit: bool,
     /// Verification of candidates; off only for evaluation baseline A (one reviewer).
@@ -381,8 +385,8 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         part
     }
 
-    /// Consecutive discovery packets whose shown tokens fit one request: one call for a small
-    /// PR instead of one per review unit.
+    /// Consecutive discovery packets whose shown tokens and number fit one request: one call
+    /// for a small PR instead of one per review unit.
     fn discovery_batches(&self) -> Vec<Vec<usize>> {
         let mut batches: Vec<(Vec<usize>, u32)> = Vec::new();
         for (i, packet) in self.packets.iter().enumerate() {
@@ -392,7 +396,9 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
 
             let tokens = packet.usage.tokens;
             match batches.last_mut() {
-                Some((batch, used)) if *used + tokens <= self.batch_tokens => {
+                Some((batch, used))
+                    if batch.len() < self.batch_units && *used + tokens <= self.batch_tokens =>
+                {
                     batch.push(i);
                     *used += tokens;
                 }
