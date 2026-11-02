@@ -59,7 +59,7 @@ for run in $(jq -r '.runs[].measured.run_id // empty' "$out/report.json"); do
     "${sych[@]}" show --run "$run" --config "$out/sych.yaml" 2>/dev/null | jq -c '.review_result | {
         run_id, execution_outcome,
         failed_passes: [(.unresolved_questions // [])[] | select(test("did not complete"))] | length
-    }'
+    }' || echo "large-pr-bench: no outcome for run $run" >&2
 done >"$out/outcomes.jsonl"
 
 python3 -I - "$out" <<'EOF'
