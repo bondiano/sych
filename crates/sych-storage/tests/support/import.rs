@@ -172,7 +172,7 @@ pub async fn seed_rows(pool: &AnyPool, run: &RunHandle, result: &ReviewResult, n
                 9007199254740993, NULL, 'UNKNOWN', NULL, -9223372036854775000, NULL, NULL, NULL,
                 1, {T0}, NULL, NULL);
             INSERT INTO jobs VALUES (21, '{run_id}', 'review', 'analysis', 'CLAIMED', 'worker',
-                9007199254740993, 1800000060, 1800003600, 1, 3, {T0}, NULL, {T0}, NULL);
+                9007199254740993, 1800000060, 1800003600, 1, 3, {T0}, NULL, {T0}, NULL, {T0});
             INSERT INTO change_events VALUES (22, 1, '{run_id}', 'COMPLETED', '{{}}', {T0});
             INSERT INTO change_intents VALUES (23, 1, 'REVIEW', {T0}, 1800000060,
                 9007199254740993, 31, 31, {T0}, NULL);
