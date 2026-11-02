@@ -149,6 +149,7 @@ pub fn caps(output_cap_enforced: bool) -> Capabilities {
         usage_reported: true,
         cost_reported: true,
         hidden_calls: false,
+        reasoning_off: false,
     }
 }
 

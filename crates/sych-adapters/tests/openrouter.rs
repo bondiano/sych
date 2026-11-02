@@ -38,6 +38,7 @@ fn request() -> ModelRequest {
         }),
         max_output_tokens: Some(2_000),
         deadline: None,
+        reasoning_off: false,
     }
 }
 
@@ -83,6 +84,14 @@ fn request_pins_model_upstreams_and_parameters() {
     );
     let low = request_body(&request(), &["deepseek".into()], Some(ReasoningEffort::Low));
     assert_eq!(low["reasoning"], json!({"effort": "low"}));
+    let mut flat = request();
+    flat.reasoning_off = true;
+    let off = request_body(&flat, &["deepseek".into()], Some(ReasoningEffort::Low));
+    assert_eq!(
+        off["reasoning"],
+        json!({"effort": "none"}),
+        "the request overrides the profile"
+    );
     assert_eq!(body["max_tokens"], 2_000);
     assert_eq!(body["stream"], true);
     let format = &body["response_format"];

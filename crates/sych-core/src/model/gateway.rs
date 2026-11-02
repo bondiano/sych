@@ -97,6 +97,9 @@ pub struct Gateway<'a, P, L> {
     pub now: fn() -> Timestamp,
     /// Applied to every data block before it leaves for the provider.
     pub redactor: &'a Redactor,
+    /// A reply cut after its reasoning used up the output bound is asked once more without
+    /// reasoning; off where the caller splits the task instead.
+    pub retry_flat: bool,
 }
 
 impl<P: ModelProvider, L: Ledger> Gateway<'_, P, L> {
@@ -109,7 +112,7 @@ impl<P: ModelProvider, L: Ledger> Gateway<'_, P, L> {
         let base = prompt.messages(self.redactor);
         let task = TaskId::new_v7();
         let mut attempts = Vec::new();
-        let first = self
+        let mut first = self
             .attempt(
                 task,
                 AttemptKind::Initial,
@@ -120,6 +123,28 @@ impl<P: ModelProvider, L: Ledger> Gateway<'_, P, L> {
                 &mut attempts,
             )
             .await;
+        // Replaying a cut request reproduces the cut; without reasoning the bound holds the answer.
+        let reasoned = attempts
+            .last()
+            .is_some_and(|a| a.usage.reasoning_tokens.is_some_and(|n| n > 0));
+        if matches!(first, Err(TaskFailure::Truncated))
+            && self.retry_flat
+            && self.route.capabilities.reasoning_off
+            && reasoned
+        {
+            first = self
+                .attempt(
+                    task,
+                    AttemptKind::NoReasoning,
+                    prompt,
+                    &base,
+                    schema_name,
+                    &schema,
+                    &mut attempts,
+                )
+                .await;
+        }
+
         let value = match first.map(|reply| (parse_output::<T>(&reply.text), reply)) {
             Err(failure) => Err(failure),
             Ok((Ok(value), _)) => Ok(value),
@@ -192,6 +217,7 @@ impl<P: ModelProvider, L: Ledger> Gateway<'_, P, L> {
                 .output_cap_enforced
                 .then_some(self.limits.request_output_tokens()),
             deadline: self.deadline,
+            reasoning_off: kind == AttemptKind::NoReasoning,
         };
         let reply = self.dispatch(&request).await;
         let settlement = match &reply {

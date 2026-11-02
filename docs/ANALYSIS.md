@@ -47,6 +47,11 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    engine drops it, not the finding, when it names anything else. The inline comment offers it as a GitHub
    suggestion when it covers exactly the commented lines, otherwise as a code block.
 
+A multi-unit review or discovery whose reply is cut (`TRUNCATED`) or times out is not a gap yet: it is recorded as
+`SPLIT` with its attempts, a review's obligations get assessments of their own, and its units are searched again in halves,
+down to single units, within the same budgets (a cut single unit gets the gateway's retry without reasoning,
+[MODELS.md](MODELS.md)). Only what still fails is a gap.
+
 A pass that did not complete (budget, deadline, truncation, provider error, schema after repair) is recorded in the
 `analysis` artifact as `FAILED` and goes into `unresolved_questions`; coverage becomes `PARTIAL`
 (`LIMIT_REACHED` for the budget and output cap, `RETRIES_EXHAUSTED` for the rest: the router has already gone through all eligible

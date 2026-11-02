@@ -21,6 +21,7 @@ pub const CAPABILITIES: Capabilities = Capabilities {
     usage_reported: true,
     cost_reported: true,
     hidden_calls: false,
+    reasoning_off: false,
 };
 
 /// Billing sources a subscription-only call may report.

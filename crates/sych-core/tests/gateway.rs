@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicI64, Ordering};
 
 use sych_core::config::FixedFee;
 use sych_core::model::{
-    AttemptKind, ChargeState, Denied, ErrorKind, Gateway, Limits, ObservedUsage, Purpose, Route,
-    Speaker, TaskFailure, TaskOutcome,
+    AttemptKind, ChargeState, Denied, ErrorKind, Finish, Gateway, Limits, ObservedUsage, Purpose,
+    Route, Speaker, TaskFailure, TaskOutcome,
 };
 use sych_core::{MicroUsd, Redactor, RunId, Timestamp};
 
@@ -37,6 +37,7 @@ async fn run(
         deadline: None,
         now,
         redactor: Redactor::builtin(),
+        retry_flat: true,
     };
     gateway.structured::<Out>(&prompt(), "discovery").await
 }
@@ -342,6 +343,7 @@ async fn deadline_reached_while_reserving_releases_without_dispatch() {
         deadline: Some(Timestamp::from_second(now().as_second() + 5).expect("valid")),
         now: ticking,
         redactor: Redactor::builtin(),
+        retry_flat: true,
     };
     let out = gateway.structured::<Out>(&prompt(), "discovery").await;
     assert!(matches!(
@@ -354,4 +356,61 @@ async fn deadline_reached_while_reserving_releases_without_dispatch() {
     assert!(provider.seen.borrow().is_empty(), "nothing was sent");
     assert_eq!(out.attempts[0].charge_state, ChargeState::Released);
     assert_eq!(ledger.committed_money(), 0);
+}
+
+/// A reply whose reasoning used up the whole output bound: billed, cut, no answer.
+fn reasoning_cut() -> Step {
+    let mut cut = reply("", Some(90))?;
+    cut.finish = Finish::Truncated;
+    cut.usage.reasoning_tokens = Some(12_000);
+    Ok(cut)
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn reasoning_that_fills_the_bound_is_asked_again_without_it() {
+    let provider = Scripted::new(vec![reasoning_cut(), reply(r#"{"claim":"x"}"#, Some(40))]);
+    let ledger = MemLedger::default();
+    let mut route = api_route();
+    route.capabilities.reasoning_off = true;
+    let out = run(&provider, &ledger, route, limits(300_000, 6), None).await;
+    assert_eq!(out.value, Ok(Out { claim: "x".into() }));
+    let kinds: Vec<AttemptKind> = out.attempts.iter().map(|a| a.kind).collect();
+    assert_eq!(kinds, [AttemptKind::Initial, AttemptKind::NoReasoning]);
+    assert_eq!(out.attempts[0].failure, Some(TaskFailure::Truncated));
+    assert_eq!(
+        out.attempts[0].charge,
+        Some(MicroUsd(90)),
+        "the cut reply stays billed"
+    );
+    let seen = provider.seen.borrow();
+    assert!(!seen[0].reasoning_off && seen[1].reasoning_off);
+    assert_eq!(
+        seen[0].messages, seen[1].messages,
+        "the same task, not a repair"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_cut_without_reasoning_or_a_way_to_turn_it_off_is_final() {
+    let mut cut = reply("", Some(90)).expect("reply");
+    cut.finish = Finish::Truncated;
+    let ledger = MemLedger::default();
+    let provider = Scripted::new(vec![Ok(cut)]);
+    let mut route = api_route();
+    route.capabilities.reasoning_off = true;
+    let out = run(&provider, &ledger, route, limits(300_000, 6), None).await;
+    assert_eq!(
+        out.value,
+        Err(TaskFailure::Truncated),
+        "the answer itself was too long"
+    );
+
+    let provider = Scripted::new(vec![reasoning_cut()]);
+    let out = run(&provider, &ledger, api_route(), limits(300_000, 6), None).await;
+    assert_eq!(
+        out.value,
+        Err(TaskFailure::Truncated),
+        "the route cannot turn it off"
+    );
+    assert_eq!(out.attempts.len(), 1);
 }

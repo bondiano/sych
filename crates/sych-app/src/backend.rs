@@ -452,6 +452,7 @@ mod tests {
             deadline: Timestamp::now()
                 .checked_add(Duration::from_millis(300))
                 .ok(),
+            reasoning_off: false,
         };
         let started = Instant::now();
         let reply = block_on(Backend::OpenRouter(p).complete(&request)).expect("runtime");

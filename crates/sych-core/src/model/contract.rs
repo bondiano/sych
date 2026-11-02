@@ -33,6 +33,8 @@ impl Purpose {
 pub enum AttemptKind {
     Initial,
     Repair,
+    /// The same messages again without reasoning, after reasoning used up the output bound.
+    NoReasoning,
 }
 
 impl AttemptKind {
@@ -40,6 +42,7 @@ impl AttemptKind {
         match self {
             Self::Initial => "INITIAL",
             Self::Repair => "REPAIR",
+            Self::NoReasoning => "NO_REASONING",
         }
     }
 }
@@ -143,6 +146,8 @@ pub struct ModelRequest {
     pub max_output_tokens: Option<u32>,
     /// The run deadline; the runtime stops waiting for the reply there.
     pub deadline: Option<Timestamp>,
+    /// Answer without reasoning, whatever the route's configured effort.
+    pub reasoning_off: bool,
 }
 
 /// Token counts as reported. `None` is unknown, never zero; reasoning is part of output.
@@ -224,6 +229,8 @@ pub struct Capabilities {
     pub cost_reported: bool,
     /// Provider-side retries or fallbacks Sych cannot observe.
     pub hidden_calls: bool,
+    /// A request can turn the model's reasoning off (`ModelRequest::reasoning_off`).
+    pub reasoning_off: bool,
 }
 
 /// The resolved route an attempt is dispatched to.

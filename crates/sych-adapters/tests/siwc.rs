@@ -37,6 +37,7 @@ fn request() -> ModelRequest {
         }),
         max_output_tokens: Some(2_000),
         deadline: None,
+        reasoning_off: false,
     }
 }
 

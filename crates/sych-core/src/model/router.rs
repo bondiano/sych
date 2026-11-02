@@ -192,12 +192,18 @@ impl<P: ModelProvider, L: Ledger> Router<'_, P, L> {
 
     fn cool_down(&self, profile: &str, failure: &TaskFailure, now: Timestamp) {
         let TaskFailure::Provider {
+            kind,
             retry_after_seconds,
             ..
         } = failure
         else {
             return;
         };
+        // A slow generation is not an outage: it must not leave the run's other tasks unrouted.
+        if *kind == ErrorKind::Timeout && retry_after_seconds.is_none() {
+            return;
+        }
+
         let seconds = retry_after_seconds.unwrap_or(0).max(self.cooldown_seconds);
         if let Ok(until) = now.checked_add(Duration::from_secs(seconds.into())) {
             self.cooldowns
@@ -213,7 +219,8 @@ impl<P: ModelProvider, L: Ledger> Router<'_, P, L> {
         prompt: &Prompt,
         schema_name: &str,
     ) -> RoutedOutcome<T> {
-        self.route(role, prompt, schema_name, self.limits).await
+        self.route(role, prompt, schema_name, self.limits, true)
+            .await
     }
 
     /// [`Self::structured`] under [`Limits::reserving`] `kept` attempts for later passes; a
@@ -226,7 +233,20 @@ impl<P: ModelProvider, L: Ledger> Router<'_, P, L> {
         kept: u32,
     ) -> RoutedOutcome<T> {
         let limits = self.limits.reserving(kept);
-        self.route(role, prompt, schema_name, limits).await
+        self.route(role, prompt, schema_name, limits, true).await
+    }
+
+    /// [`Self::leaving`] for a task the caller splits when its reply is cut, so a cut reply is
+    /// not asked again without reasoning.
+    pub async fn splittable<T: Serialize + DeserializeOwned + JsonSchema>(
+        &self,
+        role: Role,
+        prompt: &Prompt,
+        schema_name: &str,
+        kept: u32,
+    ) -> RoutedOutcome<T> {
+        let limits = self.limits.reserving(kept);
+        self.route(role, prompt, schema_name, limits, false).await
     }
 
     fn deps<T: JsonSchema>(
@@ -339,6 +359,7 @@ impl<P: ModelProvider, L: Ledger> Router<'_, P, L> {
         prompt: &Prompt,
         schema_name: &str,
         limits: Limits,
+        retry_flat: bool,
     ) -> RoutedOutcome<T> {
         let mut out = RoutedOutcome {
             value: Err(TaskFailure::NoEligibleRoute {
@@ -391,6 +412,7 @@ impl<P: ModelProvider, L: Ledger> Router<'_, P, L> {
                 deadline: self.deadline,
                 now: self.now,
                 redactor: self.redactor,
+                retry_flat,
             };
             let task = gateway.structured::<T>(prompt, schema_name).await;
             out.attempts.extend(task.attempts);
