@@ -19,7 +19,6 @@ use sych_app::args::{ModelSelection, Switch};
 use sych_app::config::shown;
 use sych_app::server::build::{self, EngineConfig};
 use sych_app::server::{App, Conn, Counters, Engine, binding};
-use sych_core::config::Budgets;
 use sych_core::config::{ApiClient, GithubConnection, ServerConfig};
 use sych_core::sha256;
 use sych_core::{PolicySnapshot, PolicySource, ReviewResult, RunId, SchemaVersion, Timestamp};
@@ -208,6 +207,8 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
     let store = dir.config().clone();
     Storage::migrate(&store).await.expect("migrate");
     let config_path = server_config(dir.path(), endpoint, extra);
+    let text = fs::read_to_string(&config_path).expect("config");
+    let server = ServerConfig::parse("sych.yaml", &text).expect("server config");
     let app = Arc::new(App {
         storage: Storage::open(&store).await.expect("open"),
         github: BTreeMap::from([("gh".into(), (config.clone(), Secret::new("s".into())))]),
@@ -221,7 +222,7 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
         oauth: BTreeMap::from([("gh".into(), Secret::new(CLIENT_SECRET.into()))]),
         ui_dir: None,
         config: Some(shown(&config_path).expect("shown config")),
-        budgets: Budgets::default(),
+        budgets: server.budgets.clone(),
     });
     let conns = BTreeMap::from([(
         "gh".into(),
@@ -231,8 +232,6 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
             config,
         },
     )]);
-    let text = fs::read_to_string(&config_path).expect("config");
-    let server = ServerConfig::parse("sych.yaml", &text).expect("server config");
     let built = build::engine(
         Arc::clone(&app),
         conns,
