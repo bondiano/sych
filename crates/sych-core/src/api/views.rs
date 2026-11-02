@@ -344,7 +344,7 @@ pub(super) fn paths(
     );
     let limit = ("limit", "integer", "1 to 200, 50 by default");
     let mut get_policy = read(
-        "The policy of the repository's newest run, read from the mirror at its source",
+        "The policy of the repository's newest run that pinned one, read from the mirror at its source",
         &policy,
     );
     // A source the mirror lost or a policy the server now refuses is a conflict, not an outage.

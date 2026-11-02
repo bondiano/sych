@@ -91,6 +91,7 @@ pub fn redacted(effective: &EffectiveConfig) -> anyhow::Result<serde_json::Value
 
 /// Effective config of the server config and, when given, the working-tree `.sych/`.
 pub fn effective(config: Option<&Path>, repo: Option<&Path>) -> anyhow::Result<EffectiveConfig> {
+    let server = read_server(config)?;
     let files = repo
         .map(read_policy_dir)
         .transpose()
@@ -99,7 +100,7 @@ pub fn effective(config: Option<&Path>, repo: Option<&Path>) -> anyhow::Result<E
     let policy_origin = repo.map_or_else(String::new, |r| {
         format!("{} (working tree, not a trusted ref)", r.display())
     });
-    with_policy(config, &files, &policy_origin)
+    build(config, server.as_deref(), &files, &policy_origin)
 }
 
 /// Effective config of the server config and the policy `files` read at `policy_origin`, as
@@ -109,12 +110,25 @@ pub fn with_policy(
     files: &PolicyFiles,
     policy_origin: &str,
 ) -> anyhow::Result<EffectiveConfig> {
-    let server = read_server(config)?;
+    build(
+        config,
+        read_server(config)?.as_deref(),
+        files,
+        policy_origin,
+    )
+}
+
+fn build(
+    config: Option<&Path>,
+    server: Option<&str>,
+    files: &PolicyFiles,
+    policy_origin: &str,
+) -> anyhow::Result<EffectiveConfig> {
     let origin = config.map_or_else(|| "<engine defaults>".into(), |p| p.display().to_string());
     EffectiveConfig::build(
         &ServerInput {
             origin: &origin,
-            text: server.as_deref(),
+            text: server,
         },
         &PolicyInput {
             origin: policy_origin,

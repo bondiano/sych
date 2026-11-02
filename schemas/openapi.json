@@ -5637,7 +5637,7 @@
                 }
               }
             },
-            "description": "The policy of the repository's newest run, read from the mirror at its source"
+            "description": "The policy of the repository's newest run that pinned one, read from the mirror at its source"
           },
           "400": {
             "content": {
@@ -5708,7 +5708,7 @@
             "session": []
           }
         ],
-        "summary": "The policy of the repository's newest run, read from the mirror at its source"
+        "summary": "The policy of the repository's newest run that pinned one, read from the mirror at its source"
       }
     },
     "/v1/reviews": {
