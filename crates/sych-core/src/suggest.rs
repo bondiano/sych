@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 
 use crate::api::Suggestion;
 use crate::config::{Rule, RuleException};
-use crate::{Timestamp, derived_uuid};
+use crate::{Timestamp, derived_uuid, glob_match};
 
 /// Feedback older than this does not count.
 pub const WINDOW_DAYS: i64 = 90;
@@ -38,6 +38,7 @@ struct Tally {
     false_positive: i64,
     wont_fix: i64,
     findings: Vec<i64>,
+    paths: Vec<String>,
 }
 
 impl Tally {
@@ -47,6 +48,10 @@ impl Tally {
         self.wont_fix += i64::from(j.judgement == "WONT_FIX");
         if !self.findings.contains(&j.finding_id) {
             self.findings.push(j.finding_id);
+        }
+
+        if let Some(path) = &j.path {
+            self.paths.push(path.clone());
         }
     }
 }
@@ -119,7 +124,15 @@ pub fn suggest(
         let dirs = by_dir.range((rule.id.as_str(), String::new())..);
         for ((_, glob), t) in dirs.take_while(|((id, _), _)| *id == rule.id) {
             let against = t.false_positive + t.wont_fix;
-            let covered = rule.exceptions.iter().any(|e| e.paths.contains(glob));
+            // An exception in force that already matches every judged path, however broad.
+            let live: Vec<&String> = (rule.exceptions.iter())
+                .filter(|e| e.expires_at.is_none_or(|end| end > now))
+                .flat_map(|e| &e.paths)
+                .collect();
+            let covered = t
+                .paths
+                .iter()
+                .all(|path| live.iter().any(|g| glob_match(g, path)));
             if covered || against < MIN_AGAINST || against * 100 < EXCEPTION_SHARE * t.judged {
                 continue;
             }
@@ -235,6 +248,25 @@ mod tests {
             first[0].fingerprint,
             suggest(2, &rules(), &five, "dev", now())[0].fingerprint
         );
+    }
+
+    #[test]
+    fn a_broader_exception_in_force_covers_the_directory_and_an_expired_one_does_not() {
+        let five = judged(5, "src/legacy/x.rs", "FALSE_POSITIVE");
+        let with = |expires_at: &str| {
+            let mut rules = rules();
+            rules[0].exceptions.push(crate::config::RuleException {
+                paths: vec!["src/**".into()],
+                reason: "r".into(),
+                owner: "backend".into(),
+                author: "dev".into(),
+                expires_at: Some(expires_at.parse().expect("time")),
+                until: None,
+            });
+            suggest(1, &rules, &five, "dev", now())
+        };
+        assert!(with("2027-01-01T00:00:00Z").is_empty());
+        assert_eq!(with("2026-01-01T00:00:00Z").len(), 1);
     }
 
     #[test]
