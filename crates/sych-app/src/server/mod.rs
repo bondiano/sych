@@ -22,6 +22,7 @@ mod queue;
 pub mod requests;
 pub mod smoke;
 mod snapshots;
+mod suggestions;
 mod tours;
 pub mod ui;
 pub mod views;
@@ -199,6 +200,11 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/waivers/{id}/revoke", post(views::revoke))
         .route("/v1/repositories", get(views::repositories))
         .route("/v1/repositories/{id}/policy", get(policy::policy))
+        .route("/v1/repositories/{id}/suggestions", get(suggestions::list))
+        .route(
+            "/v1/repositories/{id}/suggestions/{fingerprint}/decision",
+            post(suggestions::decide),
+        )
         .route("/v1/changes", get(views::changes))
         .route("/v1/changes/{id}", get(views::change))
         .route("/v1/findings", get(views::findings))

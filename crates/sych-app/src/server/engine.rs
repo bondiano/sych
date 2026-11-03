@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use sych_adapters::github::{Github, PullState, Secret, capabilities};
 use sych_core::Timestamp;
-use sych_core::config::{GithubConnection, RunMode};
+use sych_core::config::{GithubConnection, Retention, RunMode};
 use sych_core::schedule::{
     CI_WAIT_SECONDS, Decision, IntentKind, MAX_RETRIES, RunInputs, ScmState, decide, retry_at,
 };
@@ -57,6 +57,8 @@ pub struct Engine {
     pub heartbeat: Duration,
     /// `http.public_base_url`, for links to full results.
     pub public_base_url: Option<String>,
+    /// `storage.retention`, applied by the daily prune.
+    pub retention: Retention,
     pub now: fn() -> Timestamp,
 }
 
@@ -326,6 +328,8 @@ impl Engine {
 const RECONCILE_SECONDS: i64 = 600;
 /// Reaper period.
 const REAP_SECONDS: i64 = 15;
+/// Prune period: artifacts and history rows past retention.
+const PRUNE_SECONDS: i64 = 86_400;
 
 impl Engine {
     /// Scheduler with reconcile and reaper on one task, the worker on another, until `stop`.
@@ -334,7 +338,8 @@ impl Engine {
         let scheduler = {
             let (engine, mut stop) = (Arc::clone(&engine), stop.clone());
             task::spawn_local(async move {
-                let (mut reconciled, mut reaped, mut verified) = (i64::MIN, i64::MIN, i64::MIN);
+                let (mut reconciled, mut reaped, mut verified, mut pruned) =
+                    (i64::MIN, i64::MIN, i64::MIN, i64::MIN);
                 let mut tick = time::interval(Duration::from_secs(1));
                 loop {
                     tokio::select! {
@@ -358,6 +363,11 @@ impl Engine {
                             engine.verify_published_once().await.map(drop),
                             "verify publications",
                         );
+                    }
+
+                    if now.saturating_sub(pruned) >= PRUNE_SECONDS {
+                        pruned = now;
+                        report(engine.prune_once().await, "prune");
                     }
 
                     report(engine.schedule_once().await.map(drop), "schedule");
@@ -406,6 +416,23 @@ impl Engine {
             .await?;
         self.lineage_once().await?;
         self.reconcile_publications_once().await
+    }
+}
+
+impl Engine {
+    /// Artifacts and history rows past retention, as `sych cache prune` deletes them; mirrors
+    /// stay with the CLI. Every worker may run it: each deletion rechecks eligibility.
+    pub async fn prune_once(&self) -> anyhow::Result<()> {
+        let storage = &self.app.storage;
+        let now = (self.now)();
+        let artifacts = storage.prune(now, false).await?;
+        let records = storage.prune_records(now, &self.retention, false).await?;
+        tracing::info!(
+            artifacts = artifacts.deleted,
+            records = records.iter().map(|r| r.rows).sum::<i64>(),
+            "prune finished"
+        );
+        Ok(())
     }
 }
 

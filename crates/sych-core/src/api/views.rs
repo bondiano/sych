@@ -354,6 +354,16 @@ pub(super) fn paths(
         "the `next_before` of the previous page",
     );
     let limit = ("limit", "integer", "1 to 200, 50 by default");
+    let export_limit = (
+        "limit",
+        "integer",
+        "1 to 200, 50 by default; with `format=csv` 1 to 10000, 10000 by default",
+    );
+    let format = (
+        "format",
+        "string",
+        "`json` (default) or `csv`, served as text/csv; a CSV export's next page cursor is the `Sych-Next-Before` header",
+    );
     let mut get_policy = read(
         "The policy of the repository's newest run that pinned one, read from the mirror at its source",
         &policy,
@@ -369,26 +379,29 @@ pub(super) fn paths(
         "/v1/findings": {"get": with_query(read("Findings, newest first", &findings),
             &[repository, ("change_id", "integer", "only this change"), ("state", "string", "lifecycle state"),
               ("category", "string", "finding category"), ("severity", "string", "finding severity"),
-              ("rule_id", "string", "only this rule"), before, limit])},
+              ("rule_id", "string", "only this rule"), before, export_limit, format])},
         "/v1/findings/{id}": {"get": read("A finding with its history, feedback and stated details", &finding)},
         "/v1/runs/{id}/attempts": {"get": read("Model attempts of a run as the ledger recorded them", &attempts)},
         "/v1/summary": {"get": with_query(read("Totals since a time over readable repositories", &summary),
             &[repository, ("since", "integer", "Unix seconds; 30 days ago by default")])},
         "/v1/usage": {"get": with_query(read("Model usage by UTC day", &usage),
             &[repository, ("from", "string", "`YYYY-MM-DD`; 30 days ago by default"),
-              ("to", "string", "`YYYY-MM-DD`; today by default")])},
+              ("to", "string", "`YYYY-MM-DD`; today by default"),
+              ("format", "string", "`json` (default) or `csv` of the days without the subscription fees, served as text/csv")])},
         "/v1/waivers": {"get": with_query(read("Waivers of the repositories the caller may read", &waivers),
             &[repository, ("state", "string", "`active`, `expired` or `revoked`")])},
         "/v1/waivers/{id}/revoke": {"post": op("Revoke a waiver; a revoked one keeps its time", true, &waiver)},
         "/v1/me": {"get": read("The caller and its role on each readable repository", &me)},
         "/v1/audit": {"get": with_query(read("Recorded actions on repositories the caller maintains", &audit),
-            &[("action", "string", "only this action"), before, limit])},
+            &[("action", "string", "only this action"), before, export_limit, format])},
         "/auth/github": {"get": sign_in},
         "/auth/token": {"post": read("Exchange an API client's bearer token for a browser session", &object)},
         "/auth/logout": {"post": read("End the caller's browser session", &object)},
     });
-    match paths {
+    let mut paths = match paths {
         Value::Object(map) => map,
         _ => Map::new(),
-    }
+    };
+    paths.extend(super::suggestions::paths(c, op));
+    paths
 }

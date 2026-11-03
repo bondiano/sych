@@ -76,7 +76,8 @@ rewritten.
 | `model_attempts` `RESERVED`/`UNKNOWN`, operations `PENDING/PUBLISHING/UNCERTAIN` | not deleted by age |
 | `runs` rows (usage/audit) | not deleted; 90 days is the lower bound |
 
-`sych cache prune --dry-run` prints the plan (artifacts, row counts per table with a rule, mirrors) and deletes
+A server worker (`sych serve` in the `all` or `worker` role) prunes artifacts and rows by these rules once at start
+and then every 24 hours; mirrors are pruned only by `sych cache prune`. `sych cache prune --dry-run` prints the plan (artifacts, row counts per table with a rule, mirrors) and deletes
 nothing; without the flag, artifacts are deleted one by one under the write lock with a re-check of pin and retention, and rows
 in one transaction. A pin or a retention extension accepted by another process after the initial listing keeps the
 artifact. Raw CI artifacts are not stored at all: the zip is read in memory, and only the normalized report is kept.

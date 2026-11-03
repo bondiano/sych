@@ -111,6 +111,7 @@ pub fn engine(app: Arc<App>, conns: BTreeMap<String, Conn>, c: EngineConfig<'_>)
         ) + JOB_SLACK_SECONDS,
         heartbeat: Duration::from_secs(u64::from(c.server.workers.heartbeat_seconds)),
         public_base_url: c.server.http.public_base_url.clone(),
+        retention: c.server.storage.retention,
         now: Timestamp::now,
     }
 }

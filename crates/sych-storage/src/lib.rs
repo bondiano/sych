@@ -26,6 +26,7 @@ mod retention;
 mod scheduler;
 mod sessions;
 mod spend;
+mod suggestions;
 mod totals;
 mod tour_sessions;
 mod views;
@@ -58,6 +59,7 @@ pub use retention::RecordPrune;
 pub use scheduler::ChangeRow;
 pub use sessions::Session;
 pub use spend::Spend;
+pub use suggestions::Decision;
 pub use tour_sessions::tour_role;
 pub use views::{ChangeFilter, FindingFilter, Visibility};
 
