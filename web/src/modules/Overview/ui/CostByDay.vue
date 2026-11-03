@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import { counted } from '@/common/utilities/counted'
 import { formatMicroUsd } from '@/common/utilities/formatMicroUsd'
 import type { Schemas } from '@/modules/Api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/modules/Ui'
@@ -21,7 +22,8 @@ const unknown = computed(() => props.usage.days.reduce((n, d) => n + d.unknown_c
       <CardDescription>
         Known charges per UTC day, {{ usage.from }} to {{ usage.to }}.
         <template v-if="unknown">
-          {{ unknown }} calls of unknown cost are not in the bars.</template
+          {{ counted(unknown, 'call') }} of unknown cost {{ unknown === 1 ? 'is' : 'are' }} not in
+          the bars.</template
         >
       </CardDescription>
     </CardHeader>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import { counted } from '@/common/utilities/counted'
 import { formatMicroUsd } from '@/common/utilities/formatMicroUsd'
 import type { Schemas } from '@/modules/Api'
 import {
@@ -47,7 +48,7 @@ const used = (spent: number, limit: number | null | undefined) =>
           <CardTitle class="text-2xl tabular-nums">{{ formatMicroUsd(known) }}</CardTitle>
         </CardHeader>
         <CardContent class="text-sm text-muted-foreground">
-          {{ unknown ? `plus ${unknown} calls of unknown cost` : 'every call priced' }};
+          {{ unknown ? `plus ${counted(unknown, 'call')} of unknown cost` : 'every call priced' }};
           {{ formatMicroUsd(cost.superseded_micro_usd) }} on revisions a newer push superseded
         </CardContent>
       </Card>
@@ -57,7 +58,7 @@ const used = (spent: number, limit: number | null | undefined) =>
           <CardTitle class="text-2xl tabular-nums">{{ perUseful }}</CardTitle>
         </CardHeader>
         <CardContent class="text-sm text-muted-foreground">
-          known cost over {{ cost.useful_findings }} findings someone called useful
+          known cost over {{ counted(cost.useful_findings, 'finding') }} someone called useful
         </CardContent>
       </Card>
       <Card v-if="cost.budget">

@@ -32,11 +32,12 @@ async function leave() {
 <template>
   <div class="min-h-screen">
     <header class="flex items-center gap-6 px-6 py-3">
-      <RouterLink to="/" class="flex items-center gap-2 font-semibold">
+      <RouterLink to="/" class="flex shrink-0 items-center gap-2 font-semibold">
         <img :src="logo" alt="" class="size-7" />
         Sych
       </RouterLink>
-      <nav class="flex gap-4 text-sm" aria-label="Main">
+      <!-- A narrow window scrolls the links instead of wrapping or clipping them. -->
+      <nav class="flex min-w-0 gap-4 overflow-x-auto text-sm whitespace-nowrap" aria-label="Main">
         <RouterLink
           v-for="link in links"
           :key="link.to"
@@ -48,7 +49,7 @@ async function leave() {
           {{ link.label }}
         </RouterLink>
       </nav>
-      <div class="ml-auto flex items-center gap-3 text-sm">
+      <div class="ml-auto flex shrink-0 items-center gap-3 text-sm">
         <InstanceSwitch />
         <span v-if="me" class="text-muted-foreground">{{ me.actor }}</span>
         <Button variant="ghost" size="sm" @click="leave">Sign out</Button>

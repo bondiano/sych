@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import { counted } from '@/common/utilities/counted'
 import { formatShare } from '@/common/utilities/formatShare'
 import type { Schemas } from '@/modules/Api'
 import {
@@ -64,8 +65,8 @@ const lists = computed(() => [
       </CardContent>
     </Card>
     <p v-if="honesty.unrecorded_runs" class="text-sm text-muted-foreground">
-      {{ honesty.unrecorded_runs }} runs completed before reasons were recorded are in none of the
-      tables below.
+      {{ counted(honesty.unrecorded_runs, 'run') }} completed before reasons were recorded
+      {{ honesty.unrecorded_runs === 1 ? 'is' : 'are' }} in none of the tables below.
     </p>
     <div class="grid gap-6 lg:grid-cols-3">
       <section v-for="l in lists" :key="l.title">
