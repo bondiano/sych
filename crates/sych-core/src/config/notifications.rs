@@ -162,6 +162,12 @@ impl Notifications {
                 format!("{at}.email.password_env"),
                 "needs username",
             );
+            // A username alone would build a transport that never authenticates.
+            p.check(
+                e.username.is_none() || e.password_env.is_some(),
+                format!("{at}.email.username"),
+                "needs password_env",
+            );
             p.check(
                 address(&e.from),
                 format!("{at}.email.from"),
@@ -239,6 +245,15 @@ mod tests {
         assert!(
             anonymous.iter().any(|p| p.contains("one or more")),
             "{anonymous:?}"
+        );
+        let unauthenticated = problems(
+            "    email: {host: smtp.example.com, username: sych, from: a@b.c, to: [d@e.f]}\n",
+        );
+        assert!(
+            unauthenticated
+                .iter()
+                .any(|p| p.contains("needs password_env")),
+            "{unauthenticated:?}"
         );
     }
 

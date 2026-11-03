@@ -332,7 +332,7 @@ const RECONCILE_SECONDS: i64 = 600;
 const REAP_SECONDS: i64 = 15;
 /// Prune period: artifacts and history rows past retention.
 const PRUNE_SECONDS: i64 = 86_400;
-/// How often a worker checks whether the weekly digest is due.
+/// How often the scheduler checks whether the weekly digest is due.
 const DIGEST_SECONDS: i64 = 60;
 
 impl Engine {
