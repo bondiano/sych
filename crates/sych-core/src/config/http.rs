@@ -162,13 +162,17 @@ impl Http {
                 "name and url must be unique",
             );
         }
-        p.check(
-            self.public_base_url
-                .as_deref()
-                .is_some_and(|own| self.instances.iter().any(|i| same_base_url(&i.url, own))),
-            "http.instances",
-            "must list this server's public_base_url",
-        );
+        match self.public_base_url.as_deref() {
+            None => p.push(
+                "http.public_base_url",
+                "must be set: it names this server among http.instances",
+            ),
+            Some(own) => p.check(
+                self.instances.iter().any(|i| same_base_url(&i.url, own)),
+                "http.instances",
+                "must list this server's public_base_url",
+            ),
+        }
     }
 
     pub(super) fn env_refs(&self) -> Vec<(String, &EnvName)> {
@@ -254,5 +258,14 @@ mod tests {
             "    - {name: production, url: \"https://sych.example\"}\n    - {name: production, url: \"https://sandbox.sych.example\"}\n",
         );
         assert!(twice.iter().any(|p| p.contains("unique")), "{twice:?}");
+        let unnamed = problems(
+            "schema_version: 1\nmode: personal\nhttp:\n  instances:\n    - {name: sandbox, url: \"https://sandbox.sych.example\"}\n",
+        );
+        assert!(
+            unnamed
+                .iter()
+                .any(|p| p.contains("http.public_base_url") && p.contains("must be set")),
+            "the missing field is named: {unnamed:?}"
+        );
     }
 }
