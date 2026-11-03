@@ -1,6 +1,6 @@
 //! Server actions from the CLI: a configured identity is required, cancelling
 //! before commit exits 130 and keeps CANCELLED, a committed run is never rewritten, and a
-//! prune keeps history as long as the config's retention says.
+//! prune keeps history as long as the config's retention says, and the server prunes by itself.
 
 use std::ffi::OsStr;
 use std::fs;
@@ -14,7 +14,7 @@ mod fake_github;
 mod world;
 
 use world::database::inspect;
-use world::{World, commit_result, world};
+use world::{World, commit_result, now, world};
 
 fn config(dir: &Path) -> PathBuf {
     let path = dir.join("cli.yaml");
@@ -141,4 +141,31 @@ async fn a_prune_follows_the_configured_event_log_retention() {
     let (code, out) = plan(&default);
     assert_eq!(code, 0);
     assert!(!out.contains("change_events"), "90 days keep it: {out}");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn the_server_prunes_history_past_the_default_retention() {
+    let w = world(None).await;
+    commit_result(&w, 0).await;
+    let db = inspect(w.dir.config()).await;
+    for (days, detail) in [(91, "past retention"), (89, "kept")] {
+        sqlx::query(
+            "INSERT INTO change_events (change_id, run_id, kind, detail, at)
+             SELECT id, NULL, 'TEST', $1, $2 FROM changes",
+        )
+        .bind(detail)
+        .bind(now().as_second() - days * 86_400)
+        .execute(&db)
+        .await
+        .expect("event");
+    }
+
+    w.engine.prune_once().await.expect("prune");
+
+    let left: Vec<String> =
+        sqlx::query_scalar("SELECT detail FROM change_events WHERE kind = 'TEST'")
+            .fetch_all(&db)
+            .await
+            .expect("events");
+    assert_eq!(left, ["kept"]);
 }

@@ -3509,6 +3509,105 @@
         ],
         "type": "object"
       },
+      "Suggestion": {
+        "description": "One proposed edit of a rule of the repository's current policy.",
+        "properties": {
+          "against": {
+            "description": "Judgements against the rule: false positive, and for an exception won't fix too.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "finding_ids": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "fingerprint": {
+            "description": "Stable while the rule's version and the proposed edit stay the same.",
+            "type": "string"
+          },
+          "judged": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "kind": {
+            "description": "`EXCEPTION`: add an expiring exception for `paths`; `DEMOTE`: make the rule not required.",
+            "type": "string"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "pull_request": {
+            "description": "The pull request that applied it, for `DONE`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "rule_version": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "state": {
+            "description": "`PENDING`, `DISMISSED` or `DONE`.",
+            "type": "string"
+          },
+          "yaml": {
+            "description": "The YAML to put into `.sych/rules.yaml`, built only from the policy, counts and dates.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fingerprint",
+          "rule_id",
+          "rule_version",
+          "kind",
+          "paths",
+          "against",
+          "judged",
+          "finding_ids",
+          "yaml",
+          "state"
+        ],
+        "type": "object"
+      },
+      "SuggestionDecision": {
+        "additionalProperties": false,
+        "description": "`POST /v1/repositories/:id/suggestions/:fingerprint/decision`.",
+        "properties": {
+          "pull_request": {
+            "default": null,
+            "description": "For `DONE`: the pull request to `.sych/` that applies it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "description": "`DISMISSED` or `DONE`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "Suggestions": {
+        "items": {
+          "$ref": "#/components/schemas/Suggestion"
+        },
+        "type": "array"
+      },
       "Summary": {
         "description": "`GET /v1/summary`: totals since `since` over the repositories the caller may read.",
         "properties": {
@@ -6634,6 +6733,215 @@
           }
         ],
         "summary": "The policy of the repository's newest run that pinned one, read from the mirror at its source"
+      }
+    },
+    "/v1/repositories/{id}/suggestions": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Suggestions"
+                }
+              }
+            },
+            "description": "Rule suggestions from the feedback of the last 90 days against the current policy"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Rule suggestions from the feedback of the last 90 days against the current policy"
+      }
+    },
+    "/v1/repositories/{id}/suggestions/{fingerprint}/decision": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "fingerprint",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestionDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Suggestion"
+                }
+              }
+            },
+            "description": "Set a suggestion aside or mark it applied by a pull request"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Set a suggestion aside or mark it applied by a pull request"
       }
     },
     "/v1/reviews": {

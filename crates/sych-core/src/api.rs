@@ -16,6 +16,7 @@ mod analytics;
 mod csv;
 mod queue;
 mod report;
+mod suggestions;
 mod views;
 
 pub use admin::{ConnectionView, Delivery, ScmReadFailure};
@@ -26,6 +27,7 @@ pub use analytics::{
 pub use csv::{audit_csv, findings_csv, usage_csv};
 pub use queue::{JobEntry, ReconcileRequest, UnresolvedPublication};
 pub use report::WeeklyReport;
+pub use suggestions::{Suggestion, SuggestionDecision};
 pub use views::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
