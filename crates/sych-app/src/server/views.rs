@@ -7,12 +7,12 @@ use std::sync::Arc;
 use axum::Json;
 use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::Response;
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use sych_core::api::{
-    Attempt, AuditEvent, ChangeDetail, ChangeSummary, FindingDetail, FindingSummary, Grant, Page,
-    Repository, Summary, Usage, WaiverEntry,
+    Attempt, ChangeDetail, ChangeSummary, FindingDetail, FindingSummary, Grant, Page, Repository,
+    Summary, Usage, WaiverEntry, audit_csv, findings_csv, usage_csv,
 };
 use sych_core::config::ApiRole;
 use sych_core::{RunId, Timestamp};
@@ -82,6 +82,47 @@ pub(super) fn limit(requested: Option<i64>) -> Result<i64, ApiError> {
         Some(l) if (1..=200).contains(&l) => Ok(l),
         Some(_) => Err(invalid("limit is 1 to 200")),
     }
+}
+
+/// Rows one CSV export holds at most; the cursor of the rest goes in `Sych-Next-Before`.
+const CSV_LIMIT: i64 = 10_000;
+
+/// `?format=`: `json` (default) or `csv`.
+fn csv_format(format: Option<&str>) -> Result<bool, ApiError> {
+    match format {
+        None | Some("json") => Ok(false),
+        Some("csv") => Ok(true),
+        Some(_) => Err(invalid("format is json or csv")),
+    }
+}
+
+/// A page limit; a CSV export takes up to [`CSV_LIMIT`] rows, that many by default.
+fn export_limit(requested: Option<i64>, csv: bool) -> Result<i64, ApiError> {
+    match (csv, requested) {
+        (false, _) => limit(requested),
+        (true, None) => Ok(CSV_LIMIT),
+        (true, Some(l)) if (1..=CSV_LIMIT).contains(&l) => Ok(l),
+        (true, Some(_)) => Err(invalid("limit is 1 to 10000 for csv")),
+    }
+}
+
+/// A CSV download named `sych-<name>.csv`.
+fn csv_response(name: &str, body: String, next_before: Option<i64>) -> Response {
+    let headers = [
+        (header::CONTENT_TYPE, "text/csv; charset=utf-8".to_owned()),
+        (
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"sych-{name}.csv\""),
+        ),
+    ];
+    let mut response = (headers, body).into_response();
+    if let Some(next) = next_before {
+        response
+            .headers_mut()
+            .insert("sych-next-before", HeaderValue::from(next));
+    }
+
+    response
 }
 
 /// `GET /v1/repositories`.
@@ -157,15 +198,17 @@ pub struct FindingQuery {
     rule_id: Option<String>,
     before: Option<i64>,
     limit: Option<i64>,
+    format: Option<String>,
 }
 
-/// `GET /v1/findings`.
+/// `GET /v1/findings`, JSON or `?format=csv`.
 pub async fn findings(
     State(app): State<Arc<App>>,
     caller: Caller,
     Query(q): Query<FindingQuery>,
-) -> Result<Json<Page<FindingSummary>>, ApiError> {
+) -> Result<Response, ApiError> {
     caller.need(ApiRole::Reader)?;
+    let csv = csv_format(q.format.as_deref())?;
     let filter = FindingFilter {
         repository_id: q.repository_id,
         change_id: q.change_id,
@@ -174,15 +217,19 @@ pub async fn findings(
         severity: q.severity,
         rule_id: q.rule_id,
         before: q.before,
-        limit: limit(q.limit)?,
+        limit: export_limit(q.limit, csv)?,
     };
     let ids = readable(&app, &caller).await?;
-    let page = app
+    let page: Page<FindingSummary> = app
         .storage
         .findings(visibility(&caller, ids.as_deref()), &filter)
         .await
         .map_err(|e| storage_error(&e))?;
-    Ok(Json(page))
+    Ok(if csv {
+        csv_response("findings", findings_csv(&page.items), page.next_before)
+    } else {
+        Json(page).into_response()
+    })
 }
 
 /// `GET /v1/findings/:id`: the stated details come from the latest run's immutable result.
@@ -272,6 +319,7 @@ pub struct UsageQuery {
     repository_id: Option<i64>,
     from: Option<String>,
     to: Option<String>,
+    format: Option<String>,
 }
 
 /// `YYYY-MM-DD` of a real UTC day, or 400.
@@ -284,13 +332,14 @@ fn day(text: &str) -> Result<String, ApiError> {
     }
 }
 
-/// `GET /v1/usage`: 30 days to today by default.
+/// `GET /v1/usage`: 30 days to today by default, JSON or `?format=csv` of the days.
 pub async fn usage(
     State(app): State<Arc<App>>,
     caller: Caller,
     Query(q): Query<UsageQuery>,
-) -> Result<Json<Usage>, ApiError> {
+) -> Result<Response, ApiError> {
     caller.need(ApiRole::Reader)?;
+    let csv = csv_format(q.format.as_deref())?;
     let today = now(&app);
     let format = |at: i64| {
         Timestamp::from_second(at)
@@ -318,6 +367,10 @@ pub async fn usage(
         )
         .await
         .map_err(|e| storage_error(&e))?;
+    if csv {
+        return Ok(csv_response("usage", usage_csv(&days), None));
+    }
+
     // Fees belong to the tenant, not a repository: only a caller that reads all of it sees them.
     let subscription_fees = if ids.is_none() && q.repository_id.is_none() {
         s.subscription_fees(&caller.tenant_id, &from[..7], &to[..7])
@@ -331,7 +384,8 @@ pub async fn usage(
         to,
         days,
         subscription_fees,
-    }))
+    })
+    .into_response())
 }
 
 #[derive(Deserialize)]
@@ -419,6 +473,7 @@ pub struct AuditQuery {
     action: Option<String>,
     before: Option<i64>,
     limit: Option<i64>,
+    format: Option<String>,
 }
 
 /// `GET /v1/audit`: actions on the repositories the caller maintains; actions of no single
@@ -427,9 +482,10 @@ pub async fn audit(
     State(app): State<Arc<App>>,
     caller: Caller,
     Query(q): Query<AuditQuery>,
-) -> Result<Json<Page<AuditEvent>>, ApiError> {
+) -> Result<Response, ApiError> {
     caller.need(ApiRole::Maintainer)?;
-    let limit = limit(q.limit)?;
+    let csv = csv_format(q.format.as_deref())?;
+    let limit = export_limit(q.limit, csv)?;
     let maintained: Vec<i64> = grants(&app, &caller)
         .await?
         .into_iter()
@@ -448,5 +504,9 @@ pub async fn audit(
         )
         .await
         .map_err(|e| storage_error(&e))?;
-    Ok(Json(page))
+    Ok(if csv {
+        csv_response("audit", audit_csv(&page.items), page.next_before)
+    } else {
+        Json(page).into_response()
+    })
 }

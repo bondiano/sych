@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import { useQueryParam } from '@/common/composables/useQueryParam'
+import { csvHref } from '@/common/utilities/csvHref'
 import { toId } from '@/common/utilities/toId'
 import { FindingFilters, FindingsTable, useFindings } from '@/modules/Findings'
 import { RepositorySelect } from '@/modules/Session'
@@ -10,13 +11,12 @@ import { ErrorNotice, LoadMore } from '@/modules/Ui'
 const repository = useQueryParam('repository')
 const state = useQueryParam('state')
 const severity = useQueryParam('severity')
-const findings = useFindings(
-  computed(() => ({
-    repository_id: toId(repository.value),
-    state: state.value,
-    severity: severity.value,
-  })),
-)
+const filter = computed(() => ({
+  repository_id: toId(repository.value),
+  state: state.value,
+  severity: severity.value,
+}))
+const findings = useFindings(filter)
 const rows = computed(() => findings.data.value?.pages.flatMap((p) => p.items) ?? [])
 </script>
 
@@ -26,6 +26,7 @@ const rows = computed(() => findings.data.value?.pages.flatMap((p) => p.items) ?
       <h1 class="mr-auto text-xl font-semibold">Findings</h1>
       <RepositorySelect v-model="repository" />
       <FindingFilters v-model:state="state" v-model:severity="severity" />
+      <a :href="csvHref('/v1/findings', filter)" class="text-sm underline" download>CSV</a>
     </div>
     <ErrorNotice v-if="findings.error.value" :error="findings.error.value" />
     <FindingsTable :findings="rows" show-change />

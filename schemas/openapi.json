@@ -5127,12 +5127,21 @@
             }
           },
           {
-            "description": "1 to 200, 50 by default",
+            "description": "1 to 200, 50 by default; with `format=csv` 1 to 10000, 10000 by default",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
               "type": "integer"
+            }
+          },
+          {
+            "description": "`json` (default) or `csv`, served as text/csv; a CSV export's next page cursor is the `Sych-Next-Before` header",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -5600,12 +5609,21 @@
             }
           },
           {
-            "description": "1 to 200, 50 by default",
+            "description": "1 to 200, 50 by default; with `format=csv` 1 to 10000, 10000 by default",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
               "type": "integer"
+            }
+          },
+          {
+            "description": "`json` (default) or `csv`, served as text/csv; a CSV export's next page cursor is the `Sych-Next-Before` header",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -7976,6 +7994,15 @@
             "description": "`YYYY-MM-DD`; today by default",
             "in": "query",
             "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`json` (default) or `csv` of the days, served as text/csv",
+            "in": "query",
+            "name": "format",
             "required": false,
             "schema": {
               "type": "string"
