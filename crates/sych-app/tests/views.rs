@@ -1,6 +1,6 @@
 //! Dashboard reads over real HTTP and storage: lists and details limited to readable
 //! repositories, id cursors, waiver revocation that the next review honours, totals and usage
-//! that never turn an unknown charge into zero, and a pruned result reported as such.
+//! that never turn an unknown charge into zero, a pruned result reported as such, and CSV exports.
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};
@@ -296,4 +296,71 @@ async fn a_pruned_result_is_reported_and_its_finding_keeps_its_history() {
     assert_eq!(status, StatusCode::OK);
     assert!(detail["finding"].is_null());
     assert_eq!(detail["history"][0]["to_state"], "OPEN");
+}
+
+/// A raw GET as `who`: status, the headers that matter to a download, the body.
+async fn download(url: &str, who: &str, path: &str) -> (StatusCode, [String; 3], String) {
+    let reply = reqwest::Client::new()
+        .get(format!("{url}{path}"))
+        .bearer_auth(format!("{who}-token-0123456789"))
+        .send()
+        .await
+        .expect("send");
+    let header = |name: &str| {
+        reply
+            .headers()
+            .get(name)
+            .map_or_else(String::new, |v| v.to_str().unwrap_or_default().to_owned())
+    };
+    let headers = [
+        header("content-type"),
+        header("content-disposition"),
+        header("sych-next-before"),
+    ];
+    (reply.status(), headers, reply.text().await.expect("text"))
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn findings_usage_and_audit_export_as_csv_of_readable_rows() {
+    let (_w, url) = reviewed(3).await;
+
+    let (status, [kind, disposition, next], body) =
+        download(&url, "reader", "/v1/findings?format=csv&limit=2").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(kind.starts_with("text/csv"), "{kind}");
+    assert_eq!(disposition, "attachment; filename=\"sych-findings.csv\"");
+    assert!(!next.is_empty(), "a third finding is past the limit");
+    let lines: Vec<&str> = body.lines().collect();
+    assert!(lines[0].starts_with("id,repository,number,"), "{body}");
+    assert_eq!(lines.len(), 3, "a header and two rows: {body}");
+    assert!(lines[1].contains(",o/r,7,"), "{body}");
+    let (_, [.., next], all) = download(&url, "reader", "/v1/findings?format=csv").await;
+    assert_eq!((all.lines().count(), next.as_str()), (4, ""), "{all}");
+    let (_, _, hidden) = download(&url, "outsider", "/v1/findings?format=csv").await;
+    assert_eq!(hidden.lines().count(), 1, "only the header: {hidden}");
+
+    let (status, _, usage) = download(&url, "reader", "/v1/usage?format=csv").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        usage.starts_with("day,attempts,cost_known_micro_usd,"),
+        "{usage}"
+    );
+
+    let (status, _, audit) = download(&url, "lead", "/v1/audit?format=csv").await;
+    assert_eq!(status, StatusCode::OK, "{audit}");
+    assert!(audit.starts_with("id,at,actor,action,"), "{audit}");
+    assert_eq!(
+        download(&url, "reader", "/v1/audit?format=csv").await.0,
+        StatusCode::FORBIDDEN
+    );
+    for bad in [
+        "/v1/findings?format=pdf",
+        "/v1/findings?format=csv&limit=10001",
+    ] {
+        assert_eq!(
+            get(&url, "reader", bad).await.0,
+            StatusCode::BAD_REQUEST,
+            "{bad}"
+        );
+    }
 }

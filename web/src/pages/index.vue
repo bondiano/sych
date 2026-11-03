@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import { useQueryParam } from '@/common/composables/useQueryParam'
+import { csvHref } from '@/common/utilities/csvHref'
 import { toId } from '@/common/utilities/toId'
 import { CostByDay, SummaryTiles, useSummary, useUsage } from '@/modules/Overview'
 import { RepositorySelect } from '@/modules/Session'
@@ -41,6 +42,20 @@ const usage = useUsage(repositoryId, days)
     <Skeleton v-else-if="!summary.data.value" class="h-40 w-full" />
     <SummaryTiles v-else :summary="summary.data.value" />
     <ErrorNotice v-if="usage.error.value" :error="usage.error.value" />
-    <CostByDay v-else-if="usage.data.value" :usage="usage.data.value" />
+    <template v-else-if="usage.data.value">
+      <CostByDay :usage="usage.data.value" />
+      <a
+        :href="
+          csvHref('/v1/usage', {
+            repository_id: repositoryId,
+            from: usage.data.value.from,
+            to: usage.data.value.to,
+          })
+        "
+        class="text-sm underline"
+        download
+        >Usage by day as CSV</a
+      >
+    </template>
   </div>
 </template>

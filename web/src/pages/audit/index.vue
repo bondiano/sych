@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import { useQueryParam } from '@/common/composables/useQueryParam'
+import { csvHref } from '@/common/utilities/csvHref'
 import { ACTIONS, AuditTable, useAudit } from '@/modules/Audit'
 import {
   ErrorNotice,
@@ -34,6 +35,13 @@ const pick = (value: unknown) => (value === ANY || typeof value !== 'string' ? u
           <SelectItem v-for="a in ACTIONS" :key="a" :value="a">{{ statusLabel(a) }}</SelectItem>
         </SelectContent>
       </Select>
+      <a
+        :href="csvHref('/v1/audit', { action })"
+        class="text-sm underline"
+        title="Up to 10 000 actions, newest first"
+        download
+        >CSV</a
+      >
     </div>
     <p class="text-sm text-muted-foreground">
       Actions on the repositories you maintain; sign-ins only for an operator of every repository.
