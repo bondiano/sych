@@ -74,8 +74,8 @@ fn yaml<T: serde::Serialize>(header: &str, value: &T) -> String {
     format!("# .sych/rules.yaml: {header}\n{body}")
 }
 
-/// Suggestions for the rules of the current policy, newest evidence only (`WINDOW_DAYS`).
-/// `author` signs a proposed exception; `now` dates it.
+/// Suggestions for the rules of the current policy from `judged`, which the caller limits to
+/// the last `WINDOW_DAYS`. `author` signs a proposed exception; `now` dates it.
 pub fn suggest(
     repository_id: i64,
     rules: &[Rule],

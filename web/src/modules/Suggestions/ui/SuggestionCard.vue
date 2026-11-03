@@ -27,11 +27,13 @@ const pullRequest = ref('')
 const copied = ref<'yes' | 'failed' | undefined>()
 
 async function copy() {
-  // The clipboard needs a secure context and permission; without them, select the text.
-  copied.value = await navigator.clipboard.writeText(props.suggestion.yaml).then(
-    () => 'yes' as const,
-    () => 'failed' as const,
-  )
+  // Without a secure context there is no clipboard at all; then the text is selected by hand.
+  try {
+    await navigator.clipboard.writeText(props.suggestion.yaml)
+    copied.value = 'yes'
+  } catch {
+    copied.value = 'failed'
+  }
 }
 
 function record(state: 'DISMISSED' | 'DONE') {
