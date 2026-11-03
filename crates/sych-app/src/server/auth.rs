@@ -13,8 +13,8 @@ use ring::rand::{SecureRandom, SystemRandom};
 use serde::Deserialize;
 use serde_json::json;
 use sych_adapters::github::Secret;
-use sych_core::api::{Grant, Me, SignIn};
-use sych_core::config::GithubOauth;
+use sych_core::api::{Grant, InstanceLink, Me, SignIn};
+use sych_core::config::{GithubOauth, same_base_url};
 use sych_storage::Session;
 
 use super::App;
@@ -279,7 +279,16 @@ pub async fn logout(State(app): State<Arc<App>>, headers: HeaderMap) -> Result<R
 /// `GET /v1/me`.
 pub async fn me(State(app): State<Arc<App>>, caller: Caller) -> Result<Json<Me>, ApiError> {
     let repositories = grants(&app, &caller).await?;
+    let own = app.public_base_url.as_deref().unwrap_or_default();
+    let instances = (app.instances.iter())
+        .map(|i| InstanceLink {
+            name: i.name.clone(),
+            url: i.url.trim_end_matches('/').to_owned(),
+            current: same_base_url(&i.url, own),
+        })
+        .collect();
     Ok(Json(Me {
+        instances,
         admin: super::admin::operator(&caller),
         kind: caller.kind().into(),
         actor: caller.actor,

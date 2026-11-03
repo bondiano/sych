@@ -1759,6 +1759,27 @@
         ],
         "type": "object"
       },
+      "InstanceLink": {
+        "description": "A Sych server's dashboard; `current` marks the one that answered.",
+        "properties": {
+          "current": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "description": "The server's base URL without a trailing slash; its dashboard is at `/ui/`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "url",
+          "current"
+        ],
+        "type": "object"
+      },
       "JobEntry": {
         "description": "`GET /v1/jobs`: one unit of a run's work and the run it serves.",
         "properties": {
@@ -2025,6 +2046,13 @@
             "description": "An operator who maintains every repository and so sees `/v1/admin`.",
             "type": "boolean"
           },
+          "instances": {
+            "description": "The servers the dashboard switches between (`http.instances`); empty when none are set.",
+            "items": {
+              "$ref": "#/components/schemas/InstanceLink"
+            },
+            "type": "array"
+          },
           "kind": {
             "description": "`user` or `client`.",
             "type": "string"
@@ -2045,7 +2073,8 @@
           "kind",
           "tenant_id",
           "repositories",
-          "admin"
+          "admin",
+          "instances"
         ],
         "type": "object"
       },
