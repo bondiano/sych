@@ -176,7 +176,7 @@ pub fn suggest(
 #[cfg(test)]
 mod tests {
     use super::{JudgedFinding, suggest};
-    use crate::config::{Rule, RulesFile};
+    use crate::config::{Rule, RuleException, RulesFile};
 
     fn rules() -> Vec<Rule> {
         let text = "schema_version: 1\nrules:\n  - id: NO-PANIC\n    version: 2\n    title: t\n    \
@@ -255,7 +255,7 @@ mod tests {
         let five = judged(5, "src/legacy/x.rs", "FALSE_POSITIVE");
         let with = |expires_at: &str| {
             let mut rules = rules();
-            rules[0].exceptions.push(crate::config::RuleException {
+            rules[0].exceptions.push(RuleException {
                 paths: vec!["src/**".into()],
                 reason: "r".into(),
                 owner: "backend".into(),
