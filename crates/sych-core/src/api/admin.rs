@@ -53,6 +53,21 @@ pub struct Delivery {
     pub received_at: i64,
 }
 
+/// `GET /v1/admin/digests`: one weekly digest send to one channel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DigestDelivery {
+    /// The weekly slot, Unix seconds.
+    pub week_start: i64,
+    /// `SLACK` or `EMAIL`.
+    pub channel: String,
+    /// `SENDING`, `DELIVERED` or `FAILED`; a `SENDING` that never finished is an unknown outcome.
+    pub state: String,
+    pub attempts: i64,
+    /// Why the last send failed, redacted.
+    pub error: Option<String>,
+    pub updated_at: i64,
+}
+
 /// The administration paths of `/v1`, registering their components in `c`; `op` as for the
 /// reads.
 pub(super) fn paths(
@@ -61,6 +76,7 @@ pub(super) fn paths(
 ) -> Map<String, Value> {
     let connections = component::<Vec<ConnectionView>>(c, "ConnectionViews");
     let deliveries = component::<Page<Delivery>>(c, "DeliveryPage");
+    let digests = component::<Vec<DigestDelivery>>(c, "DigestDeliveries");
     let object = json!({"type": "object"});
     let query = |name: &'static str, kind: &'static str, about: &'static str| {
         json!({"name": name, "in": "query", "required": false, "description": about,
@@ -83,6 +99,7 @@ pub(super) fn paths(
     ]);
     let paths = json!({
         "/v1/admin/connections": {"get": op("The tenant's GitHub connections as the server runs them", false, &connections)},
+        "/v1/admin/digests": {"get": op("The tenant's weekly digest sends, the 50 newest", false, &digests)},
         "/v1/admin/deliveries": {"get": list_deliveries},
         "/v1/admin/config": {"get": op("The effective server config as `sych config validate` prints it", false, &object)},
     });

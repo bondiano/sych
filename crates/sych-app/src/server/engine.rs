@@ -59,6 +59,8 @@ pub struct Engine {
     pub public_base_url: Option<String>,
     /// `storage.retention`, applied by the daily prune.
     pub retention: Retention,
+    /// `notifications.weekly_digest` with its channels; `None` when not configured.
+    pub digest: Option<super::digest::Digest>,
     pub now: fn() -> Timestamp,
 }
 
@@ -330,6 +332,8 @@ const RECONCILE_SECONDS: i64 = 600;
 const REAP_SECONDS: i64 = 15;
 /// Prune period: artifacts and history rows past retention.
 const PRUNE_SECONDS: i64 = 86_400;
+/// How often a worker checks whether the weekly digest is due.
+const DIGEST_SECONDS: i64 = 60;
 
 impl Engine {
     /// Scheduler with reconcile and reaper on one task, the worker on another, until `stop`.
@@ -338,8 +342,8 @@ impl Engine {
         let scheduler = {
             let (engine, mut stop) = (Arc::clone(&engine), stop.clone());
             task::spawn_local(async move {
-                let (mut reconciled, mut reaped, mut verified, mut pruned) =
-                    (i64::MIN, i64::MIN, i64::MIN, i64::MIN);
+                let (mut reconciled, mut reaped, mut verified, mut pruned, mut digested) =
+                    (i64::MIN, i64::MIN, i64::MIN, i64::MIN, i64::MIN);
                 let mut tick = time::interval(Duration::from_secs(1));
                 loop {
                     tokio::select! {
@@ -368,6 +372,11 @@ impl Engine {
                     if now.saturating_sub(pruned) >= PRUNE_SECONDS {
                         pruned = now;
                         report(engine.prune_once().await, "prune");
+                    }
+
+                    if now.saturating_sub(digested) >= DIGEST_SECONDS {
+                        digested = now;
+                        report(engine.digest_once().await, "weekly digest");
                     }
 
                     report(engine.schedule_once().await.map(drop), "schedule");

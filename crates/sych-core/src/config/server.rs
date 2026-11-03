@@ -72,6 +72,8 @@ pub struct ServerConfig {
     pub redaction: Redaction,
     #[serde(default)]
     pub scm: Scm,
+    #[serde(default, skip_serializing_if = "super::Notifications::is_empty")]
+    pub notifications: super::Notifications,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -272,6 +274,7 @@ impl ServerConfig {
         }
         refs.extend(self.scm.env_refs());
         refs.extend(self.http.env_refs());
+        refs.extend(self.notifications.env_refs());
         refs
     }
 
@@ -304,6 +307,7 @@ impl ServerConfig {
         self.validate_models(&mut p);
         self.validate_budgets(&mut p);
         self.scm.validate(&mut p);
+        self.notifications.validate(&mut p);
         p.check(
             self.scm.github.iter().all(|c| c.oauth.is_none())
                 || self

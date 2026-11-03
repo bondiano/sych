@@ -2,7 +2,7 @@
 //! migrated store and the fake model, with a per-thread clock.
 #![allow(dead_code)]
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::fs;
 use std::net::IpAddr;
@@ -18,6 +18,7 @@ use sych_adapters::github::{AppKey, Github, Secret};
 use sych_app::args::{ModelSelection, Switch};
 use sych_app::config::shown;
 use sych_app::server::build::{self, EngineConfig};
+use sych_app::server::digest::Digest;
 use sych_app::server::{App, Conn, Counters, Engine, binding};
 use sych_core::config::{ApiClient, GithubConnection, ServerConfig};
 use sych_core::sha256;
@@ -38,6 +39,8 @@ pub const T0: i64 = 1_800_000_000;
 pub const PUBLIC_BASE: &str = "https://sych.test";
 
 thread_local! {
+    /// Secrets the server under test reads, instead of the process environment.
+    pub static SECRETS: RefCell<BTreeMap<String, String>> = const { RefCell::new(BTreeMap::new()) };
     /// Each test runs on its own thread, so each has its own clock.
     static CLOCK: Cell<i64> = const { Cell::new(T0) };
 }
@@ -248,7 +251,12 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
             semantic: Switch::Off,
         },
     );
+    let digest = Digest::configured_with(&server, &|name| {
+        SECRETS.with(|s| s.borrow().get(name).cloned())
+    })
+    .expect("digest");
     let engine = Arc::new(Engine {
+        digest,
         owner: "w1".into(),
         lease_seconds: 60,
         // Real time against the test clock: preparation and analysis renew the lease often.

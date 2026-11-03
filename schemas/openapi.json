@@ -978,6 +978,53 @@
         ],
         "type": "object"
       },
+      "DigestDeliveries": {
+        "items": {
+          "$ref": "#/components/schemas/DigestDelivery"
+        },
+        "type": "array"
+      },
+      "DigestDelivery": {
+        "description": "`GET /v1/admin/digests`: one weekly digest send to one channel.",
+        "properties": {
+          "attempts": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "channel": {
+            "description": "`SLACK` or `EMAIL`.",
+            "type": "string"
+          },
+          "error": {
+            "description": "Why the last send failed, redacted.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "description": "`SENDING`, `DELIVERED` or `FAILED`; a `SENDING` that never finished is an unknown outcome.",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "week_start": {
+            "description": "The weekly slot, Unix seconds.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "week_start",
+          "channel",
+          "state",
+          "attempts",
+          "updated_at"
+        ],
+        "type": "object"
+      },
       "Enforcement": {
         "enum": [
           "api_hard",
@@ -4851,6 +4898,81 @@
           }
         ],
         "summary": "Webhook deliveries newest first, kept 30 days"
+      }
+    },
+    "/v1/admin/digests": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestDeliveries"
+                }
+              }
+            },
+            "description": "The tenant's weekly digest sends, the 50 newest"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "The tenant's weekly digest sends, the 50 newest"
       }
     },
     "/v1/analytics/cost": {
