@@ -24,11 +24,14 @@ const props = defineProps<{
 
 const { mutate, isPending, error } = useDecideSuggestion()
 const pullRequest = ref('')
-const copied = ref(false)
+const copied = ref<'yes' | 'failed' | undefined>()
 
 async function copy() {
-  await navigator.clipboard.writeText(props.suggestion.yaml)
-  copied.value = true
+  // The clipboard needs a secure context and permission; without them, select the text.
+  copied.value = await navigator.clipboard.writeText(props.suggestion.yaml).then(
+    () => 'yes' as const,
+    () => 'failed' as const,
+  )
 }
 
 function record(state: 'DISMISSED' | 'DONE') {
@@ -71,7 +74,11 @@ function record(state: 'DISMISSED' | 'DONE') {
       <pre class="overflow-x-auto rounded-lg border p-3 text-xs">{{ suggestion.yaml }}</pre>
       <div class="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" @click="copy">{{
-          copied ? 'Copied' : 'Copy YAML'
+          copied === 'yes'
+            ? 'Copied'
+            : copied === 'failed'
+              ? 'Select the YAML to copy'
+              : 'Copy YAML'
         }}</Button>
         <template v-if="canDecide && suggestion.state === 'PENDING'">
           <Input
