@@ -20,6 +20,7 @@ mod publisher;
 mod questions;
 mod queue;
 pub mod requests;
+mod retain;
 pub mod smoke;
 mod snapshots;
 mod tours;

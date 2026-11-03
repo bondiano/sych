@@ -573,7 +573,8 @@ completeness, held budget, 80% and 100% of a tenant budget.
 8. **Incomplete CI**: a run with `CI_*` gaps — coverage `PARTIAL`, the gap in the summary; a late report creates a successor on its own.
 9. **Unknown publications**: `sych reconcile` (see the [operator runbook](#operator-runbook)); a new CREATE — automatically after a complete empty read, otherwise
    only `--allow-create`; both with an audit.
-10. **Storage**: `sych cache prune --dry-run`, then without the flag; backup — see [STORAGE.md](STORAGE.md#backup).
+10. **Storage**: the server applies retention itself at start and every 6 hours (`retention pass` in the log);
+    `sych cache prune --dry-run` shows what the next pass deletes. Backup — see [STORAGE.md](STORAGE.md#backup).
 
 Late CI, restarts and rerun/feedback with the usage ledger are covered by deterministic `-p sych-app` tests, not by a
 recorded live end-to-end run.
