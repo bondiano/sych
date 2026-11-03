@@ -59,6 +59,19 @@ pub const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "suggestion_decisions",
+        primary_key: &["tenant_id", "repository_id", "fingerprint"],
+        columns: &[
+            T("tenant_id"),
+            I("repository_id"),
+            T("fingerprint"),
+            T("state"),
+            T("actor"),
+            T("pull_request"),
+            I("at"),
+        ],
+    },
+    Table {
         name: "runs",
         primary_key: &["id"],
         columns: &[

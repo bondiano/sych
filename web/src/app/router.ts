@@ -41,6 +41,11 @@ export function createAppRouter() {
         meta: { title: 'Policy' },
       },
       {
+        path: '/suggestions',
+        component: () => import('@/pages/suggestions/index.vue'),
+        meta: { title: 'Rule suggestions' },
+      },
+      {
         path: '/analytics',
         component: () => import('@/pages/analytics/index.vue'),
         meta: { title: 'Analytics' },
