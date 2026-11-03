@@ -37,6 +37,7 @@ mod secrets;
 mod semantic;
 mod snapshot;
 mod status;
+pub mod suggest;
 mod syntax;
 pub mod terraform;
 pub mod tour;

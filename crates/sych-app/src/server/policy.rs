@@ -10,8 +10,8 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use serde_json::Value;
 use sych_adapters::git::{Git, read_policy_files};
-use sych_core::api::RepositoryPolicyView;
-use sych_core::config::{ApiRole, PolicyFiles};
+use sych_core::api::{Repository, RepositoryPolicyView};
+use sych_core::config::{ApiRole, EffectiveConfig, PolicyFiles};
 use sych_core::{PolicySnapshot, PolicySource, RunId};
 use sych_storage::StorageError;
 
@@ -26,13 +26,15 @@ fn unavailable(message: String) -> ApiError {
     status(StatusCode::CONFLICT, "POLICY_UNAVAILABLE", message)
 }
 
-pub async fn policy(
-    State(app): State<Arc<App>>,
-    caller: Caller,
-    Path(id): Path<i64>,
-) -> Result<Json<RepositoryPolicyView>, ApiError> {
+/// The repository's policy at the source its newest run pinned, built as `sych config
+/// validate --repo` builds it, with that snapshot; 404 for a repository the caller cannot read.
+pub(super) async fn current(
+    app: &App,
+    caller: &Caller,
+    id: i64,
+) -> Result<(Repository, RunId, PolicySnapshot, EffectiveConfig), ApiError> {
     caller.need(ApiRole::Reader)?;
-    let repository = grants(&app, &caller)
+    let repository = grants(app, caller)
         .await?
         .into_iter()
         .map(|g| g.repository)
@@ -59,7 +61,7 @@ pub async fn policy(
         Err(e @ StorageError::ArtifactUnavailable(_)) => return Err(unavailable(e.to_string())),
         Err(e) => return Err(storage_error(&e)),
     };
-    let config = engine(&app)?.review.config.clone();
+    let config = engine(app)?.review.config.clone();
     let mirror = mirrors::path(
         &app.artifacts,
         &repository.connection_id,
@@ -87,6 +89,15 @@ pub async fn policy(
     })
     .await
     .map_err(|e| storage_error(&e))??;
+    Ok((repository, run, snapshot, effective))
+}
+
+pub async fn policy(
+    State(app): State<Arc<App>>,
+    caller: Caller,
+    Path(id): Path<i64>,
+) -> Result<Json<RepositoryPolicyView>, ApiError> {
+    let (repository, run, snapshot, effective) = current(&app, &caller, id).await?;
     let matches_snapshot = effective.rules_hash == snapshot.rules_hash
         && effective.config_hash == snapshot.config_hash;
     let mut shown = config::redacted(&effective).map_err(|e| storage_error(&e))?;

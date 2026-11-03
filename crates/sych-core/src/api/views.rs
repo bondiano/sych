@@ -376,8 +376,10 @@ pub(super) fn paths(
         "/auth/token": {"post": read("Exchange an API client's bearer token for a browser session", &object)},
         "/auth/logout": {"post": read("End the caller's browser session", &object)},
     });
-    match paths {
+    let mut paths = match paths {
         Value::Object(map) => map,
         _ => Map::new(),
-    }
+    };
+    paths.extend(super::suggestions::paths(c, op));
+    paths
 }

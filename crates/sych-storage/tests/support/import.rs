@@ -139,6 +139,8 @@ pub async fn seed_rows(pool: &AnyPool, run: &RunHandle, result: &ReviewResult, n
                 'o/r', 9007199254740993, ' {{ "unicode": "π", "empty": "" }} ', NULL);
             UPDATE changes SET repository_id = 41, external_number = 7, scm_state = 'OPEN',
                 head_sha = 'head', base_sha = NULL, base_ref = 'main', fork = 1, synced_at = {T0};
+            INSERT INTO suggestion_decisions VALUES ('import-tenant', 41, 'π-fingerprint', 'DONE',
+                'github:dev', NULL, 9007199254740993);
             UPDATE runs SET inputs = '{{"head_sha":"head","publish":false}}',
                 inputs_digest = 'input-digest', expected_sources = '[]', lineage_applied = 1,
                 input_tokens = 9007199254740993, unknown_obligations = NULL;
@@ -196,5 +198,5 @@ pub async fn seed_rows(pool: &AnyPool, run: &RunHandle, result: &ReviewResult, n
             INSERT INTO feedback VALUES (91, 'import-tenant', 1, 101, 'dev', 'USEFUL',
                 'finding', 'kept exactly, including π and trailing space ', NULL, {T0});
         "#, run_id = run.id, result_id = result.result_id, pruned = sha256(b"pruned"), T0 = now)))
-            .execute(pool).await.expect("seed all 23 current-schema tables");
+            .execute(pool).await.expect("seed all 24 current-schema tables");
 }
