@@ -223,6 +223,7 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
         ui_dir: None,
         config: Some(shown(&config_path).expect("shown config")),
         budgets: server.budgets.clone(),
+        instances: server.http.instances.clone(),
     });
     let conns = BTreeMap::from([(
         "gh".into(),

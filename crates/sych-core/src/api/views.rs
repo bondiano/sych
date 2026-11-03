@@ -62,6 +62,17 @@ pub struct Me {
     pub repositories: Vec<Grant>,
     /// An operator who maintains every repository and so sees `/v1/admin`.
     pub admin: bool,
+    /// The servers the dashboard switches between (`http.instances`); empty when none are set.
+    pub instances: Vec<InstanceLink>,
+}
+
+/// A Sych server's dashboard; `current` marks the one that answered.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct InstanceLink {
+    pub name: String,
+    /// The server's base URL without a trailing slash; its dashboard is at `/ui/`.
+    pub url: String,
+    pub current: bool,
 }
 
 /// `GET /auth/github`: a connection people sign in through.

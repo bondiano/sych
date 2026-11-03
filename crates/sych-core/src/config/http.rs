@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{EnvName, Mode, Problems};
+use super::{EnvName, Mode, Problems, endpoint};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
@@ -25,6 +25,19 @@ pub struct Http {
     /// effective config when unset, so the config hash of a server without a UI stays as it was.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_dir: Option<PathBuf>,
+    /// Sych servers whose dashboards the UI links between, this one included, such as
+    /// production and a sandbox. Left out of the effective config when empty, as `ui_dir`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub instances: Vec<Instance>,
+}
+
+/// A Sych server the dashboard switches to: its own `/ui` under `url`, with its own sign-in.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Instance {
+    pub name: String,
+    /// The server's `http.public_base_url`.
+    pub url: String,
 }
 
 impl Default for Http {
@@ -39,6 +52,7 @@ impl Default for Http {
             ],
             api_clients: Vec::new(),
             ui_dir: None,
+            instances: Vec::new(),
         }
     }
 }
@@ -119,6 +133,46 @@ impl Http {
                 "list `connection/owner/name` or `*`",
             );
         }
+        self.validate_instances(p);
+    }
+
+    fn validate_instances(&self, p: &mut Problems<'_>) {
+        if self.instances.is_empty() {
+            return;
+        }
+
+        for (i, instance) in self.instances.iter().enumerate() {
+            p.check(
+                !instance.name.trim().is_empty(),
+                format!("http.instances[{i}].name"),
+                "must not be empty",
+            );
+            p.check(
+                endpoint::callable(&instance.url).is_some(),
+                format!("http.instances[{i}].url"),
+                "must be an https:// URL, or http:// to a loopback host, without userinfo",
+            );
+            p.check(
+                self.instances
+                    .iter()
+                    .filter(|o| o.name == instance.name || same_base_url(&o.url, &instance.url))
+                    .count()
+                    == 1,
+                format!("http.instances[{i}]"),
+                "name and url must be unique",
+            );
+        }
+        match self.public_base_url.as_deref() {
+            None => p.push(
+                "http.public_base_url",
+                "must be set: it names this server among http.instances",
+            ),
+            Some(own) => p.check(
+                self.instances.iter().any(|i| same_base_url(&i.url, own)),
+                "http.instances",
+                "must list this server's public_base_url",
+            ),
+        }
     }
 
     pub(super) fn env_refs(&self) -> Vec<(String, &EnvName)> {
@@ -128,6 +182,11 @@ impl Http {
             .map(|(i, c)| (format!("http.api_clients[{i}].token_env"), &c.token_env))
             .collect()
     }
+}
+
+/// Two base URLs of one server, whatever trailing slash either has.
+pub fn same_base_url(a: &str, b: &str) -> bool {
+    a.trim_end_matches('/') == b.trim_end_matches('/')
 }
 
 #[cfg(test)]
@@ -171,6 +230,42 @@ mod tests {
                 .iter()
                 .any(|p| p.contains("corporate mode needs authenticated API clients")),
             "{corporate:?}"
+        );
+    }
+
+    #[test]
+    fn instances_are_callable_unique_and_include_this_server() {
+        let with = |instances: &str| {
+            problems(&format!(
+                "schema_version: 1\nmode: personal\nhttp:\n  public_base_url: https://sych.example\n  instances:\n{instances}"
+            ))
+        };
+        let both = "    - {name: production, url: \"https://sych.example/\"}\n    - {name: sandbox, url: \"https://sandbox.sych.example\"}\n";
+        assert!(with(both).is_empty(), "{:?}", with(both));
+        let elsewhere = with("    - {name: sandbox, url: \"https://sandbox.sych.example\"}\n");
+        assert!(
+            elsewhere.iter().any(|p| p.contains("public_base_url")),
+            "{elsewhere:?}"
+        );
+        let plain = with(
+            "    - {name: production, url: \"https://sych.example\"}\n    - {name: sandbox, url: \"http://sandbox.sych.example\"}\n",
+        );
+        assert!(
+            plain.iter().any(|p| p.contains("instances[1].url")),
+            "{plain:?}"
+        );
+        let twice = with(
+            "    - {name: production, url: \"https://sych.example\"}\n    - {name: production, url: \"https://sandbox.sych.example\"}\n",
+        );
+        assert!(twice.iter().any(|p| p.contains("unique")), "{twice:?}");
+        let unnamed = problems(
+            "schema_version: 1\nmode: personal\nhttp:\n  instances:\n    - {name: sandbox, url: \"https://sandbox.sych.example\"}\n",
+        );
+        assert!(
+            unnamed
+                .iter()
+                .any(|p| p.contains("http.public_base_url") && p.contains("must be set")),
+            "the missing field is named: {unnamed:?}"
         );
     }
 }

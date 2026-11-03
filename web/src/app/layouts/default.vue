@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/vue-query'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { canSomewhere, signOut, useMe } from '@/modules/Session'
+import { canSomewhere, InstanceSwitch, signOut, useMe } from '@/modules/Session'
 import { Button, Separator } from '@/modules/Ui'
 
 const router = useRouter()
@@ -49,6 +49,7 @@ async function leave() {
         </RouterLink>
       </nav>
       <div class="ml-auto flex items-center gap-3 text-sm">
+        <InstanceSwitch />
         <span v-if="me" class="text-muted-foreground">{{ me.actor }}</span>
         <Button variant="ghost" size="sm" @click="leave">Sign out</Button>
       </div>

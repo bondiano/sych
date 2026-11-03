@@ -43,7 +43,7 @@ use axum::{Json, Router};
 use serde_json::json;
 use sych_adapters::github::Secret;
 use sych_core::Timestamp;
-use sych_core::config::{ApiClient, Budgets, GithubConnection, ServerConfig};
+use sych_core::config::{ApiClient, Budgets, GithubConnection, Instance, ServerConfig};
 use sych_storage::Storage;
 use tokio::net::TcpListener;
 use tokio::signal;
@@ -78,6 +78,8 @@ pub struct App {
     pub config: Option<serde_json::Value>,
     /// The tenant's budgets, for the spend the analytics and metrics set against them.
     pub budgets: Budgets,
+    /// `http.instances`, for the dashboard's switcher.
+    pub instances: Vec<Instance>,
 }
 
 impl App {
@@ -149,6 +151,7 @@ impl App {
             ui_dir: config.http.ui_dir.clone(),
             config: None,
             budgets: config.budgets.clone(),
+            instances: config.http.instances.clone(),
         })
     }
 

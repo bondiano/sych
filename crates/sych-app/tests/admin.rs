@@ -1,6 +1,7 @@
 //! The administration view over real HTTP and storage: only a maintainer client of every
 //! repository reads it; connections as configured with their deliveries and latest SCM read
-//! failure, the delivery log without payloads, and the effective config with secret names only.
+//! failure, the delivery log without payloads, the effective config with secret names only, and
+//! the instances the dashboard switches between.
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};
@@ -11,7 +12,7 @@ mod world;
 
 use http::{call, listen};
 use world::database::inspect;
-use world::world_with;
+use world::{PUBLIC_BASE, world_server, world_with};
 
 async fn get(url: &str, who: &str, path: &str) -> (StatusCode, Value) {
     call(url, "GET", path, Some(who), None, &Value::Null).await
@@ -92,5 +93,24 @@ async fn only_an_operator_of_every_repository_reads_the_administration_view() {
     assert_eq!(
         config["server"]["models"]["providers"]["openrouter"]["api_key_env"], "CARGO_PKG_NAME",
         "a secret is named by its env variable, never its value"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn me_lists_the_instances_and_marks_the_one_that_answered() {
+    let instances = format!(
+        "http:\n  public_base_url: {PUBLIC_BASE}\n  instances:\n    - {{name: production, url: \"{PUBLIC_BASE}/\"}}\n    - {{name: sandbox, url: \"https://sandbox.sych.test\"}}\n"
+    );
+    let w = world_server(None, None, &instances).await;
+    let url = listen(&w).await;
+
+    let (status, me) = get(&url, "reader", "/v1/me").await;
+    assert_eq!(status, StatusCode::OK, "{me}");
+    assert_eq!(
+        me["instances"],
+        json!([
+            {"name": "production", "url": PUBLIC_BASE, "current": true},
+            {"name": "sandbox", "url": "https://sandbox.sych.test", "current": false},
+        ])
     );
 }

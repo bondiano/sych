@@ -72,6 +72,7 @@ impl App {
             ui_dir: None,
             config: None,
             budgets: Budgets::default(),
+            instances: Vec::new(),
         }
     }
 }

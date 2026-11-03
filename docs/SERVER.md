@@ -438,7 +438,7 @@ as `before`, gives the next one. Times are Unix seconds, money micro-USD.
 | `GET /v1/findings[?repository_id=&change_id=&state=&category=&severity=&rule_id=&before=&limit=&format=]` | reader | findings, newest first, with the `id` feedback is posted to; `format=csv` — a CSV download of up to 10000 rows (`limit`), the next page's cursor in `Sych-Next-Before` |
 | `GET /v1/findings/:id` | reader | the lineage row, its history, feedback and the finding as the latest result states it (`null` once that result was pruned) |
 | `GET /v1/summary[?repository_id=&since=]` | reader | since 30 days ago by default: runs by state and coverage, unknown obligations, finding transitions, known cost and unknown-cost attempts; the queue and `UNCERTAIN` publications are current |
-| `GET /v1/me` | any | the caller (`github:<login>` or the client name), `user` or `client`, its role on each readable repository, and `admin` for a maintainer client of `*` |
+| `GET /v1/me` | any | the caller (`github:<login>` or the client name), `user` or `client`, its role on each readable repository, and `admin` for a maintainer client of `*`; `instances` — `http.instances` with `current` on this server |
 | `GET /v1/audit[?action=&before=&limit=&format=]` | maintainer | recorded actions on the repositories the caller maintains, newest first; actions of no repository (sign-in) only for a maintainer client of `*`; `format=csv` as for findings |
 | `GET /v1/admin/connections` | maintainer of `*` | the tenant's GitHub connections as configured (no secrets), the build's commit beside a self-review pin, the latest `SCM_READ_FAILED` and the last 30 days' webhook deliveries by decision; a person signed in through GitHub — 403 |
 | `GET /v1/admin/deliveries[?connection_id=&decision=&before=&limit=]` | maintainer of `*` | received webhooks, newest first, with the admission decision and no payload; kept 30 days |
@@ -490,6 +490,20 @@ The dashboard is a Vue app in [`web/`](../web), structured by [FEOD](https://feo
 generated from `schemas/openapi.json`. `sych serve` serves the build from `http.ui_dir` at `/ui` on the same origin as
 `/v1`, with `/` redirecting there. The image ships it in `/usr/share/sych/ui`. Every page falls back to `index.html`.
 A missing hashed asset is a 404. The answers carry a same-origin CSP, `nosniff` and `no-cache` (assets: immutable).
+
+Each server serves its own dashboard. To switch between servers, such as production and a sandbox, list them all in
+`http.instances` on each server, this one by its `public_base_url`:
+
+```yaml
+http:
+  public_base_url: https://sych.example
+  instances:
+    - {name: production, url: "https://sych.example"}
+    - {name: sandbox, url: "https://sandbox.sych.example"}
+```
+
+The header then shows a switch that opens the other server's `/ui/`. Each server keeps its own sign-in and data; the
+dashboard never calls another origin.
 
 Development needs Node 22.18+ or 24 (CI and the image use 24) and pnpm; `just check` runs `just web-check` (`pnpm check`: generate the API types, oxlint and
 ESLint, Prettier, `vue-tsc`, Vitest and the build). `just web-fmt` formats. Against a local `sych serve` on

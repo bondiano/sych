@@ -63,6 +63,7 @@ async fn start(max_body_bytes: u32) -> Server {
         ui_dir: None,
         config: None,
         budgets: Budgets::default(),
+        instances: Vec::new(),
     });
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let url = format!("http://{}", listener.local_addr().expect("addr"));
