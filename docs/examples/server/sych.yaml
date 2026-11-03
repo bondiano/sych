@@ -7,7 +7,7 @@ storage:
   artifact_store:
     kind: local
     path: "./.sych-data/artifacts"
-  retention:                          # what `sych cache prune` keeps; at least 1 day
+  retention:                          # what the server's daily prune and `sych cache prune` keep; at least 1 day
     model_attempts_days: 90           # settled usage; unknown charges stay whatever their age
     change_events_days: 90            # the change event log
 

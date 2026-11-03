@@ -83,7 +83,7 @@ pub struct Storage {
     pub retention: Retention,
 }
 
-/// How long history rows stay before `sych cache prune` deletes them.
+/// How long history rows stay before the server's daily prune or `sych cache prune` deletes them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Retention {
