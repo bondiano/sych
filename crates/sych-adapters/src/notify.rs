@@ -92,7 +92,9 @@ impl Mailer {
             (Some(user), Some(password)) => {
                 builder.credentials(Credentials::new(user.clone(), password.expose().to_owned()))
             }
-            _ => builder,
+            (None, None) => builder,
+            // Half a login would send unauthenticated; config validation refuses it too.
+            _ => return Err(failure("smtp: username and password go together")),
         };
         Ok(Self {
             transport: builder.build(),
@@ -157,6 +159,14 @@ mod tests {
         assert!(text.contains("Content-Type: text/plain"), "{text}");
         assert!(text.ends_with("# Sych weekly report\r\n"), "{text}");
 
+        let half = Email {
+            username: Some("sych".into()),
+            ..email.clone()
+        };
+        assert!(
+            Mailer::new(&half, None).is_err(),
+            "no silent unauthenticated login"
+        );
         let bad = Email {
             to: vec!["not an address".into()],
             ..email
