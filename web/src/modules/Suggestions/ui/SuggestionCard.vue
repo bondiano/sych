@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
+import { counted } from '@/common/utilities/counted'
 import type { Schemas } from '@/modules/Api'
 import {
   Badge,
@@ -60,7 +61,7 @@ function record(state: 'DISMISSED' | 'DONE') {
         }}</Badge>
       </CardTitle>
       <CardDescription>
-        {{ suggestion.against }} of {{ suggestion.judged }} judgements of findings were
+        {{ suggestion.against }} of {{ counted(suggestion.judged, 'judgement') }} of findings were
         {{ suggestion.kind === 'EXCEPTION' ? "false positive or won't fix" : 'false positive' }}
         (rule version {{ suggestion.rule_version }}). Findings:
         <template v-for="(f, i) in suggestion.finding_ids" :key="f"

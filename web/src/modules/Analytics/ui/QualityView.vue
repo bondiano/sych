@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import { counted } from '@/common/utilities/counted'
 import { formatShare } from '@/common/utilities/formatShare'
 import type { Schemas } from '@/modules/Api'
 import {
@@ -63,8 +64,8 @@ const merged = computed(() =>
           }}</CardTitle>
         </CardHeader>
         <CardContent class="text-sm text-muted-foreground">
-          {{ settled.resolved }} resolved of {{ settled.total }} findings of merged or closed pull
-          requests; resolved means a later run checked the fix
+          {{ settled.resolved }} resolved of {{ counted(settled.total, 'finding') }} of merged or
+          closed pull requests; resolved means a later run checked the fix
         </CardContent>
       </Card>
       <Card>
@@ -75,7 +76,8 @@ const merged = computed(() =>
           }}</CardTitle>
         </CardHeader>
         <CardContent class="text-sm text-muted-foreground">
-          {{ falsePositive }} of {{ judged }} judgements, each person's latest per finding
+          {{ falsePositive }} of {{ counted(judged, 'judgement') }}, each person's latest per
+          finding
         </CardContent>
       </Card>
       <Card>

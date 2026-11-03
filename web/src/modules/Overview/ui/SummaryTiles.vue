@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import { counted } from '@/common/utilities/counted'
 import { formatMicroUsd } from '@/common/utilities/formatMicroUsd'
 import { formatAge } from '@/common/utilities/formatTime'
 import type { Schemas } from '@/modules/Api'
@@ -40,7 +41,7 @@ const tiles = computed(() => {
       title: 'Model cost',
       value: formatMicroUsd(s.cost_known_micro_usd),
       note: s.unknown_cost_attempts
-        ? `known; plus ${s.unknown_cost_attempts} calls of unknown cost`
+        ? `known; plus ${counted(s.unknown_cost_attempts, 'call')} of unknown cost`
         : 'every call priced',
     },
     {
