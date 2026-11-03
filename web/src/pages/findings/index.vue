@@ -26,7 +26,13 @@ const rows = computed(() => findings.data.value?.pages.flatMap((p) => p.items) ?
       <h1 class="mr-auto text-xl font-semibold">Findings</h1>
       <RepositorySelect v-model="repository" />
       <FindingFilters v-model:state="state" v-model:severity="severity" />
-      <a :href="csvHref('/v1/findings', filter)" class="text-sm underline" download>CSV</a>
+      <a
+        :href="csvHref('/v1/findings', filter)"
+        class="text-sm underline"
+        title="Up to 10 000 findings, newest first"
+        download
+        >CSV</a
+      >
     </div>
     <ErrorNotice v-if="findings.error.value" :error="findings.error.value" />
     <FindingsTable :findings="rows" show-change />

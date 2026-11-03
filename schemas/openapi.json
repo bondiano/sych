@@ -8000,7 +8000,7 @@
             }
           },
           {
-            "description": "`json` (default) or `csv` of the days, served as text/csv",
+            "description": "`json` (default) or `csv` of the days without the subscription fees, served as text/csv",
             "in": "query",
             "name": "format",
             "required": false,

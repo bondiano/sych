@@ -376,7 +376,7 @@ pub(super) fn paths(
         "/v1/usage": {"get": with_query(read("Model usage by UTC day", &usage),
             &[repository, ("from", "string", "`YYYY-MM-DD`; 30 days ago by default"),
               ("to", "string", "`YYYY-MM-DD`; today by default"),
-              ("format", "string", "`json` (default) or `csv` of the days, served as text/csv")])},
+              ("format", "string", "`json` (default) or `csv` of the days without the subscription fees, served as text/csv")])},
         "/v1/waivers": {"get": with_query(read("Waivers of the repositories the caller may read", &waivers),
             &[repository, ("state", "string", "`active`, `expired` or `revoked`")])},
         "/v1/waivers/{id}/revoke": {"post": op("Revoke a waiver; a revoked one keeps its time", true, &waiver)},
