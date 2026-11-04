@@ -8,10 +8,11 @@ use crate::{MIGRATOR, POSTGRES_MIGRATOR, StorageError};
 
 use super::{Column, Kind, Table};
 
-const TABLES: [&str; 24] = [
+const TABLES: [&str; 25] = [
     "repositories",
     "changes",
     "suggestion_decisions",
+    "digest_deliveries",
     "runs",
     "artifacts",
     "subscription_fees",

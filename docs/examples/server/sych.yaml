@@ -49,3 +49,10 @@ scm:
           artifact: reports
           path: junit.xml
           checkout_manifest: sych-ci.json
+
+# notifications:                      # the weekly digest; see SERVER.md, Weekly digest
+#   weekly_digest:
+#     weekday: monday
+#     hour_utc: 9
+#     slack:
+#       webhook_url_env: SYCH_SLACK_WEBHOOK_URL

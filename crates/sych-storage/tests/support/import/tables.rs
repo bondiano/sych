@@ -433,6 +433,19 @@ pub const TABLES: &[Table] = &[
             I("at"),
         ],
     },
+    Table {
+        name: "digest_deliveries",
+        primary_key: &["tenant_id", "week_start", "channel"],
+        columns: &[
+            T("tenant_id"),
+            I("week_start"),
+            T("channel"),
+            T("state"),
+            I("attempts"),
+            T("error"),
+            I("updated_at"),
+        ],
+    },
 ];
 
 pub const IDENTITY_TABLES: &[&str] = &[

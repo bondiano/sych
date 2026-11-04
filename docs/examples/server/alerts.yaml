@@ -36,3 +36,6 @@ groups:
       - alert: SychBudgetSpent
         expr: sych_budget_spent_micro_usd / sych_budget_limit_micro_usd >= 1
         annotations: {summary: "A tenant budget is spent: new model calls are refused until the day or month turns."}
+      - alert: SychDigestUndelivered
+        expr: sych_digests_undelivered > 0
+        annotations: {summary: "A weekly digest failed for good or its outcome is unknown; see GET /v1/admin/digests."}

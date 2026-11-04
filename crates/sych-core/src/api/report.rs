@@ -87,6 +87,18 @@ impl WeeklyReport {
         out
     }
 
+    /// The Markdown as Slack mrkdwn: headings become bold lines, the rest reads as it is.
+    pub fn slack(&self) -> String {
+        self.markdown()
+            .lines()
+            .map(|line| match line.trim_start_matches('#') {
+                heading if heading.len() < line.len() => format!("*{}*", heading.trim()),
+                _ => line.to_owned(),
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     fn usefulness(&self, out: &mut String) {
         let q = &self.quality;
         let settled: i64 = q.settled.iter().map(|c| c.count).sum();
@@ -286,5 +298,9 @@ mod tests {
             !text.contains("R2"),
             "a rule nobody called wrong is not noisy"
         );
+        let slack = report.slack();
+        assert!(slack.starts_with("*Sych weekly report*\n"), "{slack}");
+        assert!(slack.contains("\n*Usefulness*\n"), "{slack}");
+        assert!(!slack.contains("\n#"), "no Markdown headings left: {slack}");
     }
 }

@@ -8,6 +8,7 @@ mod auth;
 pub mod build;
 mod caller;
 mod ci;
+pub mod digest;
 mod engine;
 mod error;
 pub mod findings;
@@ -231,6 +232,7 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/admin/connections", get(admin::connection_views))
         .route("/v1/admin/deliveries", get(admin::deliveries))
         .route("/v1/admin/config", get(admin::config))
+        .route("/v1/admin/digests", get(admin::digests))
         .route("/v1/runs/{id}/handoff", post(handoff::handoff))
         .route("/v1/runs/{id}/tour", get(tours::get_tour))
         .route("/v1/runs/{id}/tours/{tour}/reveal", post(tours::reveal))

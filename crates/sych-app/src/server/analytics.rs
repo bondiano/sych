@@ -17,7 +17,7 @@ use sych_storage::{Spend, Visibility};
 use super::App;
 use super::api::{Caller, now, storage_error};
 use super::error::ApiError;
-use super::views::{DAY, invalid, readable, visibility};
+use super::views::{DAY, invalid, readable};
 
 #[derive(Deserialize)]
 pub struct PeriodQuery {
@@ -26,7 +26,8 @@ pub struct PeriodQuery {
 }
 
 /// The repositories a request reads, one of them or all, and its period's start.
-struct Scope {
+pub(super) struct Scope {
+    tenant_id: String,
     ids: Option<Vec<i64>>,
     repository_id: Option<i64>,
     since: i64,
@@ -41,6 +42,7 @@ impl Scope {
     ) -> Result<Self, ApiError> {
         caller.need(ApiRole::Reader)?;
         Ok(Self {
+            tenant_id: caller.tenant_id.clone(),
             ids: readable(app, caller).await?,
             repository_id,
             since,
@@ -52,26 +54,39 @@ impl Scope {
         Self::of(app, caller, q.repository_id, since).await
     }
 
-    fn visibility<'a>(&'a self, caller: &'a Caller) -> Visibility<'a> {
-        visibility(caller, self.ids.as_deref())
+    /// Every repository of the tenant, as the scheduled digest reads them.
+    pub(super) fn tenant(tenant_id: &str, since: i64) -> Self {
+        Self {
+            tenant_id: tenant_id.to_owned(),
+            ids: None,
+            repository_id: None,
+            since,
+        }
+    }
+
+    fn visibility(&self) -> Visibility<'_> {
+        Visibility {
+            tenant_id: &self.tenant_id,
+            repositories: self.ids.as_deref(),
+        }
     }
 }
 
-async fn quality_of(app: &App, caller: &Caller, s: &Scope) -> Result<Quality, ApiError> {
+async fn quality_of(app: &App, s: &Scope) -> Result<Quality, ApiError> {
     app.storage
-        .quality(s.visibility(caller), s.repository_id, s.since)
+        .quality(s.visibility(), s.repository_id, s.since)
         .await
         .map_err(|e| storage_error(&e))
 }
 
-async fn honesty_of(app: &App, caller: &Caller, s: &Scope) -> Result<Honesty, ApiError> {
+async fn honesty_of(app: &App, s: &Scope) -> Result<Honesty, ApiError> {
     app.storage
-        .honesty(s.visibility(caller), s.repository_id, s.since)
+        .honesty(s.visibility(), s.repository_id, s.since)
         .await
         .map_err(|e| storage_error(&e))
 }
 
-async fn cost_of(app: &App, caller: &Caller, s: &Scope) -> Result<CostBreakdown, ApiError> {
+async fn cost_of(app: &App, s: &Scope) -> Result<CostBreakdown, ApiError> {
     let today = now(app);
     let store = &app.storage;
     let Spend {
@@ -82,14 +97,14 @@ async fn cost_of(app: &App, caller: &Caller, s: &Scope) -> Result<CostBreakdown,
         superseded_micro_usd,
         useful_findings,
     } = store
-        .spend(s.visibility(caller), s.repository_id, s.since)
+        .spend(s.visibility(), s.repository_id, s.since)
         .await
         .map_err(|e| storage_error(&e))?;
     // Budgets belong to the tenant, not a repository: only a caller that reads all of it.
     let budget = if s.ids.is_none() && s.repository_id.is_none() {
         let (day, month) = store
             .spent(
-                &caller.tenant_id,
+                &s.tenant_id,
                 &today.strftime("%Y-%m-%d").to_string(),
                 &today.strftime("%Y-%m").to_string(),
             )
@@ -121,10 +136,10 @@ async fn cost_of(app: &App, caller: &Caller, s: &Scope) -> Result<CostBreakdown,
     })
 }
 
-async fn latency_of(app: &App, caller: &Caller, s: &Scope) -> Result<Latency, ApiError> {
+async fn latency_of(app: &App, s: &Scope) -> Result<Latency, ApiError> {
     let [to_delivery, run_duration, queue_wait] = app
         .storage
-        .latency(s.visibility(caller), s.repository_id, s.since)
+        .latency(s.visibility(), s.repository_id, s.since)
         .await
         .map_err(|e| storage_error(&e))?;
     Ok(Latency {
@@ -142,7 +157,7 @@ pub async fn quality(
     Query(q): Query<PeriodQuery>,
 ) -> Result<Json<Quality>, ApiError> {
     let s = Scope::period(&app, &caller, &q).await?;
-    Ok(Json(quality_of(&app, &caller, &s).await?))
+    Ok(Json(quality_of(&app, &s).await?))
 }
 
 /// `GET /v1/analytics/honesty`: 30 days by default.
@@ -152,7 +167,7 @@ pub async fn honesty(
     Query(q): Query<PeriodQuery>,
 ) -> Result<Json<Honesty>, ApiError> {
     let s = Scope::period(&app, &caller, &q).await?;
-    Ok(Json(honesty_of(&app, &caller, &s).await?))
+    Ok(Json(honesty_of(&app, &s).await?))
 }
 
 /// `GET /v1/analytics/cost`: 30 days by default.
@@ -162,7 +177,7 @@ pub async fn cost(
     Query(q): Query<PeriodQuery>,
 ) -> Result<Json<CostBreakdown>, ApiError> {
     let s = Scope::period(&app, &caller, &q).await?;
-    Ok(Json(cost_of(&app, &caller, &s).await?))
+    Ok(Json(cost_of(&app, &s).await?))
 }
 
 /// `GET /v1/analytics/latency`: 30 days by default.
@@ -172,7 +187,23 @@ pub async fn latency(
     Query(q): Query<PeriodQuery>,
 ) -> Result<Json<Latency>, ApiError> {
     let s = Scope::period(&app, &caller, &q).await?;
-    Ok(Json(latency_of(&app, &caller, &s).await?))
+    Ok(Json(latency_of(&app, &s).await?))
+}
+
+/// The weekly report of `s` up to `until`.
+pub(super) async fn weekly_report(
+    app: &App,
+    s: &Scope,
+    until: i64,
+) -> Result<WeeklyReport, ApiError> {
+    Ok(WeeklyReport {
+        since: s.since,
+        until,
+        quality: quality_of(app, s).await?,
+        honesty: honesty_of(app, s).await?,
+        cost: cost_of(app, s).await?,
+        latency: latency_of(app, s).await?,
+    })
 }
 
 #[derive(Deserialize)]
@@ -194,14 +225,7 @@ pub async fn weekly(
     };
     let until = now(&app).as_second();
     let s = Scope::of(&app, &caller, q.repository_id, until - 7 * DAY).await?;
-    let report = WeeklyReport {
-        since: s.since,
-        until,
-        quality: quality_of(&app, &caller, &s).await?,
-        honesty: honesty_of(&app, &caller, &s).await?,
-        cost: cost_of(&app, &caller, &s).await?,
-        latency: latency_of(&app, &caller, &s).await?,
-    };
+    let report = weekly_report(&app, &s, until).await?;
     Ok(if markdown {
         let kind = [(header::CONTENT_TYPE, "text/markdown; charset=utf-8")];
         (kind, report.markdown()).into_response()

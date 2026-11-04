@@ -9,7 +9,7 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use serde::Deserialize;
 use serde_json::Value;
-use sych_core::api::{ConnectionView, Delivery, Page};
+use sych_core::api::{ConnectionView, Delivery, DigestDelivery, Page};
 use sych_core::config::{ApiRole, Environment};
 use sych_storage::DeliveryFilter;
 
@@ -117,6 +117,20 @@ pub async fn deliveries(
         .await
         .map_err(|e| storage_error(&e))?;
     Ok(Json(page))
+}
+
+/// `GET /v1/admin/digests`: the tenant's weekly digest sends, newest slot first.
+pub async fn digests(
+    State(app): State<Arc<App>>,
+    caller: Caller,
+) -> Result<Json<Vec<DigestDelivery>>, ApiError> {
+    require(&caller)?;
+    let sends = app
+        .storage
+        .digest_deliveries(&caller.tenant_id, 50)
+        .await
+        .map_err(|e| storage_error(&e))?;
+    Ok(Json(sends))
 }
 
 /// `GET /v1/admin/config`: as `sych config validate` prints it, read once at start.

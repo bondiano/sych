@@ -198,6 +198,11 @@ fn gauges(out: &mut String, m: &Metrics) {
             "Follow-up questions asked on tour steps.",
             m.tour_questions,
         ),
+        (
+            "sych_digests_undelivered",
+            "Weekly digest sends of the last eight days that failed for good or never reported back.",
+            m.undelivered_digests,
+        ),
     ];
     for (name, help, value) in gauges {
         gauge(out, name, help, value);

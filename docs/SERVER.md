@@ -443,6 +443,7 @@ as `before`, gives the next one. Times are Unix seconds, money micro-USD.
 | `GET /v1/admin/connections` | maintainer of `*` | the tenant's GitHub connections as configured (no secrets), the build's commit beside a self-review pin, the latest `SCM_READ_FAILED` and the last 30 days' webhook deliveries by decision; a person signed in through GitHub — 403 |
 | `GET /v1/admin/deliveries[?connection_id=&decision=&before=&limit=]` | maintainer of `*` | received webhooks, newest first, with the admission decision and no payload; kept 30 days |
 | `GET /v1/admin/config` | maintainer of `*` | the effective config as `sych config validate` prints it, read once at start: hashes and env names, never secret values |
+| `GET /v1/admin/digests` | maintainer of `*` | the tenant's weekly digest sends, the 50 newest: slot, channel (`SLACK`/`EMAIL`), `SENDING`/`DELIVERED`/`FAILED`, attempts and the last error, redacted |
 | `GET /v1/usage[?repository_id=&from=&to=&format=]` | reader | model usage per UTC day (`YYYY-MM-DD`, 30 days by default); the tenant's subscription fees only for a caller of every repository without `repository_id`; `format=csv` — the days as CSV, without fees |
 | `GET /v1/analytics/quality[?repository_id=&since=]` | reader | counts behind the usefulness metrics, 30 days by default: `judgements` — feedback given in the period by repository, rule, category, severity and judgement, each person's latest judgement of a finding once; `settled` — findings of merged or closed pull requests updated in the period by state, without `OBSOLETE` (the addressed rate is `RESOLVED` over all of them); `merged_with_open` — merged pull requests by the severity of the findings they left open, among findings updated in the period (a backlog older than the period is not counted). Shares are the client's, from the counts |
 | `GET /v1/analytics/honesty[?repository_id=&since=]` | reader | why reviews of runs created in the period stopped short, 30 days by default: `outcomes` — runs by how the plan ended (`PLAN_EXECUTED`, `LIMIT_REACHED`, `RETRIES_EXHAUSTED`, `INPUT_UNAVAILABLE`); `gaps` — paths excluded or left unreviewed by reason code; `unknown` — `UNKNOWN` obligations by reason code; `coverage_by_day` — runs per UTC day and those that did not cover their whole scope. The reasons are recorded when a run completes, so they outlive the pruned result; `unrecorded_runs` counts runs completed before that and in none of the lists |
@@ -552,6 +553,36 @@ written in the same transaction as its action, with the actor and the repository
 decisions logged before the repository was recorded take it from their publication operation; one whose operation
 retention already removed stays without a repository. `sych reconcile
 --allow-create` takes `--actor` only as a configured client with the writer role.
+
+### Weekly digest
+
+The server can send `GET /v1/reports/weekly` of one tenant, every repository, once a week to a Slack incoming webhook,
+by email, or both; a link to the dashboard's analytics follows when `http.public_base_url` is set.
+
+```yaml
+notifications:
+  weekly_digest:
+    tenant_id: local                 # the default
+    weekday: monday                  # the default
+    hour_utc: 9                      # the default
+    slack:
+      webhook_url_env: SYCH_SLACK_WEBHOOK_URL   # the URL is the credential
+    email:
+      host: smtp.example.com
+      port: 587                      # the default; 465 with security: tls
+      security: starttls             # starttls (default), tls, or plain to a loopback relay only
+      username: sych
+      password_env: SYCH_SMTP_PASSWORD
+      from: sych@example.com
+      to: [team@example.com]
+```
+
+A worker checks every minute whether the week's slot has come; a slot is due for a day, so a server down for longer
+skips that week rather than send a stale digest. Before each send a worker claims the slot and channel in storage, so
+several workers send it once. A send that fails is tried again after 5 minutes, three attempts at most; one that never
+reported back stays `SENDING`, an unknown outcome that is not sent twice. `GET /v1/admin/digests` lists the sends, and
+`sych_digests_undelivered` counts those of the last eight days that failed for good or never reported back. A missing
+webhook URL or SMTP password stops the start, like a missing webhook secret.
 
 ### Metrics and alerts
 

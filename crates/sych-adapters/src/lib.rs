@@ -4,6 +4,7 @@ pub mod execution;
 pub mod git;
 pub mod github;
 pub mod lint;
+pub mod notify;
 pub mod opencode_go;
 pub mod openrouter;
 pub mod pi;
