@@ -64,11 +64,21 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     /// Runs `tasks` at most `parallel` at a time, results in task order; tasks start in order,
     /// so earlier ones still reserve the budget first.
     pub(super) async fn each<T>(&self, tasks: Vec<Task<'_, T>>) -> Vec<(Outcome, T)> {
-        stream::iter(tasks)
-            .buffered(self.parallel.max(1))
-            .collect()
-            .await
+        in_order(tasks, self.parallel).await
     }
+}
+
+/// A task that finishes frees its slot at once, not when every earlier one has: a slow first
+/// call no longer idles the rest. A later task may so reserve an attempt before a slow earlier
+/// one's repair or next chunk does, which only matters under a tight attempt cap.
+async fn in_order<F: Future>(tasks: Vec<F>, parallel: usize) -> Vec<F::Output> {
+    let mut done: Vec<(usize, F::Output)> = stream::iter(tasks.into_iter().enumerate())
+        .map(|(i, task)| async move { (i, task.await) })
+        .buffer_unordered(parallel.max(1))
+        .collect()
+        .await;
+    done.sort_by_key(|(i, _)| *i);
+    done.into_iter().map(|(_, output)| output).collect()
 }
 
 impl Outcome {
@@ -102,5 +112,36 @@ impl Outcome {
         self.limit_reached |= part.limit_reached;
         self.gaps.extend(part.gaps);
         self.questions.extend(part.questions);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use futures_util::FutureExt;
+    use tokio::sync::oneshot;
+    use tokio::time::timeout;
+
+    use super::in_order;
+
+    #[tokio::test]
+    async fn a_finished_task_frees_its_slot_while_an_earlier_one_still_runs() {
+        let (send, wait) = oneshot::channel::<()>();
+        // The first task finishes only after the third has started, which needs the slot
+        // the second frees while the first still runs.
+        let tasks = vec![
+            async move { wait.await.map(|()| 0).unwrap_or(9) }.boxed_local(),
+            async { 1 }.boxed_local(),
+            async move {
+                let _ = send.send(());
+                2
+            }
+            .boxed_local(),
+        ];
+        let done = timeout(Duration::from_secs(5), in_order(tasks, 2))
+            .await
+            .expect("a free slot starts the next task");
+        assert_eq!(done, [0, 1, 2]);
     }
 }
