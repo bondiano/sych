@@ -593,8 +593,9 @@ outbox lag, `UNCERTAIN` age, repairs, feedback by judgement, bytes and number of
 by state and follow-up questions, budget spend and caps (`sych_budget_spent_micro_usd` and
 `sych_budget_limit_micro_usd` by `scope` `daily`/`monthly`: the highest tenant's spend today and this UTC month,
 held reservations included, against `budgets.tenant_daily`/`tenant_monthly`), webhooks
-(`stored`/`duplicate`/`rejected` by reason). Rules — [examples/server/alerts.yaml](examples/server/alerts.yaml):
-storage failure, a stuck queue, unknown writes and charges, webhook signatures, credentials, a mass drop in
+(`stored`/`duplicate`/`rejected` by reason), repositories a reconciliation could not read
+(`sych_reconcile_failures`). Rules — [examples/server/alerts.yaml](examples/server/alerts.yaml):
+storage failure, a stuck queue, unknown writes and charges, webhook signatures, unreadable repositories, credentials, a mass drop in
 completeness, held budget, 80% and 100% of a tenant budget.
 
 ### Personal sandbox runbook

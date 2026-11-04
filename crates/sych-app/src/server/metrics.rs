@@ -13,12 +13,14 @@ use sych_storage::Metrics;
 
 use super::App;
 
-/// Webhook outcomes since start; the reasons are the fixed refusal codes.
+/// Webhook outcomes since start, the reasons being the fixed refusal codes, and repositories
+/// a reconciliation could not read.
 #[derive(Debug, Default)]
 pub struct Counters {
     pub stored: AtomicU64,
     pub duplicate: AtomicU64,
     pub rejected: [AtomicU64; REASONS.len()],
+    pub reconcile_failed: AtomicU64,
 }
 
 pub const REASONS: [&str; 6] = [
@@ -232,6 +234,13 @@ fn webhooks(out: &mut String, c: &Counters) {
             load(count)
         );
     }
+    // A lost installation or permission shows here, not only as a warning in the log.
+    let _ = writeln!(
+        out,
+        "# HELP sych_reconcile_failures Repositories a reconciliation could not read, since start.\n\
+         # TYPE sych_reconcile_failures counter\nsych_reconcile_failures {}",
+        load(&c.reconcile_failed)
+    );
 }
 
 /// `GET /metrics`.

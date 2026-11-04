@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use sych_adapters::github::{Github, PullState, Secret, capabilities};
@@ -249,6 +250,10 @@ impl Engine {
                     Ok(read) => read,
                     Err(e) => {
                         tracing::warn!(repository = %full_name, error = %e, "reconciliation skipped");
+                        self.app
+                            .counters
+                            .reconcile_failed
+                            .fetch_add(1, Ordering::Relaxed);
                         continue;
                     }
                 };
