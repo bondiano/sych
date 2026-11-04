@@ -1,5 +1,5 @@
 # Server config of the large-PR benchmark (scripts/large-pr-bench): the production model and
-# budgets of the self-review bot (petinfra ansible/roles/sych/templates/sych.yaml.j2, 2026-11-02)
+# budgets of the self-review bot (petinfra ansible/roles/sych/templates/sych.yaml.j2, 2026-11-04)
 # with only the cheap profile, so a local run never calls a premium model. Paths are relative
 # to this file; the script copies it into its output directory.
 schema_version: 1
@@ -35,6 +35,8 @@ models:
       enforcement: api_hard
       upstreams: [deepinfra/fp8, fireworks, together]
       reasoning_effort: low
+      max_units_per_call: 2
+      max_shown_tokens_per_call: 8000
   roles:
     reviewer: cheap_api
     verifier: cheap_api
@@ -52,12 +54,12 @@ models:
 budgets:
   analysis:
     max_cost_micro_usd: 3000000
-    max_attempts: 30
+    max_attempts: 60
     max_input_tokens: 1280000
     max_output_tokens: 360000
     max_output_tokens_per_request: 12000
-    max_parallel_calls: 2
-    active_deadline_seconds: 600
+    max_parallel_calls: 4
+    active_deadline_seconds: 900
   tour:
     max_cost_micro_usd: 100000
     max_attempts: 2
