@@ -11,11 +11,12 @@ use crate::broker::{EvidencePacket, Priority, REQUIRED_OVER_BUDGET};
 use crate::model::DataBlock;
 use crate::{
     BindingKind, CodeRef, Completeness, DiffManifest, Evidence, EvidenceBinding, EvidenceId,
-    EvidenceKind, FileChange, Producer, ReviewLanguage, SchemaVersion, SnapshotReader, SourceSide,
-    SourceSnapshot, Timestamp, TrustClass, Validity, canonical_sha256, derived_uuid,
+    EvidenceKind, FileChange, Producer, RepoPath, ReviewLanguage, SchemaVersion, SnapshotReader,
+    SourceSide, SourceSnapshot, Timestamp, TrustClass, Validity, canonical_sha256, derived_uuid,
 };
 
-/// Removed lines of one test or CI file shown verbatim; the rest is only counted.
+/// Removed lines of one test or CI file shown verbatim, and as many of the lines replacing
+/// them; the rest is only counted.
 const MAX_REMOVED_LINES: u32 = 40;
 /// Generated files named in one prompt; the rest are counted.
 const MAX_HIDDEN_LISTED: usize = 50;
@@ -104,6 +105,32 @@ pub struct Context {
     pub limitations: Vec<String>,
     /// The language the model writes its prose in.
     pub language: ReviewLanguage,
+}
+
+/// `count` lines of `path` from `start` on `side`, each after `mark`.
+fn write_lines(
+    content: &mut String,
+    reader: &dyn SnapshotReader,
+    side: SourceSide,
+    path: &RepoPath,
+    start: u32,
+    count: u32,
+    mark: char,
+) {
+    let end = start + count - 1;
+    match reader
+        .code_ref(side, path, start, end)
+        .and_then(|r| reader.read_span(&r))
+    {
+        Ok(span) => {
+            for line in span.text.lines() {
+                let _ = writeln!(content, "{mark} {line}");
+            }
+        }
+        Err(err) => {
+            let _ = writeln!(content, "  lines {start}-{end} unreadable: {err}");
+        }
+    }
 }
 
 fn side_name(side: SourceSide) -> &'static str {
@@ -217,34 +244,48 @@ impl Context {
             let removed: u32 = file.hunks.iter().map(|h| h.old_lines).sum();
             let _ = writeln!(content, "{path}: {removed} lines removed");
             let Some(old) = &file.old else { continue };
-            let mut shown = 0;
+            // A replaced line is shown with its replacement, so a changed assertion does not
+            // read as a removed one.
+            let added: u32 = file.new.as_ref().map_or(0, |_| {
+                file.hunks
+                    .iter()
+                    .filter(|h| h.old_lines > 0)
+                    .map(|h| h.new_lines)
+                    .sum()
+            });
+            let (mut shown, mut added_shown) = (0, 0);
             for h in file.hunks.iter().filter(|h| h.old_lines > 0) {
-                let end = h.old_start + h.old_lines - 1;
                 let take = h.old_lines.min(MAX_REMOVED_LINES - shown);
                 if take == 0 {
                     break;
                 }
 
-                match reader
-                    .code_ref(
-                        SourceSide::DiffBase,
-                        &old.path,
-                        h.old_start,
-                        h.old_start + take - 1,
-                    )
-                    .and_then(|r| reader.read_span(&r))
-                {
-                    Ok(span) => {
-                        for line in span.text.lines() {
-                            let _ = writeln!(content, "- {line}");
-                        }
-                    }
-                    Err(err) => {
-                        let _ =
-                            writeln!(content, "  lines {}-{end} unreadable: {err}", h.old_start);
-                    }
-                }
+                write_lines(
+                    &mut content,
+                    reader,
+                    SourceSide::DiffBase,
+                    &old.path,
+                    h.old_start,
+                    take,
+                    '-',
+                );
                 shown += take;
+                let Some(new) = file.new.as_ref().filter(|_| h.new_lines > 0) else {
+                    continue;
+                };
+                let take = h.new_lines.min(MAX_REMOVED_LINES - added_shown);
+                if take > 0 {
+                    write_lines(
+                        &mut content,
+                        reader,
+                        SourceSide::Head,
+                        &new.path,
+                        h.new_start,
+                        take,
+                        '+',
+                    );
+                    added_shown += take;
+                }
             }
             if removed > shown {
                 let _ = writeln!(
@@ -253,10 +294,20 @@ impl Context {
                     removed - shown
                 );
             }
+
+            if added > added_shown {
+                let _ = writeln!(
+                    content,
+                    "  {} more replacing lines not shown",
+                    added - added_shown
+                );
+            }
         }
         if !content.is_empty() {
             self.blocks.push(DataBlock {
-                label: "removed lines of every changed test and CI file (BASE)".into(),
+                label: "removed lines of every changed test and CI file (BASE `-`), each hunk \
+                        followed by the lines that replace it (HEAD `+`)"
+                    .into(),
                 content,
             });
         }

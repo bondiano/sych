@@ -1,0 +1,42 @@
+schema_version: 1
+id: rust-test-assertion-updated-safe
+split: development
+language: rust
+variant: safe
+profiles: [correctness]
+rationale: "A new table joins the list and the test's table count moves from 24 to 25 with it; no check is removed or weakened (sych#122 was told the count assertion had been removed)."
+base:
+  Cargo.toml: |
+    [package]
+    name = "store"
+    version = "0.1.0"
+    edition = "2024"
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    /// Every table an import copies, in dependency order.
+    pub const TABLES: &[&str] = &["changes", "runs", "artifacts"];
+  tests/import.rs: |
+    use store::TABLES;
+
+    #[test]
+    fn every_table_is_imported() {
+        assert_eq!(TABLES.len(), 3);
+        assert!(TABLES.iter().all(|t| !t.is_empty()), "all 3 tables are named");
+    }
+head:
+  src/lib.rs: |
+    /// Every table an import copies, in dependency order.
+    pub const TABLES: &[&str] = &["changes", "runs", "artifacts", "digest_deliveries"];
+  tests/import.rs: |
+    use store::TABLES;
+
+    #[test]
+    fn every_table_is_imported() {
+        assert_eq!(TABLES.len(), 4);
+        assert!(TABLES.iter().all(|t| !t.is_empty()), "all 4 tables are named");
+    }
+expected:
+  forbidden_claims:
+    - "The table-count assertion was removed or weakened."

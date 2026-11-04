@@ -1,4 +1,5 @@
-//! What `TEST-INTEGRITY` sees of the tests a change touches: their removed lines, verbatim.
+//! What `TEST-INTEGRITY` sees of the tests a change touches: their removed lines, verbatim,
+//! each hunk with the lines replacing it.
 
 use serde_json::json;
 use sych_core::analysis::Context;
@@ -44,5 +45,35 @@ fn a_removed_assertion_is_shown_verbatim_and_untouched_tests_say_so() {
         block.content,
         "src/order.test.ts: 1 lines removed\n- \x20 expect(total()).toBe(0);\n\
          tests/new.test.ts: 0 lines removed\n"
+    );
+}
+
+#[test]
+fn a_replaced_assertion_is_shown_with_its_replacement() {
+    let mut reader = Reader::new();
+    reader.0.insert(
+        (SourceSide::DiffBase, path("tests/import.rs")),
+        "fn tables() {\n    assert_eq!(TABLES.len(), 24);\n}\n",
+    );
+    reader.0.insert(
+        (SourceSide::Head, path("tests/import.rs")),
+        "fn tables() {\n    assert_eq!(TABLES.len(), 25);\n}\n",
+    );
+    let manifest: DiffManifest = serde_json::from_value(json!({
+        "schema_version": 1, "method": "fixture",
+        "diff_base": "sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "head": "sha1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "files": [file(Some("tests/import.rs"), "tests/import.rs", [2, 1, 2, 1])],
+        "omissions": []
+    }))
+    .expect("manifest");
+    let mut context = Context::default();
+    context.add_test_removals(&manifest, &reader);
+    let block = context.blocks.last().expect("removals block");
+    assert_eq!(
+        block.content,
+        "tests/import.rs: 1 lines removed\n\
+         - \x20   assert_eq!(TABLES.len(), 24);\n\
+         + \x20   assert_eq!(TABLES.len(), 25);\n"
     );
 }
