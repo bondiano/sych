@@ -16,6 +16,9 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: "1"
+  # Full debug info made `just check` and the PostgreSQL contracts 23 GB of target, and the
+  # hosted runner ran out of disk; line tables keep file:line backtraces at 11 GB.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   check:
