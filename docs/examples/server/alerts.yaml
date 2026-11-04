@@ -21,6 +21,9 @@ groups:
       - alert: SychWebhookSignatures
         expr: increase(sych_webhooks{outcome="rejected",reason="BAD_SIGNATURE"}[15m]) > 5
         annotations: {summary: "Webhooks with bad signatures: wrong secret or someone probing."}
+      - alert: SychReconcileFailing
+        expr: increase(sych_reconcile_failures[30m]) > 2
+        annotations: {summary: "Reconciliation cannot read a listed repository: the App installation may have lost it or a permission; webhooks for it may stop too."}
       - alert: SychCredentials
         expr: increase(sych_runs{state="FAILED"}[30m]) > 0 and on() sych_jobs{state="FAILED"} > 0
         annotations: {summary: "Check the server log for UNAUTHORIZED: an App key, token or model credential may be broken."}

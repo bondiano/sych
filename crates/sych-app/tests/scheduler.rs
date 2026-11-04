@@ -3,6 +3,7 @@
 //! target-only move, drafts, commands, close, bot comments, CI waits and successors, a crashed
 //! worker and missed webhooks.
 
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use serde_json::json;
@@ -413,4 +414,25 @@ async fn ci_the_policy_does_not_expect_makes_no_successor() {
     assert_eq!(w.run_ids().await, run, "no successor generation");
     let (_, _, generation, parent) = w.app.storage.run_row("local", &run[0]).await.expect("row");
     assert_eq!((generation, parent), (1, None));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_repository_reconciliation_cannot_read_is_counted() {
+    let w = world(None).await;
+    // The installation lost the repository: GitHub answers 404.
+    lock(&w.fake).fail_next.insert(
+        "GET /repos/o/r/installation".into(),
+        (404, json!({"message": "Not Found"})),
+    );
+    w.engine
+        .reconcile_once()
+        .await
+        .expect("a skipped repository is not an error");
+    assert_eq!(w.app.counters.reconcile_failed.load(Ordering::Relaxed), 1);
+    w.engine.reconcile_once().await.expect("reconcile");
+    assert_eq!(
+        w.app.counters.reconcile_failed.load(Ordering::Relaxed),
+        1,
+        "a readable repository adds nothing"
+    );
 }
