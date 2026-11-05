@@ -34,9 +34,12 @@ const RESERVATION_TOTALS: &str =
              WHEN 'SETTLED' THEN coalesce(charge_micro_usd, 0)
              WHEN 'RELEASED' THEN 0 ELSE reserved_micro_usd END END), 0) AS BIGINT),
          CAST(coalesce(max(CASE WHEN month = $5 AND provider = $6 AND billing_kind = $7
-             AND billing_mismatch = 1 THEN 1 ELSE 0 END), 0) AS BIGINT)
+             AND billing_mismatch = 1 THEN 1 ELSE 0 END), 0) AS BIGINT),
+         CAST(coalesce(sum(CASE WHEN day >= $9 THEN CASE state
+             WHEN 'SETTLED' THEN coalesce(charge_micro_usd, 0)
+             WHEN 'RELEASED' THEN 0 ELSE reserved_micro_usd END END), 0) AS BIGINT)
      FROM model_attempts
-     WHERE tenant_id = $4 AND (month = $5 OR (run_id = $1 AND purpose = $2
+     WHERE tenant_id = $4 AND (month = $5 OR day >= $9 OR (run_id = $1 AND purpose = $2
          AND scope IS NOT DISTINCT FROM CAST($8 AS TEXT)))";
 
 /// The serde name of a config enum, as stored.
@@ -49,6 +52,15 @@ fn tag<T: Serialize>(value: &T) -> Result<String, StorageError> {
 
 fn utc(at: Timestamp, format: &str) -> String {
     at.strftime(format).to_string()
+}
+
+/// The Monday of the week of `at` (UTC), as the `day` column writes it; the week pool counts
+/// from there, across a month boundary too.
+fn week_start(at: Timestamp) -> String {
+    // `%u`: 1 is Monday, 7 is Sunday.
+    let weekday: i64 = utc(at, "%u").parse().unwrap_or(1);
+    Timestamp::from_second(at.as_second() - (weekday - 1) * 86_400)
+        .map_or_else(|_| utc(at, "%Y-%m-%d"), |monday| utc(monday, "%Y-%m-%d"))
 }
 
 fn micro(value: i64) -> MicroUsd {
@@ -77,6 +89,7 @@ impl Storage {
         scope: Option<&str>,
     ) -> Result<Result<(), Denied>, StorageError> {
         let day = utc(r.at, "%Y-%m-%d");
+        let week = week_start(r.at);
         let month = utc(r.at, "%Y-%m");
         let billing = tag(&r.route.billing)?;
         let mut tx = self.write().await?;
@@ -90,6 +103,7 @@ impl Storage {
             .bind(&r.route.provider)
             .bind(tag(&BillingKind::SubscriptionQuota)?)
             .bind(scope)
+            .bind(&week)
             .fetch_one(&mut *tx)
             .await?;
         let fees = sqlx::query(
@@ -115,6 +129,7 @@ impl Storage {
             run_input_tokens: u64::try_from(row.get::<i64, _>(2)).unwrap_or_default(),
             run_output_tokens: u64::try_from(row.get::<i64, _>(3)).unwrap_or_default(),
             day_money: micro(row.get(4)),
+            week_money: micro(row.get(7)),
             month_money: MicroUsd(micro(row.get(5)).0 + micro(fees.get(0)).0),
             fee_due: fee_due.map_or(MicroUsd(0), |f| f.allocated_micro_usd),
         };

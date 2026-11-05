@@ -172,6 +172,7 @@ fn limits(run: u64, month: Option<u64>) -> Limits {
             ..Budget::default()
         },
         daily_money: None,
+        weekly_money: None,
         monthly_money: month.map(MicroUsd),
     }
 }

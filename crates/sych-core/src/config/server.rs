@@ -149,6 +149,12 @@ pub struct Budget {
     pub active_deadline_seconds: Option<u32>,
 }
 
+impl Budget {
+    pub fn is_unset(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
 /// Default `budgets.analysis.active_deadline_seconds`.
 pub const ANALYSIS_DEADLINE_SECONDS: u32 = 300;
 
@@ -160,6 +166,10 @@ pub struct Budgets {
     pub tour: Budget,
     pub followup_session: Budget,
     pub tenant_daily: Budget,
+    /// The tenant's spend from Monday 00:00 UTC; no cap unless set. Left out of the config hash
+    /// while unset, so older configs keep their policy snapshots.
+    #[serde(default, skip_serializing_if = "Budget::is_unset")]
+    pub tenant_weekly: Budget,
     pub tenant_monthly: Budget,
 }
 
@@ -187,6 +197,7 @@ impl Default for Budgets {
             },
             followup_session: cost(150_000),
             tenant_daily: cost(3_000_000),
+            tenant_weekly: Budget::default(),
             tenant_monthly: cost(60_000_000),
         }
     }
@@ -339,6 +350,7 @@ impl ServerConfig {
             ("tour", &b.tour),
             ("followup_session", &b.followup_session),
             ("tenant_daily", &b.tenant_daily),
+            ("tenant_weekly", &b.tenant_weekly),
             ("tenant_monthly", &b.tenant_monthly),
         ] {
             let path = |field: &str| format!("budgets.{name}.{field}");
@@ -388,10 +400,31 @@ impl ServerConfig {
                 "exceeds budgets.tenant_daily.max_cost_micro_usd",
             );
         }
-        p.check(
-            within(cap(&b.tenant_daily), cap(&b.tenant_monthly)),
-            "budgets.tenant_daily.max_cost_micro_usd",
-            "exceeds budgets.tenant_monthly.max_cost_micro_usd",
-        );
+        for (inner, outer, name, problem) in [
+            (
+                &b.tenant_daily,
+                &b.tenant_weekly,
+                "tenant_daily",
+                "exceeds budgets.tenant_weekly.max_cost_micro_usd",
+            ),
+            (
+                &b.tenant_daily,
+                &b.tenant_monthly,
+                "tenant_daily",
+                "exceeds budgets.tenant_monthly.max_cost_micro_usd",
+            ),
+            (
+                &b.tenant_weekly,
+                &b.tenant_monthly,
+                "tenant_weekly",
+                "exceeds budgets.tenant_monthly.max_cost_micro_usd",
+            ),
+        ] {
+            p.check(
+                within(cap(inner), cap(outer)),
+                format!("budgets.{name}.max_cost_micro_usd"),
+                problem,
+            );
+        }
     }
 }

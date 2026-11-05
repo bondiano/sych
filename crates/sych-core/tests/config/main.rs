@@ -155,6 +155,35 @@ fn yaml_enums_are_snake_case() {
 }
 
 #[test]
+fn a_week_pool_sits_between_the_day_and_the_month() {
+    let week = |cap: u64| {
+        read("examples/personal/sych.yaml").replace(
+            "  tenant_monthly:",
+            &format!("  tenant_weekly:\n    max_cost_micro_usd: {cap}\n  tenant_monthly:"),
+        )
+    };
+    let fits = ServerConfig::parse("sych.yaml", &week(20_000_000))
+        .expect("a week within its day and month");
+    assert_eq!(
+        fits.budgets.tenant_weekly.max_cost_micro_usd.map(|c| c.0),
+        Some(20_000_000)
+    );
+    let paths = |cap| {
+        ServerConfig::parse("sych.yaml", &week(cap))
+            .expect_err("rejected")
+            .into_iter()
+            .map(|e| (e.path, e.message))
+            .collect::<Vec<_>>()
+    };
+    assert!(paths(1_000_000).iter().any(|(p, m)| {
+        p == "budgets.tenant_daily.max_cost_micro_usd" && m.contains("tenant_weekly")
+    }));
+    assert!(paths(90_000_000).iter().any(|(p, m)| {
+        p == "budgets.tenant_weekly.max_cost_micro_usd" && m.contains("tenant_monthly")
+    }));
+}
+
+#[test]
 fn dangling_model_references_are_errors() {
     let text = read("examples/personal/sych.yaml").replace("reviewer: cheap_go", "reviewer: nope");
     let errors = ServerConfig::parse("sych.yaml", &text).expect_err("rejected");

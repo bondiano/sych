@@ -97,11 +97,13 @@ pub fn input_token_bound(messages: &[Message]) -> u64 {
         .sum()
 }
 
-/// Hard caps for one run purpose plus the tenant day and month money pools.
+/// Hard caps for one run purpose plus the tenant day, week and month money pools.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
     pub run: Budget,
     pub daily_money: Option<MicroUsd>,
+    /// From Monday 00:00 UTC.
+    pub weekly_money: Option<MicroUsd>,
     pub monthly_money: Option<MicroUsd>,
 }
 
@@ -115,6 +117,7 @@ impl Limits {
         Self {
             run,
             daily_money: budgets.tenant_daily.max_cost_micro_usd,
+            weekly_money: budgets.tenant_weekly.max_cost_micro_usd,
             monthly_money: budgets.tenant_monthly.max_cost_micro_usd,
         }
     }
@@ -147,6 +150,7 @@ pub struct Committed {
     pub run_input_tokens: u64,
     pub run_output_tokens: u64,
     pub day_money: MicroUsd,
+    pub week_money: MicroUsd,
     pub month_money: MicroUsd,
     /// Fee this reservation would add because the month has none recorded yet.
     pub fee_due: MicroUsd,
@@ -210,6 +214,7 @@ pub fn admit(limits: &Limits, c: &Committed, r: &Reservation) -> Result<(), Deni
         MicroUsd(0),
     )?;
     money("day", limits.daily_money, c.day_money, MicroUsd(0))?;
+    money("week", limits.weekly_money, c.week_money, MicroUsd(0))?;
     money("month", limits.monthly_money, c.month_money, c.fee_due)?;
     if let Some(cap) = limits.run.max_input_tokens
         && c.run_input_tokens + r.input_tokens > u64::from(cap)
