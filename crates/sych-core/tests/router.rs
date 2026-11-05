@@ -316,13 +316,9 @@ async fn a_route_that_cannot_be_billed_hands_over_to_the_next() {
 async fn each_hop_is_rechecked_right_before_it_dispatches() {
     let ledger = MemLedger::default();
     let gone = Scripted::new(vec![]);
-    let plain = Scripted::new(vec![]);
     let cheap = Scripted::new(vec![error(ErrorKind::RateLimited, false), ok()]);
-    let mut unstructured = hop(&plain, "plain").expect("hop");
-    unstructured.route.capabilities.structured_output = false;
     let hops = BTreeMap::from([
         ("gone".into(), hop(&gone, "gone")),
-        ("plain".into(), Ok(unstructured)),
         ("cheap".into(), hop(&cheap, "cheap")),
     ]);
     // A credential removed after planning, or a corporate run reaching an external endpoint,
@@ -334,23 +330,52 @@ async fn each_hop_is_rechecked_right_before_it_dispatches() {
             Ok(())
         }
     };
-    let mut r = router(&ledger, hops, &["gone", "plain", "cheap"], 6);
+    let mut r = router(&ledger, hops, &["gone", "cheap"], 6);
     r.eligible = Some(&recheck);
     let out = review(&r).await;
     assert!(out.value.is_err(), "the only usable route was rate limited");
     assert_eq!(
         outcomes(&out),
-        [
-            ("gone".into(), "skipped"),
-            ("plain".into(), "skipped"),
-            ("cheap".into(), "fell_back")
-        ]
+        [("gone".into(), "skipped"), ("cheap".into(), "fell_back")]
     );
     assert!(matches!(
         &out.hops[0].outcome,
         HopOutcome::Skipped { reason } if reason.contains("SYCH_GONE_KEY")
     ));
     assert_eq!(out.attempts.len(), 1, "skipped routes make no call");
+}
+
+/// A route without a native schema still answers: the schema is in its system message and the
+/// reply is checked locally, as for any route.
+#[tokio::test(flavor = "current_thread")]
+async fn a_route_without_a_native_schema_reads_it_in_the_prompt() {
+    let ledger = MemLedger::default();
+    let plain = Scripted::new(vec![ok()]);
+    let native = Scripted::new(vec![ok()]);
+    let mut unstructured = hop(&plain, "plain").expect("hop");
+    unstructured.route.capabilities.structured_output = false;
+    let hops = BTreeMap::from([("plain".into(), Ok(unstructured))]);
+    let r = router(&ledger, hops, &["plain"], 6);
+    let out = review(&r).await;
+    assert!(out.value.is_ok(), "{:?}", out.value);
+    assert_eq!(outcomes(&out), [("plain".into(), "answered")]);
+    let system = plain.seen.borrow()[0].messages[0].content.clone();
+    assert!(
+        system.contains("# Reply schema")
+            && system.contains("`discovery`")
+            && system.contains("\"claim\""),
+        "{system}"
+    );
+
+    let hops = BTreeMap::from([("native".into(), hop(&native, "native"))]);
+    let r = router(&ledger, hops, &["native"], 6);
+    assert!(review(&r).await.value.is_ok());
+    assert!(
+        !native.seen.borrow()[0].messages[0]
+            .content
+            .contains("# Reply schema"),
+        "a native schema is not repeated in the prompt"
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]

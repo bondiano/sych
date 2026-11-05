@@ -1,6 +1,8 @@
 //! One structured model task: reserve → dispatch → settle → validate, with at most one
 //! repair. Fallback hops belong to the [`Router`](super::Router).
 
+use std::fmt::Write as _;
+
 use schemars::generate::SchemaSettings;
 use schemars::transform::RecursiveTransform;
 use schemars::{JsonSchema, Schema};
@@ -10,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     AttemptKind, Denied, ErrorKind, Finish, Ledger, Limits, Message, ModelProvider, ModelReply,
     ModelRequest, ObservedUsage, PriceCard, Prompt, ProviderError, Purpose, Reservation, Route,
-    Settlement, input_token_bound, parse_output, repair_messages,
+    Settlement, Speaker, input_token_bound, parse_output, repair_messages,
 };
 use crate::config::{BillingKind, Enforcement, FixedFee};
 use crate::{AttemptId, MicroUsd, Redactor, RunId, TaskId, Timestamp};
@@ -109,7 +111,18 @@ impl<P: ModelProvider, L: Ledger> Gateway<'_, P, L> {
         schema_name: &str,
     ) -> TaskOutcome<T> {
         let schema = serde_json::to_value(output_schema::<T>()).unwrap_or_default();
-        let base = prompt.messages(self.redactor);
+        let mut base = prompt.messages(self.redactor);
+        // A route without a native schema reads it here; the reply is checked locally anyway.
+        if !self.route.capabilities.structured_output
+            && let Some(system) = base.first_mut().filter(|m| m.speaker == Speaker::System)
+        {
+            let _ = write!(
+                system.content,
+                "\n\n# Reply schema\nReply with exactly one JSON object, no prose and no code \
+                 fence, that is valid against this JSON Schema (`{schema_name}`):\n{schema}"
+            );
+        }
+
         let task = TaskId::new_v7();
         let mut attempts = Vec::new();
         let mut first = self
