@@ -290,9 +290,9 @@ so sign-in itself is not covered by an automated test.
   self-fallback, an unknown profile, a profile named after the `fake` or `roles` selector and `wait_for_usage_reset: true`
   are rejected by validation. The `analysis` artifact records model, `reasoning_effort` and `upstreams` for each route.
 - **Pass roles.** Assessment, review and discovery use `reviewer`; the obligation-bound high-risk audit and the coverage
-  audit use `risk_auditor`
-  (where `models.roles.risk_auditor` points to Astra/Fable, that is the premium escalation: only for
-  high-risk obligations, not for the whole PR); checking candidates uses `verifier`. A more expensive model does not substitute for
+  audit use `risk_auditor` (where `models.roles.risk_auditor` points to Astra/Fable, that is the premium escalation:
+  only for high-risk obligations and for a change whose facts call for the coverage audit, one call each, not for the
+  whole PR); checking candidates uses `verifier`. A more expensive model does not substitute for
   missing source/environment facts: such obligations stay `UNKNOWN`.
 - **Hop.** Each profile in a chain is visited at most once per task. Before a hop the profile is resolved
   again (mode, billing, egress, credentials, pinned runtime), and the route must match the one planned at the start of the

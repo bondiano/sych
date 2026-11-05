@@ -55,26 +55,26 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             &self.snap.snapshot.id,
         );
         out.questions.extend(refused);
-        for planned in accepted {
-            let prompt = prompts::assessment(&context, &planned);
+        for proposed in accepted {
+            let prompt = prompts::assessment(&context, &proposed);
             let outcome = self
                 .router
                 .leaving::<AssessmentOutput>(Role::Reviewer, &prompt, "obligation_assessment", 0)
                 .await;
-            let id = planned.obligation.id;
+            let id = proposed.obligation.id;
             quietly(out, prompts::ASSESSMENT, batch, Some(id), &outcome);
             match outcome.value {
                 Ok(output) => {
                     let record = self.checked(validate_assessment(
-                        output, &planned, "ob-1", &context, self.snap,
+                        output, &proposed, "ob-1", &context, self.snap,
                     ));
                     out.assessments.push(record.assessment.clone());
                     out.record.assessments.push(record);
-                    out.extra_obligations.push(planned);
+                    out.extra_obligations.push(proposed);
                 }
                 Err(failure) => out.questions.push(format!(
                     "coverage audit: {} (not checked: {failure:?})",
-                    planned.obligation.question
+                    proposed.obligation.question
                 )),
             }
         }
