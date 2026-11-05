@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{CandidateId, CodeRef, EvidenceId, FindingId, ObligationId, Sha256Digest};
+use crate::{AttemptId, CandidateId, CodeRef, EvidenceId, FindingId, ObligationId, Sha256Digest};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -42,6 +42,35 @@ pub struct Candidate {
     /// Why the candidate is rejected or unresolved, when it is.
     #[serde(default)]
     pub limitations: Vec<String>,
+    /// The verifier's answers about it, one per round, oldest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub verdicts: Vec<VerdictRecord>,
+}
+
+/// One verifier answer about a candidate and what the engine made of it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct VerdictRecord {
+    /// 1 for the first call; 2 for the call with the answers to the context asks.
+    pub round: u32,
+    /// The verdict the verifier gave.
+    pub proposed: VerificationStatus,
+    /// The status the engine accepted: lower than proposed when the basis was not admissible.
+    pub status: VerificationStatus,
+    pub explanation: String,
+    /// Wrappers, guards, recovery paths or intentional changes the verifier looked for.
+    #[serde(default)]
+    pub alternatives_checked: Vec<String>,
+    /// The verdict's anchors that resolved in the shown spans.
+    #[serde(default)]
+    pub anchors: Vec<CodeRef>,
+    #[serde(default)]
+    pub evidence_ids: Vec<EvidenceId>,
+    /// What the engine did not accept in the verdict.
+    #[serde(default)]
+    pub engine_problems: Vec<String>,
+    /// The accepted model attempt; none when a stored checkpoint answered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attempt_id: Option<AttemptId>,
 }
 
 /// The full new text of exactly the HEAD lines of `code`, which a comment can offer as a

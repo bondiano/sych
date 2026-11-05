@@ -140,6 +140,20 @@ fn invented_references_never_confirm() {
     for c in &verified.candidates {
         assert_eq!(c.verification_status, VerificationStatus::Unresolved);
         assert!(c.limitations.iter().any(|l| l.contains("unknown")));
+        let [record] = c.verdicts.as_slice() else {
+            panic!("one verdict per round: {:?}", c.verdicts);
+        };
+        assert_eq!(
+            (record.round, record.proposed, record.status),
+            (
+                1,
+                VerificationStatus::Confirmed,
+                VerificationStatus::Unresolved
+            ),
+            "the history keeps the verdict the engine did not accept"
+        );
+        assert!(record.engine_problems.iter().any(|p| p.contains("unknown")));
+        assert_eq!(record.anchors.len(), 1, "only the anchor that resolved");
     }
 }
 

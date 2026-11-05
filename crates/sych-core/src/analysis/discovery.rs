@@ -320,6 +320,7 @@ pub fn validate(
             obligation_ids,
             verification_status: VerificationStatus::Pending,
             limitations: Vec::new(),
+            verdicts: Vec::new(),
         });
     }
     (found.asks, found.rejected_asks) = context_asks(output.context_requests);

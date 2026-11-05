@@ -323,6 +323,21 @@ async fn an_unresolved_candidate_is_verified_again_with_the_verifiers_answers() 
         "{:?}",
         outcome.candidates
     );
+    for candidate in &outcome.candidates {
+        let history: Vec<_> = candidate
+            .verdicts
+            .iter()
+            .map(|v| (v.round, v.proposed, v.attempt_id.is_some()))
+            .collect();
+        assert_eq!(
+            history,
+            [
+                (1, VerificationStatus::Unresolved, true),
+                (2, VerificationStatus::Rejected, true)
+            ],
+            "the second round appends to the first"
+        );
+    }
 }
 
 /// The verifier searches BASE for a name nobody uses; the empty answer reaches the second

@@ -265,14 +265,12 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                 return;
             }
         };
-        let open: Vec<Candidate> = found
+        // As the first round left them, so the second appends to their verdict history.
+        let open: Vec<Candidate> = verified
             .candidates
-            .into_iter()
-            .filter(|c| {
-                verified.candidates.iter().any(|v| {
-                    v.id == c.id && v.verification_status == VerificationStatus::Unresolved
-                })
-            })
+            .iter()
+            .filter(|c| c.verification_status == VerificationStatus::Unresolved)
+            .cloned()
             .collect();
         // Left open without a question, a claim is still searched for what refutes it.
         let asks = if asks.is_empty() {
@@ -320,9 +318,19 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             .map(ToString::to_string)
             .collect::<Vec<_>>()
             .join(",");
+        // The last attempt is the accepted one; a checkpoint answer has none.
+        let attempt = outcome.attempts.last().map(|a| a.attempt_id);
         let output = outcome.value?;
-        let verified =
+        let known: Vec<usize> = candidates.iter().map(|c| c.verdicts.len()).collect();
+        let mut verified =
             validate_verdicts(&output, candidates, context, self.snap, &self.known, &scope);
+        for (candidate, before) in verified.candidates.iter_mut().zip(known) {
+            if candidate.verdicts.len() > before
+                && let Some(record) = candidate.verdicts.last_mut()
+            {
+                record.attempt_id = attempt;
+            }
+        }
         let (asks, _) = context_asks(output.context_requests);
         Ok((asks, verified))
     }

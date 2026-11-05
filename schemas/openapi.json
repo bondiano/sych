@@ -155,6 +155,11 @@
         ],
         "type": "object"
       },
+      "AttemptId": {
+        "description": "One Sych-initiated model request; the idempotency key of its ledger entry.",
+        "format": "uuid",
+        "type": "string"
+      },
       "Attempts": {
         "items": {
           "$ref": "#/components/schemas/Attempt"
@@ -357,6 +362,13 @@
           },
           "refutation": {
             "type": "string"
+          },
+          "verdicts": {
+            "description": "The verifier's answers about it, one per round, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/VerdictRecord"
+            },
+            "type": "array"
           },
           "verification_status": {
             "$ref": "#/components/schemas/VerificationStatus"
@@ -4155,6 +4167,78 @@
           "unknown_usage_attempts",
           "cost",
           "routes"
+        ],
+        "type": "object"
+      },
+      "VerdictRecord": {
+        "description": "One verifier answer about a candidate and what the engine made of it.",
+        "properties": {
+          "alternatives_checked": {
+            "default": [],
+            "description": "Wrappers, guards, recovery paths or intentional changes the verifier looked for.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "anchors": {
+            "default": [],
+            "description": "The verdict's anchors that resolved in the shown spans.",
+            "items": {
+              "$ref": "#/components/schemas/CodeRef"
+            },
+            "type": "array"
+          },
+          "attempt_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AttemptId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The accepted model attempt; none when a stored checkpoint answered."
+          },
+          "engine_problems": {
+            "default": [],
+            "description": "What the engine did not accept in the verdict.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "evidence_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/VerificationStatus",
+            "description": "The verdict the verifier gave."
+          },
+          "round": {
+            "description": "1 for the first call; 2 for the call with the answers to the context asks.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VerificationStatus",
+            "description": "The status the engine accepted: lower than proposed when the basis was not admissible."
+          }
+        },
+        "required": [
+          "round",
+          "proposed",
+          "status",
+          "explanation"
         ],
         "type": "object"
       },
