@@ -24,6 +24,7 @@ use sych_core::{
     SchemaVersion,
 };
 
+mod coverage;
 mod parts;
 mod passes;
 mod redo;
@@ -121,6 +122,8 @@ pub struct Outcome {
     pub gaps: Vec<String>,
     /// Open model questions: reported, but they do not lower coverage.
     pub questions: Vec<String>,
+    /// Checks the coverage audit added, never required; the reducer judges them like the plan's.
+    pub extra_obligations: Vec<PlannedObligation>,
 }
 
 pub struct Engine<'a, P, L> {
@@ -296,6 +299,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             ));
         }
         self.searches(searching, &mut out).await;
+        self.coverage_audit(batches.first(), &mut out).await;
         out.findings = merge_overlapping(out.findings);
         out.record.candidates.clone_from(&out.candidates);
         out

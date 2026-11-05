@@ -86,7 +86,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     }
 
     /// `record` with a violation that rests only on unseen changed code made UNKNOWN.
-    fn checked(&self, record: AssessmentRecord) -> AssessmentRecord {
+    pub(super) fn checked(&self, record: AssessmentRecord) -> AssessmentRecord {
         unseen_violation(record, &unseen_spans(&self.facts.syntax))
     }
 

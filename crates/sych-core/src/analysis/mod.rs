@@ -4,6 +4,7 @@
 
 mod assess;
 mod context;
+pub mod coverage;
 mod discovery;
 pub mod followup;
 pub mod prompts;

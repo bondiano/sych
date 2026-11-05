@@ -48,6 +48,18 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    engine drops it, not the finding, when it names anything else. The inline comment offers it as a GitHub
    suggestion when it covers exactly the commented lines, otherwise as a code block.
 
+5. **Coverage audit** (`coverage_audit@1`) — after the passes above, in the default pipeline, only when the facts call for
+   it: an effect the ledger saw change, a changed contract shape (serde, transaction or resource scope, registered effect
+   call, `select!`, `cfg`, macro), a migration's schema references, or a rule that applies through a semantic link. One
+   call over the first discovery batch, told the planned obligations with their statuses, those signals and the titles of
+   the findings, names at most three checks the plan does not make — a consumer outside the diff, a touched path no
+   obligation covers, a moved effect whose conditions were not compared — each with the changed code that makes it
+   apply and a criterion. A proposal whose anchors do not resolve is refused. Each accepted one becomes an obligation
+   `AUDIT-n` that is never required, on the units of its anchors, and gets an ordinary assessment on the same view;
+   its result is reported with the plan's obligations. Neither the audit nor these assessments lower coverage: a call
+   that fails or does not fit the budget, and a refused proposal, is an open question in `unresolved_questions`, and the
+   pass is recorded as skipped rather than failed.
+
 A multi-unit review or discovery whose reply is cut (`TRUNCATED`) or times out is not a gap yet: it is recorded as
 `SPLIT` with its attempts, a review's obligations get assessments of their own, and its units are searched again in halves,
 down to single units, within the same budgets (a cut single unit gets the gateway's retry without reasoning,

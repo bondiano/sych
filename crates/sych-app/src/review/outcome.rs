@@ -12,8 +12,8 @@ use sych_core::config::{BillingKind, Role};
 use sych_core::model::{ChargeState, Limits as ModelLimits, Purpose};
 use sych_core::{
     DEFAULT_ATTENTION_THRESHOLD, Evidence, EvidenceManifest, ExecutionOutcome,
-    ExternalInputManifest, MicroUsd, Provenance, ReduceInput, ResultId, ReviewResult, RouteUsage,
-    RunInfo, Timestamp, UsageSummary, finalize, reduce,
+    ExternalInputManifest, MicroUsd, Provenance, ReduceInput, ResultId, ReviewPlan, ReviewResult,
+    RouteUsage, RunInfo, Timestamp, UsageSummary, finalize, reduce,
 };
 use sych_storage::{RunHandle, RunLedger, Storage};
 
@@ -174,7 +174,18 @@ impl Session<'_> {
         ReviewResult,
         Vec<Evidence>,
     )> {
-        let (plan, policy, now) = (self.plan, self.policy, self.now);
+        let (planned, policy, now) = (self.plan, self.policy, self.now);
+        // The checks the coverage audit added are judged and reported like the plan's.
+        let extended = analysis
+            .filter(|a| !a.outcome.extra_obligations.is_empty())
+            .map(|a| ReviewPlan {
+                obligations: (planned.obligations.iter())
+                    .chain(&a.outcome.extra_obligations)
+                    .cloned()
+                    .collect(),
+                ..planned.clone()
+            });
+        let plan = extended.as_ref().unwrap_or(planned);
         let outcome = match analysis.map(|a| &a.outcome) {
             _ if plan.limit_reached => ExecutionOutcome::LimitReached,
             Some(a) if a.limit_reached => ExecutionOutcome::LimitReached,

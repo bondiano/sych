@@ -58,6 +58,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             limit_reached: false,
             gaps: Vec::new(),
             questions: Vec::new(),
+            extra_obligations: Vec::new(),
         }
     }
 
