@@ -5,7 +5,10 @@ use sych_core::analysis::{
     Anchor, AskOperation, Context, VerifyOutput, merge_overlapping, refuting_asks,
     validate_discovery, validate_verdicts,
 };
-use sych_core::{FindingCategory, ObligationId, Severity, SourceSide, Support, VerificationStatus};
+use sych_core::{
+    FindingCategory, ObligationId, RejectionReason, Severity, SourceSide, Support,
+    VerificationStatus,
+};
 
 use super::{Reader, anchor, context, discovery, draft};
 
@@ -43,8 +46,9 @@ fn verdicts_need_an_admissible_basis() {
         verdict("cand-2", Severity::High, Support::SemanticArgument, &trace),
         verdict("cand-3", Severity::Medium, Support::ExecutedCounterexample, &trace),
         verdict("cand-4", Severity::Medium, Support::Preference, &trace),
-        {"candidate_id": "cand-5", "verdict": "REJECTED", "category": "NIT", "severity": "INFO",
-         "support": "PREFERENCE", "title": "t", "explanation": "e",  "anchors": [], "evidence_ids": [], "alternatives_checked": [],
+        {"candidate_id": "cand-5", "verdict": "REJECTED", "category": "DEFECT", "severity": "INFO",
+         "support": "SEMANTIC_ARGUMENT", "title": "t", "explanation": "e", "reason": "REFUTED",
+         "anchors": [anchor("ref-1", 2, 4)], "evidence_ids": [], "alternatives_checked": [],
          "suggested_action": "", "validation_expectation": "", "limitations": []},
     ], "context_requests": []}))
     .expect("verdicts");
@@ -369,4 +373,74 @@ fn open_claims_are_searched_by_the_identifiers_they_name() {
         queries,
         ["heartbeat_seconds", "analyze", "lease_seconds", "fetch"]
     );
+}
+
+fn rejection(
+    id: &str,
+    category: &str,
+    reason: &serde_json::Value,
+    anchors: &[Anchor],
+) -> serde_json::Value {
+    json!({"candidate_id": id, "verdict": "REJECTED", "category": category, "severity": "MEDIUM",
+           "support": "SEMANTIC_ARGUMENT", "title": "t", "explanation": "e", "reason": reason,
+           "anchors": anchors, "evidence_ids": [], "alternatives_checked": [],
+           "suggested_action": "", "validation_expectation": "", "limitations": []})
+}
+
+/// A rejection is a claim as well: for a defect it names its reason and the code it rests on,
+/// or the defect stays open for the second round.
+#[test]
+fn a_rejected_defect_needs_its_reason_and_the_code_it_rests_on() {
+    use VerificationStatus::{Rejected, Unresolved};
+    let reader = Reader::new();
+    // `ref-1` is BASE, `ref-2` and `ref-3` are HEAD.
+    let (context, _) = context(&reader);
+    let base = [anchor("ref-1", 2, 2)];
+    let head = [anchor("ref-2", 2, 2)];
+    let output: VerifyOutput = serde_json::from_value(json!({"verdicts": [
+        rejection("cand-1", "DEFECT", &json!("REFUTED"), &head),
+        rejection("cand-2", "DEFECT", &json!(null), &head),
+        rejection("cand-3", "DEFECT", &json!("REFUTED"), &[]),
+        rejection("cand-4", "DEFECT", &json!("NOT_INTRODUCED"), &head),
+        rejection("cand-5", "DEFECT", &json!("NOT_INTRODUCED"), &base),
+        // A defect relabelled as a nit is still a defect to reject.
+        rejection("cand-6", "NIT", &json!(null), &[]),
+        rejection("cand-7", "DEFECT", &json!("REFUTED"), &[anchor("ref-99", 1, 1)]),
+        // Nothing shows the change meant it.
+        rejection("cand-8", "DEFECT", &json!("INTENDED"), &[]),
+        rejection("cand-9", "NIT", &json!(null), &[]),
+    ], "context_requests": []}))
+    .expect("verdicts");
+    let mut candidates = candidates(&reader, &context, 9);
+    candidates[8].category = FindingCategory::Nit;
+    let verified = validate_verdicts(&output, candidates, &context, &reader, &[], "unit");
+    let statuses: Vec<_> = verified
+        .candidates
+        .iter()
+        .map(|c| c.verification_status)
+        .collect();
+    assert_eq!(
+        statuses,
+        [
+            Rejected, Unresolved, Unresolved, Unresolved, Rejected, Unresolved, Unresolved,
+            Unresolved, Rejected
+        ]
+    );
+    for i in [1, 2, 3, 5, 7] {
+        assert!(
+            verified.candidates[i]
+                .limitations
+                .iter()
+                .any(|l| l.contains("REJECTION_WITHOUT_BASIS")),
+            "cand-{}: {:?}",
+            i + 1,
+            verified.candidates[i].limitations
+        );
+    }
+    assert_eq!(
+        verified.candidates[0].verdicts[0].reason,
+        Some(RejectionReason::Refuted),
+        "the history keeps the reason"
+    );
+    assert!(verified.findings.is_empty());
 }

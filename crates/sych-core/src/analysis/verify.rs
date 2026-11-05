@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 use super::context::{Anchor, Context};
 use super::discovery::ContextAsk;
 use crate::{
-    Candidate, CodeRef, Finding, FindingCategory, FindingId, Lifecycle, Severity, SnapshotReader,
-    SourceSide, SuggestedChange, Support, VerdictRecord, VerificationStatus, derived_uuid, sha256,
+    Candidate, CodeRef, Finding, FindingCategory, FindingId, Lifecycle, RejectionReason, Severity,
+    SnapshotReader, SourceSide, SuggestedChange, Support, VerdictRecord, VerificationStatus,
+    derived_uuid, sha256,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -57,6 +58,9 @@ pub struct CandidateVerdict {
     pub evidence_ids: Vec<String>,
     /// Wrappers, guards, recovery paths or intentional changes that were looked for.
     pub alternatives_checked: Vec<String>,
+    /// For REJECTED: what the rejection rests on; null otherwise.
+    #[schemars(required)]
+    pub reason: Option<RejectionReason>,
     pub suggested_action: String,
     pub validation_expectation: String,
     pub limitations: Vec<String>,
@@ -117,6 +121,40 @@ fn admissible(verdict: &CandidateVerdict, anchors: &[CodeRef]) -> Result<(), Str
     }
 }
 
+/// Whether `verdict` may reject `candidate`; the problem otherwise. A nit or improvement is
+/// dropped on the verifier's word; a defect or rule violation needs the reason and the code
+/// that shows it, or, for an intended removal, the change shown removing what the lines used.
+fn rejection_basis(
+    candidate: &Candidate,
+    verdict: &CandidateVerdict,
+    anchors: &[CodeRef],
+    context: &Context,
+) -> Result<(), String> {
+    let preference =
+        |c: FindingCategory| matches!(c, FindingCategory::Nit | FindingCategory::Improvement);
+    if preference(candidate.category) && preference(verdict.category) {
+        return Ok(());
+    }
+
+    let missing = |what: &str| Err(format!("REJECTION_WITHOUT_BASIS: {what}"));
+    match verdict.reason {
+        None => missing("a rejected defect names no reason"),
+        Some(RejectionReason::Intended) if anchors.is_empty() && !context.shows_lost_names() => {
+            missing(
+                "INTENDED needs the code that states it, or the change removing what the lines used",
+            )
+        }
+        Some(RejectionReason::Intended) => Ok(()),
+        Some(_) if anchors.is_empty() => missing("no anchor on the code that refutes the claim"),
+        Some(RejectionReason::NotIntroduced)
+            if !anchors.iter().any(|a| a.side == SourceSide::DiffBase) =>
+        {
+            missing("NOT_INTRODUCED needs the same behaviour shown on BASE")
+        }
+        Some(_) => Ok(()),
+    }
+}
+
 /// Applies verdicts to `candidates` (shown as `cand-N` in order), appending each verdict to
 /// the candidate's history. A candidate without a verdict stays UNRESOLVED; a rejected nit is
 /// dropped, not escalated.
@@ -148,6 +186,7 @@ pub fn validate(
                 evidence_ids: Vec::new(),
                 engine_problems: vec![problem],
                 attempt_id: None,
+                reason: None,
             });
             continue;
         };
@@ -158,11 +197,18 @@ pub fn validate(
             .limitations
             .extend(verdict.limitations.iter().cloned());
         candidate.verification_status = match verdict.verdict {
-            Verdict::Rejected => VerificationStatus::Rejected,
+            // A reference that does not resolve breaks the answer's contract, a rejection's as
+            // much as a confirmation's; dropping it and keeping the rest would rewrite the proof.
+            v if v == Verdict::Unresolved || !problems.is_empty() => VerificationStatus::Unresolved,
+            // A rejection is a claim too: one that does not hold up is a question still open.
+            Verdict::Rejected => match rejection_basis(candidate, verdict, &anchors, context) {
+                Err(problem) => {
+                    problems.push(problem);
+                    VerificationStatus::Unresolved
+                }
+                Ok(()) => VerificationStatus::Rejected,
+            },
             Verdict::Unresolved => VerificationStatus::Unresolved,
-            // A reference that does not resolve breaks the answer's contract; dropping it
-            // and confirming the rest would rewrite the model's proof.
-            Verdict::Confirmed if !problems.is_empty() => VerificationStatus::Unresolved,
             Verdict::Confirmed => match admissible(verdict, &anchors) {
                 Err(problem) => {
                     problems.push(problem);
@@ -192,6 +238,7 @@ pub fn validate(
             evidence_ids: evidence_ids.clone(),
             engine_problems: problems,
             attempt_id: None,
+            reason: verdict.reason,
         });
         if candidate.verification_status != VerificationStatus::Confirmed {
             continue;

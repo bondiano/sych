@@ -71,6 +71,25 @@ pub struct VerdictRecord {
     /// The accepted model attempt; none when a stored checkpoint answered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attempt_id: Option<AttemptId>,
+    /// Why the verifier rejected the claim, when it did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<RejectionReason>,
+}
+
+/// What a rejection rests on. For a defect or rule violation each needs the code that shows
+/// it among the verdict's anchors; "not enough to decide" is UNRESOLVED, not a reason.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum RejectionReason {
+    /// A guard, validator, wrapper or recovery path keeps the behaviour on the claimed path.
+    Refuted,
+    /// The claimed conditions cannot hold together on any path the code allows.
+    Unreachable,
+    /// BASE already behaves the same: the change neither creates the problem nor exposes it.
+    NotIntroduced,
+    /// Removed lines, a doc comment or an accepted rule state the change is meant: the claim
+    /// reads a decision as a defect.
+    Intended,
 }
 
 /// The full new text of exactly the HEAD lines of `code`, which a comment can offer as a

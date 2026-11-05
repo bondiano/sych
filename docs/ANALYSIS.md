@@ -41,7 +41,7 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    packets are merged into one call as long as their tokens fit in `context.max_tokens_per_request`: for a
    small PR this is one discovery instead of a call per unit. The reviewer's primary profile may bound a call further
    with `max_units_per_call` and `max_shown_tokens_per_call` ([MODELS.md](MODELS.md)).
-4. **Verify** (`verify@6`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
+4. **Verify** (`verify@7`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
    requests. When the verifier leaves candidates `UNRESOLVED` without asking anything, the engine itself searches HEAD
    for the identifiers their claims name in backticks (two per candidate, four per call) and runs the second round
    on those answers: a validator or guard outside the diff can then refute the claim. A confirmed verdict may carry `suggested_change`, the full new text of lines of a shown HEAD span; the
@@ -125,8 +125,16 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
   `EXECUTED_COUNTEREXAMPLE` is impossible (nothing was executed), `PREFERENCE` does not support a defect,
   nit/improvement is no higher than `LOW`, `HIGH/CRITICAL` requires a `STATIC_TRACE` of at least two anchors
   (`HIGH_RISK_WITHOUT_TRACE`). An anchor on a line that already has an imported diagnostic leaves the candidate
-  `UNRESOLVED` (`DUPLICATES_EXISTING_DIAGNOSTIC`): without a comparable baseline, novelty is not proven. A rejected
-  nit goes to `rejected_candidates` and is not promoted.
+  `UNRESOLVED` (`DUPLICATES_EXISTING_DIAGNOSTIC`): without a comparable baseline, novelty is not proven. A rejection
+  is held to the same contract: `REJECTED` with an unrecognized reference is `UNRESOLVED`, and for a defect or rule
+  violation it needs a `reason` and the code it rests on among its anchors — `REFUTED` (the guard, validator, wrapper
+  or recovery that keeps the behaviour), `UNREACHABLE` (what rules the conditions out), `NOT_INTRODUCED` (the same
+  behaviour on BASE, so a BASE anchor), `INTENDED` (removed lines, a doc comment or a rule stating the change is
+  meant; with no anchor only when the names those lines lose show the change removing, deleting or adding what they
+  used). Otherwise it is `UNRESOLVED` (`REJECTION_WITHOUT_BASIS`) and goes to the second round. "Not enough to decide"
+  is `UNRESOLVED`, never a reason; a nit or improvement — a candidate's category and the verdict's — is still
+  rejected on the verifier's word, goes to `rejected_candidates` and is not promoted. The reason is kept in the
+  candidate's verdict history ([ADR 0002](adr/0002-rejection-reasons.md)).
 - **Findings**: severity, support and verification status are separate fields; every finding has the limitation
   "CONFIRMED by the verification policy on the shown spans; not a proof of the whole program". Findings from different
   passes with overlapping anchors are merged into the most severe one, marked `merged an overlapping hypothesis`.
@@ -250,5 +258,5 @@ instead of source text.
 (`model_attempts.scope`) while the tenant day and month pools stay shared. The prompt holds the stop's spans, the
 review's findings and obligations of the stop and the overview; context requests are answered once through the broker's
 typed operations (`ContextAsk::answer`, shared with analysis). Hypotheses pass the discovery checks and then the regular
-verifier (`verify@6`, role verifier) under the same session budget; they stay in the exchange (`tour_exchanges`, one
+verifier (`verify@7`, role verifier) under the same session budget; they stay in the exchange (`tour_exchanges`, one
 actor's rows) and never reach the `ReviewResult`, the `TourArtifact` or a publication.

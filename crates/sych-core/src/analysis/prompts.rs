@@ -10,7 +10,7 @@ use crate::{Candidate, PlannedObligation};
 pub const DISCOVERY: &str = "discovery@7";
 pub const RISK_AUDIT: &str = "risk_audit@6";
 pub const ASSESSMENT: &str = "assessment@4";
-pub const VERIFY: &str = "verify@6";
+pub const VERIFY: &str = "verify@7";
 pub const REVIEW: &str = "review@6";
 
 /// The fields of one assessment; `ob` names the obligation id the answer must carry.
@@ -292,9 +292,10 @@ pub fn verify(
         output_contract: "Reply with one JSON object {\"verdicts\": [...], \
             \"context_requests\": [...]}, one verdict per cand-N: candidate_id, verdict (CONFIRMED, REJECTED, UNRESOLVED), category, severity, support \
             (STATIC_TRACE, SEMANTIC_ARGUMENT, EXPLICIT_RULE, PREFERENCE), title, explanation, \
-            anchors, evidence_ids, alternatives_checked, suggested_action, validation_expectation, \
-            limitations and suggested_change (null, or {anchor, replacement}: the full new text \
-            of exactly the anchor's lines). Be brief: every text one sentence, alternatives_checked short \
+            anchors, evidence_ids, alternatives_checked, reason (for REJECTED: REFUTED, \
+            UNREACHABLE, NOT_INTRODUCED or INTENDED; otherwise null), suggested_action, \
+            validation_expectation, limitations and suggested_change (null, or {anchor, \
+            replacement}: the full new text of exactly the anchor's lines). Be brief: every text one sentence, alternatives_checked short \
             phrases; the hypothesis already states conditions and consequence. \
             context_requests ask for code a verdict needs and the spans do not show, \
             in the discovery form; they are answered once and the UNRESOLVED hypotheses \
@@ -306,6 +307,12 @@ pub fn verify(
                 [
                     "CONFIRMED only when the shown spans establish the claim; UNRESOLVED when \
                      context is missing; REJECTED when a mechanism preserves the behaviour.",
+                    "A REJECTED defect or rule violation names its reason and anchors the code it \
+                     rests on: REFUTED, the guard, validator, wrapper or recovery that keeps the \
+                     behaviour on the claimed path; UNREACHABLE, the code that rules the \
+                     conditions out; NOT_INTRODUCED, the same behaviour on BASE; INTENDED, the \
+                     removed lines, doc comment or rule that state the change is meant. Without \
+                     such code the claim is UNRESOLVED, never REJECTED.",
                     "HIGH or CRITICAL needs a STATIC_TRACE: one anchor per step from the change \
                      to the consequence. Agreement with the hypothesis is not evidence.",
                     "Severity and support are separate: a likely but untraced problem is \
@@ -317,12 +324,13 @@ pub fn verify(
                      consequence. With no reader shown, ask search_source on BASE for its name \
                      and answer UNRESOLVED; when a complete answer shows no reader outside \
                      its definition and default and the value is not public API, it is \
-                     REJECTED: an unread value changes nothing.",
+                     REJECTED (REFUTED, anchored on the definition): an unread value changes \
+                     nothing.",
                     "A claim that nothing replaces lines the change removes (a BASE anchor): \
                      when the block of names those lines lose shows the change also removes or \
                      moves what they use (the field, type or function they read), the removal \
-                     belongs to that change and the claim is REJECTED unless a shown HEAD span \
-                     still relies on the old behaviour. A HEAD search with no match for a \
+                     belongs to that change and the claim is REJECTED (INTENDED) unless a shown \
+                     HEAD span still relies on the old behaviour. A HEAD search with no match for a \
                      removed name shows the name is gone, not that nothing replaces it.",
                     "suggested_change only for a CONFIRMED finding whose fix is local to lines of \
                      a shown HEAD span: the anchor names those lines and replacement is their \

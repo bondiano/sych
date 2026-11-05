@@ -6,8 +6,9 @@ use sych_core::analysis::{
     Anchor, AskOperation, CandidateDraft, CandidateVerdict, ContextAsk, Verdict,
 };
 use sych_core::{
-    CodeRef, DiffManifest, FindingCategory, GitHashAlgorithm, GitObjectId, ReadError, RepoPath,
-    Severity, SourceSide, SourceSnapshotId, SourceSpan, Support, sha256, tour,
+    CodeRef, DiffManifest, FindingCategory, GitHashAlgorithm, GitObjectId, ReadError,
+    RejectionReason, RepoPath, Severity, SourceSide, SourceSnapshotId, SourceSpan, Support, sha256,
+    tour,
 };
 
 use super::*;
@@ -248,6 +249,7 @@ fn a_new_defect_claim_goes_to_the_verifier() {
         }],
         evidence_ids: Vec::new(),
         alternatives_checked: vec!["outbox".into()],
+        reason: Some(RejectionReason::Refuted),
         suggested_action: String::new(),
         validation_expectation: String::new(),
         limitations: Vec::new(),

@@ -741,6 +741,31 @@
         "NO_BLOCKING_FINDINGS_IN_SCOPE"
       ]
     },
+    "RejectionReason": {
+      "description": "What a rejection rests on. For a defect or rule violation each needs the code that shows\nit among the verdict's anchors; \"not enough to decide\" is UNRESOLVED, not a reason.",
+      "oneOf": [
+        {
+          "description": "A guard, validator, wrapper or recovery path keeps the behaviour on the claimed path.",
+          "type": "string",
+          "const": "REFUTED"
+        },
+        {
+          "description": "The claimed conditions cannot hold together on any path the code allows.",
+          "type": "string",
+          "const": "UNREACHABLE"
+        },
+        {
+          "description": "BASE already behaves the same: the change neither creates the problem nor exposes it.",
+          "type": "string",
+          "const": "NOT_INTRODUCED"
+        },
+        {
+          "description": "Removed lines, a doc comment or an accepted rule state the change is meant: the claim\nreads a decision as a defect.",
+          "type": "string",
+          "const": "INTENDED"
+        }
+      ]
+    },
     "RepoPath": {
       "type": "string",
       "minLength": 1
@@ -1064,6 +1089,17 @@
         "proposed": {
           "description": "The verdict the verifier gave; `PENDING` when it gave none, or more than one.",
           "$ref": "#/$defs/VerificationStatus"
+        },
+        "reason": {
+          "description": "Why the verifier rejected the claim, when it did.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RejectionReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "round": {
           "description": "1 for the first call; 2 for the call with the answers to the context asks.",

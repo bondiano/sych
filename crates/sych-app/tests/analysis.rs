@@ -111,10 +111,12 @@ fn expanding(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
                 user.contains("answer to: the whole head function"),
                 "verifier sees the answer"
             );
+            let (id, line) = first_ref(request, "HEAD");
             Ok(reply(
                 &json!({"verdicts": [{"candidate_id": "cand-1", "verdict": "REJECTED",
                 "category": "DEFECT", "severity": "MEDIUM", "support": "SEMANTIC_ARGUMENT",
-                "title": "t", "explanation": "`?? []` keeps it",  "anchors": [], "evidence_ids": [],
+                "title": "t", "explanation": "`?? []` keeps it", "reason": "REFUTED",
+                "anchors": [{"ref_id": id, "start_line": line, "end_line": line}], "evidence_ids": [],
                 "alternatives_checked": ["nullish fallback"], "suggested_action": "",
                 "validation_expectation": "", "limitations": []}], "context_requests": []})
                 .to_string(),
@@ -290,10 +292,19 @@ fn verifier_asks(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
     } else {
         "UNRESOLVED"
     };
+    let (id, line) = first_ref(request, "HEAD");
+    let (reason, anchors) = if verdict == "REJECTED" {
+        (
+            json!("REFUTED"),
+            json!([{"ref_id": id, "start_line": line, "end_line": line}]),
+        )
+    } else {
+        (json!(null), json!([]))
+    };
     Ok(reply(
         &json!({"verdicts": [{"candidate_id": "cand-1", "verdict": verdict,
         "category": "DEFECT", "severity": "MEDIUM", "support": "SEMANTIC_ARGUMENT",
-        "title": "t", "explanation": "e", "anchors": [], "evidence_ids": [],
+        "title": "t", "explanation": "e", "reason": reason, "anchors": anchors, "evidence_ids": [],
         "alternatives_checked": [], "suggested_action": "", "validation_expectation": "",
         "limitations": []}],
         "context_requests": [{"question": "the verifier's ask",
@@ -357,10 +368,19 @@ fn verifier_finds_no_reader(request: &ModelRequest) -> Result<ModelReply, Provid
     } else {
         "UNRESOLVED"
     };
+    let (id, line) = first_ref(request, "HEAD");
+    let (reason, anchors) = if verdict == "REJECTED" {
+        (
+            json!("REFUTED"),
+            json!([{"ref_id": id, "start_line": line, "end_line": line}]),
+        )
+    } else {
+        (json!(null), json!([]))
+    };
     Ok(reply(
         &json!({"verdicts": [{"candidate_id": "cand-1", "verdict": verdict,
         "category": "DEFECT", "severity": "MEDIUM", "support": "SEMANTIC_ARGUMENT",
-        "title": "t", "explanation": "e", "anchors": [], "evidence_ids": [],
+        "title": "t", "explanation": "e", "reason": reason, "anchors": anchors, "evidence_ids": [],
         "alternatives_checked": [], "suggested_action": "", "validation_expectation": "",
         "limitations": []}],
         "context_requests": [{"question": "readers of the value",

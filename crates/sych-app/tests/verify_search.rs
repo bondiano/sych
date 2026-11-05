@@ -12,10 +12,11 @@ mod harness;
 
 use harness::*;
 
-fn verdict(status: &str) -> String {
+/// A verdict on `cand-1`; a rejection names `reason` and rests on `anchors`.
+fn verdict(status: &str, reason: Option<&str>, anchors: &serde_json::Value) -> String {
     json!({"verdicts": [{"candidate_id": "cand-1", "verdict": status, "category": "DEFECT",
         "severity": "MEDIUM", "support": "SEMANTIC_ARGUMENT", "title": "t",
-        "explanation": "`?? []` keeps it", "anchors": [], "evidence_ids": [],
+        "explanation": "`?? []` keeps it", "reason": reason, "anchors": anchors, "evidence_ids": [],
         "alternatives_checked": [], "suggested_action": "", "validation_expectation": "",
         "limitations": []}], "context_requests": []})
     .to_string()
@@ -42,9 +43,11 @@ fn silent(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
             Ok(reply(&found.to_string()))
         }
         "candidate_verdicts" if user.contains("answer to: where else is `reduce`") => {
-            Ok(reply(&verdict("REJECTED")))
+            let (id, line) = first_ref(request, "HEAD");
+            let at = json!([{"ref_id": id, "start_line": line, "end_line": line}]);
+            Ok(reply(&verdict("REJECTED", Some("REFUTED"), &at)))
         }
-        "candidate_verdicts" => Ok(reply(&verdict("UNRESOLVED"))),
+        "candidate_verdicts" => Ok(reply(&verdict("UNRESOLVED", None, &json!([])))),
         _ => supported_and_empty(request),
     }
 }
@@ -126,9 +129,10 @@ fn removed_guard(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
             if user.contains("BASE src/order.ts:2-4")
                 && user.contains("lib/model.ts:3 -   legacy: boolean;") =>
         {
-            Ok(reply(&verdict("REJECTED")))
+            // The lost names show the field removed too: an intended removal needs no anchor.
+            Ok(reply(&verdict("REJECTED", Some("INTENDED"), &json!([]))))
         }
-        "candidate_verdicts" => Ok(reply(&verdict("UNRESOLVED"))),
+        "candidate_verdicts" => Ok(reply(&verdict("UNRESOLVED", None, &json!([])))),
         _ => supported_and_empty(request),
     }
 }
