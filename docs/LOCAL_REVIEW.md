@@ -242,12 +242,13 @@ verdict anchored it elsewhere); the four add up to the missed labels. `spread` h
 records `config_sha256`, the hash of `--config`, so that measurements under other budgets are not compared.
 
 To judge a verifier change apart from discovery, which a model answers differently every time, replay an earlier
-report: `--replay a.json` (same suite and `--config` store) takes each run of `a.json`, reads the discoveries its review
+report: `--replay a.json` (same suite; the same `--config`, which the report's `config_sha256` must match) takes each run of `a.json`, reads the discoveries its review
 stored in the `analysis` artifact, and verifies those very candidates again on the context their pass built, with no new
 search. Only the verifier runs and nothing is assessed, so in a replay report only the candidate and finding numbers —
 recall, precision, the false-finding rates and the four stages of a missed defect — mean anything; obligations, coverage
-and `unknown_kept` do not. Two replays of one report, one per verifier, compare with `eval compare`. Runs stored before
-discoveries named their packets are skipped.
+and `unknown_kept` do not. Two replays of one report, one per verifier, compare with `eval compare`. A run that failed
+in the report, one whose case the suite does not select, and one stored before discoveries named their packets are
+skipped; `--runs` does not combine with `--replay`.
 
 ```sh
 sych eval measure --suite eval/quality/dev --config sych.yaml --models cheap_api --replay a.json --output a-replay.json

@@ -122,6 +122,7 @@ type Job<'c> = (&'c QualityCase, u32, Option<Vec<Discovered>>);
 fn jobs<'c>(
     args: &MeasureArguments<'_>,
     cases: &'c [QualityCase],
+    config_sha256: &str,
 ) -> anyhow::Result<(Vec<Job<'c>>, Vec<String>)> {
     let Some(report) = args.replay else {
         let fresh = cases
@@ -130,8 +131,8 @@ fn jobs<'c>(
         return Ok((fresh.collect(), Vec::new()));
     };
     let mut jobs = Vec::new();
-    let mut unselected = Vec::new();
-    for f in frozen(report, args.config)? {
+    let (stored, mut unselected) = frozen(report, args.config, config_sha256)?;
+    for f in stored {
         match cases.iter().find(|c| c.id == f.id) {
             Some(case) => jobs.push((case, f.run, Some(f.discovered))),
             None => unselected.push(format!(
@@ -185,7 +186,7 @@ pub fn measure(args: &MeasureArguments<'_>) -> anyhow::Result<ExitCode> {
         by_language: BTreeMap::new(),
         runs: Vec::new(),
     };
-    let (jobs, unselected) = jobs(args, &cases)?;
+    let (jobs, unselected) = jobs(args, &cases, &report.config_sha256)?;
     report.skipped.extend(unselected);
     let runs = jobs.iter().map(|j| j.1).max().unwrap_or(args.runs);
     report.runs_per_case = runs;

@@ -333,9 +333,9 @@ pub struct EvalMeasureArguments {
     /// Reviews per case, to see the variation of a nondeterministic model
     #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..=10))]
     pub runs: u32,
-    /// An earlier report of this suite and store: each of its runs is verified again on the
+    /// An earlier report of this suite and config: each of its runs is verified again on the
     /// candidates that run discovered, with no new search, instead of `--runs` new reviews
-    #[arg(long, value_name = "REPORT")]
+    #[arg(long, value_name = "REPORT", conflicts_with = "runs")]
     pub replay: Option<PathBuf>,
     /// `c` is the default pipeline; `b` skips the high-risk search; `a` is one reviewer over
     /// the diff: no semantic facts, no high-risk search, no verifier
