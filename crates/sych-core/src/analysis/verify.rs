@@ -10,7 +10,7 @@ use super::context::{Anchor, Context};
 use super::discovery::ContextAsk;
 use crate::{
     Candidate, CodeRef, Finding, FindingCategory, FindingId, Lifecycle, Severity, SnapshotReader,
-    SourceSide, SuggestedChange, Support, VerificationStatus, derived_uuid, sha256,
+    SourceSide, SuggestedChange, Support, VerdictRecord, VerificationStatus, derived_uuid, sha256,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -19,6 +19,16 @@ pub enum Verdict {
     Confirmed,
     Rejected,
     Unresolved,
+}
+
+impl From<Verdict> for VerificationStatus {
+    fn from(verdict: Verdict) -> Self {
+        match verdict {
+            Verdict::Confirmed => Self::Confirmed,
+            Verdict::Rejected => Self::Rejected,
+            Verdict::Unresolved => Self::Unresolved,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -107,8 +117,9 @@ fn admissible(verdict: &CandidateVerdict, anchors: &[CodeRef]) -> Result<(), Str
     }
 }
 
-/// Applies verdicts to `candidates` (shown as `cand-N` in order). A candidate without a
-/// verdict stays UNRESOLVED; a rejected nit is dropped, not escalated.
+/// Applies verdicts to `candidates` (shown as `cand-N` in order), appending each verdict to
+/// the candidate's history. A candidate without a verdict stays UNRESOLVED; a rejected nit is
+/// dropped, not escalated.
 pub fn validate(
     output: &VerifyOutput,
     mut candidates: Vec<Candidate>,
@@ -121,11 +132,23 @@ pub fn validate(
     for (i, candidate) in candidates.iter_mut().enumerate() {
         let id = format!("cand-{}", i + 1);
         let mut found = output.verdicts.iter().filter(|v| v.candidate_id == id);
+        let round = u32::try_from(candidate.verdicts.len() + 1).unwrap_or(u32::MAX);
         let (Some(verdict), None) = (found.next(), found.next()) else {
+            let problem = format!("verifier gave no single verdict for {id}");
             candidate.verification_status = VerificationStatus::Unresolved;
-            candidate
-                .limitations
-                .push(format!("verifier gave no single verdict for {id}"));
+            candidate.limitations.push(problem.clone());
+            // Recorded too, so a later round keeps its number.
+            candidate.verdicts.push(VerdictRecord {
+                round,
+                proposed: VerificationStatus::Pending,
+                status: VerificationStatus::Unresolved,
+                explanation: String::new(),
+                alternatives_checked: Vec::new(),
+                anchors: Vec::new(),
+                evidence_ids: Vec::new(),
+                engine_problems: vec![problem],
+                attempt_id: None,
+            });
             continue;
         };
         let mut problems = Vec::new();
@@ -159,6 +182,17 @@ pub fn validate(
         candidate
             .limitations
             .extend(problems.iter().map(|p| format!("engine: {p}")));
+        candidate.verdicts.push(VerdictRecord {
+            round,
+            proposed: verdict.verdict.into(),
+            status: candidate.verification_status,
+            explanation: verdict.explanation.clone(),
+            alternatives_checked: verdict.alternatives_checked.clone(),
+            anchors: anchors.clone(),
+            evidence_ids: evidence_ids.clone(),
+            engine_problems: problems,
+            attempt_id: None,
+        });
         if candidate.verification_status != VerificationStatus::Confirmed {
             continue;
         }

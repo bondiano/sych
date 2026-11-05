@@ -126,6 +126,11 @@
         "UNKNOWN"
       ]
     },
+    "AttemptId": {
+      "description": "One Sych-initiated model request; the idempotency key of its ledger entry.",
+      "type": "string",
+      "format": "uuid"
+    },
     "BillingKind": {
       "type": "string",
       "enum": [
@@ -203,6 +208,13 @@
         },
         "refutation": {
           "type": "string"
+        },
+        "verdicts": {
+          "description": "The verifier's answers about it, one per round, oldest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VerdictRecord"
+          }
         },
         "verification_status": {
           "$ref": "#/$defs/VerificationStatus"
@@ -997,6 +1009,78 @@
         "unknown_usage_attempts",
         "cost",
         "routes"
+      ]
+    },
+    "VerdictRecord": {
+      "description": "One verifier answer about a candidate and what the engine made of it.",
+      "type": "object",
+      "properties": {
+        "alternatives_checked": {
+          "description": "Wrappers, guards, recovery paths or intentional changes the verifier looked for.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "anchors": {
+          "description": "The verdict's anchors that resolved in the shown spans.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CodeRef"
+          }
+        },
+        "attempt_id": {
+          "description": "The accepted model attempt; none when a stored checkpoint answered.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttemptId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "engine_problems": {
+          "description": "What the engine did not accept in the verdict.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "proposed": {
+          "description": "The verdict the verifier gave; `PENDING` when it gave none, or more than one.",
+          "$ref": "#/$defs/VerificationStatus"
+        },
+        "round": {
+          "description": "1 for the first call; 2 for the call with the answers to the context asks.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "status": {
+          "description": "The status the engine accepted: lower than proposed when the basis was not admissible.",
+          "$ref": "#/$defs/VerificationStatus"
+        }
+      },
+      "required": [
+        "round",
+        "proposed",
+        "status",
+        "explanation"
       ]
     },
     "VerificationStatus": {

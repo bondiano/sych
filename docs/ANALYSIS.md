@@ -141,9 +141,14 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
 
 A run stores the `analysis` artifact: profile and model, passes (template, packet, obligation, status, attempt
 ids), assessment records (obligation → criteria → anchors/evidence, rationale, missing inputs, what the engine did not
-accept), discovery (accepted and rejected drafts, context requests and answers), candidates with their statuses and all
-attempts (reserved, charge, charge state, tokens, resolved model, upstream, generation id). Prompt text and
-chain-of-thought are not stored. The result's `usage_summary` is computed from attempts:
+accept), discovery (accepted and rejected drafts, context requests and answers), candidates with their statuses and
+verdict history, and all attempts (reserved, charge, charge state, tokens, resolved model, upstream, generation id). Prompt text and
+chain-of-thought are not stored. A candidate's `verdicts` keep every verifier answer about it, one per round, oldest
+first: the verdict proposed (`PENDING` when the verifier gave it none, so later rounds keep their number), the status
+the engine accepted, the explanation, the alternatives checked, the anchors and
+evidence that resolved, what the engine did not accept and the accepted attempt (none when a checkpoint answered); the
+second round appends to the first. A rejected candidate carries them into the result's `rejected_candidates`, so a
+dropped claim says why. The result's `usage_summary` is computed from attempts:
 
 - tokens in/out and `reasoning_tokens` (part of output, not added); attempts without reported usage are
   `unknown_usage_attempts` and are not included in the token totals;
