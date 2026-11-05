@@ -12,10 +12,11 @@ use std::process::ExitCode;
 use sych_core::config::RunMode;
 
 use serde::Serialize;
-use sych_core::{Candidate, ReviewResult, VerificationStatus, sha256};
+use sych_core::{Candidate, ReviewResult, sha256};
 use tempfile::TempDir;
 
 use super::score::{RunReport, Totals, candidate_remarks, remarks, score};
+use super::stages::Spread;
 use super::{QualityCase, materialize, not_given, read_cases, repo_paths};
 use crate::args::{ExitPolicy, ModelSelection, Output, ReviewArguments, Switch};
 use crate::errors::Failure;
@@ -53,6 +54,8 @@ struct Report {
     config_sha256: String,
     skipped: Vec<String>,
     totals: Totals,
+    /// The rates of each run index over the suite: how much a rerun moves them.
+    spread: Spread,
     by_language: BTreeMap<String, Totals>,
     runs: Vec<RunReport>,
 }
@@ -135,22 +138,21 @@ pub fn measure(args: &MeasureArguments<'_>) -> anyhow::Result<ExitCode> {
         .to_string(),
         skipped: Vec::new(),
         totals: Totals::default(),
+        spread: Spread::default(),
         by_language: BTreeMap::new(),
         runs: Vec::new(),
     };
+    let mut per_run: Vec<Totals> = (0..args.runs).map(|_| Totals::default()).collect();
     'cases: for case in &cases {
         for run in 1..=args.runs {
             let (error, measured) = match review_case(case, &repos, args) {
                 Ok(Some((result, candidates))) => {
-                    let (remarks, dropped) = if args.verify {
-                        let dropped = candidates
-                            .iter()
-                            .filter(|c| c.verification_status != VerificationStatus::Confirmed);
-                        (remarks(&result), candidate_remarks(dropped))
+                    let (remarks, candidates) = if args.verify {
+                        (remarks(&result), candidate_remarks(&candidates))
                     } else {
                         (candidate_remarks(&candidates), Vec::new())
                     };
-                    (None, Some(score(case, &result, &remarks, &dropped)))
+                    (None, Some(score(case, &result, &remarks, &candidates)))
                 }
                 Ok(None) => {
                     report
@@ -170,6 +172,7 @@ pub fn measure(args: &MeasureArguments<'_>) -> anyhow::Result<ExitCode> {
             };
             tracing::info!(case = %run.id, run = run.run, error = ?run.error, "case reviewed");
             report.totals.add(&run);
+            per_run[(run.run - 1) as usize].add(&run);
             report
                 .by_language
                 .entry(case.language.clone())
@@ -179,6 +182,8 @@ pub fn measure(args: &MeasureArguments<'_>) -> anyhow::Result<ExitCode> {
         }
     }
     report.totals.finish();
+    per_run.iter_mut().for_each(Totals::finish);
+    report.spread = Spread::of(&per_run);
     report.by_language.values_mut().for_each(Totals::finish);
     emit_json(&report, args.output)?;
     Ok(ExitCode::SUCCESS)

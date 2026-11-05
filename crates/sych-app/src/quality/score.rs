@@ -2,10 +2,12 @@
 
 use sych_core::{
     Candidate, CodeRef, Coverage, FindingCategory, ObligationStatus, Recommendation, ReviewResult,
+    VerificationStatus,
 };
 
 use serde::Serialize;
 
+use super::stages::{Losses, context_limited, losses, missed};
 use super::{CaseDisposition, ExpectedFinding, Location, QualityCase};
 use crate::eval::status_tag;
 
@@ -56,6 +58,10 @@ pub(super) struct Totals {
     unknown_cost_attempts: u32,
     /// Labelled defects only a rejected or unresolved candidate reached: verifier misses.
     verifier_dropped: u32,
+    #[serde(flatten)]
+    losses: Losses,
+    /// Obligations left UNKNOWN because their required context did not fit.
+    context_limited: u32,
     /// Runs short of `COMPLETE_FOR_SCOPE`, and paths the reviews left unreviewed.
     partial_coverage_runs: u32,
     unreviewed_paths: u32,
@@ -64,10 +70,10 @@ pub(super) struct Totals {
     /// Labelled of all correctness findings.
     precision: Option<f64>,
     /// Matched of all expected findings.
-    recall: Option<f64>,
+    pub(super) recall: Option<f64>,
     clean_false_positive_rate: Option<f64>,
-    clean_false_finding_rate: Option<f64>,
-    unknown_kept_rate: Option<f64>,
+    pub(super) clean_false_finding_rate: Option<f64>,
+    pub(super) unknown_kept_rate: Option<f64>,
 }
 
 fn ratio(part: u32, whole: u32) -> Option<f64> {
@@ -121,6 +127,8 @@ impl Totals {
         self.cost_known_micro_usd += m.cost_known_micro_usd;
         self.unknown_cost_attempts += m.unknown_cost_attempts;
         self.verifier_dropped += m.verifier_dropped;
+        self.losses.add(&m.losses);
+        self.context_limited += m.context_limited;
         self.partial_coverage_runs += u32::from(m.coverage != Coverage::CompleteForScope);
         self.unreviewed_paths += m.unreviewed_paths;
     }
@@ -157,6 +165,9 @@ pub(super) struct Measured {
     unknown_cost_attempts: u32,
     /// Labelled defects a rejected or unresolved candidate hit and no correctness finding did.
     verifier_dropped: u32,
+    #[serde(flatten)]
+    losses: Losses,
+    context_limited: u32,
     unreviewed_paths: u32,
 }
 
@@ -182,9 +193,15 @@ fn touches(f: &Remark<'_>, spots: &[&Location]) -> bool {
 
 /// A reported remark: a verified finding, or for baseline A an unverified candidate.
 pub(super) struct Remark<'a> {
-    category: FindingCategory,
+    pub(super) category: FindingCategory,
     title: &'a str,
     anchors: &'a [CodeRef],
+    /// `CONFIRMED` for a finding; a candidate's own status otherwise.
+    pub(super) status: VerificationStatus,
+}
+
+pub(super) fn correctness(c: FindingCategory) -> bool {
+    matches!(c, FindingCategory::Defect | FindingCategory::RuleViolation)
 }
 
 pub(super) fn remarks(result: &ReviewResult) -> Vec<Remark<'_>> {
@@ -195,6 +212,7 @@ pub(super) fn remarks(result: &ReviewResult) -> Vec<Remark<'_>> {
             category: f.category,
             title: &f.title,
             anchors: &f.anchors,
+            status: VerificationStatus::Confirmed,
         })
         .collect()
 }
@@ -208,6 +226,7 @@ pub(super) fn candidate_remarks<'a>(
             category: c.category,
             title: &c.claim,
             anchors: &c.anchors,
+            status: c.verification_status,
         })
         .collect()
 }
@@ -235,7 +254,7 @@ fn not_false(
 }
 
 /// Labels some remark's anchor overlaps.
-fn hits(labels: &[&ExpectedFinding], found: &[&Remark<'_>]) -> usize {
+pub(super) fn hits(labels: &[&ExpectedFinding], found: &[&Remark<'_>]) -> usize {
     labels
         .iter()
         .filter(|e| {
@@ -248,27 +267,13 @@ fn hits(labels: &[&ExpectedFinding], found: &[&Remark<'_>]) -> usize {
         .count()
 }
 
-/// Labelled defects no correctness finding hit and a dropped correctness candidate did.
-fn verifier_dropped(
-    expected: &[&ExpectedFinding],
-    findings: &[&Remark<'_>],
-    dropped: &[Remark<'_>],
-) -> usize {
-    let missed: Vec<_> = expected
+/// Labelled defects in `missed` a rejected or unresolved correctness candidate hit.
+fn verifier_dropped(missed: &[&ExpectedFinding], candidates: &[Remark<'_>]) -> usize {
+    let dropped: Vec<_> = candidates
         .iter()
-        .copied()
-        .filter(|e| hits(&[e], findings) == 0)
+        .filter(|c| correctness(c.category) && c.status != VerificationStatus::Confirmed)
         .collect();
-    let dropped: Vec<_> = dropped
-        .iter()
-        .filter(|f| {
-            matches!(
-                f.category,
-                FindingCategory::Defect | FindingCategory::RuleViolation
-            )
-        })
-        .collect();
-    hits(&missed, &dropped)
+    hits(missed, &dropped)
 }
 
 /// UNKNOWN obligations, unresolved questions and unreviewed paths, as the review stated them.
@@ -293,15 +298,13 @@ fn open_questions(result: &ReviewResult) -> Vec<String> {
         .collect()
 }
 
-/// `dropped`: candidates the verifier rejected or left unresolved; empty without a verifier.
+/// `candidates`: every candidate with its verification status; empty without a verifier.
 pub(super) fn score(
     case: &QualityCase,
     result: &ReviewResult,
     remarks: &[Remark<'_>],
-    dropped: &[Remark<'_>],
+    candidates: &[Remark<'_>],
 ) -> Measured {
-    let correctness =
-        |c: FindingCategory| matches!(c, FindingCategory::Defect | FindingCategory::RuleViolation);
     let labels: Vec<&Location> = case
         .expected
         .findings
@@ -338,6 +341,7 @@ pub(super) fn score(
         .filter(|f| !correctness(f.category))
         .collect();
     let matched = hits(&expected, &correctness_findings);
+    let missed = missed(&expected, &correctness_findings);
     let (overrated_nits, tolerated) = not_false(case, &expected_nits, &correctness_findings);
     let obligations: Vec<ObligationCheck> = case
         .expected
@@ -395,147 +399,12 @@ pub(super) fn score(
         model_attempts: usage.model_attempts,
         cost_known_micro_usd: usage.cost.known.0,
         unknown_cost_attempts: usage.cost.unknown_cost_attempts,
-        verifier_dropped: count(verifier_dropped(&expected, &correctness_findings, dropped)),
+        verifier_dropped: count(verifier_dropped(&missed, candidates)),
+        losses: losses(&missed, candidates),
+        context_limited: count(context_limited(result)),
         unreviewed_paths: count(result.excluded_or_unreviewed.len()),
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use std::fs;
-    use std::path::Path;
-
-    use super::*;
-    use crate::quality::Tolerated;
-
-    fn case(variant: &str, start: u32, end: u32) -> QualityCase {
-        serde_yaml_ng::from_str(&format!(
-            "schema_version: 1\nid: c\nsplit: development\nlanguage: go\nvariant: {variant}\n\
-             profiles: [correctness]\nrationale: r\nexpected:\n  obligations:\n    - {{ rule_id: EFFECT-01, expected_status: violated }}\n  \
-             findings:\n    - category: defect\n      semantic_target: t\n      required_condition: c\n      \
-             evidence_locations:\n        - {{ path: backend/orders/create.go, start_line: {start}, end_line: {end} }}\n"
-        ))
-        .expect("case")
-    }
-
-    fn score_of(case: &QualityCase, result: &ReviewResult) -> Measured {
-        score(case, result, &remarks(result), &[])
-    }
-
-    fn result() -> ReviewResult {
-        let path =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/core/v1/review-result.json");
-        serde_json::from_str(&fs::read_to_string(path).expect("fixture")).expect("result")
-    }
-
-    #[test]
-    fn a_finding_matches_a_label_by_overlapping_location_only() {
-        let hit = score_of(&case("unsafe", 45, 50), &result());
-        assert_eq!((hit.matched_expected, hit.labelled_findings), (1, 1));
-        assert_eq!(
-            (hit.findings[0].labels.as_slice(), hit.labels.len()),
-            (&[0][..], 1)
-        );
-        assert_eq!(hit.obligations[0].actual, hit.obligations[0].expected);
-        let miss = score_of(&case("unsafe", 48, 50), &result());
-        assert_eq!((miss.matched_expected, miss.labelled_findings), (0, 0));
-        assert_eq!(miss.correctness_findings, 1);
-    }
-
-    #[test]
-    fn a_nit_label_is_hit_only_by_a_nit_or_improvement() {
-        let mut nit = case("safe", 45, 50);
-        nit.expected.findings[0].category = "nitpick".into();
-        let mut result = result();
-        let m = score_of(&nit, &result);
-        assert_eq!(
-            (m.expected_findings, m.expected_nits, m.matched_nits),
-            (0, 1, 0)
-        );
-        result.findings[0].category = FindingCategory::Nit;
-        assert_eq!(score_of(&nit, &result).matched_nits, 1);
-    }
-
-    #[test]
-    fn a_tolerated_remark_or_an_overrated_nit_is_not_a_false_finding() {
-        let mut safe = case("safe", 45, 50);
-        safe.expected.findings[0].category = "nitpick".into();
-        let run = |case: &QualityCase| {
-            let mut totals = Totals::default();
-            totals.add(&RunReport {
-                id: "c".into(),
-                language: "go".into(),
-                variant: CaseDisposition::Safe,
-                run: 1,
-                error: None,
-                measured: Some(score_of(case, &result())),
-            });
-            totals
-        };
-        let nit = run(&safe);
-        assert_eq!((nit.overrated_nits, nit.tolerated_findings), (1, 0));
-        assert_eq!(
-            (
-                nit.clean_runs_with_correctness_finding,
-                nit.clean_runs_with_false_finding
-            ),
-            (1, 0)
-        );
-
-        let mut tolerated = case("safe", 1, 2);
-        tolerated.expected.findings.clear();
-        tolerated.expected.tolerated = safe
-            .expected
-            .findings
-            .drain(..)
-            .map(|f| Tolerated {
-                semantic_target: f.semantic_target,
-                evidence_locations: f.evidence_locations,
-            })
-            .collect();
-        let t = run(&tolerated);
-        assert_eq!(
-            (t.tolerated_findings, t.clean_runs_with_false_finding),
-            (1, 0)
-        );
-
-        let mut wrong = case("safe", 1, 2);
-        wrong.expected.findings.clear();
-        assert_eq!(run(&wrong).clean_runs_with_false_finding, 1);
-    }
-
-    #[test]
-    fn a_labelled_defect_only_a_dropped_candidate_reached_is_a_verifier_miss() {
-        let unsafe_case = case("unsafe", 45, 50);
-        let mut result = result();
-        let finding = result.findings.remove(0);
-        let dropped = [Remark {
-            category: FindingCategory::Defect,
-            title: "dropped",
-            anchors: &finding.anchors,
-        }];
-        let m = score(&unsafe_case, &result, &[], &dropped);
-        assert_eq!((m.matched_expected, m.verifier_dropped), (0, 1));
-        let kept = score(&unsafe_case, &result, &dropped, &dropped);
-        assert_eq!((kept.matched_expected, kept.verifier_dropped), (1, 0));
-    }
-
-    #[test]
-    fn rates_come_from_runs_and_stay_empty_without_a_base() {
-        let mut totals = Totals::default();
-        for variant in [CaseDisposition::Safe, CaseDisposition::Unsafe] {
-            totals.add(&RunReport {
-                id: "c".into(),
-                language: "go".into(),
-                variant,
-                run: 1,
-                error: None,
-                measured: Some(score_of(&case("unsafe", 45, 50), &result())),
-            });
-        }
-        totals.finish();
-        assert_eq!(totals.clean_false_positive_rate, Some(1.0));
-        assert_eq!((totals.precision, totals.recall), (Some(1.0), Some(1.0)));
-        assert_eq!(totals.unknown_kept_rate, None);
-    }
-}
+mod tests;

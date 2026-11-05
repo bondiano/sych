@@ -229,9 +229,15 @@ locations), `clean_false_positive_rate` (safe cases with any correctness finding
 `tolerated_findings` — correctness findings at `expected.tolerated` locations: a correct but non-target remark for the case — and
 without `overrated_nits` — correctness findings at the location of a labelled nitpick), `unknown_kept_rate`, `nit_recall` (labelled
 nitpicks hit by a nit or improvement), nits, attempts and
-cost, and three gaps of the pipeline itself: `verifier_dropped` (labelled defects that only a candidate the verifier
-rejected or left unresolved reached), `partial_coverage_runs` (reviews short of `COMPLETE_FOR_SCOPE`) and
-`unreviewed_paths`. A match is an intersection of an anchor with a labelled evidence location: this approximates meaning (see
+cost, and the gaps of the pipeline itself: `verifier_dropped` (labelled defects that only a candidate the verifier
+rejected or left unresolved reached), `partial_coverage_runs` (reviews short of `COMPLETE_FOR_SCOPE`),
+`unreviewed_paths` and `context_limited` (obligations left `UNKNOWN` with `CONTEXT_LIMIT`). Every labelled defect a
+review missed is also counted once, at the furthest stage a correctness candidate reached it: `not_discovered` (none
+did), `verifier_rejected` (only rejected ones), `verifier_unresolved` (one left unresolved, none confirmed) and
+`confirmed_unmatched` (a confirmed one, yet no finding at those lines: it was merged into an overlapping finding or the
+verdict anchored it elsewhere); the four add up to the missed labels. `spread` holds the lowest, mean and highest
+`recall`, `clean_false_finding_rate` and `unknown_kept_rate` over the suite's 1st, 2nd, … run of every case: with
+`--runs 3`, a difference between two reports smaller than that range is noise. A match is an intersection of an anchor with a labelled evidence location: this approximates meaning (see
 [Scoring by meaning](#scoring-by-meaning)). The numbers are a measurement; acceptance criteria are yours. The report
 records `config_sha256`, the hash of `--config`, so that measurements under other budgets are not compared.
 

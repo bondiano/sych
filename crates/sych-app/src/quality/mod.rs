@@ -10,6 +10,7 @@ pub mod compare;
 pub mod judge;
 mod measure;
 mod score;
+mod stages;
 
 pub use measure::{MeasureArguments, measure};
 
