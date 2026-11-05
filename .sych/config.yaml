@@ -2,6 +2,9 @@
 schema_version: 1
 review:
   language: en
+  # Eval cases and golden files plant defects on purpose; a claim anchored only there is not
+  # about the product.
+  fixture_paths: ["eval/**", "fixtures/**"]
 ci:
   wait_seconds: 900
   expected_reports:
