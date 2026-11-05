@@ -22,6 +22,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             for candidate in &mut found.candidates {
                 candidate.verification_status = VerificationStatus::Pending;
                 candidate.limitations.clear();
+                candidate.verdicts.clear();
             }
             let batch = found.batch.clone();
             let (mut context, linked): (_, Vec<&PlannedObligation>) = match found.audit {
