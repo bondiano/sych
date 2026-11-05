@@ -7,8 +7,8 @@ use std::fmt::Write;
 use super::body::{agent_prompt, badge, category, details, lines, task};
 use super::{Placement, Planned, reason_text, tr};
 use crate::{
-    Candidate, CodeRef, Coverage, Finding, FindingCategory, GENERATED_IN_CHANGE, ObligationStatus,
-    ReviewResult, Severity, SourceSide,
+    Candidate, CodeRef, Coverage, ExecutionOutcome, Finding, FindingCategory, GENERATED_IN_CHANGE,
+    ObligationStatus, ReviewResult, Severity, SourceSide,
 };
 
 /// What the summary needs besides the result.
@@ -170,6 +170,17 @@ fn header(
         "> [!{alert}]\n> **{found}** {}: {coverage}.",
         tr(l, "Coverage", "Покрытие")
     );
+    if result.execution_outcome == ExecutionOutcome::LimitReached {
+        let _ = writeln!(
+            out,
+            "> {}",
+            tr(
+                l,
+                "A budget or size limit stopped part of the review before it finished.",
+                "Часть ревью остановил лимит бюджета или размера, не дав ей закончиться.",
+            )
+        );
+    }
 }
 
 /// A link GitHub renders as the code of the finding's first anchor, on the side it names.
