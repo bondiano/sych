@@ -126,15 +126,12 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
   nit/improvement is no higher than `LOW`, `HIGH/CRITICAL` requires a `STATIC_TRACE` of at least two anchors
   (`HIGH_RISK_WITHOUT_TRACE`). An anchor on a line that already has an imported diagnostic leaves the candidate
   `UNRESOLVED` (`DUPLICATES_EXISTING_DIAGNOSTIC`): without a comparable baseline, novelty is not proven. A rejection
-  is held to the same contract: `REJECTED` with an unrecognized reference is `UNRESOLVED`, and for a defect or rule
-  violation it needs a `reason` and the code it rests on among its anchors — `REFUTED` (the guard, validator, wrapper
-  or recovery that keeps the behaviour), `UNREACHABLE` (what rules the conditions out), `NOT_INTRODUCED` (the same
-  behaviour on BASE, so a BASE anchor), `INTENDED` (removed lines, a doc comment or a rule stating the change is
-  meant; with no anchor only when the names those lines lose show the change removing, deleting or adding what they
-  used). Otherwise it is `UNRESOLVED` (`REJECTION_WITHOUT_BASIS`) and goes to the second round. "Not enough to decide"
-  is `UNRESOLVED`, never a reason; a nit or improvement — a candidate's category and the verdict's — is still
-  rejected on the verifier's word, goes to `rejected_candidates` and is not promoted. The reason is kept in the
-  candidate's verdict history ([ADR 0002](adr/0002-rejection-reasons.md)).
+  is held to the same reference contract: `REJECTED` with an unrecognized reference is `UNRESOLVED` and gets the second
+  round. A rejection names its `reason` — `REFUTED` (a guard, validator, wrapper or recovery keeps the behaviour),
+  `UNREACHABLE` (the conditions cannot hold), `NOT_INTRODUCED` (BASE behaves the same), `INTENDED` (removed lines, a
+  doc comment or a rule state the change is meant) — kept in the candidate's verdict history; the engine records it
+  and does not check it ([ADR 0002](adr/0002-rejection-reasons.md)). A rejected candidate goes to
+  `rejected_candidates` and is not promoted.
 - **Findings**: severity, support and verification status are separate fields; every finding has the limitation
   "CONFIRMED by the verification policy on the shown spans; not a proof of the whole program". Findings from different
   passes with overlapping anchors are merged into the most severe one, marked `merged an overlapping hypothesis`.

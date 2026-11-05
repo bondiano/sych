@@ -129,7 +129,7 @@ fn removed_guard(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
             if user.contains("BASE src/order.ts:2-4")
                 && user.contains("lib/model.ts:3 -   legacy: boolean;") =>
         {
-            // The lost names show the field removed too: an intended removal needs no anchor.
+            // The lost names show the field removed too: the removal is intended.
             Ok(reply(&verdict("REJECTED", Some("INTENDED"), &json!([]))))
         }
         "candidate_verdicts" => Ok(reply(&verdict("UNRESOLVED", None, &json!([])))),

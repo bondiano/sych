@@ -206,20 +206,10 @@ impl Context {
         }
 
         self.blocks.push(DataBlock {
-            label: LOST_NAMES.into(),
+            label: "names the removed lines of a hypothesis use that their file's HEAD no \
+                    longer has, and where else this change removes (BASE `-`) or adds them"
+                .into(),
             content,
         });
     }
-
-    /// Whether the lost names show the change removing, deleting or adding what removed lines
-    /// used elsewhere: the removal then reads as part of a larger change.
-    pub fn shows_lost_names(&self) -> bool {
-        self.blocks
-            .iter()
-            .filter(|b| b.label == LOST_NAMES)
-            .any(|b| b.content.lines().any(|l| l.starts_with("  ")))
-    }
 }
-
-const LOST_NAMES: &str = "names the removed lines of a hypothesis use that their file's HEAD no \
-                          longer has, and where else this change removes (BASE `-`) or adds them";

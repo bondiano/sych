@@ -307,12 +307,11 @@ pub fn verify(
                 [
                     "CONFIRMED only when the shown spans establish the claim; UNRESOLVED when \
                      context is missing; REJECTED when a mechanism preserves the behaviour.",
-                    "A REJECTED defect or rule violation names its reason and anchors the code it \
-                     rests on: REFUTED, the guard, validator, wrapper or recovery that keeps the \
-                     behaviour on the claimed path; UNREACHABLE, the code that rules the \
-                     conditions out; NOT_INTRODUCED, the same behaviour on BASE; INTENDED, the \
-                     removed lines, doc comment or rule that state the change is meant. Without \
-                     such code the claim is UNRESOLVED, never REJECTED.",
+                    "A REJECTED verdict names what it rests on as reason, and anchors that code \
+                     where it is shown: REFUTED, the guard, validator, wrapper or recovery that \
+                     keeps the behaviour on the claimed path; UNREACHABLE, the code that rules \
+                     the conditions out; NOT_INTRODUCED, the same behaviour on BASE; INTENDED, the \
+                     removed lines, doc comment or rule that state the change is meant.",
                     "HIGH or CRITICAL needs a STATIC_TRACE: one anchor per step from the change \
                      to the consequence. Agreement with the hypothesis is not evidence.",
                     "Severity and support are separate: a likely but untraced problem is \

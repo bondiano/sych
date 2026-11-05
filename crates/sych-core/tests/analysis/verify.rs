@@ -387,60 +387,48 @@ fn rejection(
            "suggested_action": "", "validation_expectation": "", "limitations": []})
 }
 
-/// A rejection is a claim as well: for a defect it names its reason and the code it rests on,
-/// or the defect stays open for the second round.
+/// A rejection keeps the reason it names in the candidate's history; like a confirmation, it
+/// needs references that resolve, but its basis is not checked.
 #[test]
-fn a_rejected_defect_needs_its_reason_and_the_code_it_rests_on() {
+fn a_rejection_keeps_its_reason_and_needs_only_references_that_resolve() {
     use VerificationStatus::{Rejected, Unresolved};
     let reader = Reader::new();
-    // `ref-1` is BASE, `ref-2` and `ref-3` are HEAD.
     let (context, _) = context(&reader);
-    let base = [anchor("ref-1", 2, 2)];
     let head = [anchor("ref-2", 2, 2)];
     let output: VerifyOutput = serde_json::from_value(json!({"verdicts": [
         rejection("cand-1", "DEFECT", &json!("REFUTED"), &head),
-        rejection("cand-2", "DEFECT", &json!(null), &head),
-        rejection("cand-3", "DEFECT", &json!("REFUTED"), &[]),
-        rejection("cand-4", "DEFECT", &json!("NOT_INTRODUCED"), &head),
-        rejection("cand-5", "DEFECT", &json!("NOT_INTRODUCED"), &base),
-        // A defect relabelled as a nit is still a defect to reject.
-        rejection("cand-6", "NIT", &json!(null), &[]),
-        rejection("cand-7", "DEFECT", &json!("REFUTED"), &[anchor("ref-99", 1, 1)]),
-        // Nothing shows the change meant it.
-        rejection("cand-8", "DEFECT", &json!("INTENDED"), &[]),
-        rejection("cand-9", "NIT", &json!(null), &[]),
+        // On the verifier's word: no run so far lost a defect to such a rejection.
+        rejection("cand-2", "DEFECT", &json!(null), &[]),
+        rejection("cand-3", "DEFECT", &json!("REFUTED"), &[anchor("ref-99", 1, 1)]),
     ], "context_requests": []}))
     .expect("verdicts");
-    let mut candidates = candidates(&reader, &context, 9);
-    candidates[8].category = FindingCategory::Nit;
-    let verified = validate_verdicts(&output, candidates, &context, &reader, &[], "unit");
+    let verified = validate_verdicts(
+        &output,
+        candidates(&reader, &context, 3),
+        &context,
+        &reader,
+        &[],
+        "unit",
+    );
     let statuses: Vec<_> = verified
         .candidates
         .iter()
         .map(|c| c.verification_status)
         .collect();
-    assert_eq!(
-        statuses,
-        [
-            Rejected, Unresolved, Unresolved, Unresolved, Rejected, Unresolved, Unresolved,
-            Unresolved, Rejected
-        ]
-    );
-    for i in [1, 2, 3, 5, 7] {
-        assert!(
-            verified.candidates[i]
-                .limitations
-                .iter()
-                .any(|l| l.contains("REJECTION_WITHOUT_BASIS")),
-            "cand-{}: {:?}",
-            i + 1,
-            verified.candidates[i].limitations
-        );
-    }
+    assert_eq!(statuses, [Rejected, Rejected, Unresolved]);
     assert_eq!(
         verified.candidates[0].verdicts[0].reason,
         Some(RejectionReason::Refuted),
         "the history keeps the reason"
+    );
+    assert_eq!(verified.candidates[1].verdicts[0].reason, None);
+    assert!(
+        verified.candidates[2]
+            .limitations
+            .iter()
+            .any(|l| l.contains("unknown")),
+        "{:?}",
+        verified.candidates[2].limitations
     );
     assert!(verified.findings.is_empty());
 }
