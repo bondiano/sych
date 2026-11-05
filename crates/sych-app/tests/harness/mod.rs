@@ -253,7 +253,8 @@ impl Ledger for Recorder<'_> {
     }
 }
 
-/// [`run_on`] in a new run that may reuse `reuse`; also returns the run's checkpoints.
+/// [`run_on`] in a new run that may reuse `reuse`, or with `replay` the verifier alone over
+/// those discoveries; also returns the run's checkpoints.
 pub async fn run_reusing(
     repo: &Path,
     answer: fn(&ModelRequest) -> Result<ModelReply, ProviderError>,

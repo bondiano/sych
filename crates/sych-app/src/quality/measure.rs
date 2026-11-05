@@ -118,20 +118,29 @@ fn review_case(
 /// A review to run: each new one, or each run of the earlier report with what it discovered.
 type Job<'c> = (&'c QualityCase, u32, Option<Vec<Discovered>>);
 
-fn jobs<'c>(args: &MeasureArguments<'_>, cases: &'c [QualityCase]) -> anyhow::Result<Vec<Job<'c>>> {
-    Ok(match args.replay {
-        Some(report) => frozen(report, args.config)?
-            .into_iter()
-            .filter_map(|f| {
-                let case = cases.iter().find(|c| c.id == f.id)?;
-                Some((case, f.run, Some(f.discovered)))
-            })
-            .collect(),
-        None => cases
+/// The reviews to run, and the earlier report's runs whose case this suite does not select.
+fn jobs<'c>(
+    args: &MeasureArguments<'_>,
+    cases: &'c [QualityCase],
+) -> anyhow::Result<(Vec<Job<'c>>, Vec<String>)> {
+    let Some(report) = args.replay else {
+        let fresh = cases
             .iter()
-            .flat_map(|c| (1..=args.runs).map(move |run| (c, run, None)))
-            .collect(),
-    })
+            .flat_map(|c| (1..=args.runs).map(move |run| (c, run, None)));
+        return Ok((fresh.collect(), Vec::new()));
+    };
+    let mut jobs = Vec::new();
+    let mut unselected = Vec::new();
+    for f in frozen(report, args.config)? {
+        match cases.iter().find(|c| c.id == f.id) {
+            Some(case) => jobs.push((case, f.run, Some(f.discovered))),
+            None => unselected.push(format!(
+                "{} run {}: not a selected case of this suite",
+                f.id, f.run
+            )),
+        }
+    }
+    Ok((jobs, unselected))
 }
 
 pub fn measure(args: &MeasureArguments<'_>) -> anyhow::Result<ExitCode> {
@@ -176,7 +185,8 @@ pub fn measure(args: &MeasureArguments<'_>) -> anyhow::Result<ExitCode> {
         by_language: BTreeMap::new(),
         runs: Vec::new(),
     };
-    let jobs = jobs(args, &cases)?;
+    let (jobs, unselected) = jobs(args, &cases)?;
+    report.skipped.extend(unselected);
     let runs = jobs.iter().map(|j| j.1).max().unwrap_or(args.runs);
     report.runs_per_case = runs;
     let mut per_run: Vec<Totals> = (0..runs).map(|_| Totals::default()).collect();
