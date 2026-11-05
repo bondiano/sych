@@ -127,7 +127,10 @@ impl Session<'_> {
                 .map_or(1, |n| usize::try_from(n).unwrap_or(1)),
             language: self.language,
         };
-        let mut outcome = engine.run().await;
+        let mut outcome = match self.replay {
+            Some(frozen) => engine.replay(frozen.to_vec()).await,
+            None => engine.run().await,
+        };
         for route in &mut outcome.record.routes {
             if let Some(Ok(r)) = model.profiles.get(&route.profile) {
                 route.reasoning_effort = r.reasoning_effort;

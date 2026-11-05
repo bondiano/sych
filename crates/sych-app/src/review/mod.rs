@@ -7,6 +7,7 @@ use anyhow::Context;
 
 use sych_adapters::git::LocalSnapshot;
 use sych_adapters::{execution, syntax};
+use sych_core::analysis::Discovered;
 use sych_core::broker::{EvidencePacket, Limits};
 use sych_core::config::Budgets;
 use sych_core::config::{
@@ -279,6 +280,7 @@ pub fn run_claimed(
 }
 
 #[tracing::instrument(name = "review", skip_all, fields(base = %args.comparison.base, head = %args.comparison.head))]
+#[allow(clippy::too_many_lines)] // one review in order: pin, facts, plan, analysis, save
 fn execute(
     args: &ReviewArguments,
     store: Option<StoreConfig>,
@@ -358,6 +360,7 @@ fn execute(
         budgets: &effective.server.budgets,
         risk_audit: args.risk_audit,
         verify: args.verify,
+        replay: args.replay.as_deref(),
         ci_gaps: &ci_gaps,
         parent: args.parent,
         language: effective.repository.config.review.language,
@@ -419,6 +422,8 @@ struct Session<'a> {
     budgets: &'a Budgets,
     risk_audit: bool,
     verify: bool,
+    /// `eval measure --replay`: these discoveries are verified again instead of a new search.
+    replay: Option<&'a [Discovered]>,
     /// Expected CI reports that are not evidence; each is a task gap.
     ci_gaps: &'a [String],
     /// The parent run whose checkpoints may answer this run's tasks.

@@ -24,6 +24,7 @@ async fn a_successor_reuses_its_parents_answers_only_for_unchanged_inputs() {
             (14_000, usize::MAX),
             true,
             reuse,
+            None,
         )
     };
     let (parent, calls, kept) = run(BTreeMap::new()).await;

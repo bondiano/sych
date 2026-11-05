@@ -241,7 +241,16 @@ verdict anchored it elsewhere); the four add up to the missed labels. `spread` h
 [Scoring by meaning](#scoring-by-meaning)). The numbers are a measurement; acceptance criteria are yours. The report
 records `config_sha256`, the hash of `--config`, so that measurements under other budgets are not compared.
 
+To judge a verifier change apart from discovery, which a model answers differently every time, replay an earlier
+report: `--replay a.json` (same suite and `--config` store) takes each run of `a.json`, reads the discoveries its review
+stored in the `analysis` artifact, and verifies those very candidates again on the context their pass built, with no new
+search. Only the verifier runs and nothing is assessed, so in a replay report only the candidate and finding numbers —
+recall, precision, the false-finding rates and the four stages of a missed defect — mean anything; obligations, coverage
+and `unknown_kept` do not. Two replays of one report, one per verifier, compare with `eval compare`. Runs stored before
+discoveries named their packets are skipped.
+
 ```sh
+sych eval measure --suite eval/quality/dev --config sych.yaml --models cheap_api --replay a.json --output a-replay.json
 sych eval compare a.json b.json c.json [--output comparison.json]
 ```
 

@@ -155,7 +155,10 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         }
         let ids: Vec<ObligationId> = linked.iter().map(|o| o.obligation.id).collect();
         let key = format!("{}:{batch:?}", prompts::REVIEW);
-        let found = discovery.map(|d| validate_discovery(d, &key, &context, &ids, self.snap));
+        let found = discovery.map(|d| Discovered {
+            batch: batch.to_vec(),
+            ..validate_discovery(d, &key, &context, &ids, self.snap)
+        });
         if let Some(found) = &found {
             note(found, out);
             self.answer(batch[0], &found.asks, &mut context, out);
@@ -195,7 +198,11 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         };
         record(out, &prompt.template, batch, obligation, &outcome);
         let key = format!("{}:{batch:?}", prompt.template);
-        let found = validate_discovery(outcome.value.ok()?, &key, context, obligations, self.snap);
+        let found = Discovered {
+            batch: batch.to_vec(),
+            audit: obligation,
+            ..validate_discovery(outcome.value.ok()?, &key, context, obligations, self.snap)
+        };
         note(&found, out);
         Some(found)
     }
