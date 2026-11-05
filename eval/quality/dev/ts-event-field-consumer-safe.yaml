@@ -1,0 +1,67 @@
+schema_version: 1
+id: ts-event-field-consumer-safe
+split: development
+language: typescript
+pair: ts-event-field-consumer
+variant: safe
+profiles: [correctness, migration_compatibility]
+rationale: "The order-paid event renames userId to customerId; the separately deployed billing worker, not part of the change, already reads customerId and falls back to userId."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/events/order-paid.ts: |
+    export interface OrderPaid {
+      orderId: string;
+      userId: string;
+      amountCents: number;
+    }
+
+    export function orderPaid(orderId: string, userId: string, amountCents: number): string {
+      const event: OrderPaid = { orderId, userId, amountCents };
+      return JSON.stringify(event);
+    }
+  workers/billing/mail.ts: |
+    export async function sendReceipt(customerId: string, orderId: string, amountCents: number): Promise<void> {
+      await fetch(`https://mail.internal/receipts/${customerId}`, {
+        method: 'POST',
+        body: JSON.stringify({ orderId, amountCents }),
+      });
+    }
+  workers/billing/receipts.ts: |
+    import { sendReceipt } from './mail';
+
+    // The billing worker is deployed apart from the API that publishes order-paid events; it
+    // accepts both the current customerId and the older userId.
+    export async function onOrderPaid(raw: string): Promise<void> {
+      const event = JSON.parse(raw) as { orderId: string; customerId?: string; userId?: string; amountCents: number };
+      const customer = event.customerId ?? event.userId;
+      if (customer === undefined) {
+        throw new Error(`order-paid ${event.orderId} names no customer`);
+      }
+      await sendReceipt(customer, event.orderId, event.amountCents);
+    }
+head:
+  src/events/order-paid.ts: |
+    export interface OrderPaid {
+      orderId: string;
+      customerId: string;
+      amountCents: number;
+    }
+
+    export function orderPaid(orderId: string, customerId: string, amountCents: number): string {
+      const event: OrderPaid = { orderId, customerId, amountCents };
+      return JSON.stringify(event);
+    }
+expected:
+  forbidden_claims:
+    - "The billing worker still reads only userId."
+    - "Receipts are sent to an undefined customer."
+
