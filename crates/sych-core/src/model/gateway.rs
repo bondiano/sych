@@ -434,6 +434,19 @@ mod tests {
     }
 
     #[test]
+    fn a_rejection_reason_is_required_and_nullable() {
+        let schema = serde_json::to_value(output_schema::<VerifyOutput>()).expect("json");
+        let verdict = &schema["properties"]["verdicts"]["items"];
+        let required = verdict["required"].as_array().expect("required");
+        assert!(required.iter().any(|r| r == "reason"), "{verdict}");
+        let reason = verdict["properties"]["reason"].to_string();
+        assert!(
+            reason.contains("null") && reason.contains("REFUTED"),
+            "{reason}"
+        );
+    }
+
+    #[test]
     fn a_not_applicable_basis_is_required_and_nullable() {
         let schema = serde_json::to_value(output_schema::<AssessmentOutput>()).expect("json");
         let required = schema["required"].as_array().expect("required");
