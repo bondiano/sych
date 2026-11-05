@@ -156,4 +156,21 @@ fn a_candidate_anchored_only_in_fixture_data_is_dropped_with_the_reason() {
             .any(|p| p.contains("review.fixture_paths"))
     }));
     assert_eq!(drop_fixture_claims(found(), &[]).candidates.len(), 1);
+
+    // Every anchor must lie in the fixtures: one in product code keeps it, and none is no claim
+    // about fixtures.
+    let mut mixed = found();
+    let mut fixture = mixed.candidates[0].anchors[0].clone();
+    fixture.path = path("eval/quality/case.yaml");
+    mixed.candidates[0].anchors.push(fixture);
+    let fixtures = ["eval/quality/**".to_owned(), "src/fixtures/**".to_owned()];
+    assert_eq!(drop_fixture_claims(mixed, &fixtures).candidates.len(), 1);
+    let mut bare = found();
+    bare.candidates[0].anchors.clear();
+    assert_eq!(
+        drop_fixture_claims(bare, &["src/**".to_owned()])
+            .candidates
+            .len(),
+        1
+    );
 }

@@ -436,9 +436,10 @@ pub fn drop_fixture_claims(mut found: Discovered, fixture_paths: &[String]) -> D
     }
 
     let in_fixture = |c: &Candidate| {
-        c.anchors
-            .iter()
-            .all(|a| fixture_paths.iter().any(|g| glob_match(g, a.path.as_str())))
+        !c.anchors.is_empty()
+            && c.anchors
+                .iter()
+                .all(|a| fixture_paths.iter().any(|g| glob_match(g, a.path.as_str())))
     };
     let (fixture, kept): (Vec<Candidate>, Vec<Candidate>) =
         found.candidates.into_iter().partition(in_fixture);
