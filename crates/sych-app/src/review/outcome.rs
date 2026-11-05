@@ -126,6 +126,7 @@ impl Session<'_> {
                 .max_parallel_calls
                 .map_or(1, |n| usize::try_from(n).unwrap_or(1)),
             language: self.language,
+            fixture_paths: self.fixture_paths,
         };
         let mut outcome = match self.replay {
             Some(frozen) => engine.replay(frozen.to_vec()).await,

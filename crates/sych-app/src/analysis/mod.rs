@@ -148,6 +148,8 @@ pub struct Engine<'a, P, L> {
     pub parallel: usize,
     /// `review.language`: every prompt asks for prose in it.
     pub language: sych_core::ReviewLanguage,
+    /// `review.fixture_paths`: a candidate anchored only there is dropped.
+    pub fixture_paths: &'a [String],
 }
 
 fn needs_assessment(planned: &PlannedObligation) -> bool {

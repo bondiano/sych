@@ -2,9 +2,9 @@
 
 use sych_core::analysis::{
     AssessmentOutput, AssessmentRecord, CANDIDATE_OVERFLOW, Context, ContextAsk, Discovered,
-    DiscoveryOutput, ReviewOutput, Verified, VerifyOutput, context_asks, effect_asks, not_assessed,
-    prompts, refuting_asks, unseen_violation, validate_assessment, validate_discovery,
-    validate_verdicts,
+    DiscoveryOutput, ReviewOutput, Verified, VerifyOutput, context_asks, drop_fixture_claims,
+    effect_asks, not_assessed, prompts, refuting_asks, unseen_violation, validate_assessment,
+    validate_discovery, validate_verdicts,
 };
 use sych_core::broker::{Ops, REQUIRED_OVER_BUDGET, unseen_spans};
 use sych_core::config::Role;
@@ -158,7 +158,10 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         let key = format!("{}:{batch:?}", prompts::REVIEW);
         let found = discovery.map(|d| Discovered {
             batch: batch.to_vec(),
-            ..validate_discovery(d, &key, &context, &ids, self.snap)
+            ..drop_fixture_claims(
+                validate_discovery(d, &key, &context, &ids, self.snap),
+                self.fixture_paths,
+            )
         });
         if let Some(found) = &found {
             note(found, out);
@@ -202,7 +205,10 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         let found = Discovered {
             batch: batch.to_vec(),
             audit: obligation,
-            ..validate_discovery(outcome.value.ok()?, &key, context, obligations, self.snap)
+            ..drop_fixture_claims(
+                validate_discovery(outcome.value.ok()?, &key, context, obligations, self.snap),
+                self.fixture_paths,
+            )
         };
         note(&found, out);
         Some(found)

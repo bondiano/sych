@@ -2,7 +2,7 @@
 //! ledger saw leave a file the candidates point at.
 
 use serde_json::json;
-use sych_core::analysis::{AskOperation, effect_asks, validate_discovery};
+use sych_core::analysis::{AskOperation, drop_fixture_claims, effect_asks, validate_discovery};
 use sych_core::config::EffectKind;
 use sych_core::effects::{EffectMatch, LedgerEntry, Occurrence, Resolution};
 use sych_core::{CodeRef, Language, SourceSide, SyntaxKind};
@@ -119,5 +119,58 @@ fn a_registered_effect_is_searched_before_a_transactions_own_calls() {
         asks[0].question.contains("`AppendEvent`"),
         "{:?}",
         asks.iter().map(|a| &a.question).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn a_candidate_anchored_only_in_fixture_data_is_dropped_with_the_reason() {
+    let reader = Reader::new();
+    let (context, _) = context(&reader);
+    let one = draft(
+        &json!([{"ref_id": "ref-2", "start_line": 2, "end_line": 2}]),
+        &[],
+        &[],
+    );
+    let found = || {
+        validate_discovery(
+            discovery(
+                json!({"candidates": [one.clone()], "context_requests": [], "unresolved_questions": []}),
+            ),
+            "k",
+            &context,
+            &[],
+            &reader,
+        )
+    };
+    let kept = drop_fixture_claims(found(), &["eval/quality/**".to_owned()]);
+    assert_eq!(
+        kept.candidates.len(),
+        1,
+        "an anchor outside the fixtures keeps it"
+    );
+    let dropped = drop_fixture_claims(found(), &["src/**".to_owned()]);
+    assert!(dropped.candidates.is_empty());
+    assert!(dropped.rejected.iter().any(|r| {
+        r.problems
+            .iter()
+            .any(|p| p.contains("review.fixture_paths"))
+    }));
+    assert_eq!(drop_fixture_claims(found(), &[]).candidates.len(), 1);
+
+    // Every anchor must lie in the fixtures: one in product code keeps it, and none is no claim
+    // about fixtures.
+    let mut mixed = found();
+    let mut fixture = mixed.candidates[0].anchors[0].clone();
+    fixture.path = path("eval/quality/case.yaml");
+    mixed.candidates[0].anchors.push(fixture);
+    let fixtures = ["eval/quality/**".to_owned(), "src/fixtures/**".to_owned()];
+    assert_eq!(drop_fixture_claims(mixed, &fixtures).candidates.len(), 1);
+    let mut bare = found();
+    bare.candidates[0].anchors.clear();
+    assert_eq!(
+        drop_fixture_claims(bare, &["src/**".to_owned()])
+            .candidates
+            .len(),
+        1
     );
 }

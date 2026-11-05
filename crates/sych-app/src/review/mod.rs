@@ -364,6 +364,7 @@ fn execute(
         ci_gaps: &ci_gaps,
         parent: args.parent,
         language: effective.repository.config.review.language,
+        fixture_paths: &effective.repository.config.review.fixture_paths,
         now,
     };
     let saved =
@@ -430,5 +431,6 @@ struct Session<'a> {
     parent: Option<sych_core::RunId>,
     /// `review.language` of the trusted policy.
     language: sych_core::ReviewLanguage,
+    fixture_paths: &'a [String],
     now: Timestamp,
 }
