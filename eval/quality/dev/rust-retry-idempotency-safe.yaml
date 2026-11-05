@@ -1,0 +1,76 @@
+schema_version: 1
+id: rust-retry-idempotency-safe
+split: development
+language: rust
+pair: rust-retry-idempotency
+variant: safe
+profiles: [correctness, side_effects]
+rationale: "settle now retries a charge that timed out; Gateway::charge, not part of the change, keys every charge by the order with an idempotency key, so a retry cannot charge twice."
+base:
+  Cargo.toml: |
+    [package]
+    name = "billing"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod billing;
+    pub mod gateway;
+    pub mod http;
+  src/http.rs: |
+    use crate::gateway::GatewayError;
+
+    pub struct Client;
+
+    impl Client {
+        pub fn post(&self, _path: &str, _body: &str, _headers: &[(&str, &str)]) -> Result<(), GatewayError> {
+            Ok(())
+        }
+    }
+  src/billing.rs: |
+    use crate::gateway::{Gateway, GatewayError};
+
+    pub fn settle(gateway: &Gateway, order_id: &str, cents: u64) -> Result<(), GatewayError> {
+        gateway.charge(order_id, cents)
+    }
+  src/gateway.rs: |
+    #[derive(Debug)]
+    pub enum GatewayError {
+        Timeout,
+        Declined,
+    }
+
+    pub struct Gateway {
+        pub client: crate::http::Client,
+    }
+
+    impl Gateway {
+        /// Posts a charge keyed by the order: the provider applies one charge per idempotency
+        /// key, so posting it again after a timeout cannot charge twice.
+        pub fn charge(&self, order_id: &str, cents: u64) -> Result<(), GatewayError> {
+            let body = format!("{{\"order\":\"{order_id}\",\"amount\":{cents}}}");
+            self.client.post("/charges", &body, &[("Idempotency-Key", order_id)])
+        }
+    }
+head:
+  src/billing.rs: |
+    use crate::gateway::{Gateway, GatewayError};
+
+    /// A timed-out charge is retried up to three times.
+    pub fn settle(gateway: &Gateway, order_id: &str, cents: u64) -> Result<(), GatewayError> {
+        let mut attempt = 0;
+        loop {
+            match gateway.charge(order_id, cents) {
+                Err(GatewayError::Timeout) if attempt < 3 => attempt += 1,
+                other => return other,
+            }
+        }
+    }
+expected:
+  forbidden_claims:
+    - "A retry can charge the customer twice."
+

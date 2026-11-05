@@ -1,0 +1,69 @@
+schema_version: 1
+id: ts-event-field-consumer-unsafe
+split: development
+language: typescript
+pair: ts-event-field-consumer
+variant: unsafe
+profiles: [correctness, migration_compatibility]
+rationale: "The order-paid event renames userId to customerId, while the separately deployed billing worker, not part of the change, still reads userId: receipts go to an undefined customer."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "packageManager": "pnpm@12.14.0"
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "module": "esnext", "moduleResolution": "bundler" }
+    }
+  src/events/order-paid.ts: |
+    export interface OrderPaid {
+      orderId: string;
+      userId: string;
+      amountCents: number;
+    }
+
+    export function orderPaid(orderId: string, userId: string, amountCents: number): string {
+      const event: OrderPaid = { orderId, userId, amountCents };
+      return JSON.stringify(event);
+    }
+  workers/billing/mail.ts: |
+    export async function sendReceipt(customerId: string, orderId: string, amountCents: number): Promise<void> {
+      await fetch(`https://mail.internal/receipts/${customerId}`, {
+        method: 'POST',
+        body: JSON.stringify({ orderId, amountCents }),
+      });
+    }
+  workers/billing/receipts.ts: |
+    import { sendReceipt } from './mail';
+
+    // The billing worker is deployed apart from the API that publishes order-paid events.
+    export async function onOrderPaid(raw: string): Promise<void> {
+      const event = JSON.parse(raw) as { orderId: string; userId: string; amountCents: number };
+      await sendReceipt(event.userId, event.orderId, event.amountCents);
+    }
+head:
+  src/events/order-paid.ts: |
+    export interface OrderPaid {
+      orderId: string;
+      customerId: string;
+      amountCents: number;
+    }
+
+    export function orderPaid(orderId: string, customerId: string, amountCents: number): string {
+      const event: OrderPaid = { orderId, customerId, amountCents };
+      return JSON.stringify(event);
+    }
+expected:
+  findings:
+    - category: defect
+      semantic_target: "the order-paid event contract with the billing worker"
+      required_condition: "the billing worker parses an event published after the change"
+      evidence_locations:
+        - { side: HEAD, path: src/events/order-paid.ts, start_line: 3, end_line: 3 }
+        - { side: HEAD, path: src/events/order-paid.ts, start_line: 8, end_line: 8 }
+        - { side: HEAD, path: workers/billing/receipts.ts, start_line: 5, end_line: 6 }
+  forbidden_claims:
+    - "The billing worker reads customerId."
+

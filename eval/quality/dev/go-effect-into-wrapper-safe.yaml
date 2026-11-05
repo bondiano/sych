@@ -1,0 +1,126 @@
+schema_version: 1
+id: go-effect-into-wrapper-safe
+split: development
+language: go
+pair: go-effect-into-wrapper
+variant: safe
+profiles: [correctness, side_effects]
+rationale: "Create stops writing order-created to the outbox itself and emits it through the existing TxRunner, which appends every emitted event to the outbox in the same transaction before commit. TxRunner is not part of the change."
+base:
+  go.mod: |
+    module example.com/shop
+
+    go 1.26
+  .sych/effects.yaml: |
+    schema_version: 1
+    effects:
+      - id: order-outbox
+        match:
+          language: go
+          symbol: "example.com/shop/orders.Store.AppendEvent"
+        effect_kind: event
+        guarantees:
+          durable_with_transaction: true
+        implementation_refs: ["orders/store.go"]
+        contract_refs: [".sych/contracts/order-created.md"]
+  .sych/contracts/order-created.md: |
+    # order-created
+
+    Every committed order produces exactly one order-created event, written to the outbox in the
+    order's transaction; the relay publishes committed outbox rows and retries until acknowledged.
+  orders/store.go: |
+    package orders
+
+    import (
+    	"context"
+    	"database/sql"
+    )
+
+    type Publisher interface {
+    	Publish(ctx context.Context, event string) error
+    }
+
+    type Store struct {
+    	db        *sql.DB
+    	publisher Publisher
+    	tx        *TxRunner
+    }
+
+    // AppendEvent writes the event to the outbox table; the relay publishes committed rows.
+    func (s *Store) AppendEvent(ctx context.Context, tx *sql.Tx, event string) error {
+    	_, err := tx.ExecContext(ctx, "INSERT INTO outbox (event) VALUES ($1)", event)
+    	return err
+    }
+  orders/create.go: |
+    package orders
+
+    import "context"
+
+    func (s *Store) Create(ctx context.Context, id string) error {
+    	tx, err := s.db.BeginTx(ctx, nil)
+    	if err != nil {
+    		return err
+    	}
+    	defer tx.Rollback()
+    	if _, err := tx.ExecContext(ctx, "INSERT INTO orders (id) VALUES ($1)", id); err != nil {
+    		return err
+    	}
+    	if err := s.AppendEvent(ctx, tx, "order-created:"+id); err != nil {
+    		return err
+    	}
+    	return tx.Commit()
+    }
+  orders/txrunner.go: |
+    package orders
+
+    import (
+    	"context"
+    	"database/sql"
+    )
+
+    // TxRunner runs fn in a transaction and writes the events fn emits to the outbox in that
+    // same transaction, before it commits.
+    type TxRunner struct {
+    	store *Store
+    }
+
+    func (r *TxRunner) Run(ctx context.Context, fn func(tx *sql.Tx, emit func(string)) error) error {
+    	tx, err := r.store.db.BeginTx(ctx, nil)
+    	if err != nil {
+    		return err
+    	}
+    	defer tx.Rollback()
+    	var events []string
+    	if err := fn(tx, func(e string) { events = append(events, e) }); err != nil {
+    		return err
+    	}
+    	for _, e := range events {
+    		if err := r.store.AppendEvent(ctx, tx, e); err != nil {
+    			return err
+    		}
+    	}
+    	return tx.Commit()
+    }
+head:
+  orders/create.go: |
+    package orders
+
+    import (
+    	"context"
+    	"database/sql"
+    )
+
+    func (s *Store) Create(ctx context.Context, id string) error {
+    	return s.tx.Run(ctx, func(tx *sql.Tx, emit func(string)) error {
+    		if _, err := tx.ExecContext(ctx, "INSERT INTO orders (id) VALUES ($1)", id); err != nil {
+    			return err
+    		}
+    		emit("order-created:" + id)
+    		return nil
+    	})
+    }
+expected:
+  forbidden_claims:
+    - "The order-created event is no longer written to the outbox."
+    - "The order-created event can be lost after commit."
+
