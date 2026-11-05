@@ -11,6 +11,7 @@ use sych_core::analysis::{
 use sych_core::broker::EvidencePacket;
 mod anchors;
 mod answers;
+mod lost_names;
 mod removals;
 mod verify;
 

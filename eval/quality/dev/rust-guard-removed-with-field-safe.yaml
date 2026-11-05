@@ -1,0 +1,61 @@
+schema_version: 1
+id: rust-guard-removed-with-field-safe
+split: development
+language: rust
+variant: safe
+profiles: [correctness]
+rationale: "The codegen guard rejecting a `form` item goes with the `form` field it read, and forms move to a plugin of their own; nothing is left unguarded (flick-lang#15 was told the guard was dropped with nothing replacing it)."
+base:
+  Cargo.toml: |
+    [package]
+    name = "gen"
+    version = "0.1.0"
+    edition = "2024"
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod codegen;
+    pub mod types;
+  src/types/mod.rs: |
+    /// A schema item the code generator lowers.
+    pub struct Item {
+        pub name: String,
+        /// The fields of `T$form` when the type derives `Form`.
+        pub form: Option<Vec<String>>,
+    }
+  src/codegen/mod.rs: |
+    use crate::types::Item;
+
+    /// `T$schema`, or the reason the item cannot be lowered.
+    pub fn schema(item: &Item) -> Result<String, String> {
+        if item.form.is_some() {
+            return Err(format!("{}: a schema deriving `Form` is unsupported", item.name));
+        }
+        Ok(format!("var {}_schema = schema()", item.name))
+    }
+head:
+  src/lib.rs: |
+    pub mod codegen;
+    pub mod plugin;
+    pub mod types;
+  src/types/mod.rs: |
+    /// A schema item the code generator lowers.
+    pub struct Item {
+        pub name: String,
+    }
+  src/codegen/mod.rs: |
+    use crate::types::Item;
+
+    /// `T$schema`, or the reason the item cannot be lowered.
+    pub fn schema(item: &Item) -> Result<String, String> {
+        Ok(format!("var {}_schema = schema()", item.name))
+    }
+  src/plugin/mod.rs: |
+    /// `T.form` and `T.fields` of a type deriving `Form`, written by the plugin, not the code generator.
+    pub fn form(name: &str, fields: &[&str]) -> String {
+        format!("let {name}_form = form([{}])", fields.join(", "))
+    }
+expected:
+  forbidden_claims:
+    - "The Form guard was dropped and nothing replaces it."
