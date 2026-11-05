@@ -373,7 +373,7 @@ pub fn refuting_asks(open: &[Candidate]) -> Vec<ContextAsk> {
 }
 
 /// Where the change put an effect the ledger saw leave a file the candidates point at: a HEAD
-/// search for its target (four in all), since the ledger reads only the changed files and a
+/// search for its target's last name (3 to 64 bytes, like `refuting_asks`; four in all), since the ledger reads only the changed files and a
 /// wrapper, worker or middleware outside them may now run it. A moved effect needs no search:
 /// the ledger already found its new place among the changed files.
 pub fn effect_asks(ledger: &[LedgerEntry], candidates: &[Candidate]) -> Vec<ContextAsk> {
