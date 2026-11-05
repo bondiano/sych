@@ -147,8 +147,9 @@ pub struct Finding {
     pub limitations: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suggested_change: Option<SuggestedChange>,
-    /// Less severe findings on overlapping lines, kept whole inside this one: one comment per
-    /// location, no claim lost.
+    /// Less severe findings on overlapping lines, kept inside this one with their claim,
+    /// conditions, consequence and anchors; their rule and evidence ids join this finding's. One
+    /// comment per location, no claim lost.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub also: Vec<AlsoFinding>,
 }

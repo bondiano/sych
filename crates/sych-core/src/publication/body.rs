@@ -48,8 +48,8 @@ fn cell(text: &str) -> String {
     text.replace('|', "\\|").replace('\n', " ")
 }
 
-/// The explanation, a when/consequence table, the suggested action and its code; `inline`
-/// when the text is the comment on the finding's first anchor.
+/// The explanation, a when/consequence table, the findings kept in its `also`, the suggested
+/// action and its code; `inline` when the text is the comment on the finding's first anchor.
 pub(crate) fn details(out: &mut String, finding: &Finding, language: ReviewLanguage, inline: bool) {
     let l = language;
     let _ = writeln!(out, "{}", finding.explanation);

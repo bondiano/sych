@@ -435,7 +435,7 @@
       "type": "object",
       "properties": {
         "also": {
-          "description": "Less severe findings on overlapping lines, kept whole inside this one: one comment per\nlocation, no claim lost.",
+          "description": "Less severe findings on overlapping lines, kept inside this one with their claim,\nconditions, consequence and anchors; their rule and evidence ids join this finding's. One\ncomment per location, no claim lost.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/AlsoFinding"
