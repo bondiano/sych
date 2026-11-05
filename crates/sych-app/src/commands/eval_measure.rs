@@ -25,6 +25,7 @@ pub fn run(args: &EvalMeasureArguments) -> anyhow::Result<ExitCode> {
         } else {
             a.semantic
         },
+        replay: a.replay.as_deref(),
         output: a.output.as_deref(),
     })
 }

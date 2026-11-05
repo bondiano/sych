@@ -141,8 +141,9 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
 
 A run stores the `analysis` artifact: profile and model, passes (template, packet, obligation, status, attempt
 ids), assessment records (obligation → criteria → anchors/evidence, rationale, missing inputs, what the engine did not
-accept), discovery (accepted and rejected drafts, context requests and answers), candidates with their statuses and
-verdict history, and all attempts (reserved, charge, charge state, tokens, resolved model, upstream, generation id). Prompt text and
+accept), discovery (accepted and rejected drafts, context requests and answers, the packets each pass showed and, for
+the high-risk audit, its obligation, so `eval measure --replay` can verify them again), candidates with their statuses
+and verdict history, and all attempts (reserved, charge, charge state, tokens, resolved model, upstream, generation id). Prompt text and
 chain-of-thought are not stored. A candidate's `verdicts` keep every verifier answer about it, one per round, oldest
 first: the verdict proposed (`PENDING` when the verifier gave it none, so later rounds keep their number), the status
 the engine accepted, the explanation, the alternatives checked, the anchors and

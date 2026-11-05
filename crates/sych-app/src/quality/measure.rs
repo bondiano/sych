@@ -12,9 +12,11 @@ use std::process::ExitCode;
 use sych_core::config::RunMode;
 
 use serde::Serialize;
+use sych_core::analysis::Discovered;
 use sych_core::{Candidate, ReviewResult, sha256};
 use tempfile::TempDir;
 
+use super::replay::frozen;
 use super::score::{RunReport, Totals, candidate_remarks, remarks, score};
 use super::stages::Spread;
 use super::{QualityCase, materialize, not_given, read_cases, repo_paths};
@@ -39,6 +41,8 @@ pub struct MeasureArguments<'a> {
     /// Off only for baseline A: its unverified candidates are scored as findings.
     pub verify: bool,
     pub semantic: Switch,
+    /// An earlier report whose runs are verified again on their stored discoveries.
+    pub replay: Option<&'a Path>,
     pub output: Option<&'a Path>,
 }
 
@@ -50,6 +54,10 @@ struct Report {
     variant: &'static str,
     semantic: bool,
     runs_per_case: u32,
+    /// The report whose discoveries were verified again: only candidate and finding numbers
+    /// mean anything then, since nothing was assessed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    replay_of: Option<String>,
     /// SHA-256 of the `--config` file: reports compare only under the same budgets.
     config_sha256: String,
     skipped: Vec<String>,
@@ -64,6 +72,7 @@ fn review_case(
     case: &QualityCase,
     repos: &BTreeMap<String, PathBuf>,
     args: &MeasureArguments<'_>,
+    replay: Option<Vec<Discovered>>,
 ) -> Result<Option<(ReviewResult, Vec<Candidate>)>, String> {
     let dir = TempDir::new().map_err(|e| e.to_string())?;
     let Some(comparison) = materialize(case, repos, dir.path())? else {
@@ -97,6 +106,7 @@ fn review_case(
         run_mode: RunMode::PersonalLocal,
         deep: false,
         parent: None,
+        replay,
         risk_audit: args.risk_audit,
     };
     // The configured store: its ledger keeps the money caps across the whole suite.
@@ -105,12 +115,45 @@ fn review_case(
         .map_err(|e| format!("{e:#}"))
 }
 
+/// A review to run: each new one, or each run of the earlier report with what it discovered.
+type Job<'c> = (&'c QualityCase, u32, Option<Vec<Discovered>>);
+
+/// The reviews to run, and the earlier report's runs whose case this suite does not select.
+fn jobs<'c>(
+    args: &MeasureArguments<'_>,
+    cases: &'c [QualityCase],
+    config_sha256: &str,
+) -> anyhow::Result<(Vec<Job<'c>>, Vec<String>)> {
+    let Some(report) = args.replay else {
+        let fresh = cases
+            .iter()
+            .flat_map(|c| (1..=args.runs).map(move |run| (c, run, None)));
+        return Ok((fresh.collect(), Vec::new()));
+    };
+    let mut jobs = Vec::new();
+    let (stored, mut unselected) = frozen(report, args.config, config_sha256)?;
+    for f in stored {
+        match cases.iter().find(|c| c.id == f.id) {
+            Some(case) => jobs.push((case, f.run, Some(f.discovered))),
+            None => unselected.push(format!(
+                "{} run {}: not a selected case of this suite",
+                f.id, f.run
+            )),
+        }
+    }
+    Ok((jobs, unselected))
+}
+
 pub fn measure(args: &MeasureArguments<'_>) -> anyhow::Result<ExitCode> {
     if args.models == &ModelSelection::Fake {
         return Err(Failure::invalid(
             "eval measure needs a real model profile; the fake adapter proves only the harness",
         )
         .into());
+    }
+
+    if args.replay.is_some() && !args.verify {
+        return Err(Failure::invalid("--replay verifies again; baseline A has no verifier").into());
     }
 
     let repos = repo_paths(args.repos)?;
@@ -131,6 +174,7 @@ pub fn measure(args: &MeasureArguments<'_>) -> anyhow::Result<ExitCode> {
         variant: args.variant,
         semantic: args.semantic == Switch::On,
         runs_per_case: args.runs,
+        replay_of: args.replay.map(|p| p.display().to_string()),
         config_sha256: sha256(
             &fs::read(args.config)
                 .map_err(|e| Failure::invalid(format!("{}: {e}", args.config.display())))?,
@@ -142,44 +186,52 @@ pub fn measure(args: &MeasureArguments<'_>) -> anyhow::Result<ExitCode> {
         by_language: BTreeMap::new(),
         runs: Vec::new(),
     };
-    let mut per_run: Vec<Totals> = (0..args.runs).map(|_| Totals::default()).collect();
-    'cases: for case in &cases {
-        for run in 1..=args.runs {
-            let (error, measured) = match review_case(case, &repos, args) {
-                Ok(Some((result, candidates))) => {
-                    let (remarks, candidates) = if args.verify {
-                        (remarks(&result), candidate_remarks(&candidates))
-                    } else {
-                        (candidate_remarks(&candidates), Vec::new())
-                    };
-                    (None, Some(score(case, &result, &remarks, &candidates)))
-                }
-                Ok(None) => {
-                    report
-                        .skipped
-                        .push(format!("{}: {}", case.id, not_given(case)));
-                    continue 'cases;
-                }
-                Err(err) => (Some(err), None),
-            };
-            let run = RunReport {
-                id: case.id.clone(),
-                language: case.language.clone(),
-                variant: case.variant,
-                run,
-                error,
-                measured,
-            };
-            tracing::info!(case = %run.id, run = run.run, error = ?run.error, "case reviewed");
-            report.totals.add(&run);
-            per_run[(run.run - 1) as usize].add(&run);
-            report
-                .by_language
-                .entry(case.language.clone())
-                .or_default()
-                .add(&run);
-            report.runs.push(run);
+    let (jobs, unselected) = jobs(args, &cases, &report.config_sha256)?;
+    report.skipped.extend(unselected);
+    let runs = jobs.iter().map(|j| j.1).max().unwrap_or(args.runs);
+    report.runs_per_case = runs;
+    let mut per_run: Vec<Totals> = (0..runs).map(|_| Totals::default()).collect();
+    let mut skipped: Vec<&str> = Vec::new();
+    for (case, run, replay) in jobs {
+        if skipped.contains(&case.id.as_str()) {
+            continue;
         }
+
+        let (error, measured) = match review_case(case, &repos, args, replay) {
+            Ok(Some((result, candidates))) => {
+                let (remarks, candidates) = if args.verify {
+                    (remarks(&result), candidate_remarks(&candidates))
+                } else {
+                    (candidate_remarks(&candidates), Vec::new())
+                };
+                (None, Some(score(case, &result, &remarks, &candidates)))
+            }
+            Ok(None) => {
+                report
+                    .skipped
+                    .push(format!("{}: {}", case.id, not_given(case)));
+                skipped.push(&case.id);
+                continue;
+            }
+            Err(err) => (Some(err), None),
+        };
+        let run = RunReport {
+            id: case.id.clone(),
+            language: case.language.clone(),
+            variant: case.variant,
+            run,
+            error,
+            measured,
+        };
+        tracing::info!(case = %run.id, run = run.run, error = ?run.error, "case reviewed");
+        report.totals.add(&run);
+        per_run[(run.run - 1) as usize].add(&run);
+        report
+            .by_language
+            .entry(case.language.clone())
+            .or_default()
+            .add(&run);
+        report.runs.push(run);
     }
     report.totals.finish();
     per_run.iter_mut().for_each(Totals::finish);

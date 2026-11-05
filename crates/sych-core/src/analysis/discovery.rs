@@ -246,6 +246,12 @@ pub struct Discovered {
     pub asks: Vec<ContextAsk>,
     pub rejected_asks: Vec<String>,
     pub unresolved_questions: Vec<String>,
+    /// The packets the pass showed; with `audit`, what its verification is rebuilt from.
+    #[serde(default)]
+    pub batch: Vec<usize>,
+    /// The high-risk obligation an audit searched for; none for discovery.
+    #[serde(default)]
+    pub audit: Option<ObligationId>,
 }
 
 /// Obligations a prompt may link to, under local ids `ob-N`.

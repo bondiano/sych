@@ -12,7 +12,7 @@ use sych_adapters::git::{LocalSnapshot, SnapshotRequest};
 use sych_adapters::openrouter::CAPABILITIES;
 use sych_adapters::syntax;
 use sych_app::analysis::{Engine, Outcome};
-use sych_core::analysis::packet_evidence;
+use sych_core::analysis::{Discovered, packet_evidence};
 use sych_core::broker::{BrokerInput, Limits as BrokerLimits, build_packets};
 use sych_core::config::{BillingKind, Budgets, Enforcement, RepositoryPolicy, ServerConfig};
 use sych_core::effects::EffectLedger;
@@ -217,6 +217,7 @@ pub async fn run_on(
         (batch_tokens, usize::MAX),
         verify,
         BTreeMap::new(),
+        None,
     )
     .await;
     (outcome, calls)
@@ -252,7 +253,8 @@ impl Ledger for Recorder<'_> {
     }
 }
 
-/// [`run_on`] in a new run that may reuse `reuse`; also returns the run's checkpoints.
+/// [`run_on`] in a new run that may reuse `reuse`, or with `replay` the verifier alone over
+/// those discoveries; also returns the run's checkpoints.
 pub async fn run_reusing(
     repo: &Path,
     answer: fn(&ModelRequest) -> Result<ModelReply, ProviderError>,
@@ -260,6 +262,7 @@ pub async fn run_reusing(
     (batch_tokens, batch_units): (u32, usize),
     verify: bool,
     reuse: BTreeMap<Sha256Digest, Checkpoint>,
+    replay: Option<Vec<Discovered>>,
 ) -> (Outcome, Vec<String>, Vec<Checkpoint>) {
     let snap = LocalSnapshot::capture(&SnapshotRequest {
         repo,
@@ -345,7 +348,10 @@ pub async fn run_reusing(
             .map_or(1, |n| usize::try_from(n).unwrap_or(1)),
         language: policy.config.review.language,
     };
-    let outcome = engine.run().await;
+    let outcome = match replay {
+        Some(frozen) => engine.replay(frozen).await,
+        None => engine.run().await,
+    };
     drop(engine);
     (
         outcome,

@@ -71,6 +71,7 @@ impl Engine {
                 Trigger::Successor { parent, .. } => parent.parse().ok().map(sych_core::RunId),
                 _ => None,
             },
+            replay: None,
         }
     }
 

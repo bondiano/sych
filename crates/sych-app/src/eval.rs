@@ -247,6 +247,7 @@ fn run_case(case: &Case, suite_dir: &Path) -> Result<Actual, String> {
         run_mode: RunMode::PersonalLocal,
         deep: false,
         parent: None,
+        replay: None,
         risk_audit: true,
     };
     let report =

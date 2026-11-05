@@ -38,6 +38,7 @@ async fn a_profile_bound_on_units_keeps_small_units_in_separate_calls() {
         (14_000, 1),
         true,
         BTreeMap::new(),
+        None,
     )
     .await;
     // The two units would share one review call; one unit per call keeps them apart, and the

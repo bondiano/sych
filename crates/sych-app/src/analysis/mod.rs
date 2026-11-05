@@ -27,6 +27,7 @@ use sych_core::{
 mod parts;
 mod passes;
 mod redo;
+mod replay;
 
 use parts::{Assessing, Combined, Task};
 use redo::cut_short;

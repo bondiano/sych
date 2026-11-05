@@ -9,6 +9,7 @@ mod ci;
 pub mod compare;
 pub mod judge;
 mod measure;
+mod replay;
 mod score;
 mod stages;
 
