@@ -210,8 +210,9 @@ pub fn validate(
 }
 
 /// One finding per location: confirmed findings whose anchors overlap are reported once, by
-/// the most severe. Overlapping lines do not make two claims one, so each absorbed finding is
-/// kept whole in its `also`.
+/// the most severe. Overlapping lines do not make two claims one, so each absorbed finding's
+/// claim, conditions, consequence and anchors are kept in its `also`, and its rule and evidence
+/// ids join the kept finding.
 pub fn merge_overlapping(mut findings: Vec<Finding>) -> Vec<Finding> {
     findings.sort_by_key(|f| Reverse(f.severity));
     let mut kept: Vec<Finding> = Vec::new();

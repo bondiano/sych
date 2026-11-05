@@ -381,6 +381,11 @@ pub(super) fn score(
         .copied()
         .chain(merged.iter().filter(|f| correctness(f.category)))
         .collect();
+    let nits_reported: Vec<&Remark<'_>> = nit_findings
+        .iter()
+        .copied()
+        .chain(merged.iter().filter(|f| !correctness(f.category)))
+        .collect();
     let matched = hits(&expected, &reported);
     let missed = missed(&expected, &reported);
     let (overrated_nits, tolerated) = not_false(case, &expected_nits, &correctness_findings);
@@ -409,7 +414,7 @@ pub(super) fn score(
         overrated_nits: count(overrated_nits),
         nits: count(nit_findings.len()),
         expected_nits: count(expected_nits.len()),
-        matched_nits: count(hits(&expected_nits, &nit_findings)),
+        matched_nits: count(hits(&expected_nits, &nits_reported)),
         obligations,
         unknown_kept: (case.variant == CaseDisposition::Unknown)
             .then_some(correctness_findings.is_empty() && left_open),
