@@ -50,5 +50,9 @@ head:
     	w.Write(lines[len(lines)-1])
     }
 expected:
+  tolerated:
+    - semantic_target: "any client can make the server ping an arbitrary, including internal, host"
+      evidence_locations:
+        - { side: HEAD, path: diag.go, start_line: 10, end_line: 10 }
   forbidden_claims:
     - "Ping is vulnerable to command injection."

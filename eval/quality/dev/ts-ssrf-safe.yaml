@@ -59,5 +59,9 @@ head:
       res.sendStatus(204);
     });
 expected:
+  tolerated:
+    - semantic_target: "the imported image body is read into memory without a size limit"
+      evidence_locations:
+        - { side: HEAD, path: src/routes/avatar.ts, start_line: 24, end_line: 24 }
   forbidden_claims:
     - "The avatar import allows SSRF to internal hosts."

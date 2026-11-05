@@ -11,7 +11,7 @@ base:
     schema_version: 1
     environment: production
     owner: orders
-    mixed_versions: {value: true, source: "rolling update"}
+    mixed_versions: {value: false, source: "recreate rollout: old pods stop before new ones start"}
     recovery: {value: compatible_rollback, source: "runbook RB-7: roll back the image"}
   go.mod: |
     module example.com/shop

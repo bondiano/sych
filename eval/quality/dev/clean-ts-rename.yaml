@@ -32,9 +32,9 @@ head:
     import { useEffect, useState } from 'react';
 
     export function Clock() {
-      const [current, setCurrent] = useState(Date.current());
+      const [current, setCurrent] = useState(Date.now());
       useEffect(() => {
-        const timer = setInterval(() => setCurrent(Date.current()), 1000);
+        const timer = setInterval(() => setCurrent(Date.now()), 1000);
         return () => clearInterval(timer);
       }, []);
       return <time>{new Date(current).toLocaleTimeString()}</time>;
