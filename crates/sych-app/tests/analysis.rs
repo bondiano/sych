@@ -323,6 +323,10 @@ async fn an_unresolved_candidate_is_verified_again_with_the_verifiers_answers() 
         "{:?}",
         outcome.candidates
     );
+    assert!(
+        !outcome.candidates.is_empty(),
+        "the run verified candidates"
+    );
     for candidate in &outcome.candidates {
         let history: Vec<_> = candidate
             .verdicts
