@@ -244,6 +244,11 @@ fn summaries_match_their_golden_files() {
 
     let partial = result();
     assert_eq!(partial.coverage, Coverage::Partial);
+    let mut stopped = partial.clone();
+    stopped.execution_outcome = ExecutionOutcome::LimitReached;
+    let limit = "> A budget or size limit stopped part of the review before it finished.\n";
+    assert!(render_summary(&stopped, &[], &ctx()).contains(limit));
+    assert!(!render_summary(&partial, &[], &ctx()).contains(limit));
     golden(
         "summary-partial",
         &render_summary(
