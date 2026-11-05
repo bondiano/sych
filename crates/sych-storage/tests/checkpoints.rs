@@ -74,6 +74,7 @@ fn limits() -> Limits {
             ..Budget::default()
         },
         daily_money: Some(MicroUsd(1_000)),
+        weekly_money: None,
         monthly_money: Some(MicroUsd(1_000)),
     }
 }

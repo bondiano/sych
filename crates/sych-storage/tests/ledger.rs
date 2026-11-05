@@ -107,6 +107,7 @@ fn limits(run_money: u64, monthly: u64) -> Limits {
             ..Budget::default()
         },
         daily_money: Some(MicroUsd(run_money)),
+        weekly_money: None,
         monthly_money: Some(MicroUsd(monthly)),
     }
 }
@@ -337,6 +338,7 @@ async fn a_follow_up_cap_is_per_session() {
             ..Budget::default()
         },
         daily_money: None,
+        weekly_money: None,
         monthly_money: Some(MicroUsd(10_000)),
     };
     let ask = || Reservation {
@@ -376,6 +378,7 @@ async fn a_session_cap_survives_the_month_boundary() {
             ..Budget::default()
         },
         daily_money: None,
+        weekly_money: None,
         monthly_money: Some(MicroUsd(10_000)),
     };
     let ask = |at: &str| Reservation {
@@ -465,4 +468,37 @@ async fn a_stopped_run_holds_its_unsettled_attempts_as_unknown() {
         .await
         .expect("settle");
     assert_eq!(state(&dropped).await, "SETTLED");
+}
+
+#[tokio::test]
+async fn the_week_pool_counts_from_monday_across_a_month_boundary() {
+    let (_dir, storage, run) = setup().await;
+    let caps = Limits {
+        run: Budget::default(),
+        daily_money: None,
+        weekly_money: Some(MicroUsd(1_000)),
+        monthly_money: None,
+    };
+    let ask = |at: &str, money: u64| Reservation {
+        at: at.parse().expect("timestamp"),
+        ..reservation(run, money)
+    };
+    let reserve = |r: Reservation| {
+        let storage = &storage;
+        let caps = &caps;
+        async move { storage.reserve_attempt(&r, caps).await.expect("ledger") }
+    };
+    // The Sunday before belongs to the previous week.
+    assert_eq!(reserve(ask("2026-11-29T23:00:00Z", 900)).await, Ok(()));
+    assert_eq!(reserve(ask("2026-11-30T00:00:00Z", 600)).await, Ok(()));
+    let wednesday = reserve(ask("2026-12-02T09:00:00Z", 600)).await;
+    assert!(
+        matches!(&wednesday, Err(Denied::Money { account, .. }) if account == "week"),
+        "Monday's spend counts in December too: {wednesday:?}"
+    );
+    assert_eq!(
+        reserve(ask("2026-12-07T00:00:00Z", 600)).await,
+        Ok(()),
+        "the next Monday starts again"
+    );
 }

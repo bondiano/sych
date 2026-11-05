@@ -45,7 +45,9 @@ For each attempt, before sending:
    `subscription_quota` is 0 per request (overage is disabled), but the provider must have a `fixed_fee`, otherwise
    `FIXED_FEE_UNKNOWN`.
 4. A single SQLite transaction checks and records the reservation: attempts/input/output tokens and run money
-   (per purpose `ANALYSIS | TOUR | FOLLOWUP`), money for the day and the UTC calendar month. Output tokens are hard only
+   (per purpose `ANALYSIS | TOUR | FOLLOWUP`), money for the day, the week from Monday 00:00 UTC
+   (`budgets.tenant_weekly`, no cap unless set; it spans a month boundary) and the UTC calendar month. A
+   configuration needs day ≤ week ≤ month where they are set. Output tokens are hard only
    for `api_hard`; for `subscription_observable` the upstream output/quota is soft/unknown, while Sych attempts,
    input and money stay hard.
 5. Verification reserve: pure search (discovery, high-risk audit) reserves against caps minus one attempt
@@ -296,7 +298,7 @@ so sign-in itself is not covered by an automated test.
 - **Hop.** Each profile in a chain is visited at most once per task. Before a hop the profile is resolved
   again (mode, billing, egress, credentials, pinned runtime), and the route must match the one planned at the start of the
   run; a route without native structured output is used with the schema in its prompt. Cooldown is also checked, and,
-  inside the gateway, the same run/day/month caps,
+  inside the gateway, the same run/day/week/month caps,
   attempts and deadline in one ledger: switching backends does not reset the counters, the previous route's unknown charge stays
   reserved, and a repair is a separate accounted attempt. A fallback profile that does not resolve stays in the plan with
   its reason and is skipped; an explicit `--models PROFILE` must resolve by itself, and `roles` needs at least one profile

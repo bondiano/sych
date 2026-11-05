@@ -105,6 +105,7 @@ async fn a_session_attempt_cap_survives_the_month_boundary_through_the_router() 
             ..Budget::default()
         },
         daily_money: None,
+        weekly_money: None,
         monthly_money: None,
     };
     let prompt = Prompt {
