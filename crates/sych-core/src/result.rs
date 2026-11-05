@@ -152,6 +152,10 @@ pub struct ReviewResult {
     /// Internal by default.
     #[serde(default)]
     pub rejected_candidates: Vec<Candidate>,
+    /// Candidates the verifier left open (each also an `unverified candidate` question), with
+    /// their anchors: the next revision tells a question it already asked by them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unresolved_candidates: Vec<Candidate>,
     pub usage_summary: UsageSummary,
     pub created_at: Timestamp,
     pub provenance: Provenance,

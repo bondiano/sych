@@ -11,7 +11,7 @@ use sych_core::publication::{
     render_summary,
 };
 use sych_core::{
-    AlsoFinding, Coverage, DiffManifest, ExecutionOutcome, Finding, FindingCategory,
+    AlsoFinding, Candidate, Coverage, DiffManifest, ExecutionOutcome, Finding, FindingCategory,
     GENERATED_IN_CHANGE, GitObjectId, PathGap, ReviewLanguage, ReviewResult, Severity, SourceSide,
     SuggestedChange, decode, sha256,
 };
@@ -229,6 +229,7 @@ fn ctx() -> SummaryContext<'static> {
             "https://sych.example/v1/runs/01900000-0000-7000-8000-000000000001/result".into(),
         ),
         duration_seconds: Some(42),
+        earlier: &[],
     }
 }
 
@@ -368,4 +369,47 @@ fn a_file_hidden_by_the_change_is_named_for_a_human() {
         .expect("named");
     assert!(text.find("<details>").is_none_or(|folded| line < folded));
     assert!(text.contains("check it by hand"));
+}
+
+/// An open candidate the previous revision also left open at the same code is listed apart:
+/// the author already saw it, a new one stays among the open questions.
+#[test]
+fn a_question_asked_by_the_previous_revision_is_listed_apart() {
+    let mut r = result();
+    let mut candidate: Candidate = serde_json::from_value(serde_json::json!({
+        "id": "01900000-0000-7000-8000-0000000000c1", "origin": "MODEL", "category": "DEFECT",
+        "proposed_severity": "MEDIUM", "claim": "the retry may charge twice", "causal_chain": [],
+        "anchors": [r.findings[0].anchors[0]], "consequences": [], "conditions": [],
+        "refutation": "", "verification_status": "UNRESOLVED"
+    }))
+    .expect("candidate");
+    let mut fresh = candidate.clone();
+    fresh.claim = "the cache key ignores the tenant".into();
+    fresh.anchors[0].path = "backend/cache/key.go".parse().expect("path");
+    r.unresolved_candidates = vec![candidate.clone(), fresh.clone()];
+    r.unresolved_questions = vec![
+        format!("unverified candidate: {}", candidate.claim),
+        format!("unverified candidate: {}", fresh.claim),
+    ];
+    let planned = plan(&r, &manifest(), &[], &[], true);
+    // The same claim in other words, on lines that moved down by one.
+    candidate.claim = "a second charge is possible on retry".into();
+    candidate.anchors[0].start_line += 1;
+    let earlier = [candidate];
+    let text = render_summary(
+        &r,
+        &planned,
+        &SummaryContext {
+            earlier: &earlier,
+            ..ctx()
+        },
+    );
+    let (open, again) = text
+        .split_once("Still open from the previous revision")
+        .expect("a block of repeated questions");
+    assert!(open.contains("the cache key ignores the tenant"), "{text}");
+    assert!(!open.contains("the retry may charge twice"), "{text}");
+    assert!(again.contains("the retry may charge twice"), "{text}");
+    let none = render_summary(&r, &planned, &ctx());
+    assert!(!none.contains("Still open from the previous revision"));
 }

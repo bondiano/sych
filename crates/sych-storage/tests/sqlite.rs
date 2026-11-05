@@ -145,6 +145,21 @@ async fn saved_result_survives_reopen_and_generations_increase() {
         reopened.load_result("other-tenant", run.id).await,
         Err(StorageError::UnknownRun(_))
     ));
+    // A successor finds the run of its parent result, for this tenant only.
+    assert_eq!(
+        reopened
+            .run_of_result(TENANT_LOCAL, result.result_id)
+            .await
+            .expect("lookup"),
+        Some(run.id)
+    );
+    assert_eq!(
+        reopened
+            .run_of_result("other-tenant", result.result_id)
+            .await
+            .expect("lookup"),
+        None
+    );
 }
 
 #[tokio::test]
