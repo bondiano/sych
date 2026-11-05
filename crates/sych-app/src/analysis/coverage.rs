@@ -55,7 +55,16 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             &self.snap.snapshot.id,
         );
         out.questions.extend(refused);
-        for proposed in accepted {
+        for mut proposed in accepted {
+            // A check of code outside the diff (a consumer, a wrapper) belongs to the units the
+            // audit looked at.
+            if proposed.obligation.review_unit_ids.is_empty() {
+                proposed.obligation.review_unit_ids = batch
+                    .iter()
+                    .flat_map(|&i| self.packets[i].request.review_unit_ids.iter().copied())
+                    .collect();
+            }
+
             let prompt = prompts::assessment(&context, &proposed);
             let outcome = self
                 .router

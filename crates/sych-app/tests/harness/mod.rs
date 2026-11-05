@@ -277,8 +277,8 @@ pub async fn run_reusing(
     .await
 }
 
-/// [`run_reusing`] over `facts` instead of none: the ledger, syntax facts and schema
-/// references of a real run, as far as a test needs them.
+/// [`run_reusing`] with `facts` for the plan and the engine (the ledger, syntax facts and schema
+/// references a test needs); packets are built without them, as before.
 #[allow(clippy::too_many_arguments)] // the whole run a test sets up
 pub async fn run_with_facts(
     repo: &Path,

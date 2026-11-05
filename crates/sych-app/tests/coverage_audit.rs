@@ -97,6 +97,11 @@ async fn an_accepted_proposal_is_assessed_as_an_optional_obligation() {
     };
     assert_eq!(added.obligation.rule_id, "AUDIT-1");
     assert!(!added.obligation.required);
+    assert_eq!(
+        added.obligation.question, "does the consumer of the order event still get it?",
+        "the anchored proposal, not the unanchored one"
+    );
+    assert!(!added.obligation.review_unit_ids.is_empty());
     assert!(
         outcome.assessments.iter().any(|a| a.rule_id == "AUDIT-1"),
         "it got an assessment"
@@ -128,12 +133,15 @@ async fn a_failed_audit_is_an_open_question_not_a_gap() {
         outcome.questions
     );
     assert!(outcome.gaps.iter().all(|g| !g.contains("coverage")));
+    let audits: Vec<_> = outcome
+        .record
+        .passes
+        .iter()
+        .filter(|p| p.template.starts_with("coverage_audit"))
+        .collect();
     assert!(
-        !outcome.record.passes.iter().any(|p| {
-            p.template.starts_with("coverage_audit")
-                && matches!(p.status, PassStatus::Failed { .. })
-        }),
-        "a skipped optional pass, never a failed one"
+        matches!(audits.as_slice(), [p] if matches!(p.status, PassStatus::Skipped { .. })),
+        "a skipped optional pass, never a failed one: {audits:?}"
     );
 }
 
