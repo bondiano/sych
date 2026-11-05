@@ -43,7 +43,7 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    with `max_units_per_call` and `max_shown_tokens_per_call` ([MODELS.md](MODELS.md)).
 4. **Verify** (`verify@6`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
    requests. Before the first round the engine also searches HEAD for each effect the ledger saw removed or left
-   unresolved in a file the candidates point at (by the target's last name of 3 to 64 bytes, four per call), and the
+   unresolved in a file the candidates point at (by the target's last name of 3 to 64 bytes, four per call, registered effects first), and the
    first round sees those answers too: the ledger reads only the changed files, and a wrapper, worker or middleware
    outside them may now run the effect. When the verifier
    leaves candidates `UNRESOLVED` without asking anything, the engine itself searches HEAD

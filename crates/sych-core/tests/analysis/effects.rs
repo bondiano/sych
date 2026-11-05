@@ -87,3 +87,37 @@ fn an_effect_gone_from_a_candidates_file_is_searched_for_on_head() {
     );
     assert!(effect_asks(&ledger, &[]).is_empty(), "nothing to point at");
 }
+
+#[test]
+fn a_registered_effect_is_searched_before_a_transactions_own_calls() {
+    let reader = Reader::new();
+    let (context, _) = context(&reader);
+    let one = draft(
+        &json!([{"ref_id": "ref-2", "start_line": 2, "end_line": 2}]),
+        &[],
+        &[],
+    );
+    let candidates = validate_discovery(
+        discovery(json!({"candidates": [one], "context_requests": [], "unresolved_questions": []})),
+        "k",
+        &context,
+        &[],
+        &reader,
+    )
+    .candidates;
+    let here = candidates[0].anchors[0].clone();
+    let mut ledger: Vec<LedgerEntry> = ["BeginTx", "Commit", "Rollback", "ExecContext"]
+        .into_iter()
+        .map(|t| entry(t, &here, EffectMatch::Removed))
+        .collect();
+    let mut outbox = entry("orders.Store.AppendEvent", &here, EffectMatch::Removed);
+    outbox.registry_id = Some("order-outbox".into());
+    ledger.push(outbox);
+    let asks = effect_asks(&ledger, &candidates);
+    assert_eq!(asks.len(), 4);
+    assert!(
+        asks[0].question.contains("`AppendEvent`"),
+        "{:?}",
+        asks.iter().map(|a| &a.question).collect::<Vec<_>>()
+    );
+}
