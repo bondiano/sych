@@ -244,11 +244,14 @@ fn overlapping_findings_merge_into_the_most_severe() {
     let merged = merge_overlapping(verified.findings);
     assert_eq!(merged.len(), 1);
     assert_eq!(merged[0].severity, Severity::High);
-    assert!(
-        merged[0]
-            .limitations
-            .iter()
-            .any(|l| l.starts_with("merged an overlapping hypothesis"))
+    let [also] = merged[0].also.as_slice() else {
+        panic!("the absorbed finding is kept: {:?}", merged[0].also);
+    };
+    assert_eq!(also.severity, Severity::Medium);
+    assert_eq!(
+        (also.anchors[0].start_line, also.anchors[0].end_line),
+        (2, 2),
+        "with its own anchors"
     );
     assert_eq!(
         merged[0].obligation_ids,

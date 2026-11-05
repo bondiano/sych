@@ -217,6 +217,21 @@ pub(super) fn remarks(result: &ReviewResult) -> Vec<Remark<'_>> {
         .collect()
 }
 
+/// The findings kept inside the ones that absorbed them.
+fn also_remarks(result: &ReviewResult) -> Vec<Remark<'_>> {
+    result
+        .findings
+        .iter()
+        .flat_map(|f| &f.also)
+        .map(|a| Remark {
+            category: a.category,
+            title: &a.title,
+            anchors: &a.anchors,
+            status: VerificationStatus::Confirmed,
+        })
+        .collect()
+}
+
 pub(super) fn candidate_remarks<'a>(
     candidates: impl IntoIterator<Item = &'a Candidate>,
 ) -> Vec<Remark<'a>> {
@@ -298,6 +313,24 @@ fn open_questions(result: &ReviewResult) -> Vec<String> {
         .collect()
 }
 
+/// The labelled obligations and the status the review gave each.
+fn obligation_checks(case: &QualityCase, result: &ReviewResult) -> Vec<ObligationCheck> {
+    case.expected
+        .obligations
+        .iter()
+        .map(|o| ObligationCheck {
+            rule_id: o.rule_id.clone(),
+            expected: o.expected_status.to_uppercase(),
+            actual: result
+                .obligations
+                .iter()
+                .find(|r| r.rule_id == o.rule_id)
+                .map_or("ABSENT", |r| status_tag(&r.status))
+                .into(),
+        })
+        .collect()
+}
+
 /// `candidates`: every candidate with its verification status; empty without a verifier.
 pub(super) fn score(
     case: &QualityCase,
@@ -340,24 +373,18 @@ pub(super) fn score(
         .iter()
         .filter(|f| !correctness(f.category))
         .collect();
-    let matched = hits(&expected, &correctness_findings);
-    let missed = missed(&expected, &correctness_findings);
-    let (overrated_nits, tolerated) = not_false(case, &expected_nits, &correctness_findings);
-    let obligations: Vec<ObligationCheck> = case
-        .expected
-        .obligations
+    // A finding merged into an overlapping one still reports its claim: it counts for recall,
+    // not as another published finding.
+    let merged = also_remarks(result);
+    let reported: Vec<&Remark<'_>> = correctness_findings
         .iter()
-        .map(|o| ObligationCheck {
-            rule_id: o.rule_id.clone(),
-            expected: o.expected_status.to_uppercase(),
-            actual: result
-                .obligations
-                .iter()
-                .find(|r| r.rule_id == o.rule_id)
-                .map_or("ABSENT", |r| status_tag(&r.status))
-                .into(),
-        })
+        .copied()
+        .chain(merged.iter().filter(|f| correctness(f.category)))
         .collect();
+    let matched = hits(&expected, &reported);
+    let missed = missed(&expected, &reported);
+    let (overrated_nits, tolerated) = not_false(case, &expected_nits, &correctness_findings);
+    let obligations = obligation_checks(case, result);
     let left_open = result.coverage != Coverage::CompleteForScope
         || result
             .obligations

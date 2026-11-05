@@ -303,6 +303,15 @@ pub fn markdown(report: &Report) -> String {
             let _ = writeln!(out, "  - at {}", code_ref(a));
         }
         let _ = writeln!(out, "  - action: {}", md(&f.suggested_action));
+        for a in &f.also {
+            let _ = writeln!(
+                out,
+                "  - also: **{}** {}: {}",
+                tag(&a.severity),
+                tag(&a.category),
+                md(&a.title)
+            );
+        }
     }
     if r.findings.is_empty() {
         out.push_str("- none\n");
