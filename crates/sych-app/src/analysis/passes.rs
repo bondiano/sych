@@ -8,7 +8,7 @@ use sych_core::analysis::{
 use sych_core::broker::{Ops, REQUIRED_OVER_BUDGET, unseen_spans};
 use sych_core::config::Role;
 use sych_core::model::{Ledger, ModelProvider, Prompt, RoutedOutcome, TaskFailure};
-use sych_core::{Candidate, ObligationId, PlannedObligation, VerificationStatus};
+use sych_core::{Candidate, CodeRef, ObligationId, PlannedObligation, VerificationStatus};
 
 use super::{AskAnswer, Engine, MAX_REFS_PER_ANSWER, Outcome, Pass, PassStatus};
 
@@ -246,6 +246,8 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             return;
         }
 
+        let anchors: Vec<&CodeRef> = found.candidates.iter().flat_map(|c| &c.anchors).collect();
+        context.add_lost_names(&anchors, &self.snap.manifest, self.snap);
         let (asks, mut verified) = match self
             .verify_round(batch, obligations, &context, found.candidates.clone(), out)
             .await

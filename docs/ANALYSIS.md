@@ -41,7 +41,7 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    packets are merged into one call as long as their tokens fit in `context.max_tokens_per_request`: for a
    small PR this is one discovery instead of a call per unit. The reviewer's primary profile may bound a call further
    with `max_units_per_call` and `max_shown_tokens_per_call` ([MODELS.md](MODELS.md)).
-4. **Verify** (`verify@5`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
+4. **Verify** (`verify@6`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
    requests. When the verifier leaves candidates `UNRESOLVED` without asking anything, the engine itself searches HEAD
    for the identifiers their claims name in backticks (two per candidate, four per call) and runs the second round
    on those answers: a validator or guard outside the diff can then refute the claim. A confirmed verdict may carry `suggested_change`, the full new text of lines of a shown HEAD span; the
@@ -84,6 +84,12 @@ An obligation about the tests themselves (the shipped `TEST-INTEGRITY`) also get
 test and CI file, shown or not, read verbatim from BASE (up to 40 lines per file, the rest counted), and
 "0 lines removed" for a file that only gained lines: a weakened assertion or gate is visible even when the file's
 spans did not fit the packet.
+A candidate anchored on removed BASE lines of a file that stays reaches the verifier with its anchors' side and the
+names those lines use that the file's HEAD no longer has (up to 12). For each name it shows where else the change
+removes it (up to 3 BASE lines per file, 40 in all, the rest counted), the deleted files that named it and the files
+that add it, or that no other file does. A guard removed together with the field it reads, or moved elsewhere, then
+reads as one change rather than "nothing replaces it", while a guard dropped on its own shows nothing else losing
+what it read.
 
 The packet's source spans are stored as derived evidence `source` (`SOURCE_OBSERVATION`): `COMPLETE_FOR_QUERY` for
 exactly these spans if no required span was excluded, otherwise `PARTIAL`. The packet gaps are its limitations.
@@ -238,5 +244,5 @@ instead of source text.
 (`model_attempts.scope`) while the tenant day and month pools stay shared. The prompt holds the stop's spans, the
 review's findings and obligations of the stop and the overview; context requests are answered once through the broker's
 typed operations (`ContextAsk::answer`, shared with analysis). Hypotheses pass the discovery checks and then the regular
-verifier (`verify@5`, role verifier) under the same session budget; they stay in the exchange (`tour_exchanges`, one
+verifier (`verify@6`, role verifier) under the same session budget; they stay in the exchange (`tour_exchanges`, one
 actor's rows) and never reach the `ReviewResult`, the `TourArtifact` or a publication.

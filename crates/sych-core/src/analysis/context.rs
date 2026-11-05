@@ -15,6 +15,8 @@ use crate::{
     SourceSide, SourceSnapshot, Timestamp, TrustClass, Validity, canonical_sha256, derived_uuid,
 };
 
+mod lost_names;
+
 /// Removed lines of one test or CI file shown verbatim, and as many of the lines replacing
 /// them; the rest is only counted.
 const MAX_REMOVED_LINES: u32 = 40;
@@ -133,7 +135,7 @@ fn write_lines(
     }
 }
 
-fn side_name(side: SourceSide) -> &'static str {
+pub(crate) fn side_name(side: SourceSide) -> &'static str {
     match side {
         SourceSide::DiffBase => "BASE",
         SourceSide::Head => "HEAD",

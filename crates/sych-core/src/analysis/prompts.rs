@@ -3,14 +3,14 @@
 
 use std::fmt::Write;
 
-use super::context::Context;
+use super::context::{Context, side_name};
 use crate::model::{DataBlock, Prompt};
 use crate::{Candidate, PlannedObligation};
 
 pub const DISCOVERY: &str = "discovery@7";
 pub const RISK_AUDIT: &str = "risk_audit@6";
 pub const ASSESSMENT: &str = "assessment@4";
-pub const VERIFY: &str = "verify@5";
+pub const VERIFY: &str = "verify@6";
 pub const REVIEW: &str = "review@6";
 
 /// The fields of one assessment; `ob` names the obligation id the answer must carry.
@@ -275,7 +275,7 @@ pub fn verify(
                 "proposed_severity": c.proposed_severity,
                 "disproof_question": c.refutation,
                 "anchors": c.anchors.iter()
-                    .map(|a| format!("{}:{}-{}", a.path, a.start_line, a.end_line))
+                    .map(|a| format!("{} {}:{}-{}", side_name(a.side), a.path, a.start_line, a.end_line))
                     .collect::<Vec<_>>(),
             })
             .to_string(),
@@ -318,10 +318,16 @@ pub fn verify(
                      and answer UNRESOLVED; when a complete answer shows no reader outside \
                      its definition and default and the value is not public API, it is \
                      REJECTED: an unread value changes nothing.",
+                    "A claim that nothing replaces lines the change removes (a BASE anchor): \
+                     when the block of names those lines lose shows the change also removes or \
+                     moves what they use (the field, type or function they read), the removal \
+                     belongs to that change and the claim is REJECTED unless a shown HEAD span \
+                     still relies on the old behaviour. A HEAD search with no match for a \
+                     removed name shows the name is gone, not that nothing replaces it.",
                     "suggested_change only for a CONFIRMED finding whose fix is local to lines of \
                      a shown HEAD span: the anchor names those lines and replacement is their \
                      complete new text with the original indentation. Otherwise null; never \
-                     write code the spans do not show.",
+                     write code the spans do not show or a name the change removes.",
                 ]
                 .map(str::to_owned),
             );
