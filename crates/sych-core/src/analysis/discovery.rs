@@ -11,7 +11,7 @@ use crate::effects::{EffectMatch, LedgerEntry};
 use crate::model::DataBlock;
 use crate::{
     Candidate, CandidateId, CandidateOrigin, FindingCategory, ObligationId, RepoPath, Severity,
-    SnapshotReader, SourceSide, VerificationStatus, derived_uuid,
+    SnapshotReader, SourceSide, VerificationStatus, derived_uuid, glob_match,
 };
 
 /// Context asks answered per discovery call; the rest are rejected by count.
@@ -426,6 +426,30 @@ pub fn effect_asks(ledger: &[LedgerEntry], candidates: &[Candidate]) -> Vec<Cont
             },
         })
         .collect()
+}
+
+/// `found` without the candidates anchored only in `fixture_paths` (labelled data such as eval
+/// cases), each kept among the refused drafts with the reason.
+pub fn drop_fixture_claims(mut found: Discovered, fixture_paths: &[String]) -> Discovered {
+    if fixture_paths.is_empty() {
+        return found;
+    }
+
+    let in_fixture = |c: &Candidate| {
+        c.anchors
+            .iter()
+            .all(|a| fixture_paths.iter().any(|g| glob_match(g, a.path.as_str())))
+    };
+    let (fixture, kept): (Vec<Candidate>, Vec<Candidate>) =
+        found.candidates.into_iter().partition(in_fixture);
+    found.candidates = kept;
+    found
+        .rejected
+        .extend(fixture.into_iter().map(|c| RejectedDraft {
+            claim: c.claim,
+            problems: vec!["anchored only in labelled fixture data (review.fixture_paths)".into()],
+        }));
+    found
 }
 
 /// The asks of one answer that are answered, at most `MAX_CONTEXT_ASKS`, and why the rest

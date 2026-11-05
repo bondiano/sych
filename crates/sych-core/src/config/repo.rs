@@ -33,6 +33,10 @@ pub struct ReviewSettings {
     pub language: ReviewLanguage,
     pub profiles: Vec<ReviewProfile>,
     pub draft_policy: DraftPolicy,
+    /// Globs of labelled data whose code is not the product (eval cases, golden files): a
+    /// candidate anchored only there is dropped, since a planted defect in a fixture is the point.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub fixture_paths: Vec<String>,
 }
 
 impl Default for ReviewSettings {
@@ -48,6 +52,7 @@ impl Default for ReviewSettings {
                 ReviewProfile::Nitpicks,
             ],
             draft_policy: DraftPolicy::ManualOnly,
+            fixture_paths: Vec::new(),
         }
     }
 }

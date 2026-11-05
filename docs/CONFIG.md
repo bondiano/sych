@@ -110,6 +110,15 @@ code, identifiers, paths, ids and enum values unchanged, and the static text of 
 comments is rendered in it. The language is part of the policy snapshot and of every prompt, so a change of language
 makes a new policy id and new checkpoint keys.
 
+## Fixture data
+
+`review.fixture_paths` in `.sych/config.yaml` lists globs of labelled data whose code is not the product: eval cases,
+golden files, recorded fixtures. Their code may hold planted defects on purpose, so a discovery candidate whose every
+anchor lies in these paths is dropped (kept among the refused drafts with `anchored only in labelled fixture data`).
+A candidate with one anchor elsewhere is reviewed as usual, and the files are still shown to the model and checked by
+the obligations that cover them (`TEST-INTEGRITY` among them). Unset, nothing is dropped; while empty it is left out of
+the policy snapshot, so a config without it keeps its policy id.
+
 ## Policy from head is not applied
 
 `sych review` reads `.sych/` only from the target tip. Changes to `.sych/` in the head under review go into

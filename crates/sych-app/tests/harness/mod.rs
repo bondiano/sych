@@ -347,6 +347,7 @@ pub async fn run_reusing(
             .max_parallel_calls
             .map_or(1, |n| usize::try_from(n).unwrap_or(1)),
         language: policy.config.review.language,
+        fixture_paths: &policy.config.review.fixture_paths,
     };
     let outcome = match replay {
         Some(frozen) => engine.replay(frozen).await,
