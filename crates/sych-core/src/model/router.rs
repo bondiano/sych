@@ -328,8 +328,8 @@ impl<P: ModelProvider, L: Ledger> Router<'_, P, L> {
             .map(|e| e.to_string())
     }
 
-    /// The resolved hop of `profile` if it may take a task now: not cooling down, still
-    /// eligible, and able to answer structured.
+    /// The resolved hop of `profile` if it may take a task now: not cooling down and still
+    /// eligible. A route without a native schema gets it in the prompt from the gateway.
     fn usable(&self, profile: &str) -> Result<&Hop<'_, P>, String> {
         let now = (self.now)();
         if let Some(until) = self.cooldowns.borrow().get(profile).filter(|t| **t > now) {
@@ -343,11 +343,6 @@ impl<P: ModelProvider, L: Ledger> Router<'_, P, L> {
         };
         if let Some(eligible) = self.eligible {
             eligible(profile)?;
-        }
-
-        // Every routed task is structured; a route without it would only fail.
-        if !h.route.capabilities.structured_output {
-            return Err("the route has no structured output".into());
         }
 
         Ok(h)
