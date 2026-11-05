@@ -3116,6 +3116,13 @@
           "source_snapshot_id": {
             "$ref": "#/components/schemas/SourceSnapshotId"
           },
+          "unresolved_candidates": {
+            "description": "Candidates the verifier left open (each also an `unverified candidate` question), with\ntheir anchors: the next revision tells a question it already asked by them.",
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "type": "array"
+          },
           "unresolved_questions": {
             "items": {
               "type": "string"

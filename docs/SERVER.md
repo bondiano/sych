@@ -313,7 +313,10 @@ not from model prose; only findings that passed engine verification enter the re
 (`partial` states plainly that this is not "no problems", `unavailable` — that there was no review); recommendation and execution;
 profiles; a table of problems (Defect/RuleViolation by severity — all HIGH/CRITICAL are always here) with a "where
 shown" column (`inline` or `here (<reason>)`); specific `UNKNOWN`s (required ones are marked) and open questions, including
-CI gaps; collapsed improvements/nitpicks with a rule or "preference"; cost (known + unknown attempts), the number of
+CI gaps. An unverified candidate the previous revision of the change also left open at the same code (same side and path,
+overlapping lines or the same lines' content; the result keeps its open candidates in `unresolved_candidates`) is listed
+apart under "Still open from the previous revision", so a question the author already answered does not read as new;
+collapsed improvements/nitpicks with a rule or "preference"; cost (known + unknown attempts), the number of
 attempts, the number of high/critical; a link to the full result if `http.public_base_url` is set. Golden files:
 `fixtures/publication/summary-*.md`.
 

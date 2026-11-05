@@ -86,6 +86,13 @@
     "source_snapshot_id": {
       "$ref": "#/$defs/SourceSnapshotId"
     },
+    "unresolved_candidates": {
+      "description": "Candidates the verifier left open (each also an `unverified candidate` question), with\ntheir anchors: the next revision tells a question it already asked by them.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Candidate"
+      }
+    },
     "unresolved_questions": {
       "type": "array",
       "items": {

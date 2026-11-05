@@ -8,7 +8,7 @@ use sych_core::publication::{
     InlineAnchor, Placement, SummaryContext, inline_body, plan, render_summary,
 };
 use sych_core::scm::{ScmError, ScmErrorKind};
-use sych_core::{DiffManifest, ReviewResult, RunId, sha256};
+use sych_core::{Candidate, DiffManifest, ReviewResult, RunId, sha256};
 use sych_storage::{ChangeRow, PublishClaim, Uncertain};
 
 use super::engine::{Conn, Engine};
@@ -121,6 +121,29 @@ impl Engine {
         Ok(true)
     }
 
+    /// What the previous revision left open; none when there is no parent or it cannot be read,
+    /// which only lists every open question as new.
+    async fn earlier(&self, tenant: &str, result: &ReviewResult) -> Vec<Candidate> {
+        let Some(parent) = result.parent_result_id else {
+            return Vec::new();
+        };
+        let storage = &self.app.storage;
+        match storage.run_of_result(tenant, parent).await {
+            Ok(Some(run)) => match storage.load_result(tenant, run).await {
+                Ok(previous) => previous.unresolved_candidates,
+                Err(err) => {
+                    tracing::warn!(%err, "previous result unreadable; open questions all listed as new");
+                    Vec::new()
+                }
+            },
+            Ok(None) => Vec::new(),
+            Err(err) => {
+                tracing::warn!(%err, "previous result unreadable; open questions all listed as new");
+                Vec::new()
+            }
+        }
+    }
+
     async fn load(&self, c: &PublishClaim) -> anyhow::Result<(ReviewResult, DiffManifest)> {
         let run = RunId(c.run_id.parse()?);
         let tenant = &c.partition.tenant_id;
@@ -188,7 +211,9 @@ impl Engine {
                 .await?;
         }
 
+        let earlier = self.earlier(&c.partition.tenant_id, &result).await;
         let ctx = SummaryContext {
+            earlier: &earlier,
             marker: &c.marker,
             repo: Some(repo),
             head_sha: manifest.head.hex(),

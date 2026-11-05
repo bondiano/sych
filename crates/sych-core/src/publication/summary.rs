@@ -7,8 +7,8 @@ use std::fmt::Write;
 use super::body::{agent_prompt, badge, category, details, lines, task};
 use super::{Placement, Planned, reason_text, tr};
 use crate::{
-    Coverage, Finding, FindingCategory, GENERATED_IN_CHANGE, ObligationStatus, ReviewResult,
-    Severity, SourceSide,
+    Candidate, CodeRef, Coverage, Finding, FindingCategory, GENERATED_IN_CHANGE, ObligationStatus,
+    ReviewResult, Severity, SourceSide,
 };
 
 /// What the summary needs besides the result.
@@ -22,6 +22,9 @@ pub struct SummaryContext<'a> {
     /// Link to the full result, when the server has a public base URL.
     pub result_url: Option<String>,
     pub duration_seconds: Option<i64>,
+    /// Candidates the previous revision of the change left open: one this revision leaves open
+    /// at the same code is listed apart, as asked before.
+    pub earlier: &'a [Candidate],
 }
 
 /// GitHub refuses a comment over 65 536 characters; the summary stays below with room to spare.
@@ -78,7 +81,7 @@ fn render(
         problem(&mut out, result, plan, ctx, (i + 1, f), detail);
     }
 
-    unknowns(&mut out, result, detail);
+    unknowns(&mut out, result, ctx.earlier, detail);
     if detail == Detail::Full {
         optional(&mut out, result);
         if !problems.is_empty() {
@@ -235,7 +238,59 @@ fn problem(
     details(out, f, l, false);
 }
 
-fn unknowns(out: &mut String, result: &ReviewResult, detail: Detail) {
+/// Whether two candidates point at the same code: same side and path, overlapping lines or the
+/// same lines' content.
+fn same_code(a: &Candidate, b: &Candidate) -> bool {
+    let near = |x: &CodeRef, y: &CodeRef| {
+        x.side == y.side
+            && x.path == y.path
+            && (x.content_sha256 == y.content_sha256
+                || (x.start_line <= y.end_line && y.start_line <= x.end_line))
+    };
+    a.anchors
+        .iter()
+        .any(|x| b.anchors.iter().any(|y| near(x, y)))
+}
+
+/// The open questions this revision asks again at code the previous one left open, and the rest.
+fn repeated(result: &ReviewResult, earlier: &[Candidate]) -> (Vec<String>, Vec<String>) {
+    let asked: Vec<String> = result
+        .unresolved_candidates
+        .iter()
+        .filter(|c| earlier.iter().any(|e| same_code(c, e)))
+        .map(|c| format!("unverified candidate: {}", c.claim))
+        .collect();
+    result
+        .unresolved_questions
+        .iter()
+        .cloned()
+        .partition(|q| asked.contains(q))
+}
+
+/// Paths the change's own marker kept from the reviewer.
+fn hidden_paths(result: &ReviewResult) -> Vec<String> {
+    let l = result.language;
+    // Only the change's own marker kept these from the reviewer: a reader must look at them.
+    result
+        .excluded_or_unreviewed
+        .iter()
+        .filter(|g| g.reason == GENERATED_IN_CHANGE)
+        .map(|g| {
+            format!(
+                "{} `{}` — {}",
+                tr(l, "**hidden by this change**", "**скрыт этим изменением**"),
+                g.path,
+                tr(
+                    l,
+                    "its own content marks it generated; the reviewer did not see it, check it by hand",
+                    "его собственное содержимое объявляет его сгенерированным; ревьюер его не видел, проверьте вручную"
+                )
+            )
+        })
+        .collect()
+}
+
+fn unknowns(out: &mut String, result: &ReviewResult, earlier: &[Candidate], detail: Detail) {
     let l = result.language;
     let (required, other): (Vec<_>, Vec<_>) = result
         .obligations
@@ -261,30 +316,14 @@ fn unknowns(out: &mut String, result: &ReviewResult, detail: Detail) {
             _ => None,
         })
         .partition(|(required, _)| *required);
+    let (again, fresh) = repeated(result, earlier);
     let other: Vec<String> = other
         .into_iter()
         .map(|(_, text)| text)
-        .chain(result.unresolved_questions.iter().cloned())
+        .chain(fresh)
         .collect();
-    // Only the change's own marker kept these from the reviewer: a reader must look at them.
-    let hidden: Vec<String> = result
-        .excluded_or_unreviewed
-        .iter()
-        .filter(|g| g.reason == GENERATED_IN_CHANGE)
-        .map(|g| {
-            format!(
-                "{} `{}` — {}",
-                tr(l, "**hidden by this change**", "**скрыт этим изменением**"),
-                g.path,
-                tr(
-                    l,
-                    "its own content marks it generated; the reviewer did not see it, check it by hand",
-                    "его собственное содержимое объявляет его сгенерированным; ревьюер его не видел, проверьте вручную"
-                )
-            )
-        })
-        .collect();
-    if hidden.is_empty() && required.is_empty() && other.is_empty() {
+    let hidden = hidden_paths(result);
+    if hidden.is_empty() && required.is_empty() && other.is_empty() && again.is_empty() {
         return;
     }
 
@@ -296,7 +335,7 @@ fn unknowns(out: &mut String, result: &ReviewResult, detail: Detail) {
             "Unknown and missing checks",
             "Неизвестное и непроверенное"
         ),
-        hidden.len() + required.len() + other.len()
+        hidden.len() + required.len() + other.len() + again.len()
     );
     for h in &hidden {
         let _ = writeln!(out, "- {h}");
@@ -306,7 +345,7 @@ fn unknowns(out: &mut String, result: &ReviewResult, detail: Detail) {
         let _ = writeln!(out, "- {u}");
     }
 
-    if other.is_empty() {
+    if other.is_empty() && again.is_empty() {
         return;
     }
 
@@ -314,7 +353,7 @@ fn unknowns(out: &mut String, result: &ReviewResult, detail: Detail) {
         let _ = writeln!(
             out,
             "\n_{} {}._",
-            other.len(),
+            other.len() + again.len(),
             tr(
                 l,
                 "more not shown: the full summary is over GitHub's size limit",
@@ -324,21 +363,39 @@ fn unknowns(out: &mut String, result: &ReviewResult, detail: Detail) {
         return;
     }
 
-    let _ = writeln!(
-        out,
-        "\n<details><summary>{} ({})</summary>\n",
-        tr(
-            l,
-            "Other checks and open questions",
-            "Прочие проверки и открытые вопросы"
+    for (items, title) in [
+        (
+            &other,
+            tr(
+                l,
+                "Other checks and open questions",
+                "Прочие проверки и открытые вопросы",
+            ),
         ),
-        other.len()
-    );
-    for u in &other {
-        let _ = writeln!(out, "- {u}");
-    }
+        (
+            &again,
+            tr(
+                l,
+                "Still open from the previous revision, at the same code",
+                "Остались открытыми с прошлой ревизии, на том же коде",
+            ),
+        ),
+    ] {
+        if items.is_empty() {
+            continue;
+        }
 
-    let _ = writeln!(out, "\n</details>");
+        let _ = writeln!(
+            out,
+            "\n<details><summary>{title} ({})</summary>\n",
+            items.len()
+        );
+        for u in items {
+            let _ = writeln!(out, "- {u}");
+        }
+
+        let _ = writeln!(out, "\n</details>");
+    }
 }
 
 fn optional(out: &mut String, result: &ReviewResult) {

@@ -113,6 +113,7 @@ pub struct Reduced {
     pub unresolved_questions: Vec<String>,
     pub excluded_or_unreviewed: Vec<PathGap>,
     pub rejected_candidates: Vec<Candidate>,
+    pub unresolved_candidates: Vec<Candidate>,
 }
 
 pub const INSUFFICIENT_EVIDENCE: &str = "INSUFFICIENT_EVIDENCE";
@@ -453,13 +454,20 @@ pub fn reduce(input: &ReduceInput<'_>) -> Reduced {
             .chain(&plan.unreviewed)
             .cloned()
             .collect(),
-        rejected_candidates: input
-            .candidates
-            .iter()
-            .filter(|c| c.verification_status == VerificationStatus::Rejected)
-            .cloned()
-            .collect(),
+        rejected_candidates: with_status(input.candidates, &[VerificationStatus::Rejected]),
+        unresolved_candidates: with_status(
+            input.candidates,
+            &[VerificationStatus::Pending, VerificationStatus::Unresolved],
+        ),
     }
+}
+
+fn with_status(candidates: &[Candidate], statuses: &[VerificationStatus]) -> Vec<Candidate> {
+    candidates
+        .iter()
+        .filter(|c| statuses.contains(&c.verification_status))
+        .cloned()
+        .collect()
 }
 
 /// Identity and bookkeeping of the run that produced the result.
@@ -505,6 +513,7 @@ pub fn finalize(
         unresolved_questions: reduced.unresolved_questions,
         excluded_or_unreviewed: reduced.excluded_or_unreviewed,
         rejected_candidates: reduced.rejected_candidates,
+        unresolved_candidates: reduced.unresolved_candidates,
         usage_summary: run.usage,
         created_at: run.created_at,
         provenance: run.provenance,
