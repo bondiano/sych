@@ -22,7 +22,10 @@ groups:
         expr: increase(sych_webhooks{outcome="rejected",reason="BAD_SIGNATURE"}[15m]) > 5
         annotations: {summary: "Webhooks with bad signatures: wrong secret or someone probing."}
       - alert: SychReconcileFailing
-        expr: increase(sych_reconcile_failures[30m]) > 2
+        # +1 per unreadable repository each 10-minute round, on any SCM error: one round failing for
+        # every repository (a GitHub outage) leaves the 15m window before `for`, misses in rounds in a row fire.
+        expr: increase(sych_reconcile_failures[15m]) > 0
+        for: 20m
         annotations: {summary: "Reconciliation cannot read a listed repository: the App installation may have lost it or a permission; webhooks for it may stop too."}
       - alert: SychCredentials
         expr: increase(sych_runs{state="FAILED"}[30m]) > 0 and on() sych_jobs{state="FAILED"} > 0
