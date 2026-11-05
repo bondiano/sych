@@ -48,8 +48,8 @@ fn cell(text: &str) -> String {
     text.replace('|', "\\|").replace('\n', " ")
 }
 
-/// The explanation, a when/consequence table, the suggested action and its code; `inline`
-/// when the text is the comment on the finding's first anchor.
+/// The explanation, a when/consequence table, the findings kept in its `also`, the suggested
+/// action and its code; `inline` when the text is the comment on the finding's first anchor.
 pub(crate) fn details(out: &mut String, finding: &Finding, language: ReviewLanguage, inline: bool) {
     let l = language;
     let _ = writeln!(out, "{}", finding.explanation);
@@ -75,6 +75,28 @@ pub(crate) fn details(out: &mut String, finding: &Finding, language: ReviewLangu
             vec!["---"; columns.len()].join("|"),
             row(&|c| cell(c.1))
         );
+    }
+
+    if !finding.also.is_empty() {
+        let _ = writeln!(
+            out,
+            "\n**{}:**",
+            tr(l, "Also on these lines", "Также на этих строках")
+        );
+        for also in &finding.also {
+            let _ = write!(
+                out,
+                "- {} · {}: {}",
+                badge(also.severity),
+                category(l, also.category),
+                also.title
+            );
+            if !also.consequence.is_empty() {
+                let _ = write!(out, " — {}", also.consequence);
+            }
+
+            out.push('\n');
+        }
     }
 
     if !finding.suggested_action.is_empty() {
@@ -135,6 +157,15 @@ pub(crate) fn task(finding: &Finding, language: ReviewLanguage) -> String {
         if !text.is_empty() {
             let _ = write!(out, " {label}: {text}");
         }
+    }
+    for also in &finding.also {
+        let _ = write!(
+            out,
+            " {}: {}. {}",
+            tr(l, "Also on these lines", "Также на этих строках"),
+            also.title,
+            also.explanation
+        );
     }
     out
 }

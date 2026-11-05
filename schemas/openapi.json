@@ -28,6 +28,48 @@
         ],
         "type": "object"
       },
+      "AlsoFinding": {
+        "description": "A confirmed finding merged into an overlapping, at least as severe one.",
+        "properties": {
+          "anchors": {
+            "items": {
+              "$ref": "#/components/schemas/CodeRef"
+            },
+            "type": "array"
+          },
+          "category": {
+            "$ref": "#/components/schemas/FindingCategory"
+          },
+          "consequence": {
+            "type": "string"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "title": {
+            "type": "string"
+          },
+          "triggering_conditions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "category",
+          "severity",
+          "title",
+          "explanation",
+          "triggering_conditions",
+          "consequence",
+          "anchors"
+        ],
+        "type": "object"
+      },
       "ApiRole": {
         "description": "What an API client or a signed-in person may do, cumulative.",
         "oneOf": [
@@ -1261,6 +1303,13 @@
       },
       "Finding": {
         "properties": {
+          "also": {
+            "description": "Less severe findings on overlapping lines, kept inside this one with their claim,\nconditions, consequence and anchors; their rule and evidence ids join this finding's. One\ncomment per location, no claim lost.",
+            "items": {
+              "$ref": "#/components/schemas/AlsoFinding"
+            },
+            "type": "array"
+          },
           "anchors": {
             "items": {
               "$ref": "#/components/schemas/CodeRef"

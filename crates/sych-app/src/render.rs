@@ -8,9 +8,9 @@ use sych_core::broker::EvidencePacket;
 use sych_core::config::{PolicyDiff, Provenance};
 use sych_core::effects::EffectLedger;
 use sych_core::{
-    CiFacts, CodeRef, DiffManifest, Evidence, EvidenceManifest, ExternalInputManifest, LintFacts,
-    Obligation, ObligationStatus, PolicySnapshot, PolicySource, ReviewResult, SchemaVersion,
-    SemanticFacts, SourceSnapshot, SyntaxFacts, UsageSummary,
+    CiFacts, CodeRef, DiffManifest, Evidence, EvidenceManifest, ExternalInputManifest, Finding,
+    LintFacts, Obligation, ObligationStatus, PolicySnapshot, PolicySource, ReviewResult,
+    SchemaVersion, SemanticFacts, SourceSnapshot, SyntaxFacts, UsageSummary,
 };
 
 /// Policy diagnostics of a run: effective-config provenance and the head's proposed diff.
@@ -156,6 +156,37 @@ fn list(out: &mut String, items: impl IntoIterator<Item = String>) {
     out.push('\n');
 }
 
+/// One finding with its location, action and the findings kept in its `also`.
+fn finding(out: &mut String, f: &Finding) {
+    let _ = writeln!(
+        out,
+        "- **{}** {} {}: {}",
+        tag(&f.severity),
+        tag(&f.category),
+        tag(&f.lifecycle),
+        md(&f.title)
+    );
+    let _ = writeln!(out, "  - {}", md(&f.explanation));
+    let _ = writeln!(out, "  - consequence: {}", md(&f.consequence));
+    for a in &f.anchors {
+        let _ = writeln!(out, "  - at {}", code_ref(a));
+    }
+    let _ = writeln!(out, "  - action: {}", md(&f.suggested_action));
+    for a in &f.also {
+        let _ = writeln!(
+            out,
+            "  - also: **{}** {}: {}{}",
+            tag(&a.severity),
+            tag(&a.category),
+            md(&a.title),
+            a.anchors
+                .first()
+                .map(|r| format!(" at {}", code_ref(r)))
+                .unwrap_or_default()
+        );
+    }
+}
+
 fn obligation(out: &mut String, ob: &Obligation) {
     let _ = writeln!(
         out,
@@ -289,20 +320,7 @@ pub fn markdown(report: &Report) -> String {
 
     out.push_str("\n## Findings\n\n");
     for f in &r.findings {
-        let _ = writeln!(
-            out,
-            "- **{}** {} {}: {}",
-            tag(&f.severity),
-            tag(&f.category),
-            tag(&f.lifecycle),
-            md(&f.title)
-        );
-        let _ = writeln!(out, "  - {}", md(&f.explanation));
-        let _ = writeln!(out, "  - consequence: {}", md(&f.consequence));
-        for a in &f.anchors {
-            let _ = writeln!(out, "  - at {}", code_ref(a));
-        }
-        let _ = writeln!(out, "  - action: {}", md(&f.suggested_action));
+        finding(&mut out, f);
     }
     if r.findings.is_empty() {
         out.push_str("- none\n");

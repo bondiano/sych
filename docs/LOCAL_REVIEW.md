@@ -224,7 +224,7 @@ without semantic facts, high-risk search and verifier; its unverified hypotheses
 
 Report per run: recommendation, coverage, expected and found defects, findings with anchors and a
 `labelled` flag, reconciliation of obligation statuses, for `unknown` — whether the case remained unresolved, attempts and money. Totals
-(overall and per language): `recall` (labelled defects found), `precision` (correctness findings at labelled
+(overall and per language): `recall` (labelled defects found, also by a finding kept in another's `also`), `precision` (correctness findings at labelled
 locations), `clean_false_positive_rate` (safe cases with any correctness finding), `clean_false_finding_rate` (the same without
 `tolerated_findings` — correctness findings at `expected.tolerated` locations: a correct but non-target remark for the case — and
 without `overrated_nits` — correctness findings at the location of a labelled nitpick), `unknown_kept_rate`, `nit_recall` (labelled

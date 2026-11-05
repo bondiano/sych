@@ -242,6 +242,7 @@ fn rule_violation(
             .join(","),
         limitations: Vec::new(),
         suggested_change: None,
+        also: Vec::new(),
     }
 }
 

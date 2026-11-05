@@ -2,6 +2,8 @@ use std::fs;
 use std::path::Path;
 
 use super::*;
+use sych_core::{AlsoFinding, Severity};
+
 use crate::quality::Tolerated;
 use crate::quality::stages::{Losses, Spread};
 
@@ -212,4 +214,53 @@ fn the_spread_is_taken_over_the_runs_that_have_a_rate() {
         serde_json::json!({"min": 0.0, "mean": 0.5, "max": 1.0})
     );
     assert!(spread["unknown_kept_rate"].is_null());
+}
+
+#[test]
+fn a_finding_merged_into_another_still_counts_for_recall_not_precision() {
+    let unsafe_case = case("unsafe", 45, 50);
+    let mut result = result();
+    let mut kept = result.findings[0].clone();
+    let absorbed = kept.anchors.clone();
+    kept.anchors = vec![kept.anchors[0].clone()];
+    kept.anchors[0].start_line = 1;
+    kept.anchors[0].end_line = 2;
+    kept.also = vec![AlsoFinding {
+        category: FindingCategory::Defect,
+        severity: kept.severity,
+        title: "absorbed".into(),
+        explanation: String::new(),
+        triggering_conditions: Vec::new(),
+        consequence: String::new(),
+        anchors: absorbed,
+    }];
+    result.findings = vec![kept];
+    let m = score_of(&unsafe_case, &result);
+    assert_eq!((m.matched_expected, m.correctness_findings), (1, 1));
+    assert_eq!(m.labelled_findings, 0, "the published finding is elsewhere");
+    assert_eq!(m.losses, Losses::default());
+}
+
+#[test]
+fn a_nit_merged_into_another_finding_still_counts_for_nit_recall() {
+    let mut nit = case("safe", 45, 50);
+    nit.expected.findings[0].category = "nitpick".into();
+    let mut result = result();
+    let mut kept = result.findings[0].clone();
+    let absorbed = kept.anchors.clone();
+    kept.anchors = vec![kept.anchors[0].clone()];
+    kept.anchors[0].start_line = 1;
+    kept.anchors[0].end_line = 2;
+    kept.also = vec![AlsoFinding {
+        category: FindingCategory::Nit,
+        severity: Severity::Low,
+        title: "absorbed nit".into(),
+        explanation: String::new(),
+        triggering_conditions: Vec::new(),
+        consequence: String::new(),
+        anchors: absorbed,
+    }];
+    result.findings = vec![kept];
+    let m = score_of(&nit, &result);
+    assert_eq!((m.expected_nits, m.matched_nits, m.nits), (1, 1, 0));
 }

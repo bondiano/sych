@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 use super::context::{Anchor, Context};
 use super::discovery::ContextAsk;
 use crate::{
-    Candidate, CodeRef, Finding, FindingCategory, FindingId, Lifecycle, Severity, SnapshotReader,
-    SourceSide, SuggestedChange, Support, VerdictRecord, VerificationStatus, derived_uuid, sha256,
+    AlsoFinding, Candidate, CodeRef, Finding, FindingCategory, FindingId, Lifecycle, Severity,
+    SnapshotReader, SourceSide, SuggestedChange, Support, VerdictRecord, VerificationStatus,
+    derived_uuid, sha256,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -208,8 +209,10 @@ pub fn validate(
     }
 }
 
-/// One finding per location: confirmed findings whose anchors overlap are the same defect
-/// found by several passes. The most severe is kept and names what it absorbed.
+/// One finding per location: confirmed findings whose anchors overlap are reported once, by
+/// the most severe. Overlapping lines do not make two claims one, so each absorbed finding's
+/// claim, conditions, consequence and anchors are kept in its `also`, and its rule and evidence
+/// ids join the kept finding.
 pub fn merge_overlapping(mut findings: Vec<Finding>) -> Vec<Finding> {
     findings.sort_by_key(|f| Reverse(f.severity));
     let mut kept: Vec<Finding> = Vec::new();
@@ -221,8 +224,17 @@ pub fn merge_overlapping(mut findings: Vec<Finding>) -> Vec<Finding> {
         });
         match same {
             Some(k) => {
-                k.limitations
-                    .push(format!("merged an overlapping hypothesis: {}", f.title));
+                k.also.push(AlsoFinding {
+                    category: f.category,
+                    severity: f.severity,
+                    title: f.title,
+                    explanation: f.explanation,
+                    triggering_conditions: f.triggering_conditions,
+                    consequence: f.consequence,
+                    anchors: f.anchors,
+                });
+                k.also.extend(f.also);
+                // A waiver of the kept finding must not hide an absorbed one's rule.
                 for id in f.obligation_ids {
                     if !k.obligation_ids.contains(&id) {
                         k.obligation_ids.push(id);
@@ -320,5 +332,6 @@ fn finding(
             l
         },
         suggested_change: None,
+        also: Vec::new(),
     }
 }

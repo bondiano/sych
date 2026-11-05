@@ -128,8 +128,11 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
   `UNRESOLVED` (`DUPLICATES_EXISTING_DIAGNOSTIC`): without a comparable baseline, novelty is not proven. A rejected
   nit goes to `rejected_candidates` and is not promoted.
 - **Findings**: severity, support and verification status are separate fields; every finding has the limitation
-  "CONFIRMED by the verification policy on the shown spans; not a proof of the whole program". Findings from different
-  passes with overlapping anchors are merged into the most severe one, marked `merged an overlapping hypothesis`.
+  "CONFIRMED by the verification policy on the shown spans; not a proof of the whole program". Findings with overlapping anchors are
+  reported once, by the most severe; the others are kept whole in its `also` (category, severity, title, explanation,
+  conditions, consequence, anchors), named in the same comment under "Also on these lines" and in its prompt for AI
+  agents, and their rules stay linked to it. The fingerprint and id are the kept finding's, so lineage and the
+  publication plan see one finding per location.
   A `VIOLATED` obligation without a linked finding yields a rule violation finding from the reducer.
 - **Basis and baseline.** Basis kinds: `STATIC_TRACE` (a chain of anchors from the change to the consequence),
   `SEMANTIC_ARGUMENT` (reasoning over the shown spans), `EXPLICIT_RULE` (accepted rule), `PREFERENCE` (only

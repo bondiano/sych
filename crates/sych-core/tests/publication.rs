@@ -11,9 +11,9 @@ use sych_core::publication::{
     render_summary,
 };
 use sych_core::{
-    Coverage, DiffManifest, ExecutionOutcome, Finding, FindingCategory, GENERATED_IN_CHANGE,
-    GitObjectId, PathGap, ReviewLanguage, ReviewResult, Severity, SourceSide, SuggestedChange,
-    decode, sha256,
+    AlsoFinding, Coverage, DiffManifest, ExecutionOutcome, Finding, FindingCategory,
+    GENERATED_IN_CHANGE, GitObjectId, PathGap, ReviewLanguage, ReviewResult, Severity, SourceSide,
+    SuggestedChange, decode, sha256,
 };
 
 fn fixture(name: &str) -> PathBuf {
@@ -292,6 +292,25 @@ fn russian_summaries_and_inline_bodies_match_their_golden_files() {
     finding.triggering_conditions = vec!["two concurrent requests".into()];
     golden("inline.ru", &inline_body(&finding, ReviewLanguage::Ru));
     golden("inline.en", &inline_body(&finding, ReviewLanguage::En));
+
+    // A finding merged into an overlapping one is still named in its comment.
+    let mut merged = finding.clone();
+    merged.also = vec![AlsoFinding {
+        category: FindingCategory::Defect,
+        severity: Severity::Medium,
+        title: "The owner of the order is not checked".into(),
+        explanation: "Any session can create an order for another customer.".into(),
+        triggering_conditions: Vec::new(),
+        consequence: "orders on behalf of other customers".into(),
+        anchors: finding.anchors.clone(),
+    }];
+    let text = inline_body(&merged, ReviewLanguage::En);
+    assert!(text.contains("**Also on these lines:**\n- 🟡 Medium · Bug: The owner"));
+    assert!(
+        text.contains("Also on these lines: The owner of the order is not checked. Any session")
+    );
+    golden("inline-also.en", &text);
+    golden("inline-also.ru", &inline_body(&merged, ReviewLanguage::Ru));
 
     // A change of exactly the commented lines is a GitHub suggestion; other lines are code.
     let mut change = SuggestedChange {
