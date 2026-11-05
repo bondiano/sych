@@ -49,5 +49,9 @@ head:
         tokio::fs::read(file).await.map_err(|_| StatusCode::NOT_FOUND)
     }
 expected:
+  tolerated:
+    - semantic_target: "the route now takes a file name instead of a numeric id, so existing /<id> requests no longer find <id>.png"
+      evidence_locations:
+        - { side: HEAD, path: src/lib.rs, start_line: 8, end_line: 8 }
   forbidden_claims:
     - "The avatar handler allows path traversal."

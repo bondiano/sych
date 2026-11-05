@@ -46,6 +46,10 @@ head:
       }, [id]);
       return order ? <OrderCard order={order} /> : <Spinner />;
     }
+
+    function ignoreAbort(error: unknown) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) throw error;
+    }
 expected:
   facts:
     - { kind: async_effect_guarded, side: HEAD, path: src/OrderDetails.tsx, line: 5 }

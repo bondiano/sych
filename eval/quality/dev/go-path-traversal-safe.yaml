@@ -51,5 +51,9 @@ head:
     	http.ServeFile(w, r, filepath.Join(reportsDir, name))
     }
 expected:
+  tolerated:
+    - semantic_target: "the endpoint now takes a file name instead of a numeric id: old ?id= requests get 400 and any file under reportsDir is servable"
+      evidence_locations:
+        - { side: HEAD, path: reports.go, start_line: 11, end_line: 11 }
   forbidden_claims:
     - "Download allows path traversal."

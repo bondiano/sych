@@ -14,6 +14,7 @@ base:
     edition = "2024"
 
     [dependencies]
+    tokio = { version = "1", features = ["time"] }
   rust-toolchain.toml: |
     [toolchain]
     channel = "1.94.1"
@@ -39,6 +40,10 @@ head:
             }
         }
         unreachable!()
+    }
+
+    fn backoff(attempt: u32) -> std::time::Duration {
+        std::time::Duration::from_millis(100 << attempt)
     }
 expected:
   findings:

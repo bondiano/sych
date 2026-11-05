@@ -12,7 +12,7 @@ base:
     environment: staging
     owner: orders
     mixed_versions: {value: true, source: "rolling update"}
-    backfill: {value: "batched job after the app rollout", source: jobs/README.md}
+    backfill: {value: "one UPDATE in a migration applied after the app rollout", source: jobs/README.md}
   go.mod: |
     module example.com/shop
 

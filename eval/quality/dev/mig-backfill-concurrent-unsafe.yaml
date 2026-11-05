@@ -5,14 +5,14 @@ language: go
 pair: mig-backfill-concurrent
 variant: unsafe
 profiles: [migration_compatibility]
-rationale: "The backfill copies status into state for every row, unconditionally, while the new app already writes state: a row updated by the app between batches is overwritten with the stale status."
+rationale: "The backfill copies status into state for every row, unconditionally, while the new app already writes state: a row updated by the app before or while the backfill runs is overwritten with the stale status."
 base:
   .sych/deploy.yaml: |
     schema_version: 1
     environment: staging
     owner: orders
     mixed_versions: {value: true, source: "rolling update"}
-    backfill: {value: "batched job after the app rollout", source: jobs/README.md}
+    backfill: {value: "one UPDATE in a migration applied after the app rollout", source: jobs/README.md}
   go.mod: |
     module example.com/shop
 
