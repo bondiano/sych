@@ -132,11 +132,23 @@ pub fn validate(
     for (i, candidate) in candidates.iter_mut().enumerate() {
         let id = format!("cand-{}", i + 1);
         let mut found = output.verdicts.iter().filter(|v| v.candidate_id == id);
+        let round = u32::try_from(candidate.verdicts.len() + 1).unwrap_or(u32::MAX);
         let (Some(verdict), None) = (found.next(), found.next()) else {
+            let problem = format!("verifier gave no single verdict for {id}");
             candidate.verification_status = VerificationStatus::Unresolved;
-            candidate
-                .limitations
-                .push(format!("verifier gave no single verdict for {id}"));
+            candidate.limitations.push(problem.clone());
+            // Recorded too, so a later round keeps its number.
+            candidate.verdicts.push(VerdictRecord {
+                round,
+                proposed: VerificationStatus::Pending,
+                status: VerificationStatus::Unresolved,
+                explanation: String::new(),
+                alternatives_checked: Vec::new(),
+                anchors: Vec::new(),
+                evidence_ids: Vec::new(),
+                engine_problems: vec![problem],
+                attempt_id: None,
+            });
             continue;
         };
         let mut problems = Vec::new();
@@ -171,7 +183,7 @@ pub fn validate(
             .limitations
             .extend(problems.iter().map(|p| format!("engine: {p}")));
         candidate.verdicts.push(VerdictRecord {
-            round: u32::try_from(candidate.verdicts.len() + 1).unwrap_or(u32::MAX),
+            round,
             proposed: verdict.verdict.into(),
             status: candidate.verification_status,
             explanation: verdict.explanation.clone(),

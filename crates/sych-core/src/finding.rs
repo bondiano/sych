@@ -52,7 +52,7 @@ pub struct Candidate {
 pub struct VerdictRecord {
     /// 1 for the first call; 2 for the call with the answers to the context asks.
     pub round: u32,
-    /// The verdict the verifier gave.
+    /// The verdict the verifier gave; `PENDING` when it gave none, or more than one.
     pub proposed: VerificationStatus,
     /// The status the engine accepted: lower than proposed when the basis was not admissible.
     pub status: VerificationStatus,

@@ -84,6 +84,24 @@ fn verdicts_need_an_admissible_basis() {
             .iter()
             .any(|l| l.contains("no single verdict"))
     );
+    // A round without a verdict is still a round: the next one is numbered 2.
+    let silent = &verified.candidates[5].verdicts;
+    assert_eq!(
+        silent
+            .iter()
+            .map(|v| (v.round, v.proposed))
+            .collect::<Vec<_>>(),
+        [(1, VerificationStatus::Pending)]
+    );
+    let again = validate_verdicts(
+        &output,
+        verified.candidates.clone(),
+        &context,
+        &reader,
+        &[],
+        "unit",
+    );
+    assert_eq!(again.candidates[5].verdicts[1].round, 2);
     assert_eq!(verified.findings.len(), 1);
     let finding = &verified.findings[0];
     assert_eq!(finding.category, FindingCategory::Defect);

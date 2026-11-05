@@ -1062,7 +1062,7 @@
           "type": "string"
         },
         "proposed": {
-          "description": "The verdict the verifier gave.",
+          "description": "The verdict the verifier gave; `PENDING` when it gave none, or more than one.",
           "$ref": "#/$defs/VerificationStatus"
         },
         "round": {
