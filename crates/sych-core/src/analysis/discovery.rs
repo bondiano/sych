@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::assess::AssessmentOutput;
 use super::context::{Anchor, Context};
 use crate::broker::{OpStatus, Operation, Ops, SymbolRef};
+use crate::effects::{EffectMatch, LedgerEntry};
 use crate::model::DataBlock;
 use crate::{
     Candidate, CandidateId, CandidateOrigin, FindingCategory, ObligationId, RepoPath, Severity,
@@ -366,6 +367,62 @@ pub fn refuting_asks(open: &[Candidate]) -> Vec<ContextAsk> {
             operation: AskOperation::SearchSource {
                 side: SourceSide::Head,
                 query: query.to_owned(),
+            },
+        })
+        .collect()
+}
+
+/// Where the change put an effect the ledger saw leave a file the candidates point at: a HEAD
+/// search for its target's last name (3 to 64 bytes, like `refuting_asks`; four in all, registered
+/// effects first), since the ledger reads only the changed files and a wrapper, worker or
+/// middleware outside them may now run it. A moved effect needs no search: the ledger already
+/// found its new place among the changed files.
+pub fn effect_asks(ledger: &[LedgerEntry], candidates: &[Candidate]) -> Vec<ContextAsk> {
+    let mut targets: Vec<(&str, &RepoPath)> = Vec::new();
+    // Registered effects first: a transaction's own BeginTx or Commit must not crowd out the
+    // outbox write the registry names.
+    let mut entries: Vec<&LedgerEntry> = ledger.iter().collect();
+    entries.sort_by_key(|e| e.registry_id.is_none());
+    for entry in entries {
+        let lost = matches!(
+            entry.matched,
+            EffectMatch::Removed | EffectMatch::Unresolved
+        );
+        let at = |path: &RepoPath| {
+            entry
+                .base
+                .iter()
+                .chain(&entry.head)
+                .any(|o| &o.code_ref.path == path)
+        };
+        let pointed = candidates
+            .iter()
+            .flat_map(|c| &c.anchors)
+            .any(|a| at(&a.path));
+        // `example.com/shop/orders.Store.AppendEvent` is called as `AppendEvent`.
+        let name = entry
+            .target
+            .rsplit(['.', '/', ':'])
+            .next()
+            .unwrap_or_default();
+        if lost
+            && pointed
+            && (3..=64).contains(&name.len())
+            && !targets.iter().any(|(n, _)| *n == name)
+        {
+            targets.push((name, &entry.path));
+        }
+    }
+    targets
+        .into_iter()
+        .take(4)
+        .map(|(name, path)| ContextAsk {
+            question: format!(
+                "effect ledger: where does `{name}`, gone from `{path}`, happen now?"
+            ),
+            operation: AskOperation::SearchSource {
+                side: SourceSide::Head,
+                query: name.to_owned(),
             },
         })
         .collect()

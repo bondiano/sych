@@ -2,8 +2,9 @@
 
 use sych_core::analysis::{
     AssessmentOutput, AssessmentRecord, CANDIDATE_OVERFLOW, Context, ContextAsk, Discovered,
-    DiscoveryOutput, ReviewOutput, Verified, VerifyOutput, context_asks, not_assessed, prompts,
-    refuting_asks, unseen_violation, validate_assessment, validate_discovery, validate_verdicts,
+    DiscoveryOutput, ReviewOutput, Verified, VerifyOutput, context_asks, effect_asks, not_assessed,
+    prompts, refuting_asks, unseen_violation, validate_assessment, validate_discovery,
+    validate_verdicts,
 };
 use sych_core::broker::{Ops, REQUIRED_OVER_BUDGET, unseen_spans};
 use sych_core::config::Role;
@@ -235,7 +236,8 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         }
     }
 
-    /// Verdicts for `found`, shown the names their removed BASE lines lose; the verifier's
+    /// Verdicts for `found`, shown the names their removed BASE lines lose and where an effect
+    /// gone from their files happens now; the verifier's
     /// context asks are answered once and the candidates it left UNRESOLVED are verified again
     /// with the answers.
     pub(super) async fn verify(
@@ -256,6 +258,9 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
 
         let anchors: Vec<&CodeRef> = found.candidates.iter().flat_map(|c| &c.anchors).collect();
         context.add_lost_names(&anchors, &self.snap.manifest, self.snap);
+        // Searches, not model calls: where an effect gone from these files happens now.
+        let moved = effect_asks(&self.facts.ledger.entries, &found.candidates);
+        self.answer(batch[0], &moved, &mut context, out);
         let (asks, mut verified) = match self
             .verify_round(batch, obligations, &context, found.candidates.clone(), out)
             .await
