@@ -259,10 +259,36 @@ pub async fn run_reusing(
     repo: &Path,
     answer: fn(&ModelRequest) -> Result<ModelReply, ProviderError>,
     budgets: Budgets,
+    batching: (u32, usize),
+    verify: bool,
+    reuse: BTreeMap<Sha256Digest, Checkpoint>,
+    replay: Option<Vec<Discovered>>,
+) -> (Outcome, Vec<String>, Vec<Checkpoint>) {
+    run_with_facts(
+        repo,
+        answer,
+        budgets,
+        batching,
+        verify,
+        reuse,
+        replay,
+        RunFacts::default(),
+    )
+    .await
+}
+
+/// [`run_reusing`] over `facts` instead of none: the ledger, syntax facts and schema
+/// references of a real run, as far as a test needs them.
+#[allow(clippy::too_many_arguments)] // the whole run a test sets up
+pub async fn run_with_facts(
+    repo: &Path,
+    answer: fn(&ModelRequest) -> Result<ModelReply, ProviderError>,
+    budgets: Budgets,
     (batch_tokens, batch_units): (u32, usize),
     verify: bool,
     reuse: BTreeMap<Sha256Digest, Checkpoint>,
     replay: Option<Vec<Discovered>>,
+    facts: RunFacts,
 ) -> (Outcome, Vec<String>, Vec<Checkpoint>) {
     let snap = LocalSnapshot::capture(&SnapshotRequest {
         repo,
@@ -276,7 +302,6 @@ pub async fn run_reusing(
         .policy_files(SourceSide::TargetTip)
         .expect("policy files");
     let policy = RepositoryPolicy::parse(&files, &ServerConfig::engine_default()).expect("policy");
-    let facts = RunFacts::default();
     let plan = plan(&snap.snapshot.id, &snap.manifest, &policy, &facts);
     let store_dir = database::TestDir::new().await;
     let store = store_dir.config();
