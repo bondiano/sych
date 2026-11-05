@@ -228,8 +228,9 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         }
     }
 
-    /// Verdicts for `found`; the verifier's context asks are answered once and the
-    /// candidates it left UNRESOLVED are verified again with the answers.
+    /// Verdicts for `found`, shown the names their removed BASE lines lose; the verifier's
+    /// context asks are answered once and the candidates it left UNRESOLVED are verified again
+    /// with the answers.
     pub(super) async fn verify(
         &self,
         batch: &[usize],

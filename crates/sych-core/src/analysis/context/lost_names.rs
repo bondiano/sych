@@ -71,7 +71,11 @@ fn lost_names<'m>(
         let Some(base) = side_text(reader, SourceSide::DiffBase, old) else {
             continue;
         };
-        let head = side_text(reader, SourceSide::Head, new).unwrap_or_default();
+        // An emptied file loses every name; one no longer readable as text says nothing.
+        let empty = (new.line_count == Some(0)).then(String::new);
+        let Some(head) = empty.or_else(|| side_text(reader, SourceSide::Head, new)) else {
+            continue;
+        };
         let kept: Vec<&str> = names(&head).collect();
         let span = anchor.end_line.saturating_sub(anchor.start_line) + 1;
         for (_, line) in hunk_lines(&base, anchor.start_line, span).filter(|(n, _)| removed(*n)) {

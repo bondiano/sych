@@ -91,3 +91,16 @@ fn only_removed_base_lines_of_a_kept_file_are_followed() {
     context.add_lost_names(&[&head, &unchanged, &deleted], &manifest, &reader);
     assert!(context.blocks.is_empty());
 }
+
+#[test]
+fn a_guarded_file_no_longer_text_is_not_followed() {
+    let (reader, mut manifest) = fixture();
+    if let Some(new) = manifest.files[0].new.as_mut() {
+        new.line_count = None;
+    }
+
+    let guard = reader.at(SourceSide::DiffBase, "src/codegen/schema.rs", 2, 5);
+    let mut context = Context::default();
+    context.add_lost_names(&[&guard], &manifest, &reader);
+    assert!(context.blocks.is_empty());
+}
