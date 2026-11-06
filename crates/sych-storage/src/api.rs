@@ -94,6 +94,8 @@ pub struct Metrics {
     /// The highest spend of any tenant today and this UTC month, as the ledger counts it.
     pub spent_today_micro_usd: i64,
     pub spent_this_month_micro_usd: i64,
+    /// Weekly digest sends of the last eight days that failed for good or never reported back.
+    pub undelivered_digests: i64,
 }
 
 impl Storage {
@@ -376,6 +378,7 @@ impl Storage {
                 "SELECT state, count(*) FROM tour_sessions GROUP BY state ORDER BY state",
             )
             .await?,
+            undelivered_digests: self.undelivered_digests(at).await?,
             tour_questions: one("SELECT count(*) + 0 * CAST($1 AS BIGINT) FROM tour_exchanges")
                 .await?,
             spent_today_micro_usd: spent.0,

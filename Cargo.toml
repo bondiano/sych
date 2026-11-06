@@ -17,6 +17,8 @@ clap = { version = "4.6.7", features = ["derive"] }
 flate2 = "1.1.10"
 futures-util = { version = "0.3.34", default-features = false, features = ["alloc"] }
 jiff = { version = "0.2.37", features = ["serde"] }
+# SMTP over rustls with ring and webpki roots, as sqlx already uses them.
+lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "ring", "webpki-roots"] }
 oxc_allocator = "0.139.0"
 oxc_ast = "0.139.0"
 oxc_ast_visit = "0.139.0"

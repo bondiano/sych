@@ -57,6 +57,8 @@ pub struct Engine {
     pub heartbeat: Duration,
     /// `http.public_base_url`, for links to full results.
     pub public_base_url: Option<String>,
+    /// `notifications.weekly_digest` with its channels; `None` when not configured.
+    pub digest: Option<super::digest::Digest>,
     pub now: fn() -> Timestamp,
 }
 
@@ -326,6 +328,8 @@ impl Engine {
 const RECONCILE_SECONDS: i64 = 600;
 /// Reaper period.
 const REAP_SECONDS: i64 = 15;
+/// How often a worker checks whether the weekly digest is due.
+const DIGEST_SECONDS: i64 = 60;
 
 impl Engine {
     /// Scheduler with reconcile and reaper on one task, the worker on another, until `stop`.
@@ -334,7 +338,8 @@ impl Engine {
         let scheduler = {
             let (engine, mut stop) = (Arc::clone(&engine), stop.clone());
             task::spawn_local(async move {
-                let (mut reconciled, mut reaped, mut verified) = (i64::MIN, i64::MIN, i64::MIN);
+                let (mut reconciled, mut reaped, mut verified, mut digested) =
+                    (i64::MIN, i64::MIN, i64::MIN, i64::MIN);
                 let mut tick = time::interval(Duration::from_secs(1));
                 loop {
                     tokio::select! {
@@ -358,6 +363,11 @@ impl Engine {
                             engine.verify_published_once().await.map(drop),
                             "verify publications",
                         );
+                    }
+
+                    if now.saturating_sub(digested) >= DIGEST_SECONDS {
+                        digested = now;
+                        report(engine.digest_once().await, "weekly digest");
                     }
 
                     report(engine.schedule_once().await.map(drop), "schedule");

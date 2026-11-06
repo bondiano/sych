@@ -17,7 +17,7 @@ mod queue;
 mod report;
 mod views;
 
-pub use admin::{ConnectionView, Delivery, ScmReadFailure};
+pub use admin::{ConnectionView, Delivery, DigestDelivery, ScmReadFailure};
 pub use analytics::{
     BudgetUse, ChangeCost, CostBreakdown, CostRow, CoverageDay, Honesty, Judged, Latency, Quality,
     SeverityCount, Spread, month_forecast,

@@ -90,7 +90,7 @@ migration the data and foreign keys are intact. Backward compatibility is not pr
 is carried over.
 
 PostgreSQL has its own migration history, starting with `migrations/postgres/0001_storage.sql`.
-It stores the same 22 application tables; domain IDs and JSON remain text, integer data remains signed 64-bit.
+It stores the same 24 application tables; domain IDs and JSON remain text, integer data remains signed 64-bit.
 SQLite 0011 and PostgreSQL 0002 keep a finding's severity and title for the API lists; findings recorded
 before them stay `NULL` until a later revision touches them. SQLite 0012 and PostgreSQL 0003 add browser
 `sessions` and the repository of an audited action. Opening either backend refuses missing or newer migrations. Switching the configured URL does not copy history

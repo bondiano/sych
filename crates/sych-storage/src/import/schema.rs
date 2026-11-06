@@ -8,7 +8,7 @@ use crate::{MIGRATOR, POSTGRES_MIGRATOR, StorageError};
 
 use super::{Column, Kind, Table};
 
-const TABLES: [&str; 23] = [
+const TABLES: [&str; 24] = [
     "repositories",
     "changes",
     "runs",
@@ -32,6 +32,7 @@ const TABLES: [&str; 23] = [
     "publication_operations",
     "finding_events",
     "feedback",
+    "digest_deliveries",
 ];
 
 #[derive(PartialEq, Eq)]

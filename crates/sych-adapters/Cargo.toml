@@ -12,6 +12,7 @@ description = "Sych adapters: Git, model, pinned tools and semantic providers"
 base64.workspace = true
 flate2.workspace = true
 jiff.workspace = true
+lettre.workspace = true
 oxc_allocator.workspace = true
 oxc_ast.workspace = true
 oxc_ast_visit.workspace = true
