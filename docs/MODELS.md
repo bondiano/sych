@@ -307,7 +307,9 @@ so sign-in itself is not covered by an automated test.
   `unsupported_capability`. Also when the route itself cannot be accounted (`NO_PRICE_BOUND`, `FIXED_FEE_UNKNOWN`,
   `BILLING_MISMATCH`): the next route makes a new reservation. `AUTH`, `ENTITLEMENT`, `CONFIG`, `CANCELLED`,
   shared caps/deadline, a schema/truncated/refused reply stop without a retry. The same route is not called again within a
-  task; there is no waiting for reset.
+  task; there is no waiting for reset. The engine may start a new task for the same work: a refused review sends its
+  units to discovery, and a refused discovery runs once more after the other searches, once the shortest cooldown is
+  over and never past the run's deadline ([ANALYSIS.md](ANALYSIS.md)).
 - **Cooldown.** A profile that failed on a trigger rests for `max(cooldown_seconds, Retry-After)`; subsequent tasks in the run
   skip it (`SKIPPED`, "cooling down until …") and after expiry start from the primary again
   (`revert_policy: cooldown_expiry`). A timeout without `Retry-After` is one slow generation, not an outage: the task moves

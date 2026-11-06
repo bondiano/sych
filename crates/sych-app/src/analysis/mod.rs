@@ -30,7 +30,7 @@ mod redo;
 mod replay;
 
 use parts::{Assessing, Combined, Task};
-use redo::cut_short;
+use redo::{cut_short, refused};
 
 /// Answers kept per context ask; each is a span the verifier sees.
 const MAX_REFS_PER_ANSWER: usize = 3;
@@ -268,7 +268,8 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         let mut unreviewed = Vec::new();
         for (part, review) in self.each(assessing).await {
             match review {
-                Some((_, obligations)) if cut_short(&part) => {
+                // Turned away by the provider, its units are searched like a cut one's.
+                Some((_, obligations)) if cut_short(&part) || refused(&part) => {
                     out.absorb_cut(part);
                     unreviewed.extend(obligations);
                 }

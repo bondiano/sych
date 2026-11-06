@@ -2,10 +2,11 @@
 //! same units redone over smaller calls, never a silent gap.
 
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use sych_app::analysis::PassStatus;
+use sych_app::analysis::{Pass, PassStatus};
 use sych_core::config::Budgets;
-use sych_core::model::{Finish, ModelReply, ModelRequest, ProviderError};
+use sych_core::model::{ErrorKind, Finish, ModelReply, ModelRequest, ProviderError};
 
 mod harness;
 
@@ -109,4 +110,60 @@ async fn a_cut_wide_call_is_redone_unit_by_unit_without_a_gap() {
             .into_iter()
             .any(|p| matches!(p.status, PassStatus::Failed { .. }))
     );
+}
+
+static REVIEW_REFUSED: AtomicBool = AtomicBool::new(false);
+static SEARCH_REFUSED: AtomicBool = AtomicBool::new(false);
+
+/// Rate limits the first review and the first plain discovery, as a provider under load does
+/// for a moment; every later call is answered.
+fn first_calls_rate_limited(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
+    let audit = request
+        .messages
+        .iter()
+        .any(|m| m.content.contains("risk auditor"));
+    let first = match request.schema_name.as_str() {
+        "review" => !REVIEW_REFUSED.swap(true, Ordering::SeqCst),
+        "discovery" if !audit => !SEARCH_REFUSED.swap(true, Ordering::SeqCst),
+        _ => false,
+    };
+    if first {
+        return Err(ProviderError {
+            kind: ErrorKind::RateLimited,
+            dispatched: false,
+            message: "rate limited".into(),
+            retry_after_seconds: None,
+        });
+    }
+
+    supported_and_empty(request)
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_search_the_provider_turned_away_is_asked_again_without_a_gap() {
+    let (outcome, calls) = run_on(
+        repo(true),
+        first_calls_rate_limited,
+        Budgets::default(),
+        14_000,
+        true,
+    )
+    .await;
+    // The refused review leaves its rule to an assessment and its units to discovery; that
+    // discovery is refused too and asked once more.
+    let plain = |p: &&Pass| p.template.starts_with("discovery") && p.obligation_id.is_none();
+    let searches: Vec<bool> = outcome
+        .record
+        .passes
+        .iter()
+        .filter(plain)
+        .map(|p| matches!(p.status, PassStatus::Done))
+        .collect();
+    assert_eq!(searches, [false, true], "{calls:?}");
+    assert!(
+        calls.contains(&"obligation_assessment".to_owned()),
+        "{calls:?}"
+    );
+    assert!(outcome.gaps.is_empty(), "{:?}", outcome.gaps);
+    assert_eq!(reason(&outcome.assessments[0].status), "SUPPORTED");
 }
