@@ -2,17 +2,22 @@
 //! runs of a nondeterministic model.
 
 use serde::Serialize;
-use sych_core::{ObligationStatus, ReviewResult, VerificationStatus};
+use sych_core::broker::EvidencePacket;
+use sych_core::{CodeRef, ObligationStatus, ReviewResult, VerificationStatus};
 
 use super::ExpectedFinding;
-use super::score::{Remark, Totals, correctness, hits};
+use super::score::{Remark, Totals, correctness, hits, overlaps};
 
-/// Missed labelled defects by the furthest stage a correctness candidate reached; the four
+/// Missed labelled defects by the furthest stage a correctness candidate reached; the five
 /// add up to `expected_findings - matched_expected`.
 #[derive(Serialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Losses {
-    /// No candidate reached the labelled lines.
+    /// No candidate reached the labelled lines, though a finished search was shown them or no
+    /// packet showed them at all: a model or context miss.
     pub(super) not_discovered: u32,
+    /// No candidate reached the labelled lines, and every search shown them failed, was cut
+    /// off or never ran: the provider or the deadline lost them, not the model.
+    pub(super) discovery_failed: u32,
     /// Only candidates the verifier rejected reached them.
     pub(super) verifier_rejected: u32,
     /// A candidate left unresolved or never verified reached them, and none was confirmed.
@@ -25,6 +30,7 @@ pub(super) struct Losses {
 impl Losses {
     pub(super) fn add(&mut self, other: &Self) {
         self.not_discovered += other.not_discovered;
+        self.discovery_failed += other.discovery_failed;
         self.verifier_rejected += other.verifier_rejected;
         self.verifier_unresolved += other.verifier_unresolved;
         self.confirmed_unmatched += other.confirmed_unmatched;
@@ -55,9 +61,47 @@ pub(super) fn context_limited(result: &ReviewResult) -> usize {
         .count()
 }
 
+/// Code a run showed the model: in every packet, and in the packets a search that finished
+/// was shown.
+#[derive(Default)]
+pub(super) struct Shown<'a> {
+    pub(super) all: Vec<&'a CodeRef>,
+    pub(super) searched: Vec<&'a CodeRef>,
+}
+
+impl<'a> Shown<'a> {
+    /// `searched`: indexes into `packets`.
+    pub(super) fn of(packets: &'a [EvidencePacket], searched: &[usize]) -> Self {
+        let refs = |p: &'a EvidencePacket| p.fragments.iter().map(|f| &f.code_ref);
+        Self {
+            all: packets.iter().flat_map(refs).collect(),
+            searched: searched
+                .iter()
+                .filter_map(|&i| packets.get(i))
+                .flat_map(refs)
+                .collect(),
+        }
+    }
+
+    /// The labelled defect is shown in a packet, but in none a finished search was shown.
+    fn unsearched(&self, label: &ExpectedFinding) -> bool {
+        let at = |refs: &[&CodeRef]| {
+            label
+                .evidence_locations
+                .iter()
+                .any(|l| refs.iter().any(|r| overlaps(r, l)))
+        };
+        at(&self.all) && !at(&self.searched)
+    }
+}
+
 /// `missed`: labelled defects no correctness finding hit; `candidates`: every candidate of
 /// the run with its verification status, empty without a verifier.
-pub(super) fn losses(missed: &[&ExpectedFinding], candidates: &[Remark<'_>]) -> Losses {
+pub(super) fn losses(
+    missed: &[&ExpectedFinding],
+    candidates: &[Remark<'_>],
+    shown: &Shown<'_>,
+) -> Losses {
     let mut out = Losses::default();
     for label in missed {
         let reached: Vec<VerificationStatus> = candidates
@@ -65,7 +109,9 @@ pub(super) fn losses(missed: &[&ExpectedFinding], candidates: &[Remark<'_>]) -> 
             .filter(|c| correctness(c.category) && hits(&[*label], &[c]) > 0)
             .map(|c| c.status)
             .collect();
-        let stage = if reached.is_empty() {
+        let stage = if reached.is_empty() && shown.unsearched(label) {
+            &mut out.discovery_failed
+        } else if reached.is_empty() {
             &mut out.not_discovered
         } else if reached.contains(&VerificationStatus::Confirmed) {
             &mut out.confirmed_unmatched

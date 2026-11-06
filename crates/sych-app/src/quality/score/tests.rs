@@ -5,7 +5,7 @@ use super::*;
 use sych_core::{AlsoFinding, Severity};
 
 use crate::quality::Tolerated;
-use crate::quality::stages::{Losses, Spread};
+use crate::quality::stages::{Losses, Shown, Spread};
 
 fn case(variant: &str, start: u32, end: u32) -> QualityCase {
     serde_yaml_ng::from_str(&format!(
@@ -18,7 +18,7 @@ fn case(variant: &str, start: u32, end: u32) -> QualityCase {
 }
 
 fn score_of(case: &QualityCase, result: &ReviewResult) -> Measured {
-    score(case, result, &remarks(result), &[])
+    score(case, result, &remarks(result), &[], &Shown::default())
 }
 
 fn result() -> ReviewResult {
@@ -114,9 +114,9 @@ fn a_labelled_defect_only_a_dropped_candidate_reached_is_a_verifier_miss() {
         anchors: &finding.anchors,
         status: VerificationStatus::Rejected,
     }];
-    let m = score(&unsafe_case, &result, &[], &dropped);
+    let m = score(&unsafe_case, &result, &[], &dropped, &Shown::default());
     assert_eq!((m.matched_expected, m.verifier_dropped), (0, 1));
-    let kept = score(&unsafe_case, &result, &dropped, &dropped);
+    let kept = score(&unsafe_case, &result, &dropped, &dropped, &Shown::default());
     assert_eq!((kept.matched_expected, kept.verifier_dropped), (1, 0));
 }
 
@@ -151,7 +151,9 @@ fn a_missed_defect_counts_at_the_furthest_stage_a_candidate_reached() {
         anchors: &finding.anchors,
         status,
     };
-    let losses = |candidates: &[Remark<'_>]| score(&unsafe_case, &result, &[], candidates).losses;
+    let losses = |candidates: &[Remark<'_>]| {
+        score(&unsafe_case, &result, &[], candidates, &Shown::default()).losses
+    };
     let only = |stage: fn(&mut Losses) -> &mut u32| {
         let mut l = Losses::default();
         *stage(&mut l) = 1;
@@ -172,8 +174,43 @@ fn a_missed_defect_counts_at_the_furthest_stage_a_candidate_reached() {
         ..at(Rejected)
     };
     assert_eq!(losses(&[nit]), only(|l| &mut l.not_discovered));
-    let found = score(&unsafe_case, &result, &[at(Confirmed)], &[at(Rejected)]);
+    let found = score(
+        &unsafe_case,
+        &result,
+        &[at(Confirmed)],
+        &[at(Rejected)],
+        &Shown::default(),
+    );
     assert_eq!(found.losses, Losses::default());
+}
+
+#[test]
+fn a_defect_shown_only_to_searches_that_failed_is_a_discovery_failure() {
+    let unsafe_case = case("unsafe", 45, 50);
+    let mut result = result();
+    let at = result.findings.remove(0).anchors[0].clone();
+    let elsewhere = CodeRef {
+        start_line: 1,
+        end_line: 2,
+        ..at.clone()
+    };
+    let losses = |shown: &Shown<'_>| score(&unsafe_case, &result, &[], &[], shown).losses;
+    let failed = Shown {
+        all: vec![&at, &elsewhere],
+        searched: vec![&elsewhere],
+    };
+    assert_eq!(losses(&failed).discovery_failed, 1);
+    assert_eq!(losses(&failed).not_discovered, 0);
+    let searched = Shown {
+        all: vec![&at],
+        searched: vec![&at],
+    };
+    assert_eq!(losses(&searched).not_discovered, 1, "searched and missed");
+    let unshown = Shown {
+        all: vec![&elsewhere],
+        searched: Vec::new(),
+    };
+    assert_eq!(losses(&unshown).not_discovered, 1, "never shown");
 }
 
 #[test]

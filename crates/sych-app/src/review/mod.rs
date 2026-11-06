@@ -257,14 +257,15 @@ fn waive(effective: &mut EffectiveConfig, waivers: &[(String, RuleException)]) {
 
 /// Runs and saves one review. `store` overrides the configured storage (eval runs).
 pub fn run(args: &ReviewArguments, store: Option<StoreConfig>) -> anyhow::Result<Report> {
-    run_with_candidates(args, store).map(|(report, _)| report)
+    run_with_candidates(args, store).map(|(report, ..)| report)
 }
 
-/// [`run`], also returning every model candidate, verified or not (evaluation baselines).
+/// [`run`], also returning every model candidate, verified or not, and the packets a finished
+/// discovery searched (evaluation).
 pub fn run_with_candidates(
     args: &ReviewArguments,
     store: Option<StoreConfig>,
-) -> anyhow::Result<(Report, Vec<Candidate>)> {
+) -> anyhow::Result<(Report, Vec<Candidate>, Vec<usize>)> {
     let change_key = format!("{}...{}", args.comparison.base, args.comparison.head);
     execute(args, store, Target::Local { change_key })
 }
@@ -276,7 +277,7 @@ pub fn run_claimed(
     run: RunHandle,
     cancel: watch::Receiver<bool>,
 ) -> anyhow::Result<Report> {
-    execute(args, Some(store), Target::Claimed { run, cancel }).map(|(report, _)| report)
+    execute(args, Some(store), Target::Claimed { run, cancel }).map(|(report, ..)| report)
 }
 
 #[tracing::instrument(name = "review", skip_all, fields(base = %args.comparison.base, head = %args.comparison.head))]
@@ -285,7 +286,7 @@ fn execute(
     args: &ReviewArguments,
     store: Option<StoreConfig>,
     target: Target,
-) -> anyhow::Result<(Report, Vec<Candidate>)> {
+) -> anyhow::Result<(Report, Vec<Candidate>, Vec<usize>)> {
     let invalid_fake = |err: String| Failure::invalid(format!("invalid fake responses: {err}"));
     let fake = args
         .fake_responses
@@ -388,7 +389,7 @@ fn execute(
         context_packets: saved.packets,
         review_result: saved.result,
     };
-    Ok((report, saved.candidates))
+    Ok((report, saved.candidates, saved.searched))
 }
 
 struct Saved {
@@ -399,6 +400,9 @@ struct Saved {
     result: ReviewResult,
     /// Every candidate of the model passes, verified or not.
     candidates: Vec<Candidate>,
+    /// Packets a finished general discovery searched, by index into `packets`; an
+    /// obligation's risk audit looks for that rule only, so it does not count.
+    searched: Vec<usize>,
 }
 
 enum Stopped {

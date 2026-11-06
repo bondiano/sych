@@ -13,12 +13,13 @@ use sych_core::config::RunMode;
 
 use serde::Serialize;
 use sych_core::analysis::Discovered;
+use sych_core::broker::EvidencePacket;
 use sych_core::{Candidate, ReviewResult, sha256};
 use tempfile::TempDir;
 
 use super::replay::frozen;
 use super::score::{RunReport, Totals, candidate_remarks, remarks, score};
-use super::stages::Spread;
+use super::stages::{Shown, Spread};
 use super::{QualityCase, materialize, not_given, read_cases, repo_paths};
 use crate::args::{ExitPolicy, ModelSelection, Output, ReviewArguments, Switch};
 use crate::errors::Failure;
@@ -73,7 +74,7 @@ fn review_case(
     repos: &BTreeMap<String, PathBuf>,
     args: &MeasureArguments<'_>,
     replay: Option<Vec<Discovered>>,
-) -> Result<Option<(ReviewResult, Vec<Candidate>)>, String> {
+) -> Result<Option<Reviewed>, String> {
     let dir = TempDir::new().map_err(|e| e.to_string())?;
     let Some(comparison) = materialize(case, repos, dir.path())? else {
         return Ok(None);
@@ -111,8 +112,24 @@ fn review_case(
     };
     // The configured store: its ledger keeps the money caps across the whole suite.
     review::run_with_candidates(&review, None)
-        .map(|(report, candidates)| Some((report.review_result, candidates)))
+        .map(|(report, candidates, searched)| {
+            Some(Reviewed {
+                result: report.review_result,
+                candidates,
+                packets: report.context_packets,
+                searched,
+            })
+        })
         .map_err(|e| format!("{e:#}"))
+}
+
+/// One reviewed case with what the scorer needs besides the result.
+struct Reviewed {
+    result: ReviewResult,
+    candidates: Vec<Candidate>,
+    packets: Vec<EvidencePacket>,
+    /// Indexes into `packets` a finished general discovery (not a risk audit) searched.
+    searched: Vec<usize>,
 }
 
 /// A review to run: each new one, or each run of the earlier report with what it discovered.
@@ -198,13 +215,15 @@ pub fn measure(args: &MeasureArguments<'_>) -> anyhow::Result<ExitCode> {
         }
 
         let (error, measured) = match review_case(case, &repos, args, replay) {
-            Ok(Some((result, candidates))) => {
+            Ok(Some(r)) => {
                 let (remarks, candidates) = if args.verify {
-                    (remarks(&result), candidate_remarks(&candidates))
+                    (remarks(&r.result), candidate_remarks(&r.candidates))
                 } else {
-                    (candidate_remarks(&candidates), Vec::new())
+                    (candidate_remarks(&r.candidates), Vec::new())
                 };
-                (None, Some(score(case, &result, &remarks, &candidates)))
+                let shown = Shown::of(&r.packets, &r.searched);
+                let measured = score(case, &r.result, &remarks, &candidates, &shown);
+                (None, Some(measured))
             }
             Ok(None) => {
                 report
