@@ -154,6 +154,15 @@ impl Session<'_> {
         storage
             .complete_run(run, &result, &digest, Timestamp::now())
             .await?;
+        // A replay searches nothing: the packets its frozen discoveries searched stand in.
+        let discovered = analysis.iter().flat_map(|a| &a.outcome.record.discovered);
+        let mut searched: Vec<usize> = discovered
+            .chain(self.replay.unwrap_or_default())
+            .filter(|d| d.audit.is_none())
+            .flat_map(|d| d.batch.iter().copied())
+            .collect();
+        searched.sort_unstable();
+        searched.dedup();
         Ok(Saved {
             external,
             evidence_manifest,
@@ -161,6 +170,7 @@ impl Session<'_> {
             packets: document.packets,
             result,
             candidates: analysis.map(|a| a.outcome.candidates).unwrap_or_default(),
+            searched,
         })
     }
 

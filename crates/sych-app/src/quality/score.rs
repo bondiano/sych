@@ -7,7 +7,7 @@ use sych_core::{
 
 use serde::Serialize;
 
-use super::stages::{Losses, context_limited, losses, missed};
+use super::stages::{Losses, Shown, context_limited, losses, missed};
 use super::{CaseDisposition, ExpectedFinding, Location, QualityCase};
 use crate::eval::status_tag;
 
@@ -181,7 +181,7 @@ pub(super) struct RunReport {
     pub(super) measured: Option<Measured>,
 }
 
-fn overlaps(r: &CodeRef, l: &Location) -> bool {
+pub(super) fn overlaps(r: &CodeRef, l: &Location) -> bool {
     r.side == l.side && r.path == l.path && r.start_line <= l.end_line && l.start_line <= r.end_line
 }
 
@@ -337,6 +337,7 @@ pub(super) fn score(
     result: &ReviewResult,
     remarks: &[Remark<'_>],
     candidates: &[Remark<'_>],
+    shown: &Shown<'_>,
 ) -> Measured {
     let labels: Vec<&Location> = case
         .expected
@@ -432,7 +433,7 @@ pub(super) fn score(
         cost_known_micro_usd: usage.cost.known.0,
         unknown_cost_attempts: usage.cost.unknown_cost_attempts,
         verifier_dropped: count(verifier_dropped(&missed, candidates)),
-        losses: losses(&missed, candidates),
+        losses: losses(&missed, candidates, shown),
         context_limited: count(context_limited(result)),
         unreviewed_paths: count(result.excluded_or_unreviewed.len()),
     }
