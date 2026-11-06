@@ -55,7 +55,10 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
 A multi-unit review or discovery whose reply is cut (`TRUNCATED`) or times out is not a gap yet: it is recorded as
 `SPLIT` with its attempts, a review's obligations get assessments of their own, and its units are searched again in halves,
 down to single units, within the same budgets (a cut single unit gets the gateway's retry without reasoning,
-[MODELS.md](MODELS.md)). Only what still fails is a gap.
+[MODELS.md](MODELS.md)). A review or discovery the provider turned away (`RATE_LIMITED`, `TRANSIENT`, or
+`NO_ELIGIBLE_ROUTE` while every route cools down) is recorded the same way: a review's obligations get assessments of
+their own and its units go to discovery, and a discovery is asked once more after the other searches, waiting out the
+shortest cooldown first if it ends before the run's deadline. Only what still fails is a gap.
 
 A pass that did not complete (budget, deadline, truncation, provider error, schema after repair) is recorded in the
 `analysis` artifact as `FAILED` and goes into `unresolved_questions`; coverage becomes `PARTIAL`
