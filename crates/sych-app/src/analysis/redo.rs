@@ -156,11 +156,15 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         }
     }
 
-    /// Waits until the route that rests the shortest may take tasks again; false when that is
-    /// not before the run's deadline.
+    /// Waits until the route that rests the shortest may take tasks again; false when the run's
+    /// deadline has passed or comes first, so the refusal stays the gap it is.
     async fn rested(&self) -> bool {
         let router = &self.router;
         let now = (router.now)();
+        if router.deadline.is_some_and(|d| now >= d) {
+            return false;
+        }
+
         let until = router
             .cooldowns
             .borrow()
