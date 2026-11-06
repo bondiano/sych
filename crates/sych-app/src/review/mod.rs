@@ -400,7 +400,8 @@ struct Saved {
     result: ReviewResult,
     /// Every candidate of the model passes, verified or not.
     candidates: Vec<Candidate>,
-    /// Packets a finished discovery searched, by index into `packets`.
+    /// Packets a finished general discovery searched, by index into `packets`; an
+    /// obligation's risk audit looks for that rule only, so it does not count.
     searched: Vec<usize>,
 }
 

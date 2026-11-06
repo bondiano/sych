@@ -154,7 +154,8 @@ impl Session<'_> {
         storage
             .complete_run(run, &result, &digest, Timestamp::now())
             .await?;
-        // A replay searches nothing: the packets its frozen discoveries searched stand in.
+        // Only general searches count: a risk audit looks for its rule alone. A replay searches
+        // nothing, so the packets its frozen discoveries searched stand in.
         let discovered = analysis.iter().flat_map(|a| &a.outcome.record.discovered);
         let mut searched: Vec<usize> = discovered
             .chain(self.replay.unwrap_or_default())

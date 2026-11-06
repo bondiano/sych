@@ -128,7 +128,7 @@ struct Reviewed {
     result: ReviewResult,
     candidates: Vec<Candidate>,
     packets: Vec<EvidencePacket>,
-    /// Indexes into `packets` a finished discovery searched.
+    /// Indexes into `packets` a finished general discovery (not a risk audit) searched.
     searched: Vec<usize>,
 }
 
