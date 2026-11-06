@@ -20,8 +20,11 @@ while ((SECONDS < deadline)); do
         --jq ".[] | select(.user.login == \"$bot\") | select(.body | startswith(\"<!-- sych:summary:\") and test(\"head \`${head:0:12}\`\"; \"i\")) | .body")"
     if [[ -n "$summary" ]]; then
         printf '%s\n' "$summary"
+        # GitHub moves a comment whose lines still exist onto the new head, and Sych posts an
+        # inline once per finding: one first posted on an earlier head may be fixed by now, so
+        # the summary above, not the comment, says whether it is still reported.
         gh api --paginate "repos/$repo/pulls/$pr/comments" \
-            --jq ".[] | select(.user.login == \"$bot\" and .commit_id == \"$head\") | \"\n--- \(.path):\(.line // .original_line)\n\(.body)\""
+            --jq ".[] | select(.user.login == \"$bot\" and .commit_id == \"$head\") | \"\n--- \(.path):\(.line // .original_line)\(if .original_commit_id == \"$head\" then \"\" else \" (posted on \(.original_commit_id[0:12]), an earlier head)\" end)\n\(.body)\""
         exit 0
     fi
     sleep 20
