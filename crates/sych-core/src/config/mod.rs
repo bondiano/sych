@@ -13,6 +13,7 @@ mod rules;
 mod scm;
 mod server;
 mod server_models;
+mod slack;
 mod tooling;
 
 use std::error::Error;
@@ -32,6 +33,7 @@ pub use repo::*;
 pub use rules::*;
 pub use scm::*;
 pub use server::*;
+pub use slack::*;
 pub use tooling::*;
 
 /// One configuration problem at an exact location. The message is already redacted.

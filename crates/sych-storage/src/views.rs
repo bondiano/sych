@@ -33,6 +33,8 @@ impl Visibility<'_> {
 #[derive(Debug, Clone, Default)]
 pub struct ChangeFilter {
     pub repository_id: Option<i64>,
+    /// The pull request number.
+    pub number: Option<i64>,
     pub state: Option<String>,
     pub before: Option<i64>,
     pub limit: i64,
@@ -187,6 +189,7 @@ impl Storage {
             " AND (CAST($3 AS BIGINT) IS NULL OR r.id = $3)
               AND (CAST($4 AS TEXT) IS NULL OR c.scm_state = $4)
               AND (CAST($5 AS BIGINT) IS NULL OR c.id < $5)
+              AND (CAST($7 AS BIGINT) IS NULL OR c.external_number = $7)
              ORDER BY c.id DESC LIMIT $6"
         ))
         .bind(v.tenant_id)
@@ -195,6 +198,7 @@ impl Storage {
         .bind(&f.state)
         .bind(f.before)
         .bind(f.limit + 1)
+        .bind(f.number)
         .fetch_all(self.pool())
         .await?;
         Ok(page(

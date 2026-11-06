@@ -73,6 +73,7 @@ impl App {
             config: None,
             budgets: Budgets::default(),
             instances: Vec::new(),
+            slack: None,
         }
     }
 }

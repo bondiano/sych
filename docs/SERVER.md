@@ -587,6 +587,29 @@ reported back stays `SENDING`, an unknown outcome that is not sent twice. `GET /
 `sych_digests_undelivered` counts those of the last eight days that failed for good or never reported back. A missing
 webhook URL or SMTP password stops the start, like a missing webhook secret.
 
+### Slack command
+
+`/sych` in a Slack workspace answers with what the dashboard shows, read only and without a model. Create a Slack app
+with a slash command whose request URL is `https://<public_base_url>/slack/commands`, and configure its signing secret:
+
+```yaml
+slack:
+  signing_secret_env: SYCH_SLACK_SIGNING_SECRET
+  tenant_id: local                 # the default
+  repositories: [gh/owner/name]    # `connection/owner/name` the workspace may read, or `*`
+```
+
+- `/sych owner/name#123` — the pull request's latest review: state, coverage, unknown obligations, open findings,
+  known cost and a link to it in the dashboard.
+- `/sych digest` — the last seven days as the weekly digest shows them, without the tenant budget.
+- `/sych help` — the list.
+
+Every request is checked before anything else: `X-Slack-Signature` over the raw body with the signing secret, and
+`X-Slack-Request-Timestamp` within five minutes, otherwise 401. The whole workspace reads as one reader of the listed
+repositories; a pull request outside them gets the same answer as one that does not exist. Answers are ephemeral,
+only the person who asked sees them. The command cannot rerun, cancel or give feedback. A missing signing secret stops
+the start.
+
 ### Metrics and alerts
 
 Metrics (only bounded labels — states, coverage, judgement, reasons; no paths or ids): runs by

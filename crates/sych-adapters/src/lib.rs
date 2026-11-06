@@ -11,5 +11,6 @@ pub mod pi;
 pub mod sandbox;
 pub mod semantic;
 pub mod siwc;
+pub mod slack;
 pub mod syntax;
 pub mod tools;

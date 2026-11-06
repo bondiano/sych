@@ -152,6 +152,7 @@ pub async fn changes(
     caller.need(ApiRole::Reader)?;
     let filter = ChangeFilter {
         repository_id: q.repository_id,
+        number: None,
         state: q.state,
         before: q.before,
         limit: limit(q.limit)?,

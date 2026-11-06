@@ -74,6 +74,9 @@ pub struct ServerConfig {
     pub scm: Scm,
     #[serde(default, skip_serializing_if = "super::Notifications::is_empty")]
     pub notifications: super::Notifications,
+    /// Left out of the effective config when unset, so the config hash stays as it was.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slack: Option<super::SlackCommands>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -286,6 +289,10 @@ impl ServerConfig {
         refs.extend(self.scm.env_refs());
         refs.extend(self.http.env_refs());
         refs.extend(self.notifications.env_refs());
+        if let Some(s) = &self.slack {
+            refs.push(("slack.signing_secret_env".into(), &s.signing_secret_env));
+        }
+
         refs
     }
 
@@ -319,6 +326,10 @@ impl ServerConfig {
         self.validate_budgets(&mut p);
         self.scm.validate(&mut p);
         self.notifications.validate(&mut p);
+        if let Some(s) = &self.slack {
+            s.validate(&mut p);
+        }
+
         p.check(
             self.scm.github.iter().all(|c| c.oauth.is_none())
                 || self

@@ -35,7 +35,7 @@ pub enum Rejection {
     Malformed(String),
 }
 
-fn hex(text: &str) -> Option<Vec<u8>> {
+pub(crate) fn hex(text: &str) -> Option<Vec<u8>> {
     if !text.len().is_multiple_of(2) {
         return None;
     }
