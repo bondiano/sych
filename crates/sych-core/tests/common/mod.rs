@@ -187,6 +187,7 @@ pub fn limits(run_money: u64, attempts: u32) -> Limits {
         daily_money: Some(MicroUsd(3_000_000)),
         weekly_money: None,
         monthly_money: Some(MicroUsd(60_000_000)),
+        playground_money: None,
     }
 }
 

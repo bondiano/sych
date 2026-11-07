@@ -26,6 +26,7 @@ pub enum Trigger {
 
 /// What a generation reviews; equal digests mean a repeat that runs nothing new.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[allow(clippy::struct_excessive_bools)] // independent facts of one request, not a state machine
 pub struct RunInputs {
     pub head_sha: String,
     pub base_sha: String,
@@ -41,6 +42,10 @@ pub struct RunInputs {
     /// Execution profiles the request asked for; empty runs every allowed one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub targeted: Vec<CheckRequest>,
+    /// A maintainer's try that supersedes nothing, publishes nothing and stays out of lineage
+    /// and analytics; it spends from `budgets.playground_daily`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub playground: bool,
 }
 
 impl RunInputs {
@@ -135,6 +140,7 @@ pub fn decide(
         publish: false,
         checks: false,
         targeted: Vec::new(),
+        playground: false,
     };
     if !state.open {
         let reason = if state.merged { "MERGED" } else { "CLOSED" };
@@ -242,6 +248,7 @@ mod tests {
                 publish: false,
                 checks: false,
                 targeted: Vec::new(),
+                playground: false,
             },
             active,
             frozen,

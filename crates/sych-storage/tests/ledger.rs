@@ -109,6 +109,7 @@ fn limits(run_money: u64, monthly: u64) -> Limits {
         daily_money: Some(MicroUsd(run_money)),
         weekly_money: None,
         monthly_money: Some(MicroUsd(monthly)),
+        playground_money: None,
     }
 }
 
@@ -340,6 +341,7 @@ async fn a_follow_up_cap_is_per_session() {
         daily_money: None,
         weekly_money: None,
         monthly_money: Some(MicroUsd(10_000)),
+        playground_money: None,
     };
     let ask = || Reservation {
         purpose: Purpose::Followup,
@@ -380,6 +382,7 @@ async fn a_session_cap_survives_the_month_boundary() {
         daily_money: None,
         weekly_money: None,
         monthly_money: Some(MicroUsd(10_000)),
+        playground_money: None,
     };
     let ask = |at: &str| Reservation {
         purpose: Purpose::Followup,
@@ -478,6 +481,7 @@ async fn the_week_pool_counts_from_monday_across_a_month_boundary() {
         daily_money: None,
         weekly_money: Some(MicroUsd(1_000)),
         monthly_money: None,
+        playground_money: None,
     };
     let ask = |at: &str, money: u64| Reservation {
         at: at.parse().expect("timestamp"),
@@ -500,5 +504,66 @@ async fn the_week_pool_counts_from_monday_across_a_month_boundary() {
         reserve(ask("2026-12-07T00:00:00Z", 600)).await,
         Ok(()),
         "the next Monday starts again"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn playground_runs_share_a_day_pool_that_review_runs_do_not_count_against() {
+    let (dir, storage, review) = setup().await;
+    let partition = Partition {
+        tenant_id: TENANT_LOCAL.into(),
+        access_scope: "local:repo".into(),
+    };
+    let mut playground = Vec::new();
+    for change in ["try-1", "try-2"] {
+        let run = storage
+            .begin_run(
+                &partition,
+                change,
+                &SourceSnapshotId(sha256(b"s")),
+                &PolicySnapshotId(sha256(b"p")),
+                at(0),
+            )
+            .await
+            .expect("begin");
+        playground.push(run.id);
+    }
+    let pool = database::inspect(dir.config()).await;
+    for run in &playground {
+        sqlx::query("UPDATE runs SET mode = 'PLAYGROUND' WHERE id = $1")
+            .bind(run.to_string())
+            .execute(&pool)
+            .await
+            .expect("mode");
+    }
+    let caps = Limits {
+        playground_money: Some(MicroUsd(500)),
+        ..limits(10_000, 100_000)
+    };
+
+    let first = storage
+        .reserve_attempt(&reservation(playground[0], 400), &caps)
+        .await
+        .expect("ledger");
+    assert_eq!(first, Ok(()));
+    let denied = storage
+        .reserve_attempt(&reservation(playground[1], 200), &caps)
+        .await
+        .expect("ledger");
+    let Err(Denied::Money {
+        account, committed, ..
+    }) = denied
+    else {
+        panic!("another playground run shares the pool: {denied:?}")
+    };
+    assert_eq!((account.as_str(), committed), ("playground", MicroUsd(400)));
+    let reviewed = storage
+        .reserve_attempt(&reservation(review, 2_000), &caps)
+        .await
+        .expect("ledger");
+    assert_eq!(
+        reviewed,
+        Ok(()),
+        "a review run spends from the tenant pools only"
     );
 }

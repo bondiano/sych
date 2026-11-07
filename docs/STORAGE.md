@@ -94,7 +94,10 @@ PostgreSQL has its own migration history, starting with `migrations/postgres/000
 It stores the same 24 application tables; domain IDs and JSON remain text, integer data remains signed 64-bit.
 SQLite 0011 and PostgreSQL 0002 keep a finding's severity and title for the API lists; findings recorded
 before them stay `NULL` until a later revision touches them. SQLite 0012 and PostgreSQL 0003 add browser
-`sessions` and the repository of an audited action. Opening either backend refuses missing or newer migrations. Switching the configured URL does not copy history
+`sessions` and the repository of an audited action. SQLite 0017 (a rebuild of `runs`, as 0004) and PostgreSQL
+0008 add `runs.mode`: `REVIEW` or `PLAYGROUND`, a maintainer's try that shares the generation it was asked at,
+supersedes nothing, publishes nothing and stays out of lineage, analytics and the change's run list; a generation
+is unique among reviews only. Opening either backend refuses missing or newer migrations. Switching the configured URL does not copy history
 or artifact files.
 
 ## Moving server history to PostgreSQL

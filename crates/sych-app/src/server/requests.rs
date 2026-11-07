@@ -98,6 +98,7 @@ impl Engine {
             publish: publish && conn.config.publish,
             checks: publish && conn.config.publish && conn.config.checks,
             targeted,
+            playground: false,
         };
         let deadline = (self.now)().as_second() + self.job_seconds();
         Ok(storage
