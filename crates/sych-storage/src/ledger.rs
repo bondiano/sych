@@ -37,7 +37,12 @@ const RESERVATION_TOTALS: &str =
              AND billing_mismatch = 1 THEN 1 ELSE 0 END), 0) AS BIGINT),
          CAST(coalesce(sum(CASE WHEN day >= $9 THEN CASE state
              WHEN 'SETTLED' THEN coalesce(charge_micro_usd, 0)
-             WHEN 'RELEASED' THEN 0 ELSE reserved_micro_usd END END), 0) AS BIGINT)
+             WHEN 'RELEASED' THEN 0 ELSE reserved_micro_usd END END), 0) AS BIGINT),
+         CAST(coalesce(sum(CASE WHEN day = $3 AND run_id IN (SELECT p.id FROM runs p
+             WHERE p.tenant_id = $4 AND p.mode = 'PLAYGROUND') THEN CASE state
+             WHEN 'SETTLED' THEN coalesce(charge_micro_usd, 0)
+             WHEN 'RELEASED' THEN 0 ELSE reserved_micro_usd END END), 0) AS BIGINT),
+         CAST((SELECT count(*) FROM runs p WHERE p.id = $1 AND p.mode = 'PLAYGROUND') AS BIGINT)
      FROM model_attempts
      WHERE tenant_id = $4 AND (month = $5 OR day >= $9 OR (run_id = $1 AND purpose = $2
          AND scope IS NOT DISTINCT FROM CAST($8 AS TEXT)))";
@@ -132,6 +137,8 @@ impl Storage {
             week_money: micro(row.get(7)),
             month_money: MicroUsd(micro(row.get(5)).0 + micro(fees.get(0)).0),
             fee_due: fee_due.map_or(MicroUsd(0), |f| f.allocated_micro_usd),
+            playground: row.get::<i64, _>(9) != 0,
+            playground_day_money: micro(row.get(8)),
         };
         if let Err(denied) = admit(limits, &committed, r) {
             return Ok(Err(denied));

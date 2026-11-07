@@ -114,7 +114,8 @@ impl Storage {
     pub async fn latest(&self, change_id: i64) -> Result<Option<Latest>, StorageError> {
         let row = sqlx::query(
             "SELECT id, inputs, state, stage, expected_sources FROM runs
-             WHERE change_id = $1 AND inputs IS NOT NULL ORDER BY generation DESC LIMIT 1",
+             WHERE change_id = $1 AND inputs IS NOT NULL AND mode = 'REVIEW'
+             ORDER BY generation DESC LIMIT 1",
         )
         .bind(change_id)
         .fetch_optional(self.pool())
@@ -190,7 +191,9 @@ impl Storage {
     }
 
     /// The next generation and its analysis job; an active older run is superseded and its
-    /// job cancelled, which revokes its lease.
+    /// job cancelled, which revokes its lease. A playground run (`inputs.playground`) takes the
+    /// current generation instead, supersedes nothing and is born with its lineage applied, so
+    /// no finding comes of it.
     pub async fn generate(
         &self,
         change_id: i64,
@@ -200,31 +203,20 @@ impl Storage {
         now: Timestamp,
     ) -> Result<RunHandle, StorageError> {
         let at = now.as_second();
+        let playground = inputs.playground;
         let mut tx = self.write().await?;
-        let superseded = sqlx::query(concat!(
-            "UPDATE runs SET state = 'SUPERSEDED', finished_at = $1
-             WHERE change_id = $2 AND state IN ",
-            active!(),
-            " RETURNING id"
-        ))
-        .bind(at)
-        .bind(change_id)
-        .fetch_all(&mut *tx)
-        .await?;
-        for r in &superseded {
-            sqlx::query(
-                "UPDATE jobs SET state = 'CANCELLED', lease_epoch = lease_epoch + 1,
-                     finished_at = $1 WHERE run_id = $2 AND state IN ('QUEUED', 'CLAIMED')",
-            )
-            .bind(at)
-            .bind(r.get::<String, _>(0))
-            .execute(&mut *tx)
-            .await?;
-        }
-        let change = sqlx::query(
+        let superseded = if playground {
+            Vec::new()
+        } else {
+            supersede(&mut tx, change_id, at).await?
+        };
+        let change = sqlx::query(if playground {
+            "SELECT tenant_id, access_scope, desired_generation, repository_id FROM changes
+             WHERE id = $1"
+        } else {
             "UPDATE changes SET desired_generation = desired_generation + 1 WHERE id = $1
-             RETURNING tenant_id, access_scope, desired_generation, repository_id",
-        )
+             RETURNING tenant_id, access_scope, desired_generation, repository_id"
+        })
         .bind(change_id)
         .fetch_one(&mut *tx)
         .await?;
@@ -241,8 +233,8 @@ impl Storage {
         };
         sqlx::query(
             "INSERT INTO runs (id, tenant_id, access_scope, change_id, generation, parent_run_id,
-                 inputs, inputs_digest, state, stage, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'QUEUED', 'PREPARE', $9)",
+                 inputs, inputs_digest, state, stage, created_at, mode, lineage_applied)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'QUEUED', 'PREPARE', $9, $10, $11)",
         )
         .bind(id.to_string())
         .bind(&partition.tenant_id)
@@ -253,6 +245,8 @@ impl Storage {
         .bind(&text)
         .bind(sha256(text.as_bytes()).to_string())
         .bind(at)
+        .bind(if playground { "PLAYGROUND" } else { "REVIEW" })
+        .bind(i64::from(playground))
         .execute(&mut *tx)
         .await?;
         sqlx::query(
@@ -267,18 +261,14 @@ impl Storage {
         .bind(at)
         .execute(&mut *tx)
         .await?;
-        for r in &superseded {
-            log(
-                &mut tx,
-                change_id,
-                &r.get::<String, _>(0),
-                "SUPERSEDED",
-                &id.to_string(),
-                at,
-            )
-            .await?;
+        for run in &superseded {
+            log(&mut tx, change_id, run, "SUPERSEDED", &id.to_string(), at).await?;
         }
-        log(&mut tx, change_id, &id.to_string(), "GENERATED", &text, at).await?;
+        // The change's event log tells its reviews; a playground run is in the audit only.
+        if !playground {
+            log(&mut tx, change_id, &id.to_string(), "GENERATED", &text, at).await?;
+        }
+
         if let Some(audit) = requested(&partition.tenant_id, id, change.get(3), inputs, at) {
             audit.record(&mut tx).await?;
         }
@@ -394,6 +384,38 @@ async fn log(
     Ok(())
 }
 
+/// Supersedes the change's active reviews and cancels their jobs, which revokes their leases.
+async fn supersede(
+    tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+    change_id: i64,
+    at: i64,
+) -> Result<Vec<String>, StorageError> {
+    let superseded: Vec<String> = sqlx::query(concat!(
+        "UPDATE runs SET state = 'SUPERSEDED', finished_at = $1
+         WHERE change_id = $2 AND mode = 'REVIEW' AND state IN ",
+        active!(),
+        " RETURNING id"
+    ))
+    .bind(at)
+    .bind(change_id)
+    .fetch_all(&mut **tx)
+    .await?
+    .iter()
+    .map(|r| r.get(0))
+    .collect();
+    for run in &superseded {
+        sqlx::query(
+            "UPDATE jobs SET state = 'CANCELLED', lease_epoch = lease_epoch + 1,
+                 finished_at = $1 WHERE run_id = $2 AND state IN ('QUEUED', 'CLAIMED')",
+        )
+        .bind(at)
+        .bind(run)
+        .execute(&mut **tx)
+        .await?;
+    }
+    Ok(superseded)
+}
+
 /// The audit row of a run a person or client asked for: through the API, the CLI or a PR
 /// command. Runs the change itself triggered are not audited.
 fn requested<'a>(
@@ -409,7 +431,11 @@ fn requested<'a>(
     Some(Audit {
         tenant_id,
         actor,
-        action: "RUN_REQUESTED",
+        action: if inputs.playground {
+            "PLAYGROUND_REQUESTED"
+        } else {
+            "RUN_REQUESTED"
+        },
         target: format!("run:{run}"),
         repository_id,
         metadata: serde_json::json!({"deep": deep, "publish": inputs.publish}),

@@ -127,7 +127,8 @@ impl Storage {
     pub async fn lineage_pending(&self) -> Result<Vec<(i64, String, String)>, StorageError> {
         let rows = sqlx::query(
             "SELECT u.change_id, u.id, u.tenant_id FROM runs u JOIN changes c ON c.id = u.change_id
-             WHERE u.state = 'COMPLETED' AND u.lineage_applied = 0 AND c.repository_id IS NOT NULL
+             WHERE u.state = 'COMPLETED' AND u.lineage_applied = 0 AND u.mode = 'REVIEW'
+               AND c.repository_id IS NOT NULL
              ORDER BY u.change_id, u.generation",
         )
         .fetch_all(self.pool())
@@ -351,8 +352,8 @@ impl Storage {
     /// The policy snapshot of the change's latest run that pinned one.
     pub async fn latest_policy(&self, change_id: i64) -> Result<Option<String>, StorageError> {
         Ok(sqlx::query_scalar(
-            "SELECT policy_snapshot_id FROM runs WHERE change_id = $1 AND policy_snapshot_id IS NOT NULL
-             ORDER BY generation DESC LIMIT 1",
+            "SELECT policy_snapshot_id FROM runs WHERE change_id = $1 AND mode = 'REVIEW'
+                 AND policy_snapshot_id IS NOT NULL ORDER BY generation DESC LIMIT 1",
         )
         .bind(change_id)
         .fetch_optional(self.pool())

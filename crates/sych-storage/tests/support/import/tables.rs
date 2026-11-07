@@ -102,6 +102,7 @@ pub const TABLES: &[Table] = &[
             I("lineage_applied"),
             T("coverage"),
             I("unknown_obligations"),
+            T("mode"),
         ],
     },
     Table {

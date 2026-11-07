@@ -76,6 +76,7 @@ fn limits() -> Limits {
         daily_money: Some(MicroUsd(1_000)),
         weekly_money: None,
         monthly_money: Some(MicroUsd(1_000)),
+        playground_money: None,
     }
 }
 

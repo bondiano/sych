@@ -97,7 +97,8 @@ pub fn input_token_bound(messages: &[Message]) -> u64 {
         .sum()
 }
 
-/// Hard caps for one run purpose plus the tenant day, week and month money pools.
+/// Hard caps for one run purpose plus the tenant day, week and month money pools, and the
+/// playground runs' day pool inside them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
     pub run: Budget,
@@ -105,6 +106,8 @@ pub struct Limits {
     /// From Monday 00:00 UTC.
     pub weekly_money: Option<MicroUsd>,
     pub monthly_money: Option<MicroUsd>,
+    /// The playground runs' day pool; applies only to an attempt of one.
+    pub playground_money: Option<MicroUsd>,
 }
 
 impl Limits {
@@ -119,6 +122,7 @@ impl Limits {
             daily_money: budgets.tenant_daily.max_cost_micro_usd,
             weekly_money: budgets.tenant_weekly.max_cost_micro_usd,
             monthly_money: budgets.tenant_monthly.max_cost_micro_usd,
+            playground_money: budgets.playground_daily.max_cost_micro_usd,
         }
     }
 }
@@ -154,6 +158,10 @@ pub struct Committed {
     pub month_money: MicroUsd,
     /// Fee this reservation would add because the month has none recorded yet.
     pub fee_due: MicroUsd,
+    /// The attempt belongs to a playground run.
+    pub playground: bool,
+    /// Today's spend of every playground run of the tenant.
+    pub playground_day_money: MicroUsd,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -216,6 +224,15 @@ pub fn admit(limits: &Limits, c: &Committed, r: &Reservation) -> Result<(), Deni
     money("day", limits.daily_money, c.day_money, MicroUsd(0))?;
     money("week", limits.weekly_money, c.week_money, MicroUsd(0))?;
     money("month", limits.monthly_money, c.month_money, c.fee_due)?;
+    if c.playground {
+        money(
+            "playground",
+            limits.playground_money,
+            c.playground_day_money,
+            MicroUsd(0),
+        )?;
+    }
+
     if let Some(cap) = limits.run.max_input_tokens
         && c.run_input_tokens + r.input_tokens > u64::from(cap)
     {

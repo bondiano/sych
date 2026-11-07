@@ -174,5 +174,6 @@ fn limits(run: u64, month: Option<u64>) -> Limits {
         daily_money: None,
         weekly_money: None,
         monthly_money: month.map(MicroUsd),
+        playground_money: None,
     }
 }

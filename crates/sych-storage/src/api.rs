@@ -311,14 +311,15 @@ impl Storage {
                     .await?,
             )
         };
+        // Review quality leaves playground runs out; money, jobs and attempts are real for them.
         Ok(Metrics {
-            runs_by_state: pairs("SELECT state, count(*) FROM runs GROUP BY state ORDER BY state").await?,
+            runs_by_state: pairs("SELECT state, count(*) FROM runs WHERE mode = 'REVIEW' GROUP BY state ORDER BY state").await?,
             runs_by_coverage: pairs(
-                "SELECT coverage, count(*) FROM runs WHERE coverage IS NOT NULL GROUP BY coverage ORDER BY coverage",
+                "SELECT coverage, count(*) FROM runs WHERE coverage IS NOT NULL AND mode = 'REVIEW' GROUP BY coverage ORDER BY coverage",
             )
             .await?,
             unknown_obligations: one(
-                "SELECT CAST(coalesce(sum(unknown_obligations), 0) AS BIGINT) + 0 * CAST($1 AS BIGINT) FROM runs",
+                "SELECT CAST(coalesce(sum(unknown_obligations), 0) AS BIGINT) + 0 * CAST($1 AS BIGINT) FROM runs WHERE mode = 'REVIEW'",
             ).await?,
             oldest_queued_age: one(
                 "SELECT coalesce(CAST($1 AS BIGINT) - min(next_attempt_at), 0) FROM jobs WHERE state = 'QUEUED'",
