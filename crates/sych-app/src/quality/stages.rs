@@ -8,13 +8,16 @@ use sych_core::{CodeRef, ObligationStatus, ReviewResult, VerificationStatus};
 use super::ExpectedFinding;
 use super::score::{Remark, Totals, correctness, hits, overlaps};
 
-/// Missed labelled defects by the furthest stage a correctness candidate reached; the five
+/// Missed labelled defects by the furthest stage a correctness candidate reached; the six
 /// add up to `expected_findings - matched_expected`.
 #[derive(Serialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Losses {
-    /// No candidate reached the labelled lines, though a finished search was shown them or no
-    /// packet showed them at all: a model or context miss.
+    /// No candidate reached the labelled lines, though a finished search was shown them: a model
+    /// miss.
     pub(super) not_discovered: u32,
+    /// No candidate reached the labelled lines and no packet showed them: the context lost them
+    /// before any model could look.
+    pub(super) not_shown: u32,
     /// No candidate reached the labelled lines, and every search shown them failed, was cut
     /// off or never ran: the provider or the deadline lost them, not the model.
     pub(super) discovery_failed: u32,
@@ -30,6 +33,7 @@ pub(super) struct Losses {
 impl Losses {
     pub(super) fn add(&mut self, other: &Self) {
         self.not_discovered += other.not_discovered;
+        self.not_shown += other.not_shown;
         self.discovery_failed += other.discovery_failed;
         self.verifier_rejected += other.verifier_rejected;
         self.verifier_unresolved += other.verifier_unresolved;
@@ -83,16 +87,22 @@ impl<'a> Shown<'a> {
         }
     }
 
+    /// Whether any packet shows the labelled defect.
+    fn shown(&self, label: &ExpectedFinding) -> bool {
+        at(&self.all, label)
+    }
+
     /// The labelled defect is shown in a packet, but in none a finished search was shown.
     fn unsearched(&self, label: &ExpectedFinding) -> bool {
-        let at = |refs: &[&CodeRef]| {
-            label
-                .evidence_locations
-                .iter()
-                .any(|l| refs.iter().any(|r| overlaps(r, l)))
-        };
-        at(&self.all) && !at(&self.searched)
+        self.shown(label) && !at(&self.searched, label)
     }
+}
+
+fn at(refs: &[&CodeRef], label: &ExpectedFinding) -> bool {
+    label
+        .evidence_locations
+        .iter()
+        .any(|l| refs.iter().any(|r| overlaps(r, l)))
 }
 
 /// `missed`: labelled defects no correctness finding hit; `candidates`: every candidate of
@@ -109,7 +119,9 @@ pub(super) fn losses(
             .filter(|c| correctness(c.category) && hits(&[*label], &[c]) > 0)
             .map(|c| c.status)
             .collect();
-        let stage = if reached.is_empty() && shown.unsearched(label) {
+        let stage = if reached.is_empty() && !shown.shown(label) {
+            &mut out.not_shown
+        } else if reached.is_empty() && shown.unsearched(label) {
             &mut out.discovery_failed
         } else if reached.is_empty() {
             &mut out.not_discovered

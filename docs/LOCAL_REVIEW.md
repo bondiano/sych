@@ -234,10 +234,11 @@ rejected or left unresolved reached), `partial_coverage_runs` (reviews short of 
 `unreviewed_paths` and `context_limited` (obligations left `UNKNOWN` with `CONTEXT_LIMIT`). Every labelled defect a
 review missed is also counted once, at the furthest stage a correctness candidate reached it: `discovery_failed`
 (none did, and every search shown those lines failed, was cut off or never ran — a provider failure or the deadline,
-not a model miss), `not_discovered` (none did, though a finished search was shown the lines or no packet showed them),
+not a model miss), `not_discovered` (none did, though a finished search was shown the lines), `not_shown` (none did, and
+no packet showed those lines: the context lost them before any model could look),
 `verifier_rejected` (only rejected ones), `verifier_unresolved` (one left unresolved, none confirmed) and
 `confirmed_unmatched` (a confirmed one, yet no finding at those lines: it was merged into an overlapping finding or the
-verdict anchored it elsewhere); the five add up to the missed labels. `spread` holds the lowest, mean and highest
+verdict anchored it elsewhere); the six add up to the missed labels. `spread` holds the lowest, mean and highest
 `recall`, `clean_false_finding_rate` and `unknown_kept_rate` over the suite's 1st, 2nd, … run of every case: with
 `--runs 3`, a difference between two reports smaller than that range is noise. A match is an intersection of an anchor with a labelled evidence location: this approximates meaning (see
 [Scoring by meaning](#scoring-by-meaning)). The numbers are a measurement; acceptance criteria are yours. The report
@@ -247,7 +248,7 @@ To judge a verifier change apart from discovery, which a model answers different
 report: `--replay a.json` (same suite; the same `--config`, which the report's `config_sha256` must match) takes each run of `a.json`, reads the discoveries its review
 stored in the `analysis` artifact, and verifies those very candidates again on the context their pass built, with no new
 search. Only the verifier runs and nothing is assessed, so in a replay report only the candidate and finding numbers —
-recall, precision, the false-finding rates and the four stages of a missed defect — mean anything; obligations, coverage
+recall, precision, the false-finding rates and the stages of a missed defect — mean anything; obligations, coverage
 and `unknown_kept` do not. Two replays of one report, one per verifier, compare with `eval compare`. A run that failed
 in the report, one whose case the suite does not select, and one stored before discoveries named their packets are
 skipped; `--runs` does not combine with `--replay`.

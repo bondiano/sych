@@ -159,7 +159,7 @@ fn a_missed_defect_counts_at_the_furthest_stage_a_candidate_reached() {
         *stage(&mut l) = 1;
         l
     };
-    assert_eq!(losses(&[]), only(|l| &mut l.not_discovered));
+    assert_eq!(losses(&[]), only(|l| &mut l.not_shown));
     assert_eq!(losses(&[at(Rejected)]), only(|l| &mut l.verifier_rejected));
     assert_eq!(
         losses(&[at(Rejected), at(Unresolved)]),
@@ -173,7 +173,7 @@ fn a_missed_defect_counts_at_the_furthest_stage_a_candidate_reached() {
         category: FindingCategory::Nit,
         ..at(Rejected)
     };
-    assert_eq!(losses(&[nit]), only(|l| &mut l.not_discovered));
+    assert_eq!(losses(&[nit]), only(|l| &mut l.not_shown));
     let found = score(
         &unsafe_case,
         &result,
@@ -210,7 +210,8 @@ fn a_defect_shown_only_to_searches_that_failed_is_a_discovery_failure() {
         all: vec![&elsewhere],
         searched: Vec::new(),
     };
-    assert_eq!(losses(&unshown).not_discovered, 1, "never shown");
+    assert_eq!(losses(&unshown).not_shown, 1, "never shown");
+    assert_eq!(losses(&unshown).not_discovered, 0);
 }
 
 #[test]
