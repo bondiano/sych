@@ -47,7 +47,10 @@ const found = computed(() => (result.data.value ? problems(result.data.value) : 
 const minor = computed(() => (result.data.value ? optional(result.data.value) : []))
 const checked = computed(() => {
   const r = result.data.value
-  return r && r.obligations.length + r.excluded_or_unreviewed.length + r.unresolved_questions.length
+  return (
+    !!r &&
+    r.obligations.length + r.excluded_or_unreviewed.length + r.unresolved_questions.length > 0
+  )
 })
 // shortcut: only the change's newest page of findings gets a link, add a run filter if one outgrows it.
 const tracked = computed(

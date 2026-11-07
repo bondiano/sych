@@ -16,7 +16,7 @@ use sych_adapters::github::Secret;
 use sych_core::api::{Grant, InstanceLink, Me, SignIn};
 use sych_core::config::{GithubOauth, same_base_url};
 use sych_storage::Session;
-use url::form_urlencoded;
+use url::{Position, Url, form_urlencoded};
 
 use super::App;
 use super::api::{engine, now, status, storage_error};
@@ -120,10 +120,20 @@ pub struct Login {
     next: Option<String>,
 }
 
-/// Where a page's path lands after sign-in: always under the UI, so it never leaves this origin.
+/// Where a page's path lands after sign-in: under the UI once resolved as a browser resolves it,
+/// so dot segments, `%2e` and backslashes cannot climb out of it.
 fn landing(next: &str) -> Option<HeaderValue> {
-    next.starts_with('/')
-        .then(|| HeaderValue::from_str(&format!("/ui{next}")).ok())
+    if !next.starts_with('/') {
+        return None;
+    }
+
+    let resolved = Url::parse("http://ui.invalid")
+        .and_then(|base| base.join(&format!("/ui{next}")))
+        .ok()?;
+    resolved
+        .path()
+        .starts_with("/ui/")
+        .then(|| HeaderValue::from_str(&resolved[Position::BeforePath..]).ok())
         .flatten()
 }
 
@@ -136,7 +146,7 @@ pub async fn login(
 ) -> Result<Response, ApiError> {
     let (config, _) = oauth(&app, &connection)?;
     let state = random_token()?;
-    let authorize = url::Url::parse_with_params(
+    let authorize = Url::parse_with_params(
         &format!(
             "{}/login/oauth/authorize",
             config.web_base_url.trim_end_matches('/')

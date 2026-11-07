@@ -141,27 +141,26 @@ async fn landing_after(url: &str, query: &str) -> String {
 async fn sign_in_returns_to_the_page_that_asked_for_it_and_never_off_this_origin() {
     let (w, url) = reviewed().await;
     grant(&w, "alice", "read");
-    assert_eq!(
-        landing_after(&url, "?next=%2Fruns%2Fabc%3Ftab%3D1%20x").await,
-        "/ui/runs/abc?tab=1 x"
-    );
-    assert_eq!(landing_after(&url, "").await, "/ui/");
-    for away in ["https://evil.test", "evil.test", "%0d%0aSet-Cookie:x"] {
-        assert_eq!(
-            landing_after(&url, &format!("?next={away}")).await,
-            "/ui/",
-            "{away}"
-        );
+    for (next, landed) in [
+        (
+            "?next=%2Fruns%2Fabc%3Ftab%3D1%20x",
+            "/ui/runs/abc?tab=1%20x",
+        ),
+        ("", "/ui/"),
+        ("?next=https://evil.test", "/ui/"),
+        ("?next=evil.test", "/ui/"),
+        // Under `/ui` a path that looks protocol-relative is still this server's.
+        ("?next=//evil.test", "/ui//evil.test"),
+        // A browser would climb out of `/ui` on each of these.
+        ("?next=/../admin", "/ui/"),
+        ("?next=/..%2Fadmin", "/ui/"),
+        ("?next=/%252e%252e/admin", "/ui/"),
+        ("?next=/..%5Cadmin", "/ui/"),
+        // Line breaks are dropped, so no header can be injected.
+        ("?next=/%0d%0aSet-Cookie:x", "/ui/Set-Cookie:x"),
+    ] {
+        assert_eq!(landing_after(&url, next).await, landed, "{next}");
     }
-    // Under `/ui` a path that looks protocol-relative is still this server's.
-    assert_eq!(
-        landing_after(&url, "?next=//evil.test").await,
-        "/ui//evil.test"
-    );
-    assert_eq!(
-        landing_after(&url, "?next=/%0d%0aSet-Cookie:x").await,
-        "/ui/"
-    );
 }
 
 #[tokio::test(flavor = "current_thread")]
