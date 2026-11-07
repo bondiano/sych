@@ -424,6 +424,8 @@ as `before`, gives the next one. Times are Unix seconds, money micro-USD.
 | `GET /v1/runs/:id/attempts` | reader | the run's model attempts as the ledger recorded them; an unknown charge is `null`, never 0 |
 | `POST /v1/runs/:id/cancel` | writer | active → `CANCELLED`; a committed one stays in its terminal state |
 | `POST /v1/changes/:id/reruns` | writer | 202, a new generation from the current PR state |
+| `POST /v1/changes/:id/playground` | maintainer | 202, a playground try of the current PR state (`{profile}`, `deep` or the default); 409 `PLAYGROUND_DISABLED` without `budgets.playground_daily`; see [Playground](#playground) |
+| `GET /v1/playground[?repository_id=]` | reader | the 50 newest playground runs of readable repositories |
 | `POST /v1/findings/:id/feedback` | triage | 201; `FALSE_POSITIVE`/`WONT_FIX` → `DISMISSED` |
 | `POST /v1/waivers` | maintainer | 201; scoped, with an expiry or a condition |
 | `GET /v1/waivers[?repository_id=&state=]` | reader | waivers, newest first; `state` is `active`, `expired` or `revoked` |
@@ -586,6 +588,29 @@ several workers send it once. A send that fails is tried again after 5 minutes, 
 reported back stays `SENDING`, an unknown outcome that is not sent twice. `GET /v1/admin/digests` lists the sends, and
 `sych_digests_undelivered` counts those of the last eight days that failed for good or never reported back. A missing
 webhook URL or SMTP password stops the start, like a missing webhook secret.
+
+### Playground
+
+A maintainer of a repository can try a review of one of its open pull requests from the pull request's page in the
+dashboard, with the default or the deep profile and the policy on the target tip as it is now. The try is a run of
+mode `PLAYGROUND`:
+
+- it takes the change's current revision and supersedes nothing; a later push does not supersede it either;
+- it publishes nothing, not even with `sych publish`;
+- it adds no findings and is not in the change's revisions, the analytics, the totals, the weekly report or the
+  run metrics. Money, job and attempt metrics count it, because that spend and queue are real.
+- `GET /v1/runs/:id` marks it `playground: true`, and the dashboard lists the tries under Playground.
+
+Every try spends money, so it needs a day pool for all playground runs of the tenant, no higher than the tenant day:
+
+```yaml
+budgets:
+  playground_daily:
+    max_cost_micro_usd: 500000     # $0.50 a day across every playground run
+```
+
+The per-run analysis caps and the tenant day, week and month pools apply as well. Each try is audited as
+`PLAYGROUND_REQUESTED`.
 
 ### Slack command
 

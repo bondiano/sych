@@ -239,6 +239,29 @@ impl Storage {
         Ok(rows.iter().map(run_view).collect())
     }
 
+    /// Playground runs of readable repositories, newest first.
+    pub async fn playground_runs(
+        &self,
+        v: Visibility<'_>,
+        repository_id: Option<i64>,
+        limit: i64,
+    ) -> Result<Vec<RunView>, StorageError> {
+        let rows = sqlx::query(concat!(
+            run_view!(),
+            "WHERE u.tenant_id = $1 AND u.mode = 'PLAYGROUND' AND ",
+            visible!("c.repository_id", "$2"),
+            " AND (CAST($3 AS BIGINT) IS NULL OR c.repository_id = $3)
+             ORDER BY u.created_at DESC, u.id DESC LIMIT $4"
+        ))
+        .bind(v.tenant_id)
+        .bind(v.set())
+        .bind(repository_id)
+        .bind(limit)
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows.iter().map(run_view).collect())
+    }
+
     /// The newest run of the repository that pinned a policy snapshot.
     pub async fn latest_policy_run(
         &self,

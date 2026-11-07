@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 
 import { ChangeLog, ChangeRuns, RerunForm, useChange } from '@/modules/Changes'
 import { FindingsTable, useFindings } from '@/modules/Findings'
+import { TryForm } from '@/modules/Playground'
 import { ResultSummary, useResult } from '@/modules/Runs'
 import { can, useMe } from '@/modules/Session'
 import { ErrorNotice, LoadMore, Skeleton } from '@/modules/Ui'
@@ -20,6 +21,13 @@ const writer = computed(() => {
   const repository = change.data.value?.change.repository.id
   return repository !== undefined && can(me.value, 'writer', repository)
 })
+const maintainer = computed(() => {
+  const repository = change.data.value?.change.repository.id
+  return repository !== undefined && can(me.value, 'maintainer', repository)
+})
+const open = computed(() =>
+  ['OPEN', 'DRAFT'].includes(change.data.value?.change.scm_state ?? 'OPEN'),
+)
 </script>
 
 <template>
@@ -34,11 +42,8 @@ const writer = computed(() => {
         {{ change.data.value.change.scm_state?.toLowerCase() }} · head
         <span class="font-mono">{{ change.data.value.change.head_sha?.slice(0, 12) }}</span>
       </p>
-      <RerunForm
-        v-if="writer && ['OPEN', 'DRAFT'].includes(change.data.value.change.scm_state ?? 'OPEN')"
-        :change-id="id"
-        class="pt-2"
-      />
+      <RerunForm v-if="writer && open" :change-id="id" class="pt-2" />
+      <TryForm v-if="maintainer && open" :change-id="id" class="pt-2" />
     </header>
     <section v-if="latest">
       <h2 class="mb-3 text-lg font-medium">Latest review</h2>

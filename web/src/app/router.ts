@@ -16,6 +16,11 @@ export function createAppRouter() {
         meta: { title: 'Pull request' },
       },
       {
+        path: '/playground',
+        component: () => import('@/pages/playground/index.vue'),
+        meta: { title: 'Playground' },
+      },
+      {
         path: '/findings',
         component: () => import('@/pages/findings/index.vue'),
         meta: { title: 'Findings' },

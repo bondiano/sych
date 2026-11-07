@@ -51,7 +51,7 @@ macro_rules! run_view {
     () => {
         "SELECT u.id, u.change_id, r.connection_id, r.full_name, u.generation, u.state, u.stage,
              u.coverage, u.model_attempts, u.cost_known_micro_usd, u.unknown_cost_attempts,
-             u.failure, u.created_at, u.finished_at, u.parent_run_id, u.unknown_obligations
+             u.failure, u.created_at, u.finished_at, u.parent_run_id, u.unknown_obligations, u.mode
          FROM runs u JOIN changes c ON c.id = u.change_id
          LEFT JOIN repositories r ON r.id = c.repository_id "
     };
