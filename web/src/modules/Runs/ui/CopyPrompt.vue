@@ -6,7 +6,13 @@ import { Button } from '@/modules/Ui'
 
 const props = defineProps<{ text: string; label: string }>()
 
-const state = ref<'idle' | 'copied' | 'refused'>('idle')
+const STATUS = {
+  idle: '',
+  copied: 'Copied',
+  refused: 'Could not copy; the text is shown below to select by hand',
+}
+
+const state = ref<keyof typeof STATUS>('idle')
 
 async function copy() {
   try {
@@ -27,7 +33,7 @@ async function copy() {
       <Copy v-else aria-hidden="true" />
       {{ label }}
     </Button>
-    <span class="sr-only" role="status">{{ state === 'copied' ? 'Copied' : '' }}</span>
+    <span class="sr-only" role="status">{{ STATUS[state] }}</span>
     <pre
       v-if="state === 'refused'"
       class="max-h-64 overflow-auto rounded-md bg-muted p-3 font-mono text-xs whitespace-pre-wrap"

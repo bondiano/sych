@@ -32,7 +32,7 @@ const when = computed(() => props.finding.triggering_conditions.join('; '))
       </div>
       <h3 class="text-base font-medium text-balance"><ProseText :text="finding.title" /></h3>
       <ul v-if="finding.anchors.length" class="space-y-0.5">
-        <li v-for="a in finding.anchors" :key="`${a.side}:${a.path}:${a.start_line}`">
+        <li v-for="a in finding.anchors" :key="`${a.side}:${a.path}:${a.start_line}-${a.end_line}`">
           <CodePlace :code="a" :links="links" />
         </li>
       </ul>
