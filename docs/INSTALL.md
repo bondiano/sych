@@ -13,14 +13,14 @@ the commands yourself, see [Manual install](#manual-install).
 Free: no model calls, no keys.
 
 ```text
-Install Sych 0.1.0 (https://github.com/bondiano/sych) and run a free trial review of this repository.
+Install Sych 0.2.0 (https://github.com/bondiano/sych) and run a free trial review of this repository.
 
 1. Install the CLI. Download the archive for this machine and its .sha256 file from
-   https://github.com/bondiano/sych/releases/tag/v0.1.0 (targets: x86_64-unknown-linux-gnu,
+   https://github.com/bondiano/sych/releases/tag/v0.2.0 (targets: x86_64-unknown-linux-gnu,
    aarch64-unknown-linux-gnu, aarch64-apple-darwin), verify the checksum, and install the `sych`
    binary into ~/.local/bin (make sure that directory is on PATH). On any other platform run
-   `cargo install --git https://github.com/bondiano/sych --tag v0.1.0 --locked sych-app`
-   instead (needs Rust 1.94 or newer). `sych --version` must print `sych 0.1.0`.
+   `cargo install --git https://github.com/bondiano/sych --tag v0.2.0 --locked sych-app`
+   instead (needs Rust 1.94 or newer). `sych --version` must print `sych 0.2.0`.
 2. In the repository root, add `.sych-data/` to .gitignore: the local store lives there.
 3. Run `sych db migrate`.
 4. Run `sych review --repo . --base origin/main --models fake --format markdown`. Use the
@@ -37,14 +37,14 @@ This one makes paid calls through [OpenRouter](https://openrouter.ai/), capped b
 `sych.yaml`.
 
 ```text
-Set up Sych 0.1.0 for real model reviews through OpenRouter. The `sych` CLI must be installed;
-if `sych --version` does not print `sych 0.1.0`, install it first as described in
+Set up Sych 0.2.0 for real model reviews through OpenRouter. The `sych` CLI must be installed;
+if `sych --version` does not print `sych 0.2.0`, install it first as described in
 https://bondiano.github.io/sych/install/.
 
 1. Create the personal config outside the repository:
      mkdir -p ~/.config/sych/config && cd ~/.config/sych
      sych config init --personal
-     curl -fsSL -o config/prices.json https://raw.githubusercontent.com/bondiano/sych/v0.1.0/examples/personal/config/prices.json
+     curl -fsSL -o config/prices.json https://raw.githubusercontent.com/bondiano/sych/v0.2.0/examples/personal/config/prices.json
    `config init` does not write the price catalog, and metered profiles refuse to run without it.
 2. The config names its secrets by environment variable. Add these to my shell profile:
      export SYCH_DATABASE_URL=sqlite:.sych-data/sych.db   # relative to sych.yaml
@@ -81,17 +81,17 @@ Do not run a review now. Add the section and show me the diff.
 ### 4. Self-host the GitHub App
 
 ```text
-Help me self-host the Sych 0.1.0 GitHub App for my repositories, following
-https://bondiano.github.io/sych/server/ step by step. Use the image ghcr.io/bondiano/sych:0.1.0.
+Help me self-host the Sych 0.2.0 GitHub App for my repositories, following
+https://bondiano.github.io/sych/server/ step by step. Use the image ghcr.io/bondiano/sych:0.2.0.
 It runs `sych serve --config /etc/sych/sych.yaml` as uid 10001.
 
 1. Walk me through creating a GitHub App with the permissions and webhook events the server page
    lists. I click through GitHub myself; you tell me what to set.
 2. Write the server sych.yaml from
-   https://github.com/bondiano/sych/blob/v0.1.0/docs/examples/server/sych.yaml: my app id,
+   https://github.com/bondiano/sych/blob/v0.2.0/docs/examples/server/sych.yaml: my app id,
    repositories and bot login, and absolute storage paths on a mounted volume. Add the
    `openrouter` provider, the `cheap_api` profile and `price_catalog_file` from
-   https://github.com/bondiano/sych/blob/v0.1.0/examples/personal/sych.yaml, with the price
+   https://github.com/bondiano/sych/blob/v0.2.0/examples/personal/sych.yaml, with the price
    catalog next to it. Start the container with
    `serve --config /etc/sych/sych.yaml --models cheap_api`.
 3. Secrets come only from environment variables: SYCH_GITHUB_APP_KEY_FILE (the path of the App's
@@ -109,7 +109,7 @@ It runs `sych serve --config /etc/sych/sych.yaml` as uid 10001.
 Prebuilt binaries cover Linux x86_64 and aarch64 (glibc 2.35+) and macOS on Apple silicon:
 
 ```sh
-version=0.1.0
+version=0.2.0
 case "$(uname -s)-$(uname -m)" in
   Linux-x86_64) target=x86_64-unknown-linux-gnu ;;
   Linux-aarch64) target=aarch64-unknown-linux-gnu ;;
@@ -127,10 +127,10 @@ sych --version
 From source, with Rust 1.94 or newer:
 
 ```sh
-cargo install --git https://github.com/bondiano/sych --tag v0.1.0 --locked sych-app
+cargo install --git https://github.com/bondiano/sych --tag v0.2.0 --locked sych-app
 ```
 
-The server image is `ghcr.io/bondiano/sych:0.1.0`.
+The server image is `ghcr.io/bondiano/sych:0.2.0`.
 
 At run time Sych needs `git` (2.40 or newer for `.gitattributes` generated-file marking). Language
 servers and linters are pinned downloads into `~/.cache/sych/tools`, never taken from `PATH`; Rust
