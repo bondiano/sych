@@ -97,7 +97,8 @@ pub fn input_token_bound(messages: &[Message]) -> u64 {
         .sum()
 }
 
-/// Hard caps for one run purpose plus the tenant day, week and month money pools.
+/// Hard caps for one run purpose plus the tenant day, week and month money pools, and the
+/// playground runs' day pool inside them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
     pub run: Budget,
