@@ -99,24 +99,23 @@ pub async fn commands(
         .map(|(_, v)| v.into_owned())
         .unwrap_or_default();
     let tenant = config.tenant_id.as_str();
-    let readable: Vec<_> = app
-        .storage
-        .repositories(tenant)
-        .await
-        .map_err(|e| storage_error(&e))?
-        .into_iter()
-        .filter(|r| config.allows(&r.connection_id, &r.full_name))
-        .collect();
+    let readable = || async {
+        let all = app.storage.repositories(tenant).await;
+        let all = all.map_err(|e| storage_error(&e))?;
+        let listed = |r: &Repository| config.allows(&r.connection_id, &r.full_name);
+        Ok::<Vec<_>, ApiError>(all.into_iter().filter(listed).collect())
+    };
     let answer = match command(&text) {
         None => format!("Not a command I know.\n{HELP}"),
         Some(Command::Help) => HELP.to_owned(),
         Some(Command::Digest) => {
             let until = now(&app).as_second();
-            let ids = readable.iter().map(|r| r.id).collect();
+            let ids = readable().await?.iter().map(|r| r.id).collect();
             let scope = Scope::repositories(tenant, ids, until - 7 * DAY);
             weekly_report(&app, &scope, until).await?.slack()
         }
         Some(Command::Change { full_name, number }) => {
+            let readable = readable().await?;
             let repo = match named(&readable, full_name) {
                 Ok(Some(repo)) => repo,
                 Ok(None) => {
