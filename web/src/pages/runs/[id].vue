@@ -20,6 +20,12 @@ const attempts = useAttempts(id)
   <div v-else class="space-y-8">
     <header class="space-y-2">
       <h1 class="text-xl font-semibold">Run, revision {{ run.data.value.generation }}</h1>
+      <p
+        v-if="run.data.value.playground"
+        class="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
+      >
+        A playground try: it was not published and is not part of findings or analytics.
+      </p>
       <div class="flex flex-wrap items-center gap-2 text-sm">
         <StatusBadge :value="run.data.value.state" />
         <StatusBadge :value="run.data.value.coverage" />

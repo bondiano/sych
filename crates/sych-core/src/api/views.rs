@@ -403,5 +403,6 @@ pub(super) fn paths(
         _ => Map::new(),
     };
     paths.extend(super::suggestions::paths(c, op));
+    paths.extend(super::playground::paths(c, op));
     paths
 }

@@ -14,6 +14,7 @@ use crate::{FindingId, PolicySnapshot, ReviewResult, SourceSnapshot, SourceSnaps
 mod admin;
 mod analytics;
 mod csv;
+mod playground;
 mod queue;
 mod report;
 mod suggestions;
@@ -25,6 +26,7 @@ pub use analytics::{
     SeverityCount, Spread, month_forecast,
 };
 pub use csv::{audit_csv, findings_csv, usage_csv};
+pub use playground::PlaygroundRequest;
 pub use queue::{JobEntry, ReconcileRequest, UnresolvedPublication};
 pub use report::WeeklyReport;
 pub use suggestions::{Suggestion, SuggestionDecision};
@@ -162,6 +164,8 @@ pub struct RunStatus {
     pub parent_run_id: Option<String>,
     /// Obligations the run could not assess; `None` before it finished.
     pub unknown_obligations: Option<i64>,
+    /// A maintainer's playground try: not published, not in lineage or analytics.
+    pub playground: bool,
 }
 
 /// `GET /v1/runs/:id/snapshots`: the source and policy snapshots a completed result is bound
