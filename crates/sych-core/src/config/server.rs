@@ -174,8 +174,9 @@ pub struct Budgets {
     #[serde(default, skip_serializing_if = "Budget::is_unset")]
     pub tenant_weekly: Budget,
     pub tenant_monthly: Budget,
-    /// Today's spend of the tenant's playground runs, on top of the tenant pools; only its
-    /// money cap counts. No playground without one; left out of the config hash while unset.
+    /// Today's spend of the tenant's playground runs: a further cap inside the tenant day pool,
+    /// no higher than it, and only its money counts. Playground runs need it set; left out of
+    /// the config hash while unset.
     #[serde(default, skip_serializing_if = "Budget::is_unset")]
     pub playground_daily: Budget,
 }
