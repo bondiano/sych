@@ -23,14 +23,14 @@ Paste this into your coding agent (Claude Code, Codex, Cursor…) in the reposit
 the CLI and runs a free review without any model calls:
 
 ```text
-Install Sych 0.1.0 (https://github.com/bondiano/sych) and run a free trial review of this repository.
+Install Sych 0.2.0 (https://github.com/bondiano/sych) and run a free trial review of this repository.
 
 1. Install the CLI. Download the archive for this machine and its .sha256 file from
-   https://github.com/bondiano/sych/releases/tag/v0.1.0 (targets: x86_64-unknown-linux-gnu,
+   https://github.com/bondiano/sych/releases/tag/v0.2.0 (targets: x86_64-unknown-linux-gnu,
    aarch64-unknown-linux-gnu, aarch64-apple-darwin), verify the checksum, and install the `sych`
    binary into ~/.local/bin (make sure that directory is on PATH). On any other platform run
-   `cargo install --git https://github.com/bondiano/sych --tag v0.1.0 --locked sych-app`
-   instead (needs Rust 1.94 or newer). `sych --version` must print `sych 0.1.0`.
+   `cargo install --git https://github.com/bondiano/sych --tag v0.2.0 --locked sych-app`
+   instead (needs Rust 1.94 or newer). `sych --version` must print `sych 0.2.0`.
 2. In the repository root, add `.sych-data/` to .gitignore: the local store lives there.
 3. Run `sych db migrate`.
 4. Run `sych review --repo . --base origin/main --models fake --format markdown`. Use the
@@ -48,12 +48,12 @@ By hand, on Linux (x86_64, aarch64) or macOS (Apple silicon) with a
 [release archive](https://github.com/bondiano/sych/releases/latest), or from source:
 
 ```sh
-cargo install --git https://github.com/bondiano/sych --tag v0.1.0 --locked sych-app
+cargo install --git https://github.com/bondiano/sych --tag v0.2.0 --locked sych-app
 sych db migrate
 sych review --repo . --base origin/main --models fake --format markdown
 ```
 
-The server image is `ghcr.io/bondiano/sych:0.1.0`.
+The server image is `ghcr.io/bondiano/sych:0.2.0`.
 
 ## How it works
 
@@ -86,7 +86,7 @@ review of the same diff can differ.
 
 ## Status
 
-**0.1.0 is the first public release.** It ships the local CLI (`review`, `show`, `explain`, `tour`, `ask`,
+**0.2.0 is the first public release.** It ships the local CLI (`review`, `show`, `explain`, `tour`, `ask`,
 `handoff`) and the GitHub App server (`serve`). Sych reviews its own pull requests through a live GitHub App; see
 [self-review](docs/SERVER.md#self-review-bondianosych). Quality is measured on the labelled suite in `eval/quality`.
 The numbers and their limits are in [How the analysis works](https://bondiano.github.io/sych/analysis/#measured-quality).
