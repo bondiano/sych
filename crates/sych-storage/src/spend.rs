@@ -1,6 +1,6 @@
 //! Cost and latency behind the dashboard analytics over the repositories a caller may read, and
 //! the tenant's spend against its budgets. Money is micro-USD; an unknown charge is counted,
-//! never added as zero.
+//! never added as zero. Playground runs are left out, but their spend counts against the budgets.
 
 use sqlx::Row;
 use sqlx::any::AnyRow;
@@ -28,7 +28,7 @@ macro_rules! attempts {
         concat!(
             " FROM model_attempts a JOIN runs u ON u.id = a.run_id
              JOIN changes c ON c.id = u.change_id JOIN repositories r ON r.id = c.repository_id
-             WHERE a.tenant_id = $1",
+             WHERE a.tenant_id = $1 AND u.mode = 'REVIEW'",
             scoped!("c.repository_id"),
             " AND a.created_at >= $4"
         )
@@ -81,14 +81,14 @@ const TO_DELIVERY: &str = concat!(
     "SELECT min(o.finished_at) - u.created_at FROM runs u JOIN changes c ON c.id = u.change_id
      JOIN publication_operations o ON o.run_id = u.id
          AND o.state = 'DELIVERED' AND o.finished_at IS NOT NULL
-     WHERE u.tenant_id = $1",
+     WHERE u.tenant_id = $1 AND u.mode = 'REVIEW'",
     scoped!("c.repository_id"),
     " AND u.created_at >= $4 GROUP BY u.id, u.created_at"
 );
 
 const RUN_DURATION: &str = concat!(
     "SELECT u.finished_at - u.created_at FROM runs u JOIN changes c ON c.id = u.change_id
-     WHERE u.tenant_id = $1 AND u.state = 'COMPLETED' AND u.finished_at IS NOT NULL",
+     WHERE u.tenant_id = $1 AND u.mode = 'REVIEW' AND u.state = 'COMPLETED' AND u.finished_at IS NOT NULL",
     scoped!("c.repository_id"),
     " AND u.created_at >= $4"
 );
@@ -96,7 +96,7 @@ const RUN_DURATION: &str = concat!(
 const QUEUE_WAIT: &str = concat!(
     "SELECT j.claimed_at - j.created_at FROM jobs j JOIN runs u ON u.id = j.run_id
      JOIN changes c ON c.id = u.change_id
-     WHERE u.tenant_id = $1 AND j.claimed_at IS NOT NULL",
+     WHERE u.tenant_id = $1 AND u.mode = 'REVIEW' AND j.claimed_at IS NOT NULL",
     scoped!("c.repository_id"),
     " AND j.created_at >= $4"
 );
