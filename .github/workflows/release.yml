@@ -2,9 +2,15 @@ name: Release
 
 # A `v*` tag builds the CLI on native runners and drafts the GitHub release with the archives.
 # The image is not rebuilt: the tag names the reviewer image image.yml built for the same commit.
+# Run by hand for an existing tag when its push failed: a published tag is never moved.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build, such as v0.2.0
+        required: true
 
 permissions:
   contents: read
@@ -15,6 +21,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:
@@ -28,12 +35,13 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             runner: ubuntu-22.04-arm
           - target: aarch64-apple-darwin
-            runner: macos-14
+            runner: macos-15
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ env.TAG }}
           persist-credentials: false
       - name: Install the pinned Rust toolchain
         run: |
@@ -45,13 +53,13 @@ jobs:
           cargo --version
       - name: Build
         env:
-          SYCH_BUILD_COMMIT: ${{ github.sha }}
           TARGET: ${{ matrix.target }}
-        run: cargo build --release --locked -p sych-app --bin sych --target "$TARGET"
+        run: |
+          SYCH_BUILD_COMMIT="$(git rev-parse HEAD)" \
+            cargo build --release --locked -p sych-app --bin sych --target "$TARGET"
       - name: Package
         env:
           TARGET: ${{ matrix.target }}
-          TAG: ${{ github.ref_name }}
         run: |
           version="${TAG#v}"
           bin="target/$TARGET/release/sych"
@@ -82,7 +90,6 @@ jobs:
       - name: Draft the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
         run: |
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
             --title "Sych ${TAG#v}" --notes "Release notes follow." dist/*
@@ -94,6 +101,10 @@ jobs:
       contents: read
       packages: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -101,13 +112,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Tag the reviewer image of this commit
-        env:
-          TAG: ${{ github.ref_name }}
         run: |
           image=ghcr.io/bondiano/sych
-          if ! docker buildx imagetools inspect "$image:$GITHUB_SHA" >/dev/null; then
-            echo "::error::$image:$GITHUB_SHA is missing; let image.yml finish on main first" >&2
+          commit="$(git rev-parse HEAD)"
+          if ! docker buildx imagetools inspect "$image:$commit" >/dev/null; then
+            echo "::error::$image:$commit is missing; let image.yml finish on main first" >&2
             exit 1
           fi
-          docker buildx imagetools create --tag "$image:${TAG#v}" "$image:$GITHUB_SHA"
+          docker buildx imagetools create --tag "$image:${TAG#v}" "$image:$commit"
           echo "$image:${TAG#v}" >> "$GITHUB_STEP_SUMMARY"
