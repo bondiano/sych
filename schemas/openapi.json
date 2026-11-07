@@ -2398,6 +2398,21 @@
         ],
         "type": "object"
       },
+      "PlaygroundRequest": {
+        "additionalProperties": false,
+        "description": "`POST /v1/changes/:id/playground`.",
+        "properties": {
+          "profile": {
+            "default": null,
+            "description": "`deep` for the deep profile; the default profile otherwise.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "PolicySnapshot": {
         "properties": {
           "authorization_policy_version": {
@@ -3331,6 +3346,10 @@
               "null"
             ]
           },
+          "playground": {
+            "description": "A maintainer's playground try: not published, not in lineage or analytics.",
+            "type": "boolean"
+          },
           "result_url": {
             "type": "string"
           },
@@ -3363,9 +3382,16 @@
           "stage",
           "usage",
           "created_at",
-          "result_url"
+          "result_url",
+          "playground"
         ],
         "type": "object"
+      },
+      "RunStatuses": {
+        "items": {
+          "$ref": "#/components/schemas/RunStatus"
+        },
+        "type": "array"
       },
       "RunUsage": {
         "properties": {
@@ -5807,6 +5833,121 @@
         "summary": "A pull request with its runs, events and publications"
       }
     },
+    "/v1/changes/{id}/playground": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaygroundRequest"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            },
+            "description": "Try a review of the pull request without publishing it; 202 is durable admission"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Try a review of the pull request without publishing it; 202 is durable admission"
+      }
+    },
     "/v1/changes/{id}/reruns": {
       "post": {
         "parameters": [
@@ -6477,6 +6618,92 @@
           }
         ],
         "summary": "The caller and its role on each readable repository"
+      }
+    },
+    "/v1/playground": {
+      "get": {
+        "parameters": [
+          {
+            "description": "only this repository",
+            "in": "query",
+            "name": "repository_id",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunStatuses"
+                }
+              }
+            },
+            "description": "Playground runs of readable repositories, the 50 newest"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Playground runs of readable repositories, the 50 newest"
       }
     },
     "/v1/publications": {

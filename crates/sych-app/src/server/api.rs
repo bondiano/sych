@@ -66,7 +66,7 @@ pub(super) fn result_error(e: StorageError) -> ApiError {
     }
 }
 
-fn request_error(e: &RequestError) -> ApiError {
+pub(super) fn request_error(e: &RequestError) -> ApiError {
     match e {
         RequestError::NotFound(m) => status(StatusCode::NOT_FOUND, "NOT_FOUND", m.clone()),
         RequestError::Refused(m) => status(StatusCode::CONFLICT, "CHANGE_CLOSED", m.clone()),
@@ -242,6 +242,7 @@ pub(super) fn run_status(v: RunView) -> RunStatus {
         finished_at: v.finished_at,
         parent_run_id: v.parent_run_id,
         unknown_obligations: v.unknown_obligations,
+        playground: v.playground,
     }
 }
 
