@@ -71,10 +71,11 @@ async fn enqueue_summary(
     .get(0);
     sqlx::query(
         "UPDATE publication_operations SET state = 'SUPERSEDED', finished_at = $1
-         WHERE object_id = $2 AND state = 'PENDING'",
+         WHERE object_id = $2 AND state = 'PENDING' AND generation <> $3",
     )
     .bind(at)
     .bind(object)
+    .bind(generation)
     .execute(&mut **tx)
     .await?;
     let op: Option<i64> = sqlx::query(

@@ -88,6 +88,30 @@ async fn a_newer_generation_supersedes_the_unsent_revision_and_quiet_runs_queue_
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn a_repeated_publish_leaves_the_queued_revision_pending() {
+    let (_dir, s) = migrated().await;
+    let id = change(&s).await;
+    s.generate(id, &publishing("h"), 1_800_001_000, 3, at(0))
+        .await
+        .expect("gen");
+    let c = claim(&s, "w", 1).await;
+    finish(&s, &c, 2).await.expect("commit");
+    let queued = s.operations(id).await.expect("ops")[0].id;
+
+    let repeat = s
+        .enqueue_publication("local", &c.run.id.to_string(), "lead", at(3).as_second())
+        .await
+        .expect("repeat");
+
+    assert_eq!(repeat, None, "nothing new is queued");
+    let ops = s.operations(id).await.expect("ops");
+    assert_eq!(
+        (ops.len(), ops[0].id, ops[0].state.as_str()),
+        (1, queued, "PENDING")
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn lost_bytes_unfrozen_inputs_and_cancel_before_commit_leave_no_result_or_intent() {
     let (dir, s) = migrated().await;
     let id = change(&s).await;
