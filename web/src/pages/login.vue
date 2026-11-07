@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { signInWithToken, useSignIns } from '@/modules/Session'
@@ -23,14 +23,20 @@ const { data: signIns } = useSignIns()
 const token = ref('')
 const failure = ref<string>()
 const logo = `${import.meta.env.BASE_URL}sych.png`
+// Only a path inside this app: the query comes from whoever made the link.
+const next = computed(() => {
+  const asked = route.query.next
+  return typeof asked === 'string' && asked.startsWith('/') && !asked.startsWith('//') ? asked : '/'
+})
+const viaGithub = (url: string) =>
+  next.value === '/' ? url : `${url}?next=${encodeURIComponent(next.value)}`
 
 async function useToken() {
   failure.value = undefined
   try {
     await signInWithToken(token.value)
     token.value = ''
-    const next = typeof route.query.next === 'string' ? route.query.next : '/'
-    await router.replace(next.startsWith('/') && !next.startsWith('//') ? next : '/')
+    await router.replace(next.value)
   } catch (e) {
     failure.value = e instanceof Error ? e.message : 'Sign-in failed'
   }
@@ -47,7 +53,7 @@ async function useToken() {
       </CardHeader>
       <CardContent class="space-y-4">
         <Button v-for="s in signIns" :key="s.connection_id" as-child class="w-full">
-          <a :href="s.login_url">Continue with GitHub ({{ s.connection_id }})</a>
+          <a :href="viaGithub(s.login_url)">Continue with GitHub ({{ s.connection_id }})</a>
         </Button>
         <Separator v-if="signIns?.length" />
         <form class="space-y-2" @submit.prevent="useToken">

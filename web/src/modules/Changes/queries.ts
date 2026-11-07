@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import type { Ref } from 'vue'
+import { computed, type Ref } from 'vue'
 
 import { api, idempotencyKey, unwrap, type Schemas } from '@/modules/Api'
 
@@ -24,6 +24,8 @@ export function useChanges(filter: Ref<ChangeFilter>) {
 export function useChange(id: Ref<number>) {
   return useQuery({
     queryKey: ['change', id],
+    // A run's page knows its change only once the run has loaded.
+    enabled: computed(() => id.value > 0),
     queryFn: async () =>
       unwrap(await api.GET('/v1/changes/{id}', { params: { path: { id: id.value } } })),
   })

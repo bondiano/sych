@@ -221,7 +221,7 @@ impl Engine {
             result_url: self
                 .public_base_url
                 .as_ref()
-                .map(|u| format!("{}/v1/runs/{}/result", u.trim_end_matches('/'), c.run_id)),
+                .map(|u| format!("{}/ui/runs/{}", u.trim_end_matches('/'), c.run_id)),
             duration_seconds: None,
         };
         Ok(render_summary(&result, &planned, &ctx))

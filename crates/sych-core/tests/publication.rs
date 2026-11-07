@@ -226,7 +226,7 @@ fn ctx() -> SummaryContext<'static> {
         head_sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         base_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         result_url: Some(
-            "https://sych.example/v1/runs/01900000-0000-7000-8000-000000000001/result".into(),
+            "https://sych.example/ui/runs/01900000-0000-7000-8000-000000000001".into(),
         ),
         duration_seconds: Some(42),
         earlier: &[],

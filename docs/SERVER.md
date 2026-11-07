@@ -317,7 +317,7 @@ CI gaps. An unverified candidate the previous revision of the change also left o
 overlapping lines or the same lines' content; the result keeps its open candidates in `unresolved_candidates`) is listed
 apart under "Still open from the previous revision", so a question the author already answered does not read as new;
 collapsed improvements/nitpicks with a rule or "preference"; cost (known + unknown attempts), the number of
-attempts, the number of high/critical; a link to the full result if `http.public_base_url` is set. Golden files:
+attempts, the number of high/critical; a link to the run's page in the dashboard (`/ui/runs/:id`) if `http.public_base_url` is set. Golden files:
 `fixtures/publication/summary-*.md`.
 
 **Inline** — only Defect and RuleViolation; no more than 8 new ones per revision (already published ones are not counted), by
@@ -537,8 +537,8 @@ the person reaches with their role; it is never stored.
 | Route | Who | What |
 |---|---|---|
 | `GET /auth/github` | anyone | the connections with sign-in |
-| `GET /auth/github/:connection/login` | anyone | redirect to GitHub with a state held in a 10-minute `HttpOnly` cookie |
-| `GET /auth/github/:connection/callback` | the same browser | a mismatched state — 403; otherwise a session and a redirect to `/ui/` |
+| `GET /auth/github/:connection/login[?next=]` | anyone | redirect to GitHub with a state, and the UI page to return to, held in 10-minute `HttpOnly` cookies |
+| `GET /auth/github/:connection/callback` | the same browser | a mismatched state — 403; otherwise a session and a redirect to the page in `next` under `/ui`, or to `/ui/` |
 | `POST /auth/token` | an API client's bearer token | a session acting as that client, for operators and local checks |
 | `POST /auth/logout` | the session, from the UI's origin | ends it, also an expired one |
 

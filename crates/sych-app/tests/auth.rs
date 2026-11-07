@@ -119,6 +119,51 @@ async fn audited(url: &str) -> Vec<(String, String)> {
         .collect()
 }
 
+/// Signs in from `login`'s query; returns where the browser lands.
+async fn landing_after(url: &str, query: &str) -> String {
+    let path = format!("/auth/github/gh/login{query}");
+    let (_, headers, _) = send(url, Method::GET, &path, None, None, &Value::Null).await;
+    let (state, _) = set_cookie(&headers, "sych_oauth_state").expect("state cookie");
+    let (next, _) = set_cookie(&headers, "sych_oauth_next").expect("next cookie");
+    let path = format!("/auth/github/gh/callback?code=code-alice&state={state}");
+    let cookie = format!("sych_oauth_state={state}; sych_oauth_next={next}");
+    let (status, headers, _) =
+        send(url, Method::GET, &path, Some(&cookie), None, &Value::Null).await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(
+        set_cookie(&headers, "sych_oauth_next").expect("cleared").0,
+        ""
+    );
+    headers["location"].to_str().expect("location").to_owned()
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn sign_in_returns_to_the_page_that_asked_for_it_and_never_off_this_origin() {
+    let (w, url) = reviewed().await;
+    grant(&w, "alice", "read");
+    assert_eq!(
+        landing_after(&url, "?next=%2Fruns%2Fabc%3Ftab%3D1%20x").await,
+        "/ui/runs/abc?tab=1 x"
+    );
+    assert_eq!(landing_after(&url, "").await, "/ui/");
+    for away in ["https://evil.test", "evil.test", "%0d%0aSet-Cookie:x"] {
+        assert_eq!(
+            landing_after(&url, &format!("?next={away}")).await,
+            "/ui/",
+            "{away}"
+        );
+    }
+    // Under `/ui` a path that looks protocol-relative is still this server's.
+    assert_eq!(
+        landing_after(&url, "?next=//evil.test").await,
+        "/ui//evil.test"
+    );
+    assert_eq!(
+        landing_after(&url, "?next=/%0d%0aSet-Cookie:x").await,
+        "/ui/"
+    );
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn a_person_reads_only_what_github_grants_them() {
     let (w, url) = reviewed().await;

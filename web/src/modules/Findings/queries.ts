@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import type { Ref } from 'vue'
+import { computed, type Ref } from 'vue'
 
 import { api, unwrap, type Schemas } from '@/modules/Api'
 
@@ -16,6 +16,8 @@ export interface FindingFilter {
 export function useFindings(filter: Ref<FindingFilter>) {
   return useInfiniteQuery({
     queryKey: ['findings', filter],
+    // A run's page knows its change only once the run has loaded.
+    enabled: computed(() => filter.value.change_id !== 0),
     initialPageParam: undefined as number | undefined,
     queryFn: async ({ pageParam }) => {
       const query = { ...filter.value, before: pageParam }

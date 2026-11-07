@@ -102,5 +102,5 @@ The refactor moved the insert out of the transaction that wrote the outbox row.
 
 ---
 <sub>Head `bbbbbbbbbbbb` · target `aaaaaaaaaaaa` · результат `01900000-0000-7000-8000-000000000001` (ревизия 1) · рекомендация `AttentionRequired` · выполнение `PlanExecuted` · профили: correctness, side_effects<br>
-Стоимость: $0.000000 известная · 2 попыток модели · 42 с · [полный результат](https://sych.example/v1/runs/01900000-0000-7000-8000-000000000001/result)<br>
+Стоимость: $0.000000 известная · 2 попыток модели · 42 с · [полный результат](https://sych.example/ui/runs/01900000-0000-7000-8000-000000000001)<br>
 Рекомендательно: Sych никогда не одобряет, не запрашивает изменения и не блокирует слияние.</sub>
