@@ -29,14 +29,6 @@ pub async fn start(
     body: Bytes,
 ) -> Result<Response, ApiError> {
     caller.need(ApiRole::Maintainer)?;
-    if app.budgets.playground_daily.max_cost_micro_usd.is_none() {
-        return Err(status(
-            StatusCode::CONFLICT,
-            "PLAYGROUND_DISABLED",
-            "set budgets.playground_daily.max_cost_micro_usd to allow playground runs",
-        ));
-    }
-
     let request: PlaygroundRequest = if body.is_empty() {
         PlaygroundRequest::default()
     } else {
@@ -56,6 +48,15 @@ pub async fn start(
             ApiRole::Maintainer,
         )
         .await?;
+    // Only a maintainer of this repository learns that the playground is off.
+    if app.budgets.playground_daily.max_cost_micro_usd.is_none() {
+        return Err(status(
+            StatusCode::CONFLICT,
+            "PLAYGROUND_DISABLED",
+            "set budgets.playground_daily.max_cost_micro_usd to allow playground runs",
+        ));
+    }
+
     let deep = request.profile.as_deref() == Some("deep");
     idempotent(
         &app,

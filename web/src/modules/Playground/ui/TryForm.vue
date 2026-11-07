@@ -22,8 +22,8 @@ const profile = ref<'default' | 'deep'>('default')
 const key = ref(idempotencyKey())
 const attempt = useTry(computed(() => props.changeId))
 
-// Another profile is a new try; resending the same one replays the first.
-watch(profile, () => (key.value = idempotencyKey()))
+// Another profile or pull request is a new try; resending the same one replays the first.
+watch([profile, () => props.changeId], () => (key.value = idempotencyKey()))
 
 function send() {
   const body = { profile: profile.value === 'deep' ? 'deep' : null }
