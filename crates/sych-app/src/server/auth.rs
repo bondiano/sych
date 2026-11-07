@@ -16,6 +16,7 @@ use sych_adapters::github::Secret;
 use sych_core::api::{Grant, InstanceLink, Me, SignIn};
 use sych_core::config::{GithubOauth, same_base_url};
 use sych_storage::Session;
+use url::{Position, Url, form_urlencoded};
 
 use super::App;
 use super::api::{engine, now, status, storage_error};
@@ -28,6 +29,7 @@ use super::views::grants;
 const SESSION_SECONDS: i64 = 8 * 3600;
 const STATE_COOKIE: &str = "sych_oauth_state";
 const STATE_SECONDS: i64 = 600;
+const NEXT_COOKIE: &str = "sych_oauth_next";
 /// Where the browser lands after signing in.
 const HOME: &str = "/ui/";
 
@@ -113,14 +115,38 @@ pub async fn sign_ins(State(app): State<Arc<App>>) -> Json<Vec<SignIn>> {
     )
 }
 
-/// `GET /auth/github/:connection/login`: to GitHub, with a state only this browser holds.
+#[derive(Deserialize)]
+pub struct Login {
+    next: Option<String>,
+}
+
+/// Where a page's path lands after sign-in: under the UI once resolved as a browser resolves it,
+/// so dot segments, `%2e` and backslashes cannot climb out of it.
+fn landing(next: &str) -> Option<HeaderValue> {
+    if !next.starts_with('/') {
+        return None;
+    }
+
+    let resolved = Url::parse("http://ui.invalid")
+        .and_then(|base| base.join(&format!("/ui{next}")))
+        .ok()?;
+    resolved
+        .path()
+        .starts_with("/ui/")
+        .then(|| HeaderValue::from_str(&resolved[Position::BeforePath..]).ok())
+        .flatten()
+}
+
+/// `GET /auth/github/:connection/login[?next=]`: to GitHub, with a state only this browser holds
+/// and the page to come back to.
 pub async fn login(
     State(app): State<Arc<App>>,
     Path(connection): Path<String>,
+    Query(q): Query<Login>,
 ) -> Result<Response, ApiError> {
     let (config, _) = oauth(&app, &connection)?;
     let state = random_token()?;
-    let authorize = url::Url::parse_with_params(
+    let authorize = Url::parse_with_params(
         &format!(
             "{}/login/oauth/authorize",
             config.web_base_url.trim_end_matches('/')
@@ -133,20 +159,26 @@ pub async fn login(
     )
     .map_err(|e| storage_error(&e))?;
     let path = format!("/auth/github/{connection}");
-    Ok((
+    let next: String =
+        form_urlencoded::byte_serialize(q.next.as_deref().unwrap_or_default().as_bytes()).collect();
+    let mut response = (
         StatusCode::FOUND,
-        [
-            (
-                header::LOCATION,
-                HeaderValue::from_str(authorize.as_str()).map_err(|e| storage_error(&e))?,
-            ),
-            (
-                header::SET_COOKIE,
-                set_cookie(&app, STATE_COOKIE, &state, &path, STATE_SECONDS),
-            ),
-        ],
+        [(
+            header::LOCATION,
+            HeaderValue::from_str(authorize.as_str()).map_err(|e| storage_error(&e))?,
+        )],
     )
-        .into_response())
+        .into_response();
+    let cookies = response.headers_mut();
+    cookies.append(
+        header::SET_COOKIE,
+        set_cookie(&app, STATE_COOKIE, &state, &path, STATE_SECONDS),
+    );
+    cookies.append(
+        header::SET_COOKIE,
+        set_cookie(&app, NEXT_COOKIE, &next, &path, STATE_SECONDS),
+    );
+    Ok(response)
 }
 
 #[derive(Deserialize)]
@@ -216,17 +248,24 @@ pub async fn callback(
         grants,
         expires_at: now(&app).as_second() + SESSION_SECONDS,
     };
-    let mut home = (StatusCode::SEE_OTHER, [(header::LOCATION, HOME)]).into_response();
-    home.headers_mut().append(
-        header::SET_COOKIE,
-        set_cookie(
-            &app,
-            STATE_COOKIE,
-            "",
-            &format!("/auth/github/{connection}"),
-            0,
-        ),
-    );
+    let next = cookie(&headers, NEXT_COOKIE).and_then(|encoded| {
+        // `byte_serialize` left no separator in it: all of it parses as one key.
+        let (next, _) = form_urlencoded::parse(encoded.as_bytes()).next()?;
+        landing(&next)
+    });
+    let mut home = (
+        StatusCode::SEE_OTHER,
+        [(
+            header::LOCATION,
+            next.unwrap_or(HeaderValue::from_static(HOME)),
+        )],
+    )
+        .into_response();
+    let path = format!("/auth/github/{connection}");
+    for name in [STATE_COOKIE, NEXT_COOKIE] {
+        home.headers_mut()
+            .append(header::SET_COOKIE, set_cookie(&app, name, "", &path, 0));
+    }
     start(&app, &session, home).await
 }
 

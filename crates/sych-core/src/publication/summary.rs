@@ -19,7 +19,7 @@ pub struct SummaryContext<'a> {
     pub repo: Option<&'a str>,
     pub head_sha: &'a str,
     pub base_sha: &'a str,
-    /// Link to the full result, when the server has a public base URL.
+    /// Link to the run's page in the dashboard, when the server has a public base URL.
     pub result_url: Option<String>,
     pub duration_seconds: Option<i64>,
     /// Candidates the previous revision of the change left open: one this revision leaves open
