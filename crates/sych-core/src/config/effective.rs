@@ -210,6 +210,7 @@ impl ServerConfig {
             redaction: super::Redaction::default(),
             scm: super::Scm::default(),
             notifications: super::Notifications::default(),
+            slack: None,
         }
     }
 }

@@ -37,6 +37,8 @@ use crate::fake_github::{Shared, lock, pull_json, start, stored_zip};
 pub const T0: i64 = 1_800_000_000;
 /// Where people open the UI in every world: the origin a session's changes must come from.
 pub const PUBLIC_BASE: &str = "https://sych.test";
+/// The signing secret of the Slack app when the server config has `slack`.
+pub const SLACK_SECRET: &str = "slack-signing-secret";
 
 thread_local! {
     /// Secrets the server under test reads, instead of the process environment.
@@ -227,6 +229,10 @@ pub async fn world_server(policy: Option<&str>, endpoint: Option<&str>, extra: &
         config: Some(shown(&config_path).expect("shown config")),
         budgets: server.budgets.clone(),
         instances: server.http.instances.clone(),
+        slack: server
+            .slack
+            .clone()
+            .map(|s| (s, Secret::new(SLACK_SECRET.into()))),
     });
     let conns = BTreeMap::from([(
         "gh".into(),

@@ -56,3 +56,7 @@ scm:
 #     hour_utc: 9
 #     slack:
 #       webhook_url_env: SYCH_SLACK_WEBHOOK_URL
+
+# slack:                              # the read-only /sych command; see SERVER.md, Slack command
+#   signing_secret_env: SYCH_SLACK_SIGNING_SECRET
+#   repositories: [gh/owner/name]

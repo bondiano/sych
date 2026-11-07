@@ -21,6 +21,7 @@ mod publisher;
 mod questions;
 mod queue;
 pub mod requests;
+mod slack;
 pub mod smoke;
 mod snapshots;
 mod suggestions;
@@ -44,7 +45,9 @@ use axum::{Json, Router};
 use serde_json::json;
 use sych_adapters::github::Secret;
 use sych_core::Timestamp;
-use sych_core::config::{ApiClient, Budgets, GithubConnection, Instance, ServerConfig};
+use sych_core::config::{
+    ApiClient, Budgets, GithubConnection, Instance, ServerConfig, SlackCommands,
+};
 use sych_storage::Storage;
 use tokio::net::TcpListener;
 use tokio::signal;
@@ -81,6 +84,8 @@ pub struct App {
     pub budgets: Budgets,
     /// `http.instances`, for the dashboard's switcher.
     pub instances: Vec<Instance>,
+    /// `slack` with its signing secret, for `/slack/commands`.
+    pub slack: Option<(SlackCommands, Secret)>,
 }
 
 impl App {
@@ -124,6 +129,19 @@ impl App {
             anyhow::bail!("http.ui_dir {} has no index.html", dir.display());
         }
 
+        let slack = match &config.slack {
+            Some(s) => {
+                let name = s.signing_secret_env.as_str();
+                let secret = env::var(name)
+                    .ok()
+                    .filter(|v| !v.is_empty())
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("{name} is not set (slack.signing_secret_env)")
+                    })?;
+                Some((s.clone(), Secret::new(secret)))
+            }
+            None => None,
+        };
         let mut clients = Vec::new();
         for client in &config.http.api_clients {
             let name = client.token_env.as_str();
@@ -153,6 +171,7 @@ impl App {
             config: None,
             budgets: config.budgets.clone(),
             instances: config.http.instances.clone(),
+            slack,
         })
     }
 
@@ -239,6 +258,8 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/runs/{id}/tours/{tour}/complete", post(tours::complete))
         .route("/v1/runs/{id}/tours/{tour}/dismiss", post(tours::dismiss))
         .route("/v1/runs/{id}/tours/{tour}/questions", post(questions::ask))
+        // Signed by Slack, not a `/v1` caller; its small form body takes the API limit.
+        .route("/slack/commands", post(slack::commands))
         .layer(DefaultBodyLimit::max(API_BODY_LIMIT));
     let ui = app.ui_dir.as_deref().map(ui::routes).unwrap_or_default();
     Router::new()

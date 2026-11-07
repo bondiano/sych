@@ -64,6 +64,14 @@ impl Scope {
         }
     }
 
+    /// Only `ids` of the tenant, as a Slack workspace reads them; no tenant budget.
+    pub(super) fn repositories(tenant_id: &str, ids: Vec<i64>, since: i64) -> Self {
+        Self {
+            ids: Some(ids),
+            ..Self::tenant(tenant_id, since)
+        }
+    }
+
     fn visibility(&self) -> Visibility<'_> {
         Visibility {
             tenant_id: &self.tenant_id,
