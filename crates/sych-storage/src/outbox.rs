@@ -10,7 +10,10 @@ use crate::{RunHandle, StorageError};
 
 fn publication_flags(inputs: Option<&str>) -> Result<(bool, bool), StorageError> {
     let inputs = inputs.map(serde_json::from_str::<RunInputs>).transpose()?;
-    Ok(inputs.map_or((false, false), |inputs| (inputs.publish, inputs.checks)))
+    // A playground run publishes nothing, whatever its other flags say.
+    Ok(inputs
+        .filter(|inputs| !inputs.playground)
+        .map_or((false, false), |inputs| (inputs.publish, inputs.checks)))
 }
 
 /// Queues the summary revision of `result` when the run's inputs ask for publication; an older
@@ -33,12 +36,16 @@ async fn enqueue_summary(
     at: i64,
     force: bool,
 ) -> Result<Option<i64>, StorageError> {
-    let row = sqlx::query("SELECT change_id, generation, inputs FROM runs WHERE id = $1")
+    let row = sqlx::query("SELECT change_id, generation, inputs, mode FROM runs WHERE id = $1")
         .bind(run_id)
         .fetch_one(&mut **tx)
         .await?;
     let (change_id, generation, inputs): (i64, i64, Option<String>) =
         (row.get(0), row.get(1), row.get(2));
+    if row.get::<String, _>(3) == "PLAYGROUND" {
+        return Ok(None);
+    }
+
     let (publish, _) = publication_flags(inputs.as_deref())?;
     enqueue_check(tx, run_id, result, at).await?;
     if !publish && !force {
@@ -100,7 +107,8 @@ impl crate::Storage {
     ) -> Result<Option<i64>, StorageError> {
         let mut tx = self.write().await?;
         let row = sqlx::query(
-            "SELECT u.result_id, c.repository_id FROM runs u JOIN changes c ON c.id = u.change_id
+            "SELECT u.result_id, c.repository_id, u.mode FROM runs u
+             JOIN changes c ON c.id = u.change_id
              WHERE u.id = $1 AND u.tenant_id = $2 AND u.state = 'COMPLETED'",
         )
         .bind(run_id)
@@ -108,6 +116,12 @@ impl crate::Storage {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or_else(|| StorageError::Conflict(format!("run {run_id} has no committed result")))?;
+        if row.get::<String, _>(2) == "PLAYGROUND" {
+            return Err(StorageError::Conflict(format!(
+                "run {run_id} is a playground run, which is never published"
+            )));
+        }
+
         let result: String = row.get(0);
         let op = enqueue_summary(&mut tx, run_id, &result, at, true).await?;
         // The request is the action; `operation` is null when this revision was already queued.

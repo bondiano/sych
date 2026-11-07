@@ -1,5 +1,6 @@
 //! Period totals and usage behind the dashboard overview, over the repositories a caller may
-//! read. Money is micro-USD; an unknown charge is counted, never added as zero.
+//! read. Money is micro-USD; an unknown charge is counted, never added as zero. Playground runs
+//! are left out.
 
 use sqlx::Row;
 use sqlx::any::AnyRow;
@@ -12,14 +13,14 @@ use crate::{Storage, StorageError, Visibility};
 
 const RUNS_BY_STATE: &str = concat!(
     "SELECT u.state, count(*) FROM runs u JOIN changes c ON c.id = u.change_id
-     WHERE u.tenant_id = $1",
+     WHERE u.tenant_id = $1 AND u.mode = 'REVIEW'",
     scoped!("c.repository_id"),
     " AND u.created_at >= $4 GROUP BY u.state ORDER BY u.state"
 );
 
 const RUNS_BY_COVERAGE: &str = concat!(
     "SELECT u.coverage, count(*) FROM runs u JOIN changes c ON c.id = u.change_id
-     WHERE u.tenant_id = $1 AND u.coverage IS NOT NULL",
+     WHERE u.tenant_id = $1 AND u.mode = 'REVIEW' AND u.coverage IS NOT NULL",
     scoped!("c.repository_id"),
     " AND u.created_at >= $4 GROUP BY u.coverage ORDER BY u.coverage"
 );
@@ -34,7 +35,7 @@ const FINDING_EVENTS: &str = concat!(
 
 const UNKNOWN_OBLIGATIONS: &str = concat!(
     "SELECT CAST(coalesce(sum(u.unknown_obligations), 0) AS BIGINT)
-     FROM runs u JOIN changes c ON c.id = u.change_id WHERE u.tenant_id = $1",
+     FROM runs u JOIN changes c ON c.id = u.change_id WHERE u.tenant_id = $1 AND u.mode = 'REVIEW'",
     scoped!("c.repository_id"),
     " AND u.created_at >= $4"
 );
@@ -48,7 +49,7 @@ const COST: &str = concat!(
              AND a.charge_micro_usd IS NULL AND a.billing_kind <> 'subscription_quota')
              THEN 1 ELSE 0 END), 0) AS BIGINT)
      FROM model_attempts a JOIN runs u ON u.id = a.run_id
-     JOIN changes c ON c.id = u.change_id WHERE a.tenant_id = $1",
+     JOIN changes c ON c.id = u.change_id WHERE a.tenant_id = $1 AND u.mode = 'REVIEW'",
     scoped!("c.repository_id"),
     " AND a.created_at >= $4"
 );
@@ -57,19 +58,19 @@ const CURRENT: &str = concat!(
     "SELECT
          (SELECT CAST(coalesce(sum(a.reserved_micro_usd), 0) AS BIGINT)
           FROM model_attempts a JOIN runs u ON u.id = a.run_id JOIN changes c ON c.id = u.change_id
-          WHERE a.tenant_id = $1 AND a.state = 'RESERVED'",
+          WHERE a.tenant_id = $1 AND u.mode = 'REVIEW' AND a.state = 'RESERVED'",
     scoped!("c.repository_id"),
     "),
          (SELECT count(*) FROM jobs j JOIN runs u ON u.id = j.run_id
-          JOIN changes c ON c.id = u.change_id WHERE u.tenant_id = $1 AND j.state = 'QUEUED'",
+          JOIN changes c ON c.id = u.change_id WHERE u.tenant_id = $1 AND u.mode = 'REVIEW' AND j.state = 'QUEUED'",
     scoped!("c.repository_id"),
     "),
          (SELECT min(j.next_attempt_at) FROM jobs j JOIN runs u ON u.id = j.run_id
-          JOIN changes c ON c.id = u.change_id WHERE u.tenant_id = $1 AND j.state = 'QUEUED'",
+          JOIN changes c ON c.id = u.change_id WHERE u.tenant_id = $1 AND u.mode = 'REVIEW' AND j.state = 'QUEUED'",
     scoped!("c.repository_id"),
     "),
          (SELECT count(*) FROM publication_operations o JOIN runs u ON u.id = o.run_id
-          JOIN changes c ON c.id = u.change_id WHERE u.tenant_id = $1 AND o.state = 'UNCERTAIN'",
+          JOIN changes c ON c.id = u.change_id WHERE u.tenant_id = $1 AND u.mode = 'REVIEW' AND o.state = 'UNCERTAIN'",
     scoped!("c.repository_id"),
     ")"
 );
@@ -162,7 +163,7 @@ impl Storage {
                  CAST(coalesce(sum(a.input_tokens), 0) AS BIGINT),
                  CAST(coalesce(sum(a.output_tokens), 0) AS BIGINT)
              FROM model_attempts a JOIN runs u ON u.id = a.run_id
-             JOIN changes c ON c.id = u.change_id WHERE a.tenant_id = $1",
+             JOIN changes c ON c.id = u.change_id WHERE a.tenant_id = $1 AND u.mode = 'REVIEW'",
             scoped!("c.repository_id"),
             " AND a.day >= $4 AND a.day <= $5 GROUP BY a.day ORDER BY a.day"
         ))

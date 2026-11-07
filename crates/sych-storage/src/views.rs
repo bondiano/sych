@@ -79,8 +79,9 @@ macro_rules! change_summary {
              u.finished_at,
              (SELECT count(*) FROM findings f WHERE f.change_id = c.id AND f.state = 'OPEN')
          FROM changes c JOIN repositories r ON r.id = c.repository_id
-         LEFT JOIN runs u ON u.change_id = c.id
-             AND u.generation = (SELECT max(g.generation) FROM runs g WHERE g.change_id = c.id)
+         LEFT JOIN runs u ON u.change_id = c.id AND u.mode = 'REVIEW'
+             AND u.generation = (SELECT max(g.generation) FROM runs g
+                 WHERE g.change_id = c.id AND g.mode = 'REVIEW')
          WHERE c.tenant_id = $1 AND "
     };
 }
@@ -226,11 +227,11 @@ impl Storage {
         Ok(row.as_ref().map(change_summary))
     }
 
-    /// Every generation's run of a change, oldest first.
+    /// Every generation's run of a change, oldest first; playground runs are listed apart.
     pub async fn runs_of(&self, change_id: i64) -> Result<Vec<RunView>, StorageError> {
         let rows = sqlx::query(concat!(
             run_view!(),
-            "WHERE u.change_id = $1 ORDER BY u.generation"
+            "WHERE u.change_id = $1 AND u.mode = 'REVIEW' ORDER BY u.generation"
         ))
         .bind(change_id)
         .fetch_all(self.pool())
@@ -247,7 +248,7 @@ impl Storage {
         Ok(sqlx::query_scalar(
             "SELECT u.id FROM runs u JOIN changes c ON c.id = u.change_id
              JOIN run_artifacts ra ON ra.run_id = u.id AND ra.role = 'policy_snapshot'
-             WHERE c.tenant_id = $1 AND c.repository_id = $2
+             WHERE c.tenant_id = $1 AND c.repository_id = $2 AND u.mode = 'REVIEW'
              ORDER BY u.created_at DESC, u.id DESC LIMIT 1",
         )
         .bind(tenant_id)

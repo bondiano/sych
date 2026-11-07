@@ -174,6 +174,10 @@ pub struct Budgets {
     #[serde(default, skip_serializing_if = "Budget::is_unset")]
     pub tenant_weekly: Budget,
     pub tenant_monthly: Budget,
+    /// Today's spend of the tenant's playground runs, on top of the tenant pools; only its
+    /// money cap counts. No playground without one; left out of the config hash while unset.
+    #[serde(default, skip_serializing_if = "Budget::is_unset")]
+    pub playground_daily: Budget,
 }
 
 fn cost(micro_usd: u64) -> Budget {
@@ -202,6 +206,7 @@ impl Default for Budgets {
             tenant_daily: cost(3_000_000),
             tenant_weekly: Budget::default(),
             tenant_monthly: cost(60_000_000),
+            playground_daily: Budget::default(),
         }
     }
 }
@@ -363,6 +368,7 @@ impl ServerConfig {
             ("tenant_daily", &b.tenant_daily),
             ("tenant_weekly", &b.tenant_weekly),
             ("tenant_monthly", &b.tenant_monthly),
+            ("playground_daily", &b.playground_daily),
         ] {
             let path = |field: &str| format!("budgets.{name}.{field}");
             positive(
@@ -429,6 +435,12 @@ impl ServerConfig {
                 &b.tenant_monthly,
                 "tenant_weekly",
                 "exceeds budgets.tenant_monthly.max_cost_micro_usd",
+            ),
+            (
+                &b.playground_daily,
+                &b.tenant_daily,
+                "playground_daily",
+                "exceeds budgets.tenant_daily.max_cost_micro_usd",
             ),
         ] {
             p.check(

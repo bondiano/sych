@@ -161,3 +161,83 @@ async fn a_waiting_run_is_released_until_its_deadline_and_woken_early() {
     let again = claim(&s, "w", 3).await;
     assert_eq!(again.evidence_deadline, Some(T0 + 181));
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_playground_run_completes_beside_reviews_and_stays_out_of_their_history() {
+    use sych_core::schedule::RunInputs;
+    use sych_storage::Visibility;
+
+    let (_dir, s) = migrated().await;
+    let id = change(&s).await;
+    let review = s
+        .generate(id, &inputs("h1"), T0 + 300, 2, at(0))
+        .await
+        .expect("gen");
+    let try_it = RunInputs {
+        playground: true,
+        publish: true,
+        checks: true,
+        ..inputs("h1")
+    };
+    let playground = s
+        .generate(id, &try_it, T0 + 300, 2, at(1))
+        .await
+        .expect("playground");
+    assert_eq!(
+        playground.generation, review.generation,
+        "it takes the current one"
+    );
+    let (state, ..) = s
+        .run_row("local", &review.id.to_string())
+        .await
+        .expect("row");
+    assert_eq!(state, "QUEUED", "a playground run supersedes nothing");
+
+    let first = claim(&s, "w1", 2).await;
+    assert_eq!(first.run.id, review.id);
+    finish(&s, &first, 3).await.expect("review commit");
+    // A newer review moves the generation on; the playground run still commits.
+    s.generate(id, &inputs("h2"), T0 + 300, 2, at(4))
+        .await
+        .expect("gen");
+    let tried = claim(&s, "w1", 5).await;
+    assert_eq!(tried.run.id, playground.id);
+    finish(&s, &tried, 6).await.expect("playground commit");
+    let (state, ..) = s
+        .run_row("local", &playground.id.to_string())
+        .await
+        .expect("row");
+    assert_eq!(state, "COMPLETED");
+    let published = s.publications_of(id).await.expect("publications");
+    assert!(
+        published.is_empty(),
+        "asked to publish, published nothing: {published:?}"
+    );
+
+    let latest = s.latest(id).await.expect("latest").expect("a review");
+    assert_eq!(
+        latest.inputs.head_sha, "h2",
+        "the newest review, not the playground run"
+    );
+    let pending = s.lineage_pending().await.expect("pending");
+    assert!(
+        pending
+            .iter()
+            .all(|(_, run, _)| *run != playground.id.to_string()),
+        "{pending:?}"
+    );
+    let refused = s
+        .enqueue_publication("local", &playground.id.to_string(), "lead", 7)
+        .await;
+    assert!(
+        matches!(refused, Err(StorageError::Conflict(_))),
+        "{refused:?}"
+    );
+    let every = Visibility {
+        tenant_id: "local",
+        repositories: None,
+    };
+    let summary = s.summary(every, None, 0, T0 + 10).await.expect("summary");
+    let runs: i64 = summary.runs_by_state.iter().map(|c| c.count).sum();
+    assert_eq!(runs, 2, "two reviews: {:?}", summary.runs_by_state);
+}

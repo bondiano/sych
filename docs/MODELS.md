@@ -47,7 +47,9 @@ For each attempt, before sending:
 4. A single SQLite transaction checks and records the reservation: attempts/input/output tokens and run money
    (per purpose `ANALYSIS | TOUR | FOLLOWUP`), money for the day, the week from Monday 00:00 UTC
    (`budgets.tenant_weekly`, no cap unless set; it spans a month boundary) and the UTC calendar month. A
-   configuration needs day ≤ week ≤ month where they are set. Output tokens are hard only
+   configuration needs day ≤ week ≤ month where they are set. An attempt of a playground run (a maintainer's
+   try that publishes nothing) also counts against `budgets.playground_daily`, the day's spend of every
+   playground run of the tenant, set no higher than the tenant day. Output tokens are hard only
    for `api_hard`; for `subscription_observable` the upstream output/quota is soft/unknown, while Sych attempts,
    input and money stay hard.
 5. Verification reserve: pure search (discovery, high-risk audit) reserves against caps minus one attempt

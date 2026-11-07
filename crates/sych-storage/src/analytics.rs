@@ -2,6 +2,7 @@
 //! findings, how the findings of finished pull requests settled, and why reviews stopped short.
 //! Counts only. The reasons are copied from a result when its run completes, so they outlive the
 //! result's pruning.
+//! Playground runs are left out.
 
 use std::collections::BTreeMap;
 
@@ -47,14 +48,14 @@ const MERGED_WITH_OPEN: &str = concat!(
 // Runs completed since the table exists have an `OUTCOME` row; the others are counted apart.
 const REASONS: &str = concat!(
     "SELECT x.kind, x.reason, CAST(sum(x.occurrences) AS BIGINT) FROM run_reasons x
-     JOIN runs u ON u.id = x.run_id JOIN changes c ON c.id = u.change_id WHERE u.tenant_id = $1",
+     JOIN runs u ON u.id = x.run_id JOIN changes c ON c.id = u.change_id WHERE u.tenant_id = $1 AND u.mode = 'REVIEW'",
     scoped!("c.repository_id"),
     " AND u.created_at >= $4 GROUP BY x.kind, x.reason ORDER BY x.kind, x.reason"
 );
 
 const UNRECORDED: &str = concat!(
     "SELECT count(*) FROM runs u JOIN changes c ON c.id = u.change_id
-     WHERE u.tenant_id = $1 AND u.coverage IS NOT NULL",
+     WHERE u.tenant_id = $1 AND u.mode = 'REVIEW' AND u.coverage IS NOT NULL",
     scoped!("c.repository_id"),
     " AND u.created_at >= $4 AND NOT EXISTS (SELECT 1 FROM run_reasons x
          WHERE x.run_id = u.id AND x.kind = 'OUTCOME')"
@@ -64,7 +65,7 @@ const COVERAGE_BY_DAY: &str = concat!(
     "SELECT CAST(u.created_at / 86400 AS BIGINT) * 86400, count(*),
          CAST(sum(CASE WHEN u.coverage = 'COMPLETE_FOR_SCOPE' THEN 0 ELSE 1 END) AS BIGINT)
      FROM runs u JOIN changes c ON c.id = u.change_id
-     WHERE u.tenant_id = $1 AND u.coverage IS NOT NULL",
+     WHERE u.tenant_id = $1 AND u.mode = 'REVIEW' AND u.coverage IS NOT NULL",
     scoped!("c.repository_id"),
     " AND u.created_at >= $4 GROUP BY CAST(u.created_at / 86400 AS BIGINT)
      ORDER BY CAST(u.created_at / 86400 AS BIGINT)"

@@ -69,6 +69,7 @@ pub fn inputs(head: &str) -> RunInputs {
         publish: false,
         checks: false,
         targeted: Vec::new(),
+        playground: false,
     }
 }
 

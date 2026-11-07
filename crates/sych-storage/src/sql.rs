@@ -8,7 +8,8 @@ macro_rules! active {
 }
 
 /// Predicate on `runs`: the fence is current, its lease alive and the run still the change's
-/// desired generation. Arguments are the literal placeholders for job id, owner, epoch, now.
+/// desired generation; a playground run shares a generation and never goes stale by it.
+/// Arguments are the literal placeholders for job id, owner, epoch, now.
 macro_rules! fenced {
     ($job:literal, $owner:literal, $epoch:literal, $now:literal) => {
         concat!(
@@ -21,8 +22,8 @@ macro_rules! fenced {
             " AND j.state = 'CLAIMED' AND j.lease_until >= ",
             $now,
             " AND j.run_id = runs.id)
-             AND runs.generation = (SELECT c.desired_generation FROM changes c
-                 WHERE c.id = runs.change_id)"
+             AND (runs.mode = 'PLAYGROUND' OR runs.generation = (SELECT c.desired_generation
+                 FROM changes c WHERE c.id = runs.change_id))"
         )
     };
 }
