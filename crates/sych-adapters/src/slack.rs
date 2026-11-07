@@ -36,7 +36,7 @@ pub fn verify(
         return Err(SlackRejection::Missing);
     };
     let at: i64 = timestamp.parse().map_err(|_| SlackRejection::Stale)?;
-    if (now - at).abs() > MAX_SKEW_SECONDS {
+    if now.abs_diff(at) > MAX_SKEW_SECONDS.unsigned_abs() {
         return Err(SlackRejection::Stale);
     }
 
@@ -86,5 +86,19 @@ mod tests {
             verify(b"secret", None, Some(&signed), body, 1000),
             Err(SlackRejection::Missing)
         );
+    }
+
+    #[test]
+    fn a_timestamp_at_the_edge_of_the_integer_is_stale() {
+        let now = 1000;
+        for at in [i64::MIN, now + i64::MIN, i64::MAX] {
+            let at = at.to_string();
+            let signed = sign(b"secret", &at, b"");
+            assert_eq!(
+                verify(b"secret", Some(&at), Some(&signed), b"", now),
+                Err(SlackRejection::Stale),
+                "{at}"
+            );
+        }
     }
 }

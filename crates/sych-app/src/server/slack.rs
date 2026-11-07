@@ -11,7 +11,7 @@ use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use serde_json::{Value, json};
 use sych_adapters::slack;
-use sych_core::api::ChangeSummary;
+use sych_core::api::{ChangeSummary, Repository};
 use sych_storage::{ChangeFilter, Visibility};
 use url::form_urlencoded;
 
@@ -44,6 +44,24 @@ fn command(text: &str) -> Option<Command<'_>> {
                 full_name.split('/').count() == 2 && !full_name.contains(char::is_whitespace);
             valid.then_some(Command::Change { full_name, number })
         }
+    }
+}
+
+/// `owner/name` alone cannot choose between the connections that list it.
+#[derive(Debug, PartialEq, Eq)]
+struct Several;
+
+/// The readable repository of that name, if exactly one has it.
+fn named<'a>(
+    readable: &'a [Repository],
+    full_name: &str,
+) -> Result<Option<&'a Repository>, Several> {
+    let mut found = readable
+        .iter()
+        .filter(|r| r.full_name.eq_ignore_ascii_case(full_name));
+    match (found.next(), found.next()) {
+        (Some(_), Some(_)) => Err(Several),
+        (one, _) => Ok(one),
     }
 }
 
@@ -99,13 +117,19 @@ pub async fn commands(
             weekly_report(&app, &scope, until).await?.slack()
         }
         Some(Command::Change { full_name, number }) => {
-            let Some(repo) = readable
-                .iter()
-                .find(|r| r.full_name.eq_ignore_ascii_case(full_name))
-            else {
-                return Ok(reply(&format!(
-                    "No pull request {full_name}#{number} here."
-                )));
+            let repo = match named(&readable, full_name) {
+                Ok(Some(repo)) => repo,
+                Ok(None) => {
+                    return Ok(reply(&format!(
+                        "No pull request {full_name}#{number} here."
+                    )));
+                }
+                Err(Several) => {
+                    return Ok(reply(&format!(
+                        "{full_name} is listed under several connections, so this does not say \
+                         which one. List only one of them in `slack.repositories`."
+                    )));
+                }
             };
             let filter = ChangeFilter {
                 repository_id: Some(repo.id),
@@ -175,7 +199,26 @@ fn summary(c: &ChangeSummary, base: Option<&str>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Command, command};
+    use sych_core::api::Repository;
+
+    use super::{Command, Several, command, named};
+
+    #[test]
+    fn a_name_two_connections_list_chooses_neither() {
+        let repository = |id, connection: &str, full_name: &str| Repository {
+            id,
+            connection_id: connection.into(),
+            full_name: full_name.into(),
+        };
+        let readable = [
+            repository(1, "gh", "o/r"),
+            repository(2, "ghe", "O/R"),
+            repository(3, "gh", "o/only"),
+        ];
+        assert_eq!(named(&readable, "o/r"), Err(Several));
+        assert_eq!(named(&readable, "O/ONLY"), Ok(Some(&readable[2])));
+        assert_eq!(named(&readable, "o/absent"), Ok(None));
+    }
 
     #[test]
     fn the_text_names_help_the_digest_or_one_pull_request() {

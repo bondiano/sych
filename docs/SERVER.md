@@ -606,7 +606,8 @@ slack:
 
 Every request is checked before anything else: `X-Slack-Signature` over the raw body with the signing secret, and
 `X-Slack-Request-Timestamp` within five minutes, otherwise 401. The whole workspace reads as one reader of the listed
-repositories; a pull request outside them gets the same answer as one that does not exist. Answers are ephemeral,
+repositories; a pull request outside them gets the same answer as one that does not exist. When two listed connections
+hold the same `owner/name`, the command answers that the name is ambiguous instead of choosing one. Answers are ephemeral,
 only the person who asked sees them. The command cannot rerun, cancel or give feedback. A missing signing secret stops
 the start.
 
