@@ -16,6 +16,7 @@ mod handoff;
 mod hooks;
 pub mod metrics;
 pub mod mirrors;
+mod playground;
 mod policy;
 mod publisher;
 mod questions;
@@ -215,6 +216,8 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/runs/{id}/snapshots", get(snapshots::snapshots))
         .route("/v1/runs/{id}/cancel", post(api::cancel_run))
         .route("/v1/changes/{id}/reruns", post(api::rerun))
+        .route("/v1/changes/{id}/playground", post(playground::start))
+        .route("/v1/playground", get(playground::list))
         .route("/v1/findings/{id}/feedback", post(api::feedback))
         .route("/v1/waivers", get(views::waivers).post(api::waiver))
         .route("/v1/waivers/{id}/revoke", post(views::revoke))

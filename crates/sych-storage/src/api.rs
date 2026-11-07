@@ -43,6 +43,8 @@ pub struct RunView {
     pub finished_at: Option<i64>,
     pub parent_run_id: Option<String>,
     pub unknown_obligations: Option<i64>,
+    /// A maintainer's playground try rather than a review of the change.
+    pub playground: bool,
 }
 
 /// A row of [`run_view!`].
@@ -64,6 +66,7 @@ pub(crate) fn run_view(r: &AnyRow) -> RunView {
         finished_at: r.get(13),
         parent_run_id: r.get(14),
         unknown_obligations: r.get(15),
+        playground: r.get::<String, _>(16) == "PLAYGROUND",
     }
 }
 

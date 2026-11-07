@@ -75,6 +75,12 @@ const tracked = computed(
           · revision {{ run.data.value.generation }}
         </span>
       </h1>
+      <p
+        v-if="run.data.value.playground"
+        class="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
+      >
+        A playground try: it was not published and is not part of findings or analytics.
+      </p>
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         <StatusBadge :value="run.data.value.state" />
         <span v-if="!run.data.value.finished_at" class="text-muted-foreground">

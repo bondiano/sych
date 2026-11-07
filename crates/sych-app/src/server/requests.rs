@@ -69,6 +69,30 @@ impl Engine {
         deep: bool,
         targeted: Vec<CheckRequest>,
     ) -> Result<RunHandle, RequestError> {
+        self.request(change_id, actor, publish, deep, targeted, false)
+            .await
+    }
+
+    /// A playground try of a known change: the change's inputs as now, never published.
+    pub async fn playground(
+        &self,
+        change_id: i64,
+        actor: &str,
+        deep: bool,
+    ) -> Result<RunHandle, RequestError> {
+        self.request(change_id, actor, false, deep, Vec::new(), true)
+            .await
+    }
+
+    async fn request(
+        &self,
+        change_id: i64,
+        actor: &str,
+        publish: bool,
+        deep: bool,
+        targeted: Vec<CheckRequest>,
+        playground: bool,
+    ) -> Result<RunHandle, RequestError> {
         let storage = &self.app.storage;
         let change = storage.change(change_id).await?;
         let conn = self
@@ -98,7 +122,7 @@ impl Engine {
             publish: publish && conn.config.publish,
             checks: publish && conn.config.publish && conn.config.checks,
             targeted,
-            playground: false,
+            playground,
         };
         let deadline = (self.now)().as_second() + self.job_seconds();
         Ok(storage
