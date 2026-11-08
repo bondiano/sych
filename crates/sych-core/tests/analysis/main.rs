@@ -81,7 +81,7 @@ impl SnapshotReader for Reader {
         let span = line_range(text, start, end).ok_or(ReadError::LineRange {
             start,
             end,
-            line_count: 0,
+            line_count: sych_core::count_lines(text.as_bytes()),
         })?;
         Ok(CodeRef {
             snapshot_id: snapshot(),

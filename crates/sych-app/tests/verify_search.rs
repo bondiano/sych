@@ -67,6 +67,75 @@ async fn an_open_candidate_is_searched_for_its_refutation() {
     );
 }
 
+/// The search matches the helper's declaration, but only its body answers the question.
+fn helper_guard(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
+    let user = &request.messages[1].content;
+    match request.schema_name.as_str() {
+        "discovery" | "review" => {
+            let (id, line) = first_ref(request, "HEAD");
+            let mut found = json!({
+                "candidates": [{"category": "DEFECT", "claim": "`normalise` has no missing-items guard",
+                    "conditions": ["items undefined"], "causal_chain": ["no guard"], "consequence": "throws",
+                    "anchors": [{"ref_id": id, "start_line": line, "end_line": line}], "evidence_ids": [],
+                    "obligation_ids": [], "proposed_severity": "MEDIUM", "disproof_question": "a helper guard?"}],
+                "context_requests": [], "unresolved_questions": []
+            });
+            if request.schema_name == "review" {
+                found["assessments"] = json!([supported(request)]);
+            }
+
+            Ok(reply(&found.to_string()))
+        }
+        "candidate_verdicts"
+            if user.contains("answer to: where else is `normalise`")
+                && user.contains("if (items == null)")
+                && user.contains("return [];") =>
+        {
+            Ok(reply(&verdict("REJECTED")))
+        }
+        "candidate_verdicts" => Ok(reply(&verdict("UNRESOLVED"))),
+        _ => supported_and_empty(request),
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn verification_sees_a_guard_in_an_unchanged_helpers_body_only_when_it_exists() {
+    for guarded in [true, false] {
+        let dir = repo(false);
+        fs::create_dir_all(dir.path().join("lib")).expect("dir");
+        let body = if guarded {
+            "export function normalise(items) {\n  if (items == null) {\n    return [];\n  }\n  return items;\n}\n"
+        } else {
+            "export function normalise(items) {\n  return items;\n}\n"
+        };
+        fs::write(dir.path().join("lib/helper.ts"), body).expect("helper");
+        git(dir.path(), &["add", "-A"]);
+        git(dir.path(), &["commit", "-q", "-m", "helper on base"]);
+        fs::write(
+            dir.path().join("src/order.ts"),
+            "import { normalise } from '../lib/helper';\nexport function total(items) {\n  return normalise(items).reduce(sum, 0);\n}\n",
+        )
+        .expect("head");
+        git(dir.path(), &["add", "-A"]);
+        git(dir.path(), &["commit", "-q", "-m", "use helper"]);
+        let (outcome, _) = run_on(dir, helper_guard, Budgets::default(), 14_000, true).await;
+        assert!(!outcome.candidates.is_empty());
+        let expected = if guarded {
+            VerificationStatus::Rejected
+        } else {
+            VerificationStatus::Unresolved
+        };
+        assert!(
+            outcome
+                .candidates
+                .iter()
+                .all(|c| c.verification_status == expected),
+            "guarded={guarded}: {:?}",
+            outcome.candidates
+        );
+    }
+}
+
 const GUARDED: &str = "export function total(order) {\n  if (order.legacy) {\n    throw new Error(\"legacy orders\");\n  }\n  return order.items.reduce(sum, 0);\n}\n";
 const UNGUARDED: &str = "export function total(order) {\n  return order.items.reduce(sum, 0);\n}\n";
 
