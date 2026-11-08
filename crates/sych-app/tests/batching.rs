@@ -63,7 +63,8 @@ fn wide_calls_cut(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
         .map(|m| m.content.as_str())
         .collect();
     let audit = prompt.contains("risk auditor");
-    let wide = prompt.contains("src/order.ts") && prompt.contains("lib/format.ts");
+    // Spans of both units (`path:start-end`), not the list naming files a call does not show.
+    let wide = prompt.contains("src/order.ts:") && prompt.contains("lib/format.ts:");
     if request.schema_name == "review" || (request.schema_name == "discovery" && wide && !audit) {
         let mut cut = reply("");
         cut.finish = Finish::Truncated;

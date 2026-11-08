@@ -1,0 +1,91 @@
+schema_version: 1
+id: clean-ts-route-to-added-page
+split: development
+language: typescript
+variant: safe
+profiles: [correctness]
+rationale: "A route lazily imports a page the same change adds in another directory; the page exists at HEAD."
+base:
+  package.json: |
+    {
+      "name": "shop",
+      "private": true,
+      "type": "module",
+      "packageManager": "pnpm@12.14.0",
+      "dependencies": { "vue": "^3.5.0", "vue-router": "^4.5.0" }
+    }
+  tsconfig.json: |
+    {
+      "compilerOptions": { "strict": true, "module": "esnext", "moduleResolution": "bundler", "paths": { "@/*": ["./src/*"] } }
+    }
+  src/app/router.ts: |
+    import { createRouter, createWebHistory } from 'vue-router';
+
+    export const router = createRouter({
+      history: createWebHistory('/'),
+      routes: [
+        { path: '/', component: () => import('@/pages/index.vue') },
+      ],
+    });
+  src/lib/money.ts: |
+    export function cents(value: number): string {
+      return (value / 100).toFixed(2);
+    }
+  src/pages/index.vue: |
+    <template>
+      <h1>Shop</h1>
+    </template>
+head:
+  src/app/router.ts: |
+    import { createRouter, createWebHistory } from 'vue-router';
+
+    export const router = createRouter({
+      history: createWebHistory('/'),
+      routes: [
+        { path: '/', component: () => import('@/pages/index.vue') },
+        { path: '/orders', component: () => import('@/pages/orders/index.vue') },
+      ],
+    });
+  src/components/OrderRow.vue: |
+    <script setup lang="ts">
+    import { cents } from '@/lib/money';
+
+    defineProps<{ id: string; totalCents: number }>();
+    </script>
+
+    <template>
+      <tr>
+        <td>{{ id }}</td>
+        <td>{{ cents(totalCents) }}</td>
+      </tr>
+    </template>
+  src/lib/money.ts: |
+    export function cents(value: number): string {
+      return (value / 100).toFixed(2);
+    }
+
+    export function sum(values: number[]): number {
+      return values.reduce((total, value) => total + value, 0);
+    }
+  src/pages/orders/index.vue: |
+    <script setup lang="ts">
+    import { computed } from 'vue';
+    import OrderRow from '@/components/OrderRow.vue';
+    import { cents, sum } from '@/lib/money';
+
+    const orders = [
+      { id: 'A-1', totalCents: 1250 },
+      { id: 'A-2', totalCents: 800 },
+    ];
+    const total = computed(() => sum(orders.map((o) => o.totalCents)));
+    </script>
+
+    <template>
+      <table>
+        <OrderRow v-for="o in orders" :key="o.id" :id="o.id" :total-cents="o.totalCents" />
+      </table>
+      <p>Total: {{ cents(total) }}</p>
+    </template>
+expected:
+  forbidden_claims:
+    - "The /orders route imports a page component that does not exist."

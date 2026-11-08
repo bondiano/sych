@@ -83,6 +83,9 @@ builds the `CodeRef` itself through the snapshot reader with a hash check.
 A further DATA block lists every hunk of each changed file the spans show (`-start,count +start,count` and the lines
 removed and added), so the model can tell that a shown hunk is its file's whole change: for example, that a test
 file only gained lines, which `TEST-INTEGRITY` otherwise could not settle from the spans alone.
+Files the change adds, deletes, renames or copies that the spans do not show are named in another block, by path,
+status and line counts, at most 50. `search_source` matches file contents, never paths, and its answer says so, so
+this list is how a model knows that an imported file the change adds does exist at HEAD.
 Generated files the change also touches are listed in their own block, by path, status and line counts, at most 50,
 and never with their content. A model therefore knows a regenerated file did change, and does not report it as stale.
 A context request never reads them either: `read_span` and `read_symbol` answer `UNSUPPORTED`, and a search leaves

@@ -207,10 +207,18 @@ impl ContextAsk {
         }
         // An empty complete answer is evidence too: "nothing reads it" can refute a claim; an
         // incomplete one shows nothing either way.
+        // A path is not a file's content: "not found" must never read as "the file is missing".
+        let scope = if matches!(self.operation, AskOperation::SearchSource { .. }) {
+            " in file contents (paths are not searched)"
+        } else {
+            ""
+        };
         let mut body = match (refs, status) {
-            (0, OpStatus::CompleteForQuery) => "no matches".to_owned(),
+            (0, OpStatus::CompleteForQuery) => format!("no matches{scope}"),
             (0, status) => format!("no answer ({status:?}): absence is not shown"),
-            (n, OpStatus::CompleteForQuery) => format!("{n} matches shown: the whole answer"),
+            (n, OpStatus::CompleteForQuery) => {
+                format!("{n} matches shown: the whole answer{scope}")
+            }
             (n, status) => {
                 format!("{n} matches shown ({status:?}): absence of others is not shown")
             }
