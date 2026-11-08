@@ -10,9 +10,10 @@ use serde::{Deserialize, Serialize};
 use crate::broker::{EvidencePacket, Priority, REQUIRED_OVER_BUDGET};
 use crate::model::DataBlock;
 use crate::{
-    BindingKind, CodeRef, Completeness, DiffManifest, Evidence, EvidenceBinding, EvidenceId,
-    EvidenceKind, FileChange, Producer, RepoPath, ReviewLanguage, SchemaVersion, SnapshotReader,
-    SourceSide, SourceSnapshot, Timestamp, TrustClass, Validity, canonical_sha256, derived_uuid,
+    BindingKind, ChangeStatus, CodeRef, Completeness, DiffManifest, Evidence, EvidenceBinding,
+    EvidenceId, EvidenceKind, FileChange, Producer, RepoPath, ReviewLanguage, SchemaVersion,
+    SnapshotReader, SourceSide, SourceSnapshot, Timestamp, TrustClass, Validity, canonical_sha256,
+    derived_uuid,
 };
 
 mod lost_names;
@@ -39,6 +40,20 @@ fn change_line(file: &FileChange) -> String {
         names.join(" -> "),
         file.status
     )
+}
+
+/// One [`change_line`] per file, at most [`MAX_HIDDEN_LISTED`], then how many more.
+fn listed(files: &[&FileChange]) -> String {
+    let mut content = String::new();
+    for file in files.iter().take(MAX_HIDDEN_LISTED) {
+        content.push_str(&change_line(file));
+        content.push('\n');
+    }
+    if files.len() > MAX_HIDDEN_LISTED {
+        let _ = writeln!(content, "{} more", files.len() - MAX_HIDDEN_LISTED);
+    }
+
+    content
 }
 
 /// Lines inside one handed-out span; the model never writes paths or hashes.
@@ -184,11 +199,26 @@ impl Context {
     /// Every hunk of the changed files that the spans show, so a model can tell a shown hunk
     /// is its file's whole change: lines no hunk lists are unchanged. Generated files the change
     /// also touches are named without content, so their absence is never read as "not changed".
+    /// Files the change adds, deletes, renames or copies outside the spans are named too: a search
+    /// of contents never finds a path, so only this tells a model such a file exists at HEAD.
     pub fn add_changes(&mut self, manifest: &DiffManifest) {
         let mut content = String::new();
+        let mut unshown: Vec<&FileChange> = Vec::new();
         for file in &manifest.files {
             let sides: Vec<_> = file.old.iter().chain(&file.new).map(|s| &s.path).collect();
             if !self.refs.values().any(|r| sides.contains(&&r.path)) {
+                if !file.hidden()
+                    && matches!(
+                        file.status,
+                        ChangeStatus::Added
+                            | ChangeStatus::Deleted
+                            | ChangeStatus::Renamed
+                            | ChangeStatus::Copied
+                    )
+                {
+                    unshown.push(file);
+                }
+
                 continue;
             }
 
@@ -211,25 +241,25 @@ impl Context {
             });
         }
 
+        if !unshown.is_empty() {
+            self.blocks.push(DataBlock {
+                label: "other files this change adds, deletes, renames or copies; not shown here: \
+                        each exists at HEAD exactly as this list says"
+                    .into(),
+                content: listed(&unshown),
+            });
+        }
+
         let hidden: Vec<&FileChange> = manifest.files.iter().filter(|f| f.hidden()).collect();
         if hidden.is_empty() {
             return;
-        }
-
-        let mut content = String::new();
-        for file in hidden.iter().take(MAX_HIDDEN_LISTED) {
-            content.push_str(&change_line(file));
-            content.push('\n');
-        }
-        if hidden.len() > MAX_HIDDEN_LISTED {
-            let _ = writeln!(content, "{} more", hidden.len() - MAX_HIDDEN_LISTED);
         }
 
         self.blocks.push(DataBlock {
             label: "generated files this change also changes; never shown or reviewed: do not \
                     report them as missing, stale or not regenerated"
                 .into(),
-            content,
+            content: listed(&hidden),
         });
     }
 

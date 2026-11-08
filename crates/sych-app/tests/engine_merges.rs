@@ -15,7 +15,7 @@ fn audit_finds_one_per_chunk(request: &ModelRequest) -> Result<ModelReply, Provi
     let shows_head = request.messages[1]
         .content
         .lines()
-        .any(|l| l.starts_with("<<<DATA ") && l.contains(" HEAD "));
+        .any(|l| l.starts_with("<<<DATA ") && l.contains(" ref-") && l.contains(" HEAD "));
     let audit = shows_head && request.messages[0].content.contains("risk auditor");
     let anchors = || {
         let (id, line) = first_ref(request, "HEAD");

@@ -11,6 +11,7 @@ use sych_core::analysis::{
 use sych_core::broker::EvidencePacket;
 mod anchors;
 mod answers;
+mod changes;
 mod effects;
 mod lost_names;
 mod removals;
@@ -329,27 +330,6 @@ fn reason(status: &ObligationStatus) -> &str {
         ObligationStatus::Violated => "VIOLATED",
         ObligationStatus::NotApplicable { .. } => "NOT_APPLICABLE",
     }
-}
-
-#[test]
-fn the_hunks_of_shown_changed_files_are_listed_and_others_are_not() {
-    let reader = Reader::new();
-    let (mut ctx, _) = context(&reader);
-    let mut manifest: DiffManifest = serde_json::from_str(include_str!(
-        "../../../../fixtures/publication/diff-manifest.json"
-    ))
-    .expect("manifest");
-    let file = &mut manifest.files[0];
-    for side in file.old.iter_mut().chain(file.new.iter_mut()) {
-        side.path = path("src/order.ts");
-    }
-    ctx.add_changes(&manifest);
-    let block = ctx.blocks.last().expect("changes block");
-    assert!(block.label.starts_with("every hunk"), "{}", block.label);
-    assert_eq!(
-        block.content,
-        "src/order.ts Modified: 5 lines removed, 7 added; -41,5 +41,7\n"
-    );
 }
 
 #[test]
