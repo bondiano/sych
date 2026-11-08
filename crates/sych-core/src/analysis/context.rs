@@ -21,7 +21,7 @@ mod lost_names;
 /// Removed lines of one test or CI file shown verbatim, and as many of the lines replacing
 /// them; the rest is only counted.
 const MAX_REMOVED_LINES: u32 = 40;
-/// Generated files named in one prompt; the rest are counted.
+/// Files named in one list of a prompt (generated, or changed and not shown); the rest are counted.
 const MAX_HIDDEN_LISTED: usize = 50;
 
 /// `old -> new STATUS: N lines removed, M added;` of one changed file.

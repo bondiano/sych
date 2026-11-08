@@ -34,3 +34,38 @@ fn an_answer_cut_to_fewer_refs_says_it_is_partial() {
     let block = cut.blocks.last().expect("status block");
     assert!(block.content.contains(&shown), "{}", block.content);
 }
+
+#[test]
+fn a_whole_search_answer_says_it_never_matched_paths() {
+    let reader = Reader::new();
+    let ops = Ops {
+        generated: &[],
+        facts: &[],
+        evidence: &[],
+        reader: &reader,
+    };
+    let search = |query: &str| ContextAsk {
+        question: "is it there?".into(),
+        operation: AskOperation::SearchSource {
+            side: SourceSide::Head,
+            query: query.into(),
+        },
+    };
+    for query in ["total", "no-such-text-anywhere"] {
+        let mut context = Context::default();
+        let answered = search(query).answer(&ops, &mut context, 10);
+        assert_eq!(
+            answered.status,
+            Some(OpStatus::CompleteForQuery),
+            "{answered:?}"
+        );
+        let block = context.blocks.last().expect("status block");
+        assert!(
+            block
+                .content
+                .contains("in file contents (paths are not searched)"),
+            "{query}: {}",
+            block.content
+        );
+    }
+}
