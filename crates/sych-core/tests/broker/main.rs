@@ -117,7 +117,7 @@ impl SnapshotReader for Reader {
         literal: &str,
         _: &[RepoPath],
         limit: usize,
-    ) -> Result<Vec<CodeRef>, ReadError> {
+    ) -> Result<sych_core::SearchHits, ReadError> {
         let mut hits = Vec::new();
         for (p, (_, text)) in &self.0 {
             for (i, line) in text.lines().enumerate() {
@@ -128,7 +128,7 @@ impl SnapshotReader for Reader {
             }
         }
         hits.truncate(limit);
-        Ok(hits)
+        Ok(hits.into())
     }
 
     fn diff(&self, _: &SourceSnapshotId) -> Result<DiffManifest, ReadError> {
@@ -532,13 +532,21 @@ fn operations_answer_from_facts_and_stay_partial() {
         name: "load".into(),
         ..symbol
     };
+    let by_text = ops.run(&Operation::FindReferences {
+        symbol: other,
+        limit: 10,
+    });
     assert_eq!(
-        ops.run(&Operation::FindReferences {
-            symbol: other,
-            limit: 10
-        })
-        .status,
-        OpStatus::Unsupported
+        by_text.status,
+        OpStatus::Partial,
+        "a text search for a name never proves absence"
+    );
+    assert!(
+        by_text
+            .limitations
+            .iter()
+            .any(|l| l.contains("text search")),
+        "{by_text:?}"
     );
     let hits = ops.run(&Operation::SearchSource {
         query: "unwrap".into(),

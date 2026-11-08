@@ -10,8 +10,8 @@ use crate::broker::{OpStatus, Operation, Ops, SymbolRef};
 use crate::effects::{EffectMatch, LedgerEntry};
 use crate::model::DataBlock;
 use crate::{
-    Candidate, CandidateId, CandidateOrigin, FindingCategory, ObligationId, RepoPath, Severity,
-    SnapshotReader, SourceSide, VerificationStatus, derived_uuid, glob_match,
+    Candidate, CandidateId, CandidateOrigin, CodeRef, FindingCategory, ObligationId, ReadError,
+    RepoPath, Severity, SnapshotReader, SourceSide, VerificationStatus, derived_uuid, glob_match,
 };
 
 /// Context asks answered per discovery call; the rest are rejected by count.
@@ -116,6 +116,8 @@ pub enum AskOperation {
 }
 
 const ASK_LIMIT: usize = 10;
+const LINES_BEFORE_HIT: u32 = 3;
+const LINES_AFTER_HIT: u32 = 25;
 
 impl AskOperation {
     /// The broker operation; `read_lines` becomes an exact span read through the reader.
@@ -176,6 +178,21 @@ pub struct Answered {
     pub limitations: Vec<String>,
 }
 
+/// A hit with the lines around it, cut at the file's end: a hit alone shows no body, and reading
+/// one later would take another round of asking.
+fn around(hit: &CodeRef, reader: &dyn SnapshotReader) -> CodeRef {
+    let start = hit.start_line.saturating_sub(LINES_BEFORE_HIT).max(1);
+    let end = hit.end_line.saturating_add(LINES_AFTER_HIT);
+    let wide = |end| reader.code_ref(hit.side, &hit.path, start, end);
+    match wide(end) {
+        Ok(wide) => wide,
+        Err(ReadError::LineRange { line_count, .. }) if line_count >= hit.end_line => {
+            wide(line_count).unwrap_or_else(|_| hit.clone())
+        }
+        Err(_) => hit.clone(),
+    }
+}
+
 impl ContextAsk {
     /// Answers through the broker's typed operations: at most `max_refs` spans join `context`,
     /// or a block says what the query showed.
@@ -203,7 +220,11 @@ impl ContextAsk {
         }
 
         for r in &result.refs[..refs] {
-            context.add_span(r, &reason, ops.reader);
+            let shown = match operation {
+                Operation::ReadSpan { .. } => r.clone(),
+                _ => around(r, ops.reader),
+            };
+            context.add_span(&shown, &reason, ops.reader);
         }
         // An empty complete answer is evidence too: "nothing reads it" can refute a claim; an
         // incomplete one shows nothing either way.

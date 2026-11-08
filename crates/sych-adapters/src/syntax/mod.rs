@@ -192,6 +192,7 @@ fn package_types(snapshot: &LocalSnapshot, side: SourceSide, path: &RepoPath) ->
         .search(side, "package ", &scope, MAX_PACKAGE_FILES)
         .unwrap_or_default();
     let mut files: Vec<&RepoPath> = hits
+        .refs
         .iter()
         .map(|h| &h.path)
         .filter(|p| {
@@ -281,7 +282,11 @@ fn wrapper_definitions(
     };
     let mut found = Vec::new();
     for form in forms {
-        for hit in snapshot.search(side, &form, &[], 3).unwrap_or_default() {
+        for hit in snapshot
+            .search(side, &form, &[], 3)
+            .unwrap_or_default()
+            .refs
+        {
             if !found.contains(&hit) {
                 found.push(hit);
             }
@@ -319,7 +324,11 @@ fn type_definitions(snapshot: &LocalSnapshot, side: SourceSide, name: &str) -> V
         .iter()
         .flat_map(|k| [" {", "<", "(", ";", " ="].map(|end| format!("{k} {name}{end}")))
     {
-        for hit in snapshot.search(side, &form, &[], 3).unwrap_or_default() {
+        for hit in snapshot
+            .search(side, &form, &[], 3)
+            .unwrap_or_default()
+            .refs
+        {
             if !found.contains(&hit) {
                 found.push(hit);
             }
@@ -337,7 +346,11 @@ fn definitions(snapshot: &LocalSnapshot, side: SourceSide, hook: &str) -> Vec<Co
         format!("const {hook} ="),
         format!("function {hook}<"),
     ] {
-        for hit in snapshot.search(side, &form, &[], 3).unwrap_or_default() {
+        for hit in snapshot
+            .search(side, &form, &[], 3)
+            .unwrap_or_default()
+            .refs
+        {
             if !found.contains(&hit) {
                 found.push(hit);
             }

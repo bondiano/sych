@@ -6,8 +6,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use sych_core::{
-    CodeRef, ContentKind, DiffManifest, GitObjectId, ReadError, RepoPath, SnapshotReader,
-    SourceSide, SourceSnapshotId, SourceSpan, is_secret_path, sha256,
+    CodeRef, ContentKind, DiffManifest, GitObjectId, ReadError, RepoPath, SearchHits,
+    SnapshotReader, SourceSide, SourceSnapshotId, SourceSpan, is_secret_path, sha256,
 };
 
 use super::SnapshotError;
@@ -198,7 +198,7 @@ impl SnapshotReader for LocalSnapshot {
         literal: &str,
         paths: &[RepoPath],
         limit: usize,
-    ) -> Result<Vec<CodeRef>, ReadError> {
+    ) -> Result<SearchHits, ReadError> {
         let commit = self.commit(side).hex().to_owned();
         let mut args = vec![
             "grep",
@@ -230,12 +230,16 @@ impl SnapshotReader for LocalSnapshot {
             ));
         }
 
-        let mut hits = Vec::new();
+        let mut found = Vec::new();
         for line in out.stdout.split(|&b| b == b'\n').filter(|l| !l.is_empty()) {
             let mut fields = line.splitn(3, |&b| b == 0);
             let (Some(name), Some(number)) = (fields.next(), fields.next()) else {
                 continue;
             };
+            let text = fields
+                .next()
+                .map(String::from_utf8_lossy)
+                .unwrap_or_default();
             let name = str::from_utf8(name).unwrap_or_default();
             let name = name.strip_prefix(&format!("{commit}:")).unwrap_or(name);
             let (Ok(path), Some(n)) = (
@@ -248,9 +252,21 @@ impl SnapshotReader for LocalSnapshot {
                 continue;
             }
 
-            hits.push(self.code_ref(side, &path, n, n)?);
-            if hits.len() == limit {
+            found.push((path, n, defines(&text, literal)));
+        }
+        // Stable: within each group the order stays Git's.
+        found.sort_by_key(|(_, _, definition)| !definition);
+
+        let mut hits = SearchHits::default();
+        for (path, n, _) in found {
+            if hits.refs.len() == limit {
                 break;
+            }
+
+            // One file that cannot be read must not cost the answer of the others.
+            match self.code_ref(side, &path, n, n) {
+                Ok(hit) => hits.refs.push(hit),
+                Err(_) => hits.unreadable += 1,
             }
         }
         Ok(hits)
@@ -263,4 +279,36 @@ impl SnapshotReader for LocalSnapshot {
             Err(ReadError::UnknownSnapshot(snapshot.0.to_string()))
         }
     }
+}
+
+const DEFINING: [&str; 17] = [
+    "fn",
+    "def",
+    "func",
+    "function",
+    "class",
+    "struct",
+    "enum",
+    "trait",
+    "type",
+    "interface",
+    "impl",
+    "const",
+    "let",
+    "var",
+    "mod",
+    "module",
+    "#define",
+];
+
+/// Whether `line` looks like it defines `name`: a keyword right before it, or a Go method.
+fn defines(line: &str, name: &str) -> bool {
+    line.match_indices(name).any(|(at, _)| {
+        let before = line[..at].trim_end();
+        before.ends_with(')') && line.trim_start().starts_with("func ")
+            || before
+                .rsplit(char::is_whitespace)
+                .next()
+                .is_some_and(|word| DEFINING.contains(&word))
+    })
 }

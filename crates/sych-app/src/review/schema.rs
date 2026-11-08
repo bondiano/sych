@@ -58,14 +58,16 @@ pub(super) fn schema_refs(snap: &LocalSnapshot) -> Vec<SchemaRef> {
             let mut truncated = false;
             let mut references = Vec::new();
             for s in [SourceSide::DiffBase, SourceSide::Head] {
-                let mut hits: Vec<_> = snap
+                let found = snap
                     .search(s, name, &[], SEARCH_LIMIT + 1)
-                    .unwrap_or_default()
+                    .unwrap_or_default();
+                let mut hits: Vec<_> = found
+                    .refs
                     .into_iter()
                     // Earlier migrations show the schema it changes; only itself is noise.
                     .filter(|r| r.path != migration.path)
                     .collect();
-                truncated |= hits.len() > SEARCH_LIMIT;
+                truncated |= hits.len() > SEARCH_LIMIT || found.unreadable > 0;
                 hits.truncate(SEARCH_LIMIT);
                 references.extend(hits.into_iter().map(|r| widen(snap, r)));
             }

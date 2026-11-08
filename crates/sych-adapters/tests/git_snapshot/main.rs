@@ -517,18 +517,66 @@ fn unchanged_files_are_readable_and_searchable_but_secrets_are_not() {
         .search(SourceSide::Head, "helper()", &[], 10)
         .expect("search");
     let found: Vec<_> = hits
+        .refs
         .iter()
         .map(|r| (r.path.as_str(), r.start_line))
         .collect();
     assert_eq!(
         found,
-        [("src/lib.rs", 1), ("src/util.rs", 2)],
-        "secret .env is skipped"
+        [("src/util.rs", 2), ("src/lib.rs", 1)],
+        "secret .env is skipped, and the definition comes first"
     );
     let base = snap
         .search(SourceSide::DiffBase, "helper(); helper()", &[], 10)
         .expect("search");
-    assert!(base.is_empty(), "the base side has no doubled call");
+    assert!(base.refs.is_empty(), "the base side has no doubled call");
+}
+
+#[test]
+fn a_file_too_large_to_read_does_not_fail_a_search() {
+    let dir = repo();
+    let d = dir.path();
+    write(
+        d,
+        "a-lock.yaml",
+        format!("{}\n", "needle ".repeat(100_000)).as_bytes(),
+    );
+    write(d, "src/lib.rs", b"needle();\n");
+    commit(d, "base");
+    git(d, &["checkout", "-q", "-b", "feature"]);
+    write(d, "src/other.rs", b"\n");
+    commit(d, "feature");
+    let snap = capture(d, "main", "feature", None).expect("snapshot");
+
+    let hits = snap
+        .search(SourceSide::Head, "needle", &[], 10)
+        .expect("one unreadable file leaves the rest of the search");
+    assert_eq!(hits.refs.len(), 1, "{hits:?}");
+    assert_eq!(hits.refs[0].path.as_str(), "src/lib.rs");
+    assert_eq!(hits.unreadable, 1, "and is counted");
+}
+
+#[test]
+fn a_search_shows_definitions_before_uses() {
+    let dir = repo();
+    let d = dir.path();
+    write(d, "a_use.py", b"total()\n");
+    write(d, "b_use.go", b"x := total()\n");
+    write(d, "c_def.go", b"func (o *Order) total() int {\n");
+    write(d, "d_def.py", b"    async def total(self):\n");
+    write(d, "e_def.ts", b"export const total = () => 1;\n");
+    write(d, "f_def.rs", b"pub(crate) fn total() {}\n");
+    commit(d, "base");
+    git(d, &["checkout", "-q", "-b", "feature"]);
+    write(d, "other.rs", b"\n");
+    commit(d, "feature");
+    let snap = capture(d, "main", "feature", None).expect("snapshot");
+
+    let hits = snap
+        .search(SourceSide::Head, "total", &[], 4)
+        .expect("search");
+    let found: Vec<_> = hits.refs.iter().map(|r| r.path.as_str()).collect();
+    assert_eq!(found, ["c_def.go", "d_def.py", "e_def.ts", "f_def.rs"]);
 }
 
 #[test]

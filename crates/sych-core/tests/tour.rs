@@ -62,8 +62,8 @@ impl SnapshotReader for Reader {
         _: &str,
         _: &[RepoPath],
         _: usize,
-    ) -> Result<Vec<CodeRef>, ReadError> {
-        Ok(Vec::new())
+    ) -> Result<sych_core::SearchHits, ReadError> {
+        Ok(sych_core::SearchHits::default())
     }
 
     fn diff(&self, s: &SourceSnapshotId) -> Result<DiffManifest, ReadError> {

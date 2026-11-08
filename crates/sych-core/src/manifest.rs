@@ -182,6 +182,23 @@ pub enum ReadError {
 }
 
 /// Reads pinned snapshot content; implementations never read outside Git objects.
+/// What a search found.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SearchHits {
+    pub refs: Vec<CodeRef>,
+    /// Hits left out because their file cannot be read as text (too large, not UTF-8).
+    pub unreadable: usize,
+}
+
+impl From<Vec<CodeRef>> for SearchHits {
+    fn from(refs: Vec<CodeRef>) -> Self {
+        Self {
+            refs,
+            unreadable: 0,
+        }
+    }
+}
+
 pub trait SnapshotReader {
     fn read_span(&self, reference: &CodeRef) -> Result<SourceSpan, ReadError>;
     /// Exact reference to lines of any text file on `side`, changed or not.
@@ -193,14 +210,14 @@ pub trait SnapshotReader {
         end_line: u32,
     ) -> Result<CodeRef, ReadError>;
     /// Fixed-string search on `side`, optionally under `paths`; at most `limit` hits, one
-    /// line each.
+    /// line each, definitions first.
     fn search(
         &self,
         side: SourceSide,
         literal: &str,
         paths: &[RepoPath],
         limit: usize,
-    ) -> Result<Vec<CodeRef>, ReadError>;
+    ) -> Result<SearchHits, ReadError>;
     fn diff(&self, snapshot: &SourceSnapshotId) -> Result<DiffManifest, ReadError>;
 }
 

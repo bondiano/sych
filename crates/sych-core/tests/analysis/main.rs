@@ -19,8 +19,8 @@ mod verify;
 use sych_core::{
     Applicability, CodeRef, DiffManifest, Evidence, GitHashAlgorithm, GitObjectId, Obligation,
     ObligationId, ObligationStatus, PlannedObligation, ReadError, RepoPath, RiskLevel, Severity,
-    SnapshotReader, SourceSide, SourceSnapshotId, SourceSpan, VerificationStatus, line_range,
-    sha256,
+    SnapshotReader, SourceSide, SourceSnapshotId, SourceSpan, VerificationStatus, count_lines,
+    line_range, sha256,
 };
 
 const ORDER_BASE: &str = "export function total(items) {\n  if (!items) {\n    return 0;\n  }\n  return items.reduce(sum, 0);\n}\n";
@@ -80,7 +80,7 @@ impl SnapshotReader for Reader {
         let span = line_range(text, start, end).ok_or(ReadError::LineRange {
             start,
             end,
-            line_count: 0,
+            line_count: count_lines(text.as_bytes()),
         })?;
         Ok(CodeRef {
             snapshot_id: snapshot(),
@@ -103,7 +103,7 @@ impl SnapshotReader for Reader {
         literal: &str,
         _: &[RepoPath],
         limit: usize,
-    ) -> Result<Vec<CodeRef>, ReadError> {
+    ) -> Result<sych_core::SearchHits, ReadError> {
         let mut hits = Vec::new();
         for ((s, p), text) in &self.0 {
             for (i, line) in (1..).zip(text.lines()) {
@@ -113,7 +113,7 @@ impl SnapshotReader for Reader {
             }
         }
         hits.truncate(limit);
-        Ok(hits)
+        Ok(hits.into())
     }
 
     fn diff(&self, _: &SourceSnapshotId) -> Result<DiffManifest, ReadError> {

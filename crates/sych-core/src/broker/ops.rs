@@ -189,7 +189,7 @@ impl Ops<'_> {
         pick: impl Fn(&SymbolFacts) -> &EdgeSet,
     ) -> OpResult {
         let Some(found) = self.symbol(symbol) else {
-            return not_changed();
+            return self.by_text(symbol, limit);
         };
         let edge = pick(found);
         let limit = limit.clamp(1, MAX_LIMIT);
@@ -216,6 +216,19 @@ impl Ops<'_> {
         }
     }
 
+    /// A symbol no semantic query covers: its name found as text, which never proves absence.
+    fn by_text(&self, symbol: &SymbolRef, limit: usize) -> OpResult {
+        let mut found = self.search(&symbol.name, &[], symbol.side, limit);
+        if found.status != OpStatus::Failed {
+            found.status = OpStatus::Partial;
+            found
+                .limitations
+                .push("not a changed construct: a text search for its name".to_owned());
+        }
+
+        found
+    }
+
     fn search(&self, query: &str, paths: &[RepoPath], side: SourceSide, limit: usize) -> OpResult {
         if query.is_empty()
             || query.chars().count() > MAX_QUERY_CHARS
@@ -228,7 +241,8 @@ impl Ops<'_> {
 
         let limit = limit.clamp(1, MAX_LIMIT);
         match self.reader.search(side, query, paths, limit + 1) {
-            Ok(mut hits) => {
+            Ok(found) => {
+                let (mut hits, unreadable) = (found.refs, found.unreadable);
                 // A literal search over the pinned tree is complete unless the reader cut it off;
                 // dropping hits afterwards never makes a cut answer whole.
                 let cut = hits.len() > limit;
@@ -243,13 +257,23 @@ impl Ops<'_> {
                     ));
                 }
 
+                if unreadable > 0 {
+                    limitations.push(format!(
+                        "{unreadable} hits in files too large to read are not shown"
+                    ));
+                }
+
                 if cut {
                     hits.truncate(limit);
                     limitations.push(format!("first {limit} hits"));
-                    OpResult::refs(OpStatus::Partial, hits, limitations)
-                } else {
-                    OpResult::refs(OpStatus::CompleteForQuery, hits, limitations)
                 }
+
+                let status = if cut || unreadable > 0 {
+                    OpStatus::Partial
+                } else {
+                    OpStatus::CompleteForQuery
+                };
+                OpResult::refs(status, hits, limitations)
             }
             Err(err) => OpResult::failed(err.to_string()),
         }
