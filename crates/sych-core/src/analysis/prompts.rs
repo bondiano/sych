@@ -7,11 +7,11 @@ use super::context::{Context, side_name};
 use crate::model::{DataBlock, Prompt};
 use crate::{Candidate, PlannedObligation};
 
-pub const DISCOVERY: &str = "discovery@7";
-pub const RISK_AUDIT: &str = "risk_audit@6";
+pub const DISCOVERY: &str = "discovery@8";
+pub const RISK_AUDIT: &str = "risk_audit@7";
 pub const ASSESSMENT: &str = "assessment@4";
 pub const VERIFY: &str = "verify@6";
-pub const REVIEW: &str = "review@6";
+pub const REVIEW: &str = "review@7";
 
 /// The fields of one assessment; `ob` names the obligation id the answer must carry.
 fn assessment_fields(ob: &str) -> String {
@@ -62,6 +62,22 @@ const NIT_RULES: [&str; 4] = [
      touch gets no nits.",
     "At most 3 nits per review unit, the most useful first. When unsure whether something is a \
      defect, ask about one concrete scenario in the claim instead of asserting it.",
+];
+
+/// How a defect is hunted and stated: most missed bugs were on shown lines, with the wrong
+/// mechanism claimed, no candidate at all, or a nit in its place.
+const DEFECT_RULES: [&str; 4] = [
+    "Before any nit, check each changed function for defects: the first, last, empty and \
+     boundary inputs; what each early return, error or exception path skips; state kept across \
+     calls or iterations; each non-default flag or configuration branch.",
+    "A DEFECT names one concrete input or state that triggers it and traces it through the HEAD \
+     code to the wrong result. \"The change lost X\" holds only if HEAD does not do X another \
+     way; a premise (a default, a caller, a guard) is checked against the spans first, and a \
+     claim the spans contradict is dropped.",
+    "Code that does something other than its comment, message, name or documentation says is a \
+     DEFECT, not a nit, unless the spans show the code is the intended behaviour.",
+    "The limit of 4 candidates counts DEFECT and RULE_VIOLATION only; nits come on top, as the \
+     nit rules allow.",
 ];
 
 /// An open question the shown code already answers is a miss, not an UNKNOWN (#95).
@@ -154,6 +170,7 @@ pub fn discovery(context: &Context, obligations: &[&PlannedObligation], unit: &s
         rules: {
             let mut rules = shared_rules(context);
             rules.push(QUESTION_RULE.to_owned());
+            rules.extend(DEFECT_RULES.map(str::to_owned));
             rules.extend(NIT_RULES.map(str::to_owned));
             rules
         },

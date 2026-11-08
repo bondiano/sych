@@ -25,22 +25,26 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    risk audit leave one attempt per standalone discovery batch, at most half of `max_attempts` less the
    verifier's attempt, so a PR with many required rules is still searched. If a discovery batch (item 3) shows an obligation's verification packet
    in full (each of its spans lies within the batch spans, nothing required is excluded), the assessment
-   runs in the same call as discovery: `review@6` returns `assessments` and hypotheses. For a small PR this is
+   runs in the same call as discovery: `review@7` returns `assessments` and hypotheses. For a small PR this is
    one call instead of assessment + discovery. The remaining obligations each get a separate `assessment@4`.
    Combined and separate calls share one queue in that obligation order (a combined call ranks by its most
-   important obligation). An obligation without exactly one assessment in the `review@6` reply is
+   important obligation). An obligation without exactly one assessment in the `review@7` reply is
    `UNKNOWN/MODEL_FAILED` ("ob-N has no single assessment"); a criterion without exactly one result is `UNKNOWN`. An obligation whose verification packet was split into chunks gets one
    `assessment@4` per chunk; `context_limited` merges them per rule: a violation in any chunk stands, then an
    unknown, then support. The packet holding a required span that fits no chunk (`REQUIRED_OVER_BUDGET`) gets
    no call, and the obligation stays `UNKNOWN/CONTEXT_LIMIT` unless another chunk shows a violation.
-2. **Risk audit** (`risk_audit@6`) — for HIGH/CRITICAL risk obligations, a separate search over each chunk of the
+2. **Risk audit** (`risk_audit@7`) — for HIGH/CRITICAL risk obligations, a separate search over each chunk of the
    obligation's verification packet.
    It does not see the discovery output and runs even when discovery is empty; this is not a promise of
    statistical independence of errors.
-3. **Discovery** (`discovery@7`) — over the discovery packets of review units with the list of their obligations. Adjacent
+3. **Discovery** (`discovery@8`) — over the discovery packets of review units with the list of their obligations. Adjacent
    packets are merged into one call as long as their tokens fit in `context.max_tokens_per_request`: for a
    small PR this is one discovery instead of a call per unit. The reviewer's primary profile may bound a call further
-   with `max_units_per_call` and `max_shown_tokens_per_call` ([MODELS.md](MODELS.md)).
+   with `max_units_per_call` and `max_shown_tokens_per_call` ([MODELS.md](MODELS.md)). Its rules put defects
+   before nits: check each changed function's boundary inputs, early-return and error paths, state across calls and
+   non-default flags; trace one concrete triggering input through HEAD per defect; check a premise against the spans
+   before claiming it; and file code that contradicts its own comment, message or name as a defect. The limit of
+   4 candidates counts defects and rule violations only, nits come on top.
 4. **Verify** (`verify@6`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
    requests. Before the first round the engine also searches HEAD for each effect the ledger saw removed or left
    unresolved in a file the candidates point at (by the target's last name of 3 to 64 bytes, four per call, registered effects first), and the
