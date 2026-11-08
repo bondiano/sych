@@ -22,5 +22,5 @@ pub use discovery::{
 };
 pub use verify::{
     CandidateVerdict, KnownDiagnostics, ProposedChange, Verdict, Verified, VerifyOutput,
-    merge_overlapping, validate as validate_verdicts,
+    claims_absence, merge_overlapping, unshown_absence, validate as validate_verdicts, withhold,
 };

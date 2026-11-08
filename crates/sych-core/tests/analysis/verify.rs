@@ -2,8 +2,8 @@
 
 use serde_json::json;
 use sych_core::analysis::{
-    Anchor, AskOperation, Context, VerifyOutput, merge_overlapping, refuting_asks,
-    validate_discovery, validate_verdicts,
+    Anchor, AskOperation, Context, VerifyOutput, claims_absence, merge_overlapping, refuting_asks,
+    unshown_absence, validate_discovery, validate_verdicts, withhold,
 };
 use sych_core::{FindingCategory, ObligationId, Severity, SourceSide, Support, VerificationStatus};
 
@@ -337,4 +337,95 @@ fn open_claims_are_searched_by_the_identifiers_they_name() {
         queries,
         ["heartbeat_seconds", "analyze", "lease_seconds", "fetch"]
     );
+}
+
+#[test]
+fn bare_code_names_are_searched_after_quoted_ones() {
+    let reader = Reader::new();
+    let (context, _) = context(&reader);
+    let mut open = candidates(&reader, &context, 1);
+    open[0].claim = "No test sets reasoning_off: true, see `analyze` (sych::gateway).".into();
+    let queries: Vec<String> = refuting_asks(&open)
+        .into_iter()
+        .map(|a| match a.operation {
+            AskOperation::SearchSource { query, .. } => query,
+            other => panic!("{other:?}"),
+        })
+        .collect();
+    assert_eq!(queries, ["analyze", "reasoning_off"]);
+}
+
+#[test]
+fn absence_claims_are_told_by_their_wording() {
+    for claim in [
+        "No test sets reasoning_off: true",
+        "Deleting the batching tests leaves no check that the bound applies",
+        "the new branch is not exercised by any test",
+        "`parse` has no caller outside the diff",
+    ] {
+        assert!(claims_absence(claim), "{claim}");
+    }
+
+    for claim in [
+        "`total` throws on undefined items",
+        "the piano check is off by one",
+        "a removed guard lets `reduce` run on null",
+    ] {
+        assert!(!claims_absence(claim), "{claim}");
+    }
+}
+
+#[test]
+fn a_confirmed_absence_needs_the_whole_answer_of_its_search() {
+    let reader = Reader::new();
+    let (context, _) = context(&reader);
+    let trace = [anchor("ref-2", 2, 2)];
+    let output: VerifyOutput = serde_json::from_value(json!({"verdicts": [
+        verdict("cand-1", Severity::Medium, Support::SemanticArgument, &trace),
+        verdict("cand-2", Severity::Medium, Support::SemanticArgument, &trace),
+        verdict("cand-3", Severity::Medium, Support::SemanticArgument, &trace),
+    ], "context_requests": []}))
+    .expect("verdicts");
+    let mut shown = candidates(&reader, &context, 3);
+    shown[0].claim = "No test sets `skip_guard`".into();
+    shown[1].claim = "`total` throws on undefined items".into();
+    shown[2].claim = "No test covers `fallback_total`".into();
+    let mut verified = validate_verdicts(&output, shown, &context, &reader, &[], "unit");
+    assert_eq!(verified.findings.len(), 3);
+
+    let searches = [("skip_guard".to_owned(), false)];
+    withhold(&mut verified, |c| unshown_absence(c, &searches));
+    let problems: Vec<Option<&str>> = verified
+        .candidates
+        .iter()
+        .map(|c| {
+            (c.verification_status == VerificationStatus::Unresolved)
+                .then(|| c.limitations.last().expect("a reason").as_str())
+        })
+        .collect();
+    assert!(
+        problems[0].is_some_and(|p| p.contains("ABSENCE_NOT_SHOWN") && p.contains("`skip_guard`"))
+    );
+    assert_eq!(problems[1], None, "not an absence claim");
+    assert!(problems[2].is_some_and(|p| p.contains("ABSENCE_UNSEARCHED")));
+    // The finding that stays is the one of the candidate that stays confirmed.
+    assert_eq!(verified.findings.len(), 1);
+
+    let mut whole = validate_verdicts(
+        &output,
+        candidates(&reader, &context, 1),
+        &context,
+        &reader,
+        &[],
+        "unit",
+    );
+    whole.candidates[0].claim = "No test sets `skip_guard`".into();
+    withhold(&mut whole, |c| {
+        unshown_absence(c, &[("skip_guard".to_owned(), true)])
+    });
+    assert_eq!(
+        whole.candidates[0].verification_status,
+        VerificationStatus::Confirmed
+    );
+    assert_eq!(whole.findings.len(), 1);
 }

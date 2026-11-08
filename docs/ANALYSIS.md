@@ -43,8 +43,14 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    with `max_units_per_call` and `max_shown_tokens_per_call` ([MODELS.md](MODELS.md)).
 4. **Verify** (`verify@5`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
    requests. When the verifier leaves candidates `UNRESOLVED` without asking anything, the engine itself searches HEAD
-   for the identifiers their claims name in backticks (two per candidate, four per call) and runs the second round
-   on those answers: a validator or guard outside the diff can then refute the claim. A confirmed verdict may carry `suggested_change`, the full new text of lines of a shown HEAD span; the
+   for the identifiers their claims name (in backticks first, then bare `snake_case` or `a::b` words; two per candidate,
+   four per call) and runs the second round on those answers: a validator or guard outside the diff can then refute
+   the claim. A claim that something is absent beyond the shown spans ("no test sets …", "leaves no check", "not
+   exercised", "no caller") is never confirmed in the first round: the engine searches HEAD, files added by the change
+   included, for the names it gives, even when the verifier asked other questions, and the second round decides it.
+   It stays `CONFIRMED` only if every search for its names showed the whole answer (`ABSENCE_NOT_SHOWN` when more
+   matches existed than were shown, `ABSENCE_UNSEARCHED` when nothing was searched for it or the second round failed);
+   otherwise it is `UNRESOLVED`, not a finding. A confirmed verdict may carry `suggested_change`, the full new text of lines of a shown HEAD span; the
    engine drops it, not the finding, when it names anything else. The inline comment offers it as a GitHub
    suggestion when it covers exactly the commented lines, otherwise as a code block.
 
@@ -119,7 +125,8 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
   `EXECUTED_COUNTEREXAMPLE` is impossible (nothing was executed), `PREFERENCE` does not support a defect,
   nit/improvement is no higher than `LOW`, `HIGH/CRITICAL` requires a `STATIC_TRACE` of at least two anchors
   (`HIGH_RISK_WITHOUT_TRACE`). An anchor on a line that already has an imported diagnostic leaves the candidate
-  `UNRESOLVED` (`DUPLICATES_EXISTING_DIAGNOSTIC`): without a comparable baseline, novelty is not proven. A rejected
+  `UNRESOLVED` (`DUPLICATES_EXISTING_DIAGNOSTIC`): without a comparable baseline, novelty is not proven. An absence
+  claim needs the whole answer of a HEAD search for its names, seen by the verifier (item 4 above). A rejected
   nit goes to `rejected_candidates` and is not promoted.
 - **Findings**: severity, support and verification status are separate fields; every finding has the limitation
   "CONFIRMED by the verification policy on the shown spans; not a proof of the whole program". Findings from different

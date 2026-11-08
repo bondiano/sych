@@ -326,30 +326,44 @@ pub fn validate(
     found
 }
 
-/// Searches for what could refute candidates the verifier left open without asking: the
-/// identifiers each claim names in backticks (two per candidate, four in all), where a guard
-/// or validator elsewhere is most likely found.
-pub fn refuting_asks(open: &[Candidate]) -> Vec<ContextAsk> {
+/// The identifiers `claim` names: in backticks first, then bare `snake_case` or `a::b` words,
+/// without repeats.
+pub(super) fn named(claim: &str) -> Vec<&str> {
     let identifier = |t: &&str| {
         (3..=64).contains(&t.len())
             && t.chars().any(char::is_alphabetic)
             && t.chars().all(|c| c.is_alphanumeric() || "_:.-".contains(c))
     };
+    let quoted = claim.split('`').skip(1).step_by(2).filter(identifier);
+    let bare = claim
+        .split('`')
+        .step_by(2)
+        .flat_map(str::split_whitespace)
+        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_'))
+        .filter(|w| w.contains('_') || w.contains("::"))
+        .filter(identifier);
+    quoted.chain(bare).fold(Vec::new(), |mut all, name| {
+        if !all.contains(&name) {
+            all.push(name);
+        }
+
+        all
+    })
+}
+
+/// Searches HEAD for what could refute `open` candidates: the identifiers each claim names
+/// (two per candidate, four in all), where a guard, validator or test elsewhere is most
+/// likely found.
+pub fn refuting_asks(open: &[Candidate]) -> Vec<ContextAsk> {
     let mut queries: Vec<&str> = Vec::new();
     for candidate in open {
-        let named = candidate
-            .claim
-            .split('`')
-            .skip(1)
-            .step_by(2)
-            .filter(identifier);
-        for query in named
+        let named = named(&candidate.claim);
+        let new: Vec<&str> = named
+            .into_iter()
             .filter(|q| !queries.contains(q))
             .take(2)
-            .collect::<Vec<_>>()
-        {
-            queries.push(query);
-        }
+            .collect();
+        queries.extend(new);
     }
     queries
         .into_iter()

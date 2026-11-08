@@ -1,14 +1,15 @@
 //! The individual model passes; each records its attempts and leaves a gap when it fails.
 
 use sych_core::analysis::{
-    AssessmentOutput, AssessmentRecord, CANDIDATE_OVERFLOW, Context, ContextAsk, Discovered,
-    DiscoveryOutput, ReviewOutput, Verified, VerifyOutput, context_asks, not_assessed, prompts,
-    refuting_asks, unseen_violation, validate_assessment, validate_discovery, validate_verdicts,
+    AskOperation, AssessmentOutput, AssessmentRecord, CANDIDATE_OVERFLOW, Context, ContextAsk,
+    Discovered, DiscoveryOutput, ReviewOutput, Verified, VerifyOutput, claims_absence,
+    context_asks, not_assessed, prompts, refuting_asks, unseen_violation, unshown_absence,
+    validate_assessment, validate_discovery, validate_verdicts, withhold,
 };
-use sych_core::broker::{Ops, REQUIRED_OVER_BUDGET, unseen_spans};
+use sych_core::broker::{OpStatus, Ops, REQUIRED_OVER_BUDGET, unseen_spans};
 use sych_core::config::Role;
 use sych_core::model::{Ledger, ModelProvider, Prompt, RoutedOutcome, TaskFailure};
-use sych_core::{Candidate, ObligationId, PlannedObligation, VerificationStatus};
+use sych_core::{Candidate, ObligationId, PlannedObligation, SourceSide, VerificationStatus};
 
 use super::{AskAnswer, Engine, MAX_REFS_PER_ANSWER, Outcome, Pass, PassStatus};
 
@@ -262,6 +263,8 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                 return;
             }
         };
+        // An absence claim is confirmed only in a round that saw HEAD searched for it.
+        withhold(&mut verified, |c| unshown_absence(c, &[]));
         let open: Vec<Candidate> = found
             .candidates
             .into_iter()
@@ -271,19 +274,39 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                 })
             })
             .collect();
-        // Left open without a question, a claim is still searched for what refutes it.
-        let asks = if asks.is_empty() {
-            refuting_asks(&open)
-        } else {
-            asks
-        };
+        // Left open without a question, a claim is still searched for what refutes it; an
+        // absence claim always is.
+        let asked = !asks.is_empty();
+        let refute: Vec<Candidate> = open
+            .iter()
+            .filter(|c| !asked || claims_absence(&c.claim))
+            .cloned()
+            .collect();
+        let mut asks = asks;
+        for ask in refuting_asks(&refute) {
+            if !asks.iter().any(|a| a.operation == ask.operation) {
+                asks.push(ask);
+            }
+        }
         if !asks.is_empty() && !open.is_empty() {
+            let from = out.record.answers.len();
             self.answer(batch[0], &asks, &mut context, out);
+            let searches: Vec<(String, bool)> = out.record.answers[from..]
+                .iter()
+                .filter_map(|a| match &a.operation {
+                    AskOperation::SearchSource {
+                        side: SourceSide::Head,
+                        query,
+                    } => Some((query.clone(), a.status == Some(OpStatus::CompleteForQuery))),
+                    _ => None,
+                })
+                .collect();
             // A failed second round keeps the first verdicts.
-            if let Ok((_, again)) = self
+            if let Ok((_, mut again)) = self
                 .verify_round(batch, obligations, &context, open, out)
                 .await
             {
+                withhold(&mut again, |c| unshown_absence(c, &searches));
                 verified
                     .candidates
                     .retain(|c| !again.candidates.iter().any(|a| a.id == c.id));

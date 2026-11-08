@@ -7,7 +7,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::context::{Anchor, Context};
-use super::discovery::ContextAsk;
+use super::discovery::{ContextAsk, named};
 use crate::{
     Candidate, CodeRef, Finding, FindingCategory, FindingId, Lifecycle, Severity, SnapshotReader,
     SourceSide, SuggestedChange, Support, VerificationStatus, derived_uuid, sha256,
@@ -171,6 +171,89 @@ pub fn validate(
     Verified {
         candidates,
         findings,
+    }
+}
+
+/// Phrases of a claim that something is missing elsewhere: a test, check, caller or
+/// replacement. The spans shown cannot prove such a claim; a search of HEAD can refute it.
+const ABSENCE: [&str; 16] = [
+    "no test",
+    "not tested",
+    "untested",
+    "not exercised",
+    "no check",
+    "no caller",
+    "no other",
+    "nothing else",
+    "nothing replaces",
+    "no replacement",
+    "not replaced",
+    "not covered",
+    "no coverage",
+    "leaves no",
+    "nowhere",
+    "never tested",
+];
+
+/// Whether `claim` says something is absent beyond the shown spans.
+pub fn claims_absence(claim: &str) -> bool {
+    let claim = claim.to_lowercase();
+    ABSENCE.iter().any(|phrase| {
+        claim.match_indices(phrase).any(|(at, _)| {
+            !claim[..at]
+                .chars()
+                .next_back()
+                .is_some_and(char::is_alphanumeric)
+        })
+    })
+}
+
+/// Why an absence claim may not stay CONFIRMED after `searches` of HEAD (query, whole answer
+/// shown), or `None`: every search for a name the claim gives must show its whole answer.
+pub fn unshown_absence(candidate: &Candidate, searches: &[(String, bool)]) -> Option<String> {
+    if !claims_absence(&candidate.claim) {
+        return None;
+    }
+
+    let names = named(&candidate.claim);
+    let mut asked = searches
+        .iter()
+        .filter(|(query, _)| names.contains(&query.as_str()))
+        .peekable();
+    if asked.peek().is_none() {
+        return Some(
+            "ABSENCE_UNSEARCHED: the claim says something is absent; it is confirmed only after \
+             the verifier sees a search of HEAD for what it names"
+                .into(),
+        );
+    }
+
+    asked.find(|(_, whole)| !whole).map(|(query, _)| {
+        format!(
+            "ABSENCE_NOT_SHOWN: the search of HEAD for `{query}` shows only part of its \
+             matches, so the absence is not shown"
+        )
+    })
+}
+
+/// Takes back the finding of every confirmed candidate `reason` names a problem for: it
+/// becomes UNRESOLVED with that problem. Relies on [`validate`] making one finding per
+/// confirmed candidate, in order.
+pub fn withhold(verified: &mut Verified, reason: impl Fn(&Candidate) -> Option<String>) {
+    let mut confirmed = 0;
+    for candidate in &mut verified.candidates {
+        if candidate.verification_status != VerificationStatus::Confirmed {
+            continue;
+        }
+
+        match reason(candidate) {
+            Some(problem) => {
+                candidate.verification_status = VerificationStatus::Unresolved;
+                candidate.limitations.push(format!("engine: {problem}"));
+                verified.findings.remove(confirmed);
+            }
+            None => confirmed += 1,
+        }
     }
 }
 

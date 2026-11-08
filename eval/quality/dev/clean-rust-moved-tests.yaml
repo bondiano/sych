@@ -1,0 +1,62 @@
+schema_version: 1
+id: clean-rust-moved-tests
+split: development
+language: rust
+variant: safe
+profiles: [correctness]
+rationale: "The batching tests move unchanged from tests/analysis.rs to a new tests/batching.rs, next to a new one for the configurable bound; nothing is left untested (PR #102)."
+base:
+  Cargo.toml: |
+    [package]
+    name = "batches"
+    version = "0.1.0"
+    edition = "2024"
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub const MAX_UNITS: usize = 4;
+
+    /// Splits `units` into calls of at most [`MAX_UNITS`] units.
+    pub fn batches(units: &[u32]) -> Vec<Vec<u32>> {
+        units.chunks(MAX_UNITS).map(<[u32]>::to_vec).collect()
+    }
+  tests/analysis.rs: |
+    use batches::batches;
+
+    #[test]
+    fn small_units_share_one_call() {
+        assert_eq!(batches(&[1, 2, 3]), [vec![1, 2, 3]]);
+    }
+
+    #[test]
+    fn a_wide_change_is_split_into_bounded_calls() {
+        assert_eq!(batches(&[1, 2, 3, 4, 5]).len(), 2);
+    }
+head:
+  src/lib.rs: |
+    /// Splits `units` into calls of at most `max_units` units; zero is refused by the config.
+    pub fn batches(units: &[u32], max_units: usize) -> Vec<Vec<u32>> {
+        units.chunks(max_units).map(<[u32]>::to_vec).collect()
+    }
+  tests/analysis.rs: null
+  tests/batching.rs: |
+    use batches::batches;
+
+    #[test]
+    fn small_units_share_one_call() {
+        assert_eq!(batches(&[1, 2, 3], 4), [vec![1, 2, 3]]);
+    }
+
+    #[test]
+    fn a_wide_change_is_split_into_bounded_calls() {
+        assert_eq!(batches(&[1, 2, 3, 4, 5], 4).len(), 2);
+    }
+
+    #[test]
+    fn a_bound_of_one_keeps_units_in_separate_calls() {
+        assert_eq!(batches(&[1, 2], 1), [vec![1], vec![2]]);
+    }
+expected:
+  forbidden_claims:
+    - "The batching tests are deleted and nothing replaces them, so the bound is untested."
