@@ -17,6 +17,10 @@ pub struct Comment {
     /// GitHub marks App installations' users as `Bot`; a human copying the marker is not one.
     pub author_is_bot: bool,
     pub body: String,
+    /// `None` when GitHub's `created_at` is missing or unreadable.
+    pub created_at: Option<jiff::Timestamp>,
+    /// The review comment this one replies to in its thread.
+    pub in_reply_to: Option<u64>,
 }
 
 impl Comment {
@@ -28,6 +32,8 @@ impl Comment {
             author: v["user"]["login"].as_str().unwrap_or_default().to_owned(),
             author_is_bot: v["user"]["type"].as_str() == Some("Bot"),
             body: v["body"].as_str().unwrap_or_default().to_owned(),
+            created_at: v["created_at"].as_str().and_then(|t| t.parse().ok()),
+            in_reply_to: v["in_reply_to_id"].as_u64(),
         })
     }
 

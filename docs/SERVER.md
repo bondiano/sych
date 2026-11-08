@@ -34,7 +34,7 @@ stops startup and is not substituted.
 
 | Capability | App permission | Endpoint |
 |---|---|---|
-| change_refs, reconciliation, own_comments | Pull requests: read | `GET /repos/{r}/pulls/{n}`, `GET /repos/{r}/pulls?state=open`, `GET /repos/{r}/issues/{n}/comments` |
+| change_refs, reconciliation, own_comments | Pull requests: read | `GET /repos/{r}/pulls/{n}`, `GET /repos/{r}/pulls?state=open`, `GET /repos/{r}/issues/{n}/comments`, `GET /repos/{r}/pulls/{n}/comments` (also the author's replies, [Prior doubts](#lineage-feedback-and-waivers)) |
 | full_diff | Pull requests + Contents: read | `GET /repos/{r}/pulls/{n}/files` (no more than 3000 files) |
 | blobs | Contents: read | git fetch with the installation token |
 | ci_runs, ci_artifacts | Actions: read | workflow runs/jobs/artifacts |
@@ -361,6 +361,12 @@ with a `found` event; each previously open finding gets a decision from `sych_co
 | model finding: code unchanged | `OPEN` — "no diagnostic" by itself is not a fix |
 
 History (`finding_events`) is append-only: state, reason, actor, evidence.
+
+**Prior doubts.** Lineage carries findings; the open questions and unverified candidates of the last delivered summary
+come back differently. Before freezing a run's inputs the worker reads that summary's result and the pull request
+author's issue comments and review-thread replies created after its delivery, and gives both to discovery and
+verify as data, the replies as unverified author claims ([ANALYSIS.md](ANALYSIS.md#what-the-model-sees)). Free
+PR text still changes no policy, budget or status; the run stores what it was shown as `prior_doubts`.
 
 **Feedback** (`USEFUL | NOT_USEFUL | FALSE_POSITIVE | WONT_FIX`, scope, rationale) stores the actor and the policy snapshot;
 `FALSE_POSITIVE`/`WONT_FIX` make the finding `DISMISSED` with the author and reason; a repeat finding in the next revision

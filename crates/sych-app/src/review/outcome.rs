@@ -126,6 +126,7 @@ impl Session<'_> {
                 .max_parallel_calls
                 .map_or(1, |n| usize::try_from(n).unwrap_or(1)),
             language: self.language,
+            prior: self.prior,
         };
         let mut outcome = engine.run().await;
         for route in &mut outcome.record.routes {

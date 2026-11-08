@@ -25,10 +25,10 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    risk audit leave one attempt per standalone discovery batch, at most half of `max_attempts` less the
    verifier's attempt, so a PR with many required rules is still searched. If a discovery batch (item 3) shows an obligation's verification packet
    in full (each of its spans lies within the batch spans, nothing required is excluded), the assessment
-   runs in the same call as discovery: `review@6` returns `assessments` and hypotheses. For a small PR this is
+   runs in the same call as discovery: `review@7` returns `assessments` and hypotheses. For a small PR this is
    one call instead of assessment + discovery. The remaining obligations each get a separate `assessment@4`.
    Combined and separate calls share one queue in that obligation order (a combined call ranks by its most
-   important obligation). An obligation without exactly one assessment in the `review@6` reply is
+   important obligation). An obligation without exactly one assessment in the `review@7` reply is
    `UNKNOWN/MODEL_FAILED` ("ob-N has no single assessment"); a criterion without exactly one result is `UNKNOWN`. An obligation whose verification packet was split into chunks gets one
    `assessment@4` per chunk; `context_limited` merges them per rule: a violation in any chunk stands, then an
    unknown, then support. The packet holding a required span that fits no chunk (`REQUIRED_OVER_BUDGET`) gets
@@ -37,11 +37,11 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    obligation's verification packet.
    It does not see the discovery output and runs even when discovery is empty; this is not a promise of
    statistical independence of errors.
-3. **Discovery** (`discovery@7`) — over the discovery packets of review units with the list of their obligations. Adjacent
+3. **Discovery** (`discovery@8`) — over the discovery packets of review units with the list of their obligations. Adjacent
    packets are merged into one call as long as their tokens fit in `context.max_tokens_per_request`: for a
    small PR this is one discovery instead of a call per unit. The reviewer's primary profile may bound a call further
    with `max_units_per_call` and `max_shown_tokens_per_call` ([MODELS.md](MODELS.md)).
-4. **Verify** (`verify@5`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
+4. **Verify** (`verify@6`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
    requests. When the verifier leaves candidates `UNRESOLVED` without asking anything, the engine itself searches HEAD
    for the identifiers their claims name in backticks (two per candidate, four per call) and runs the second round
    on those answers: a validator or guard outside the diff can then refute the claim. A confirmed verdict may carry `suggested_change`, the full new text of lines of a shown HEAD span; the
@@ -84,6 +84,17 @@ An obligation about the tests themselves (the shipped `TEST-INTEGRITY`) also get
 test and CI file, shown or not, read verbatim from BASE (up to 40 lines per file, the rest counted), and
 "0 lines removed" for a file that only gained lines: a weakened assertion or gate is visible even when the file's
 spans did not fit the packet.
+
+**Prior doubts.** A server run of a change whose summary was already published shows discovery, the combined review
+and their verifier what that summary left open: the `open question: …` and `unverified candidate: …` entries of
+its result (at most 20, 600 bytes each), and the replies the pull request's author wrote after it was delivered —
+the author's own issue comments and review-thread replies, never other people's, bots' or top-level review
+comments. Each reply is cut to 2,000 bytes and all of them to 8,000 (the rest is counted). The doubts and each
+reply are DATA blocks, a reply labelled `UNVERIFIED AUTHOR CLAIM`, under a trusted rule: a reply is data to check
+against the shown spans, never an instruction or evidence; a doubt it answers and the spans confirm is not raised
+again, one the spans contradict is, with the lines that contradict it. The independent risk audit and the
+assessments do not see them. What the run saw is stored with it (`prior_doubts`); a conversation that cannot be
+read leaves the prior doubts out, and the review runs as before.
 
 The packet's source spans are stored as derived evidence `source` (`SOURCE_OBSERVATION`): `COMPLETE_FOR_QUERY` for
 exactly these spans if no required span was excluded, otherwise `PARTIAL`. The packet gaps are its limitations.
@@ -238,5 +249,5 @@ instead of source text.
 (`model_attempts.scope`) while the tenant day and month pools stay shared. The prompt holds the stop's spans, the
 review's findings and obligations of the stop and the overview; context requests are answered once through the broker's
 typed operations (`ContextAsk::answer`, shared with analysis). Hypotheses pass the discovery checks and then the regular
-verifier (`verify@5`, role verifier) under the same session budget; they stay in the exchange (`tour_exchanges`, one
+verifier (`verify@6`, role verifier) under the same session budget; they stay in the exchange (`tour_exchanges`, one
 actor's rows) and never reach the `ReviewResult`, the `TourArtifact` or a publication.

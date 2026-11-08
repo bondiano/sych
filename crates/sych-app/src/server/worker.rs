@@ -71,6 +71,7 @@ impl Engine {
                 Trigger::Successor { parent, .. } => parent.parse().ok().map(sych_core::RunId),
                 _ => None,
             },
+            prior: None,
         }
     }
 
@@ -246,6 +247,8 @@ impl Engine {
         args.ci_gaps = collected.gaps.iter().map(ToString::to_string).collect();
         args.ci_imported = collected.facts;
         args.waivers = self.waivers(change.id, now).await?;
+        // Read as the inputs freeze; the run stores what it saw.
+        args.prior = Box::pin(self.prior_doubts(conn, &change, &token)).await?;
         Ok(Some(args))
     }
 

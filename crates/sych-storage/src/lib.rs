@@ -118,6 +118,8 @@ pub enum ArtifactKind {
     Checkpoint,
     /// A guided tour of the run's result; one per generation, never rewritten.
     Tour,
+    /// The earlier revision's doubts and the author's replies the run's models saw.
+    PriorDoubts,
 }
 
 impl ArtifactKind {
@@ -135,6 +137,7 @@ impl ArtifactKind {
             Self::ReviewResult => "review_result",
             Self::Checkpoint => "checkpoint",
             Self::Tour => "tour",
+            Self::PriorDoubts => "prior_doubts",
         }
     }
 

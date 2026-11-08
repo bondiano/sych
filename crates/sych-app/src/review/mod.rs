@@ -7,6 +7,7 @@ use anyhow::Context;
 
 use sych_adapters::git::LocalSnapshot;
 use sych_adapters::{execution, syntax};
+use sych_core::analysis::prior::PriorDoubts;
 use sych_core::broker::{EvidencePacket, Limits};
 use sych_core::config::Budgets;
 use sych_core::config::{
@@ -360,6 +361,7 @@ fn execute(
         verify: args.verify,
         ci_gaps: &ci_gaps,
         parent: args.parent,
+        prior: args.prior.as_ref(),
         language: effective.repository.config.review.language,
         now,
     };
@@ -368,23 +370,7 @@ fn execute(
             Stopped::Failed(err) => Failure::no_result(format!("{err}; no result was saved")),
             Stopped::Cancelled => Failure::Cancelled("cancelled; no result was saved".into()),
         })?;
-    let report = Report {
-        snapshot: Some(snap.snapshot),
-        diff_manifest: Some(snap.manifest),
-        policy,
-        policy_review,
-        external_input_manifest: saved.external,
-        evidence_manifest: saved.evidence_manifest,
-        evidence: saved.evidence,
-        semantic_facts: facts.semantic,
-        syntax_facts: facts.syntax,
-        ci_facts: facts.ci,
-        effect_ledger: facts.ledger,
-        lint_facts: facts.lint,
-        context_packets: saved.packets,
-        review_result: saved.result,
-    };
-    Ok((report, saved.candidates))
+    Ok(saved.report(snap, policy, policy_review, facts))
 }
 
 struct Saved {
@@ -395,6 +381,35 @@ struct Saved {
     result: ReviewResult,
     /// Every candidate of the model passes, verified or not.
     candidates: Vec<Candidate>,
+}
+
+impl Saved {
+    /// The report of the saved run with the inputs it reviewed, and its candidates.
+    fn report(
+        self,
+        snap: LocalSnapshot,
+        policy: PolicySnapshot,
+        policy_review: PolicyReview,
+        facts: RunFacts,
+    ) -> (Report, Vec<Candidate>) {
+        let report = Report {
+            snapshot: Some(snap.snapshot),
+            diff_manifest: Some(snap.manifest),
+            policy,
+            policy_review,
+            external_input_manifest: self.external,
+            evidence_manifest: self.evidence_manifest,
+            evidence: self.evidence,
+            semantic_facts: facts.semantic,
+            syntax_facts: facts.syntax,
+            ci_facts: facts.ci,
+            effect_ledger: facts.ledger,
+            lint_facts: facts.lint,
+            context_packets: self.packets,
+            review_result: self.result,
+        };
+        (report, self.candidates)
+    }
 }
 
 enum Stopped {
@@ -423,6 +438,8 @@ struct Session<'a> {
     ci_gaps: &'a [String],
     /// The parent run whose checkpoints may answer this run's tasks.
     parent: Option<sych_core::RunId>,
+    /// The earlier revision's doubts and the author's replies, shown to discovery and verify.
+    prior: Option<&'a PriorDoubts>,
     /// `review.language` of the trusted policy.
     language: sych_core::ReviewLanguage,
     now: Timestamp,

@@ -51,6 +51,8 @@ pub fn capabilities(permissions: &Value) -> ProviderCapabilities {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PullState {
     pub number: u64,
+    /// The login of the user who opened it.
+    pub author: String,
     pub open: bool,
     pub merged: bool,
     pub draft: bool,
@@ -74,6 +76,7 @@ impl PullState {
         let text = |p: &str| v.pointer(p).and_then(Value::as_str).map(str::to_owned);
         Ok(Self {
             number: v["number"].as_u64().ok_or_else(|| missing("number"))?,
+            author: text("/user/login").unwrap_or_default(),
             open: v["state"].as_str() == Some("open"),
             merged: v["merged"].as_bool().unwrap_or(false),
             draft: v["draft"].as_bool().unwrap_or(false),

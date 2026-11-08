@@ -1,6 +1,7 @@
 //! A loopback `OpenRouter` stand-in for server runs on a real model route: answers every
 //! structured request by its schema name with nothing found, and records the names, so a test
-//! sees which model calls a run made.
+//! sees which model calls a run made. A test may script the open questions discovery leaves
+//! and read the messages every request carried.
 #![allow(dead_code)]
 
 use std::io::{Read, Write};
@@ -14,16 +15,37 @@ pub struct FakeModel {
     /// `…/api/v1`, the provider endpoint.
     pub endpoint: String,
     pub calls: Arc<Mutex<Vec<String>>>,
+    /// The messages of every request, joined.
+    pub prompts: Arc<Mutex<Vec<String>>>,
+    /// Open questions every discovery or review answer leaves.
+    pub questions: Arc<Mutex<Vec<String>>>,
 }
 
 impl FakeModel {
     pub fn calls(&self) -> Vec<String> {
         self.calls.lock().expect("calls").clone()
     }
+
+    pub fn prompts(&self) -> Vec<String> {
+        self.prompts.lock().expect("prompts").clone()
+    }
+
+    pub fn ask(&self, questions: &[&str]) {
+        *self.questions.lock().expect("questions") =
+            questions.iter().map(ToString::to_string).collect();
+    }
 }
 
-fn answer(schema: &str) -> Value {
-    let empty = json!({"candidates": [], "context_requests": [], "unresolved_questions": []});
+#[derive(Clone)]
+struct Seen {
+    calls: Arc<Mutex<Vec<String>>>,
+    prompts: Arc<Mutex<Vec<String>>>,
+    questions: Arc<Mutex<Vec<String>>>,
+}
+
+fn answer(schema: &str, questions: &[String]) -> Value {
+    let empty =
+        json!({"candidates": [], "context_requests": [], "unresolved_questions": questions});
     match schema {
         "review" => {
             let mut both = empty;
@@ -59,7 +81,7 @@ fn body(raw: &[u8]) -> Option<&[u8]> {
     raw.get(end + 4..end + 4 + length)
 }
 
-fn serve(mut socket: TcpStream, calls: &Mutex<Vec<String>>) {
+fn serve(mut socket: TcpStream, seen: &Seen) {
     let mut raw = Vec::new();
     let mut buf = [0u8; 8192];
     let request = loop {
@@ -81,8 +103,19 @@ fn serve(mut socket: TcpStream, calls: &Mutex<Vec<String>>) {
         .as_str()
         .unwrap_or_default()
         .to_owned();
-    let body = reply(&answer(&schema).to_string());
-    calls.lock().expect("calls").push(schema);
+    let messages: Vec<&str> = request["messages"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|m| m["content"].as_str())
+        .collect();
+    seen.prompts
+        .lock()
+        .expect("prompts")
+        .push(messages.join("\n"));
+    let questions = seen.questions.lock().expect("questions").clone();
+    let body = reply(&answer(&schema, &questions).to_string());
+    seen.calls.lock().expect("calls").push(schema);
     let response = format!(
         "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
         body.len()
@@ -93,12 +126,21 @@ fn serve(mut socket: TcpStream, calls: &Mutex<Vec<String>>) {
 pub fn start() -> FakeModel {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
     let endpoint = format!("http://{}/api/v1", listener.local_addr().expect("addr"));
-    let calls = Arc::new(Mutex::new(Vec::new()));
-    let seen = Arc::clone(&calls);
+    let seen = Seen {
+        calls: Arc::default(),
+        prompts: Arc::default(),
+        questions: Arc::default(),
+    };
+    let model = FakeModel {
+        endpoint,
+        calls: Arc::clone(&seen.calls),
+        prompts: Arc::clone(&seen.prompts),
+        questions: Arc::clone(&seen.questions),
+    };
     thread::spawn(move || {
         for socket in listener.incoming().flatten() {
             serve(socket, &seen);
         }
     });
-    FakeModel { endpoint, calls }
+    model
 }

@@ -147,6 +147,8 @@ pub struct Engine<'a, P, L> {
     pub parallel: usize,
     /// `review.language`: every prompt asks for prose in it.
     pub language: sych_core::ReviewLanguage,
+    /// Doubts of the earlier revision and the author's replies, for discovery and verify.
+    pub prior: Option<&'a analysis::prior::PriorDoubts>,
 }
 
 fn needs_assessment(planned: &PlannedObligation) -> bool {
@@ -442,6 +444,9 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             context.add_packet(&self.packets[i], &self.packet_evidence[i], self.snap);
         }
         context.add_changes(&self.snap.manifest);
+        if let Some(prior) = self.prior {
+            context.add_prior(prior);
+        }
 
         let units: Vec<ReviewUnitId> = batch
             .iter()

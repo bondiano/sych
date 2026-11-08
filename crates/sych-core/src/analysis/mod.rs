@@ -6,6 +6,7 @@ mod assess;
 mod context;
 mod discovery;
 pub mod followup;
+pub mod prior;
 pub mod prompts;
 pub mod tour_prompt;
 mod verify;

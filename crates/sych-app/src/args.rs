@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use sych_core::analysis::prior::PriorDoubts;
 use sych_core::config::{CheckRequest, Execution, RuleException, RunMode};
 
 use crate::render::Format;
@@ -242,6 +243,9 @@ pub struct ReviewArguments {
     /// The parent of a successor server run, whose checkpoints may be reused.
     #[arg(skip)]
     pub parent: Option<sych_core::RunId>,
+    /// A server run's view of the earlier revision's doubts and the author's replies since.
+    #[arg(skip)]
+    pub prior: Option<PriorDoubts>,
 }
 
 #[derive(clap::Args)]

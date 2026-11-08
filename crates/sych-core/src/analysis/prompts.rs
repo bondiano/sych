@@ -4,14 +4,15 @@
 use std::fmt::Write;
 
 use super::context::Context;
+use super::prior::PRIOR_RULE;
 use crate::model::{DataBlock, Prompt};
 use crate::{Candidate, PlannedObligation};
 
-pub const DISCOVERY: &str = "discovery@7";
+pub const DISCOVERY: &str = "discovery@8";
 pub const RISK_AUDIT: &str = "risk_audit@6";
 pub const ASSESSMENT: &str = "assessment@4";
-pub const VERIFY: &str = "verify@5";
-pub const REVIEW: &str = "review@6";
+pub const VERIFY: &str = "verify@6";
+pub const REVIEW: &str = "review@7";
 
 /// The fields of one assessment; `ob` names the obligation id the answer must carry.
 fn assessment_fields(ob: &str) -> String {
@@ -155,6 +156,10 @@ pub fn discovery(context: &Context, obligations: &[&PlannedObligation], unit: &s
             let mut rules = shared_rules(context);
             rules.push(QUESTION_RULE.to_owned());
             rules.extend(NIT_RULES.map(str::to_owned));
+            if context.prior {
+                rules.push(PRIOR_RULE.to_owned());
+            }
+
             rules
         },
         task: task(
@@ -325,6 +330,10 @@ pub fn verify(
                 ]
                 .map(str::to_owned),
             );
+            if context.prior {
+                rules.push(PRIOR_RULE.to_owned());
+            }
+
             rules
         },
         task: task(

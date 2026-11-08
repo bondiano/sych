@@ -31,6 +31,8 @@ pub struct Fake {
     pub installation_permissions: Value,
     /// Issue comments: id → (author login, body).
     pub comments: BTreeMap<u64, (String, String)>,
+    /// `created_at` of the issue comments that have one.
+    pub comment_times: BTreeMap<u64, String>,
     pub next_id: u64,
     pub tokens_issued: u32,
     pub log: Vec<String>,
@@ -240,7 +242,14 @@ async fn list_comments(
     let all: Vec<Value> = s
         .comments
         .iter()
-        .map(|(id, (login, body))| comment_json(*id, login, body))
+        .map(|(id, (login, body))| {
+            let mut c = comment_json(*id, login, body);
+            if let Some(at) = s.comment_times.get(id) {
+                c["created_at"] = json!(at);
+            }
+
+            c
+        })
         .collect();
     Json(page(&all, &q)).into_response()
 }
@@ -503,6 +512,7 @@ pub async fn start() -> (String, Shared) {
 
 pub fn pull_json(number: u64, head: &str, base_sha: &str) -> Value {
     json!({"number": number, "state": "open", "merged": false, "draft": false,
+        "user": {"login": "dev", "type": "User"},
         "changed_files": 1,
         "head": {"sha": head, "repo": {"full_name": "o/r"}},
         "base": {"ref": "main", "sha": base_sha, "repo": {"full_name": "o/r"}}})

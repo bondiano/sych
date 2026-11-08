@@ -94,6 +94,7 @@ fn review_case(
         run_mode: RunMode::PersonalLocal,
         deep: false,
         parent: None,
+        prior: None,
         risk_audit: args.risk_audit,
     };
     // The configured store: its ledger keeps the money caps across the whole suite.

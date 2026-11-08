@@ -28,7 +28,8 @@
 - The result pointer, usage and `COMPLETED` are committed in one transaction, and only if the result bytes are already
   readable and pass the hash check. A failure yields `FAILED`, an accepted cancellation (SIGINT/Ctrl-C) — `CANCELLED`, never `COMPLETED`.
 - Artifact roles of a single review: `source_snapshot`, `diff_manifest`, `policy_snapshot`, `policy_review`
-  (provenance and head policy diff), `external_input_manifest`, `evidence/<id>`, `evidence_manifest`, `review_result`, and also
+  (provenance and head policy diff), `external_input_manifest`, `prior_doubts` (a server run's earlier doubts and author
+  replies, when there were any), `evidence/<id>`, `evidence_manifest`, `review_result`, and also
   `checkpoint/<key>` — an accepted model response with a dependency record (written under the fence right after the response).
 - `sych show --run ID` and `sych explain` read these artifacts and do not run analysis. A deleted or corrupted artifact
   is explicitly unavailable (`ArtifactUnavailable`/`Corrupt`); nothing is restored by regeneration. The exception is

@@ -104,6 +104,8 @@ pub struct Context {
     pub limitations: Vec<String>,
     /// The language the model writes its prose in.
     pub language: ReviewLanguage,
+    /// Prior doubts and author replies are shown ([`Context::add_prior`]).
+    pub prior: bool,
 }
 
 fn side_name(side: SourceSide) -> &'static str {

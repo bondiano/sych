@@ -7,6 +7,7 @@ mod auth;
 pub mod build;
 mod caller;
 mod ci;
+mod conversation;
 mod engine;
 mod error;
 pub mod findings;

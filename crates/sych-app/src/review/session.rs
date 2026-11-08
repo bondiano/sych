@@ -212,6 +212,18 @@ impl Session<'_> {
         .await?;
         let kind = ArtifactKind::ExternalInputManifest;
         put(storage, run, "external_input_manifest", kind, external, now).await?;
+        if let Some(prior) = self.prior {
+            put(
+                storage,
+                run,
+                "prior_doubts",
+                ArtifactKind::PriorDoubts,
+                prior,
+                now,
+            )
+            .await?;
+        }
+
         Ok(())
     }
 }

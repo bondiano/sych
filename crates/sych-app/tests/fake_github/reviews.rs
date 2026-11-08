@@ -22,9 +22,15 @@ macro_rules! guarded {
     }};
 }
 
+/// A comment the App created, or one a test stored with its own `user` and thread fields.
 fn review_json(id: u64, c: &Value) -> Value {
-    json!({"id": id, "user": {"login": "sych[bot]", "type": "Bot"}, "body": c["body"],
-        "path": c["path"], "line": c["line"], "side": c["side"], "commit_id": c["commit_id"]})
+    let user = match &c["user"] {
+        Value::Null => json!({"login": "sych[bot]", "type": "Bot"}),
+        user => user.clone(),
+    };
+    json!({"id": id, "user": user, "body": c["body"], "path": c["path"], "line": c["line"],
+        "side": c["side"], "commit_id": c["commit_id"], "created_at": c["created_at"],
+        "in_reply_to_id": c["in_reply_to_id"]})
 }
 
 pub async fn create_review_comment(

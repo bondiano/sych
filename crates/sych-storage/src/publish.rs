@@ -513,6 +513,24 @@ impl Storage {
         }))
     }
 
+    /// `(run id, delivered at)` of the change's last delivered summary.
+    pub async fn last_summary(
+        &self,
+        change_id: i64,
+    ) -> Result<Option<(String, i64)>, StorageError> {
+        let r = sqlx::query(
+            "SELECT o.run_id, o.finished_at FROM publication_operations o
+             JOIN publication_objects p ON p.id = o.object_id
+             WHERE p.change_id = $1 AND p.kind = 'SUMMARY' AND o.state = 'DELIVERED'
+                 AND o.finished_at IS NOT NULL
+             ORDER BY o.id DESC LIMIT 1",
+        )
+        .bind(change_id)
+        .fetch_optional(self.pool())
+        .await?;
+        Ok(r.map(|r| (r.get(0), r.get(1))))
+    }
+
     /// Records the body a delivered operation now carries remotely, so verification compares
     /// against it.
     pub async fn record_body(&self, op_id: i64, body: &str) -> Result<(), StorageError> {
