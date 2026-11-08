@@ -7,6 +7,7 @@ mod context;
 mod discovery;
 pub mod followup;
 pub mod prompts;
+mod search_context;
 pub mod tour_prompt;
 mod verify;
 

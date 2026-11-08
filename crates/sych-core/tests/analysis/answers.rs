@@ -1,10 +1,61 @@
 //! Answers to context requests: what the model is told about an answer it sees only in part.
 
-use sych_core::SourceSide;
 use sych_core::analysis::{AskOperation, Context, ContextAsk};
 use sych_core::broker::{OpStatus, Ops};
+use sych_core::{SnapshotReader, SourceSide};
 
 use super::Reader;
+
+#[test]
+fn a_search_hit_shows_the_guard_and_return_on_neighbouring_lines() {
+    let reader = Reader::new();
+    let ops = Ops {
+        generated: &[],
+        facts: &[],
+        evidence: &[],
+        reader: &reader,
+    };
+    let ask = ContextAsk {
+        question: "does total guard missing items?".into(),
+        operation: AskOperation::SearchSource {
+            side: SourceSide::DiffBase,
+            query: "function total".into(),
+        },
+    };
+    let mut context = Context::default();
+    let answered = ask.answer(&ops, &mut context, 3);
+    assert_eq!(answered.refs, 1);
+    let span = context.span("ref-1").expect("search span");
+    let text = reader.read_span(span).expect("hash checked").text;
+    assert!(text.contains("if (!items)"), "{text}");
+    assert!(text.contains("return 0;"), "{text}");
+    assert_eq!(span.side, SourceSide::DiffBase);
+    assert_eq!((span.start_line, span.end_line), (1, 6));
+}
+
+#[test]
+fn read_lines_stays_exact_instead_of_expanding() {
+    let reader = Reader::new();
+    let ops = Ops {
+        generated: &[],
+        facts: &[],
+        evidence: &[],
+        reader: &reader,
+    };
+    let ask = ContextAsk {
+        question: "one line".into(),
+        operation: AskOperation::ReadLines {
+            side: SourceSide::DiffBase,
+            path: super::path("src/order.ts"),
+            start_line: 2,
+            end_line: 2,
+        },
+    };
+    let mut context = Context::default();
+    ask.answer(&ops, &mut context, 3);
+    let span = context.span("ref-1").expect("exact span");
+    assert_eq!((span.start_line, span.end_line), (2, 2));
+}
 
 #[test]
 fn an_answer_cut_to_fewer_refs_says_it_is_partial() {

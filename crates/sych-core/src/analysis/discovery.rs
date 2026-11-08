@@ -202,8 +202,24 @@ impl ContextAsk {
             limitations.push(format!("{refs} of {} matches shown", result.refs.len()));
         }
 
+        let search = matches!(self.operation, AskOperation::SearchSource { .. });
+        if search && refs > 0 {
+            limitations.push(
+                "search hits include up to 8 neighbouring lines on each side (4096 bytes per \
+                 expanded span); bounded windows, not necessarily whole constructs"
+                    .into(),
+            );
+        }
+
         for r in &result.refs[..refs] {
-            context.add_span(r, &reason, ops.reader);
+            let expanded;
+            let shown = if search {
+                expanded = super::search_context::around(r, ops.reader);
+                &expanded
+            } else {
+                r
+            };
+            context.add_span(shown, &reason, ops.reader);
         }
         // An empty complete answer is evidence too: "nothing reads it" can refute a claim; an
         // incomplete one shows nothing either way.

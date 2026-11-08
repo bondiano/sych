@@ -17,6 +17,7 @@ use sych_core::{
 use tempfile::TempDir;
 
 mod generated;
+mod search_context;
 
 const MAX_BLOB: u64 = 1 << 20;
 

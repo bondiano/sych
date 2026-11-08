@@ -121,7 +121,12 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
 - **Context requests** are a closed enum `read_lines | find_references | find_callers | find_callees |
   find_implementations | search_source` without hashes or commands; it is translated into a typed broker operation, answered by `Ops` against the pinned
   snapshot (fixed-string search up to 5 s, secret paths are not read, up to 3 spans per answer). The answer is added to the
-  verify pass packet as a new `ref-N` with the reason `answer to: …`.
+  verify pass packet as a new `ref-N` with the reason `answer to: …`. Search matches include up to
+  8 neighbouring lines on each side from the same pinned blob, so a helper's guard or return can be
+  read alongside its declaration or call. Expanded spans are hash-checked, at most 17 lines and
+  4096 source bytes; long lines shrink the window, and a failed expansion keeps the original hit.
+  Explicit `read_lines` stays exact. The answer still reports cut matches as `PARTIAL`, and says
+  the windows need not show whole constructs; secret and generated paths remain excluded.
 - **Redaction**: secret values in all DATA blocks (spans, broker answers, candidate texts) are replaced with
   `[REDACTED]` when the prompt is rendered (`Prompt::messages`), and a changed block is marked `[secret values redacted]`;
   `CodeRef`, hashes and line numbers stay as they were.
@@ -180,6 +185,15 @@ dropped claim says why. The result's `usage_summary` is computed from attempts:
 `provenance.model_adapters` is `profile:model`.
 
 ## Measured quality
+
+Search-context regression (2026-11-09): on the eight existing development cases in the safe/unsafe
+pairs `go-path-traversal`, `rust-path-traversal`, `react-stale-response` and `ts-ssrf`, a selected
+neighbouring guard, input or consequence is visible in 0/8 exact search hits versus 8/8 expanded
+answers. Source bytes total 472 versus 3009. This measures evidence availability on selected searches,
+not model accuracy or false-positive rate. Reproduce with
+`cargo test --locked -p sych-adapters --test git_snapshot search_context -- --nocapture`.
+The suite also covers pinned blobs with a dirty working tree, file edges, Unicode, the exact
+4096-byte boundary, oversized windows, failed/hash-mismatched expansion and excluded paths.
 
 `sych eval measure` ([LOCAL_REVIEW.md](LOCAL_REVIEW.md#measuring-with-a-real-model)) scores reviews against
 labelled cases. The latest run of the development suite, on 2026-10-30: 130 cases (five of them from a private
