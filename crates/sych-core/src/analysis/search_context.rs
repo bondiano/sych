@@ -50,8 +50,9 @@ fn described(side: SourceSide) -> String {
 
 /// The side a search ran on and what the same literal finds on the other side of the change,
 /// so absence on one side never reads as absence on both: BASE never has what the change adds.
-/// `found` is how many matches the searched side gave.
-pub(super) fn other_side(ops: &Ops<'_>, side: SourceSide, query: &str, found: usize) -> String {
+/// `absent` says the searched side gave a complete answer with no match: only then does a match
+/// on the other side mean the change adds or removes the text.
+pub(super) fn other_side(ops: &Ops<'_>, side: SourceSide, query: &str, absent: bool) -> String {
     let other = match side {
         SourceSide::Head => SourceSide::DiffBase,
         SourceSide::DiffBase | SourceSide::TargetTip => SourceSide::Head,
@@ -85,10 +86,10 @@ pub(super) fn other_side(ops: &Ops<'_>, side: SourceSide, query: &str, found: us
         return format!("{searched}; {} has no matches", described(other));
     }
 
-    let meaning = match (found, other) {
-        (0, SourceSide::Head) => ": the change adds them",
-        (0, _) => ": the change removes them",
-        _ => "",
+    let meaning = match (absent, other) {
+        (true, SourceSide::Head) => ": the change adds them",
+        (true, _) => ": the change removes them",
+        (false, _) => "",
     };
     format!(
         "{searched}; {} has {count}: {}{more}{meaning}",

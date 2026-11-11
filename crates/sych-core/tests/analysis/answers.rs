@@ -2,7 +2,10 @@
 
 use sych_core::analysis::{AskOperation, Context, ContextAsk};
 use sych_core::broker::{OpStatus, Ops};
-use sych_core::{SnapshotReader, SourceSide};
+use sych_core::{
+    CodeRef, DiffManifest, ReadError, RepoPath, SnapshotReader, SourceSide, SourceSnapshotId,
+    SourceSpan,
+};
 
 use super::Reader;
 
@@ -171,4 +174,71 @@ fn a_search_says_where_it_looked_and_what_the_other_side_has() {
         nowhere.contains("searched TARGET_TIP (the target branch, without this change); HEAD (this change) has no matches"),
         "{nowhere}"
     );
+}
+
+/// The test reader, except that a search of BASE fails.
+struct BaseSearchFails(Reader);
+
+impl SnapshotReader for BaseSearchFails {
+    fn read_span(&self, r: &CodeRef) -> Result<SourceSpan, ReadError> {
+        self.0.read_span(r)
+    }
+
+    fn code_ref(
+        &self,
+        side: SourceSide,
+        p: &RepoPath,
+        start: u32,
+        end: u32,
+    ) -> Result<CodeRef, ReadError> {
+        self.0.code_ref(side, p, start, end)
+    }
+
+    fn search(
+        &self,
+        side: SourceSide,
+        literal: &str,
+        paths: &[RepoPath],
+        limit: usize,
+    ) -> Result<Vec<CodeRef>, ReadError> {
+        if side == SourceSide::DiffBase {
+            return Err(ReadError::Unavailable("search timed out".into()));
+        }
+
+        self.0.search(side, literal, paths, limit)
+    }
+
+    fn diff(&self, snapshot: &SourceSnapshotId) -> Result<DiffManifest, ReadError> {
+        self.0.diff(snapshot)
+    }
+}
+
+#[test]
+fn a_failed_search_never_says_what_the_change_adds() {
+    let reader = BaseSearchFails(Reader::new());
+    let ops = Ops {
+        generated: &[],
+        facts: &[],
+        evidence: &[],
+        reader: &reader,
+    };
+    let ask = ContextAsk {
+        question: "is it used?".into(),
+        operation: AskOperation::SearchSource {
+            side: SourceSide::DiffBase,
+            query: "items!.".into(),
+        },
+    };
+    let mut context = Context::default();
+    ask.answer(&ops, &mut context, 10);
+    let text = &context.blocks.last().expect("status block").content;
+    assert!(
+        text.starts_with("no answer (Failed): absence is not shown"),
+        "{text}"
+    );
+    assert!(
+        text.contains("HEAD (this change) has 1 match: src/order.ts:2"),
+        "{text}"
+    );
+    assert!(!text.contains("the change adds them"), "{text}");
 }

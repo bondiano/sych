@@ -245,7 +245,7 @@ impl ContextAsk {
                 ops,
                 *side,
                 query,
-                result.refs.len(),
+                result.status == OpStatus::CompleteForQuery && result.refs.is_empty(),
             ));
         }
 
