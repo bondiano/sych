@@ -295,7 +295,7 @@ pub fn validate(
     reader: &dyn SnapshotReader,
 ) -> Discovered {
     let mut found = Discovered {
-        unresolved_questions: output.unresolved_questions,
+        unresolved_questions: super::texts(output.unresolved_questions),
         ..Discovered::default()
     };
     for (i, draft) in output.candidates.into_iter().enumerate() {

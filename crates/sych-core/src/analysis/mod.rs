@@ -25,3 +25,25 @@ pub use verify::{
     CandidateVerdict, KnownDiagnostics, ProposedChange, Verdict, Verified, VerifyOutput,
     merge_overlapping, validate as validate_verdicts,
 };
+
+/// Model-written list items as the engine keeps them: trimmed, without empty ones, each once.
+/// An empty open question or `needs:` must never reach a summary.
+fn texts(items: Vec<String>) -> Vec<String> {
+    let mut kept: Vec<String> = Vec::new();
+    for item in items {
+        let item = item.trim();
+        if !item.is_empty() && !kept.iter().any(|k| k == item) {
+            kept.push(item.to_owned());
+        }
+    }
+    kept
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn blank_and_repeated_items_are_dropped() {
+        let items = ["", "  ", " q ", "q", "r"].map(String::from).into();
+        assert_eq!(super::texts(items), ["q", "r"]);
+    }
+}

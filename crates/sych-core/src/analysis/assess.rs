@@ -124,6 +124,11 @@ pub fn validate(
     context: &Context,
     reader: &dyn SnapshotReader,
 ) -> AssessmentRecord {
+    let output = AssessmentOutput {
+        limitations: super::texts(output.limitations),
+        missing_inputs: super::texts(output.missing_inputs),
+        ..output
+    };
     // Identity and reference errors break the answer's contract, unlike incomplete criteria.
     let mut invalid = Vec::new();
     let mut problems = Vec::new();

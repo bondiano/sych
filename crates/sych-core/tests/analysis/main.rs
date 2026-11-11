@@ -241,7 +241,7 @@ fn discovery_keeps_only_handed_out_references() {
         ],
         "context_requests": (0..6).map(|i| json!({"question": format!("q{i}"),
             "operation": {"op": "search_source", "side": "HEAD", "query": "total("}})).collect::<Vec<_>>(),
-        "unresolved_questions": ["is items typed optional?"]
+        "unresolved_questions": ["is items typed optional?", "", " is items typed optional? "]
     }));
     let found = validate_discovery(output, "discovery@1:0", &context, &obligations, &reader);
     assert_eq!(found.candidates.len(), 1, "{:?}", found.rejected);
@@ -449,7 +449,7 @@ fn assessment_statuses_follow_the_criteria() {
     assert_eq!(reason(&check(no_basis).status), "NOT_APPLICABLE");
 
     let mut unknown = assessment(ProposedStatus::Unknown, Vec::new());
-    unknown.missing_inputs = vec!["callers of total()".into()];
+    unknown.missing_inputs = ["callers of total()", " ", ""].map(String::from).into();
     let ObligationStatus::Unknown {
         next_evidence_needed,
         ..

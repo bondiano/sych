@@ -157,7 +157,7 @@ pub fn validate(
         let evidence_ids = context.evidence_ids(&verdict.evidence_ids, &mut problems);
         candidate
             .limitations
-            .extend(verdict.limitations.iter().cloned());
+            .extend(super::texts(verdict.limitations.clone()));
         candidate.verification_status = match verdict.verdict {
             Verdict::Rejected => VerificationStatus::Rejected,
             Verdict::Unresolved => VerificationStatus::Unresolved,
@@ -328,7 +328,7 @@ fn finding(
                  whole program"
                     .to_owned(),
             ];
-            l.extend(verdict.limitations.iter().cloned());
+            l.extend(super::texts(verdict.limitations.clone()));
             l
         },
         suggested_change: None,
