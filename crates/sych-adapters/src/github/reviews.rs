@@ -1,6 +1,6 @@
 //! Inline review comments by explicit `commit_id`, `path`, `line` and `side` (never the
-//! deprecated `position`), and advisory check runs. There is no approve, request-changes or
-//! merge call in this adapter.
+//! deprecated `position`), alone or gathered in one `COMMENT` review, and advisory check runs.
+//! There is no approve, request-changes or merge call in this adapter.
 
 use reqwest::Method;
 use serde_json::{Value, json};
@@ -34,6 +34,18 @@ fn check_run(v: &Value) -> Result<CheckRun, ScmError> {
     })
 }
 
+/// The comment's position and body; a range adds its start.
+fn positioned(anchor: &InlineAnchor, body: &str) -> Value {
+    let mut c = json!({"body": body, "path": anchor.path, "line": anchor.line,
+        "side": side(anchor.side)});
+    if let (Some(start), Some(start_side)) = (anchor.start_line, anchor.start_side) {
+        c["start_line"] = json!(start);
+        c["start_side"] = json!(side(start_side));
+    }
+
+    c
+}
+
 impl Github {
     pub async fn create_review_comment(
         &self,
@@ -43,18 +55,46 @@ impl Github {
         body: &str,
         token: &Secret,
     ) -> Result<Comment, ScmError> {
-        let mut payload = json!({"body": body, "commit_id": anchor.commit_id, "path": anchor.path,
-            "line": anchor.line, "side": side(anchor.side)});
-        if let (Some(start), Some(start_side)) = (anchor.start_line, anchor.start_side) {
-            payload["start_line"] = json!(start);
-            payload["start_side"] = json!(side(start_side));
-        }
-
+        let mut payload = positioned(anchor, body);
+        payload["commit_id"] = json!(anchor.commit_id);
         let path = format!("/repos/{repo}/pulls/{number}/comments");
         let v: Value = self
             .write(Method::POST, &path, token, &payload, ScmCall::InlineComment)
             .await?;
         Comment::from_json(&v)
+    }
+
+    /// One `COMMENT` review carrying every comment, so they read as one review; it never
+    /// approves or requests changes. GitHub refuses the whole review when one position is
+    /// invalid. Returns the comments the review holds.
+    pub async fn create_review(
+        &self,
+        repo: &str,
+        number: u64,
+        comments: &[(&InlineAnchor, &str)],
+        token: &Secret,
+    ) -> Result<Vec<Comment>, ScmError> {
+        let commit = comments.first().map(|(a, _)| a.commit_id.as_str());
+        let payload = json!({"commit_id": commit, "event": "COMMENT", "body": "",
+            "comments": comments.iter().map(|(a, body)| positioned(a, body)).collect::<Vec<_>>()});
+        let path = format!("/repos/{repo}/pulls/{number}/reviews");
+        let review: Value = self
+            .write(Method::POST, &path, token, &payload, ScmCall::InlineComment)
+            .await?;
+        // The review exists from here on: a failed read leaves each comment unknown, not absent.
+        let unknown = |e: ScmError| ScmError::new(ScmErrorKind::PublicationUnknown, e.to_string());
+        let id = review["id"]
+            .as_u64()
+            .ok_or_else(|| ScmError::new(ScmErrorKind::PublicationUnknown, "review without id"))?;
+        let (items, _) = self
+            .list(&format!("{path}/{id}/comments"), token, MAX_COMMENTS)
+            .await
+            .map_err(unknown)?;
+        items
+            .iter()
+            .map(Comment::from_json)
+            .collect::<Result<_, _>>()
+            .map_err(unknown)
     }
 
     pub async fn update_review_comment(

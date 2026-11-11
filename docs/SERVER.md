@@ -334,7 +334,12 @@ severity, then fingerprint; the rest go to the summary with a reason. Position �
 | GitHub responded 422 | operation `FAILED (INVALID_ANCHOR)`, the summary is re-rendered by the known id with the reason "the provider rejected the inline position" |
 
 Each inline is a separate outbox object (`inline:<fingerprint>`, marker `sych:inline:<fingerprint>`), with the same
-`PUBLISHING`/`UNCERTAIN`/reconciliation (review comments, bot comments only).
+`PUBLISHING`/`UNCERTAIN`/reconciliation (review comments, bot comments only). The new comments of one revision are
+sent together as one `COMMENT` review with an empty body, so the timeline shows them as one review; each comment's id
+is then read from that review by its marker. GitHub refuses the whole review when one position is invalid (422), so
+then each comment is sent alone and only the refused one moves to the summary. A comment reads as a reviewer's note:
+`[P0]`…`[P4]` (Critical…Info) and the title, one paragraph of explanation and consequence, the suggested action and
+code, and a collapsed prompt for coding agents.
 
 **Check run** — off by default; `checks: true` (together with `publish: true`) requires Checks write. One check
 `Sych (advisory)` per change, pinned to the head SHA, `external_id` = marker; the conclusion is always `neutral` —

@@ -1,6 +1,6 @@
-//! The text of one finding, shared by its inline comment and the summary: a severity badge,
-//! the explanation, when it happens and what follows, the suggested action and a prompt a
-//! coding agent can act on.
+//! The text of one finding, shared by its inline comment and the summary: a severity badge
+//! (a priority inline), the explanation, when it happens and what follows, the suggested action
+//! and a prompt a coding agent can act on.
 
 use std::fmt::Write;
 
@@ -15,6 +15,17 @@ pub(crate) const fn badge(severity: Severity) -> &'static str {
         Severity::Medium => "🟡 Medium",
         Severity::Low => "🔵 Low",
         Severity::Info => "⚪ Info",
+    }
+}
+
+/// The reviewer's priority of an inline comment: `P0` is the most urgent.
+const fn priority(severity: Severity) -> &'static str {
+    match severity {
+        Severity::Critical => "P0",
+        Severity::High => "P1",
+        Severity::Medium => "P2",
+        Severity::Low => "P3",
+        Severity::Info => "P4",
     }
 }
 
@@ -49,9 +60,41 @@ fn cell(text: &str) -> String {
 }
 
 /// The explanation, a when/consequence table, the findings kept in its `also`, the suggested
-/// action and its code; `inline` when the text is the comment on the finding's first anchor.
+/// action and its code; `inline` when the text is the comment on the finding's first anchor,
+/// where the explanation and consequence are one paragraph instead.
 pub(crate) fn details(out: &mut String, finding: &Finding, language: ReviewLanguage, inline: bool) {
     let l = language;
+    if inline {
+        let _ = writeln!(out, "{}", paragraph(finding));
+    } else {
+        table(out, finding, l);
+    }
+
+    also_and_action(out, finding, l, inline);
+}
+
+/// The explanation followed by the consequence as its last sentence.
+fn paragraph(finding: &Finding) -> String {
+    let explanation = finding.explanation.trim();
+    let consequence = finding.consequence.trim();
+    let mut chars = consequence.chars();
+    let Some(first) = chars.next() else {
+        return explanation.to_owned();
+    };
+    let stop = if consequence.ends_with(['.', '!', '?']) {
+        ""
+    } else {
+        "."
+    };
+    let consequence = format!("{}{}{stop}", first.to_uppercase(), chars.as_str());
+    if explanation.is_empty() {
+        consequence
+    } else {
+        format!("{explanation} {consequence}")
+    }
+}
+
+fn table(out: &mut String, finding: &Finding, l: ReviewLanguage) {
     let _ = writeln!(out, "{}", finding.explanation);
     let when = finding.triggering_conditions.join("; ");
     let columns: Vec<_> = [
@@ -76,7 +119,9 @@ pub(crate) fn details(out: &mut String, finding: &Finding, language: ReviewLangu
             row(&|c| cell(c.1))
         );
     }
+}
 
+fn also_and_action(out: &mut String, finding: &Finding, l: ReviewLanguage, inline: bool) {
     if !finding.also.is_empty() {
         let _ = writeln!(
             out,
@@ -189,7 +234,8 @@ pub(crate) fn agent_prompt(out: &mut String, summary: &str, tasks: &str, languag
     );
 }
 
-/// The body of an inline comment in `language`; the marker finds it again.
+/// The body of an inline comment in `language`, a reviewer's note: priority and title, one
+/// paragraph, the action, then the collapsed agent prompt; the marker finds it again.
 pub fn inline_body(finding: &Finding, language: ReviewLanguage) -> String {
     let l = language;
     let rule = finding
@@ -198,10 +244,9 @@ pub fn inline_body(finding: &Finding, language: ReviewLanguage) -> String {
         .map(|r| format!(" · `{r}`"))
         .unwrap_or_default();
     let mut out = format!(
-        "<!-- sych:inline:{} -->\n**{} · {}**{rule}\n\n#### {}\n\n",
+        "<!-- sych:inline:{} -->\n**[{}] {}**{rule}\n\n",
         finding.fingerprint,
-        badge(finding.severity),
-        category(l, finding.category),
+        priority(finding.severity),
         finding.title
     );
     details(&mut out, finding, l, true);
@@ -210,15 +255,6 @@ pub fn inline_body(finding: &Finding, language: ReviewLanguage) -> String {
         tr(l, "Prompt for AI agents", "Промпт для AI-агента"),
         &task(finding, l),
         l,
-    );
-    let _ = writeln!(
-        out,
-        "\n<sub>{}</sub>",
-        tr(
-            l,
-            "Advisory finding by Sych; not a merge gate.",
-            "Рекомендательное замечание Sych; не блокирует слияние."
-        )
     );
     out
 }

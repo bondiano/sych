@@ -1,13 +1,7 @@
 <!-- sych:inline:sha256:3333333333333333333333333333333333333333333333333333333333333333 -->
-**🟠 High · Rule violation** · `EFFECT-01`
+**[P1] Order event is no longer published after commit** · `EFFECT-01`
 
-#### Order event is no longer published after commit
-
-The refactor moved the insert out of the transaction that wrote the outbox row.
-
-| When | Consequence |
-|---|---|
-| two concurrent requests | Consumers never receive order-created. |
+The refactor moved the insert out of the transaction that wrote the outbox row. Consumers never receive order-created.
 
 **Also on these lines:**
 - 🟡 Medium · Bug: The owner of the order is not checked — orders on behalf of other customers
@@ -23,5 +17,3 @@ In `backend/orders/create.go:41-47`: Order event is no longer published after co
 ```
 
 </details>
-
-<sub>Advisory finding by Sych; not a merge gate.</sub>

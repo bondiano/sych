@@ -460,6 +460,14 @@ pub async fn start() -> (String, Shared) {
             get(reviews::list_review_comments).post(reviews::create_review_comment),
         )
         .route(
+            "/repos/{o}/{r}/pulls/{n}/reviews",
+            post(reviews::create_review),
+        )
+        .route(
+            "/repos/{o}/{r}/pulls/{n}/reviews/{review}/comments",
+            get(reviews::list_review_comments_of),
+        )
+        .route(
             "/repos/{o}/{r}/pulls/comments/{id}",
             get(reviews::review_comment).patch(reviews::review_comment),
         )

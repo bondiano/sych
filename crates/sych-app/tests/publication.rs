@@ -1,8 +1,9 @@
 //! Advisory publication on the GitHub fake: a committed result with findings
-//! becomes one summary, inline comments at explicit commit/path/line/side, and an advisory
-//! neutral check run; a refused position moves to the summary; nothing approves or merges.
+//! becomes one summary, one `COMMENT` review of inline comments at explicit
+//! commit/path/line/side, and an advisory neutral check run; a refused position moves to the
+//! summary; nothing approves or merges.
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 mod fake_github;
 mod world;
@@ -24,26 +25,27 @@ fn writes(w: &World, prefix: &str) -> Vec<Value> {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn findings_become_inline_comments_at_exact_positions_and_one_summary() {
+async fn findings_become_one_comment_review_at_exact_positions_and_one_summary() {
     let w = world(None).await;
     let head = world::commit_result(&w, 2).await;
     drain(&w).await;
-    let inline = writes(&w, "POST /repos/o/r/pulls/7/comments ");
+    assert!(writes(&w, "POST /repos/o/r/pulls/7/comments ").is_empty());
+    let reviews = writes(&w, "POST /repos/o/r/pulls/7/reviews ");
+    assert_eq!(reviews.len(), 1, "one review carries every new comment");
+    assert_eq!(
+        (
+            reviews[0]["event"].as_str(),
+            reviews[0]["commit_id"].as_str()
+        ),
+        (Some("COMMENT"), Some(head.as_str())),
+        "never approves or requests changes"
+    );
+    let inline = reviews[0]["comments"].as_array().expect("comments");
     assert_eq!(inline.len(), 2);
-    for c in &inline {
+    for c in inline {
         assert_eq!(
-            (
-                c["commit_id"].as_str(),
-                c["path"].as_str(),
-                c["line"].as_u64(),
-                c["side"].as_str()
-            ),
-            (
-                Some(head.as_str()),
-                Some("src/b.rs"),
-                Some(1),
-                Some("RIGHT")
-            )
+            (c["path"].as_str(), c["line"].as_u64(), c["side"].as_str()),
+            (Some("src/b.rs"), Some(1), Some("RIGHT"))
         );
         assert!(c.get("position").is_none(), "never the deprecated position");
         assert!(
@@ -60,11 +62,43 @@ async fn findings_become_inline_comments_at_exact_positions_and_one_summary() {
         ),
         "{summary}"
     );
-    let log = lock(&w.fake).log.join("\n");
-    assert!(
-        !log.contains("/reviews") && !log.contains("/merge"),
-        "no approve, request-changes or merge"
+    assert!(!lock(&w.fake).log.join("\n").contains("/merge"), "no merge");
+    // Each comment is found in the review by its marker, so its id is stored.
+    assert_eq!(inline_states(&w).await, ["DELIVERED", "DELIVERED"]);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_refused_review_sends_each_comment_alone() {
+    let w = world(None).await;
+    lock(&w.fake).fail_next.insert(
+        "POST /repos/o/r/pulls/7/reviews".into(),
+        (422, json!({"message": "line must be part of the diff"})),
     );
+    world::commit_result(&w, 2).await;
+    drain(&w).await;
+    assert_eq!(writes(&w, "POST /repos/o/r/pulls/7/comments ").len(), 2);
+    assert_eq!(inline_states(&w).await, ["DELIVERED", "DELIVERED"]);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_review_with_an_unknown_outcome_is_reconciled_never_resent() {
+    let w = world(None).await;
+    lock(&w.fake).fail_next.insert(
+        "POST /repos/o/r/pulls/7/reviews".into(),
+        (502, json!({"message": "Bad Gateway"})),
+    );
+    world::commit_result(&w, 2).await;
+    drain(&w).await;
+    assert!(writes(&w, "POST /repos/o/r/pulls/7/comments ").is_empty());
+    assert_eq!(inline_states(&w).await, ["UNCERTAIN", "UNCERTAIN"]);
+}
+
+async fn inline_states(w: &World) -> Vec<String> {
+    let ops = w.app.storage.operations(1).await.expect("ops");
+    ops.into_iter()
+        .filter(|o| o.slot.starts_with("inline"))
+        .map(|o| o.state)
+        .collect()
 }
 
 #[tokio::test(flavor = "current_thread")]
