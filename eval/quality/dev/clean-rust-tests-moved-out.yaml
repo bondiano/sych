@@ -1,0 +1,89 @@
+schema_version: 1
+id: clean-rust-tests-moved-out
+split: development
+language: rust
+variant: safe
+profiles: [correctness]
+rationale: "An inline test module moves to its own file and a test helper moves to tests/common, both verbatim; no assertion is dropped (#160 moved tests the same way and TEST-INTEGRITY stayed UNKNOWN)."
+base:
+  Cargo.toml: |
+    [package]
+    name = "prices"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    /// Price in cents after a percentage discount, rounded down.
+    pub fn discounted(cents: u64, percent: u64) -> u64 {
+        cents * (100 - percent.min(100)) / 100
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::discounted;
+
+        #[test]
+        fn a_discount_lowers_the_price() {
+            assert_eq!(discounted(1000, 10), 900);
+            assert_eq!(discounted(999, 50), 499);
+        }
+
+        #[test]
+        fn a_discount_over_one_hundred_is_free() {
+            assert_eq!(discounted(1000, 150), 0);
+        }
+    }
+  tests/prices.rs: |
+    fn cart(items: &[u64]) -> u64 {
+        let total: u64 = items.iter().sum();
+        prices::discounted(total, 0)
+    }
+
+    #[test]
+    fn a_cart_without_discount_keeps_its_total() {
+        assert_eq!(cart(&[100, 250]), 350);
+    }
+head:
+  src/lib.rs: |
+    /// Price in cents after a percentage discount, rounded down.
+    pub fn discounted(cents: u64, percent: u64) -> u64 {
+        cents * (100 - percent.min(100)) / 100
+    }
+
+    #[cfg(test)]
+    mod tests;
+  src/tests.rs: |
+    use super::discounted;
+
+    #[test]
+    fn a_discount_lowers_the_price() {
+        assert_eq!(discounted(1000, 10), 900);
+        assert_eq!(discounted(999, 50), 499);
+    }
+
+    #[test]
+    fn a_discount_over_one_hundred_is_free() {
+        assert_eq!(discounted(1000, 150), 0);
+    }
+  tests/common/mod.rs: |
+    pub fn cart(items: &[u64]) -> u64 {
+        let total: u64 = items.iter().sum();
+        prices::discounted(total, 0)
+    }
+  tests/prices.rs: |
+    mod common;
+
+    #[test]
+    fn a_cart_without_discount_keeps_its_total() {
+        assert_eq!(common::cart(&[100, 250]), 350);
+    }
+expected:
+  obligations:
+    - { rule_id: TEST-INTEGRITY, expected_status: SUPPORTED }
+  forbidden_claims:
+    - "A test or assertion was removed."
+    - "The tests no longer run."

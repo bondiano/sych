@@ -14,6 +14,7 @@ mod answers;
 mod changes;
 mod effects;
 mod lost_names;
+mod moves;
 mod removals;
 mod verify;
 

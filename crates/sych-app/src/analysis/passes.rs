@@ -271,6 +271,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
 
         let anchors: Vec<&CodeRef> = found.candidates.iter().flat_map(|c| &c.anchors).collect();
         context.add_lost_names(&anchors, &self.snap.manifest, self.snap);
+        context.add_moves(&self.snap.manifest, self.snap);
         // Searches, not model calls: where an effect gone from these files happens now.
         let moved = effect_asks(&self.facts.ledger.entries, &found.candidates);
         self.answer(batch[0], &moved, &mut context, out);
