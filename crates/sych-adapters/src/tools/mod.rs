@@ -1,24 +1,25 @@
 //! Pinned language-server binaries: Sych downloads exactly the versions and URLs listed in
-//! `pinned.json`, verifies their SHA-256 and caches them; it never uses whatever is on `PATH`.
+//! `pinned.json` and `indexers.json`, verifies their SHA-256 and caches them; it never uses
+//! whatever is on `PATH`.
 
 use std::collections::BTreeMap;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use std::process::Output;
 use std::sync::OnceLock;
 use std::time::Duration;
 use std::{env, fs};
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
 use flate2::read::GzDecoder;
+use lzma_rust2::XzReader;
 use reqwest::Client;
 use serde::Deserialize;
 use sych_core::sha256;
 use thiserror::Error;
 
 use crate::ci::archive::{Limits, read_entry};
-use tokio::process::Command;
+
+mod go;
+mod npm;
 
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(300);
 const MAX_DOWNLOAD_BYTES: usize = 256 << 20;
@@ -32,11 +33,17 @@ pub enum ArchiveKind {
     Gzip,
     /// A gzip-compressed tarball unpacked whole; `binary` is a path inside it.
     TarGzip,
+    /// An xz-compressed tarball unpacked whole, like [`Self::TarGzip`].
+    TarXz,
     /// A zip of which only the `binary` entry is read, through the CI artifact reader.
     Zip,
     /// A Go module built with the pinned `go`: `sha256` is the hex of the module's `h1:` hash,
     /// checked before the build, and the module's `go.sum` pins its dependencies.
     GoModule,
+    /// npm packages a Sych-owned lockfile pins (`npm/<tool>/pnpm-lock.yaml`), installed by the
+    /// pinned pnpm with scripts off: `sha256` is the lockfile's, and the lockfile holds the
+    /// integrity of every package.
+    PnpmLock,
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,6 +71,9 @@ pub struct PinnedTool {
     /// `path@version` of a [`ArchiveKind::GoModule`].
     #[serde(default)]
     pub module: Option<String>,
+    /// The package of that module to build, when its `main` is not at the module root.
+    #[serde(default)]
+    pub package: Option<String>,
     /// Keyed by `<arch>-<os>` as in [`env::consts`].
     pub targets: BTreeMap<String, Artifact>,
 }
@@ -93,9 +103,15 @@ pub enum ToolError {
 fn manifest() -> &'static [PinnedTool] {
     static MANIFEST: OnceLock<Vec<PinnedTool>> = OnceLock::new();
     MANIFEST.get_or_init(|| {
-        serde_json::from_str::<Manifest>(include_str!("pinned.json"))
-            .expect("pinned.json is valid")
-            .tools
+        // Language servers and linters, then easement and the indexers it runs.
+        [include_str!("pinned.json"), include_str!("indexers.json")]
+            .into_iter()
+            .flat_map(|text| {
+                serde_json::from_str::<Manifest>(text)
+                    .expect("the pinned tool manifests are valid")
+                    .tools
+            })
+            .collect()
     })
 }
 
@@ -181,7 +197,14 @@ impl ToolCache {
         if tool.archive == ArchiveKind::GoModule {
             let go = Box::pin(self.ensure(sole_pinned("go")?, &host_target())).await?;
             tracing::info!(tool = %tool.name, version = %tool.version, "building pinned Go module");
-            go_install(&go, &self.root.join("go"), tool, artifact, target, &dir).await?;
+            go::go_install(&go, &self.root.join("go"), tool, artifact, target, &dir).await?;
+            return Ok(binary);
+        }
+
+        if tool.archive == ArchiveKind::PnpmLock {
+            let pnpm = Box::pin(self.ensure(pinned("pnpm", npm::PNPM)?, &host_target())).await?;
+            tracing::info!(tool = %tool.name, version = %tool.version, "installing pinned npm packages");
+            npm::pnpm_install(&pnpm, &self.root.join("pnpm-store"), tool, artifact, &dir).await?;
             return Ok(binary);
         }
 
@@ -222,121 +245,6 @@ async fn download(url: &str) -> Result<Vec<u8>, ToolError> {
     Ok(bytes.to_vec())
 }
 
-/// `GOOS`/`GOARCH` of a `<arch>-<os>` target.
-fn go_platform(target: &str) -> Option<(&'static str, &'static str)> {
-    let (arch, os) = target.split_once('-')?;
-    let arch = match arch {
-        "x86_64" => "amd64",
-        "aarch64" => "arm64",
-        _ => return None,
-    };
-    let os = match os {
-        "linux" => "linux",
-        "macos" => "darwin",
-        _ => return None,
-    };
-    Some((os, arch))
-}
-
-/// Checks the module's `h1:` hash against the pin, then `go install`s it for `target` into a
-/// staging directory renamed into `dir`. Downloads go through the public proxy and checksum
-/// database only; no host Go environment, credentials or `GOFLAGS` are used.
-async fn go_install(
-    go: &Path,
-    state: &Path,
-    tool: &PinnedTool,
-    artifact: &Artifact,
-    target: &str,
-    dir: &Path,
-) -> Result<(), ToolError> {
-    let module = tool
-        .module
-        .as_deref()
-        .ok_or_else(|| ToolError::Unsupported(format!("{} names no module", tool.name)))?;
-    let (goos, goarch) = go_platform(target)
-        .ok_or_else(|| ToolError::Unsupported(format!("no Go platform for {target}")))?;
-    let parent = dir.parent().expect("install dir has a parent");
-    fs::create_dir_all(parent)?;
-    let staging = tempfile::tempdir_in(parent)?;
-    let gopath = staging.path().join("gopath");
-    let bin = go.parent().unwrap_or(go);
-    let run = |args: &[&str]| {
-        let mut command = Command::new(go);
-        command
-            .args(args)
-            .current_dir(staging.path())
-            .env_clear()
-            .env("PATH", bin)
-            .env("HOME", staging.path())
-            .env("GOENV", "off")
-            .env("GOTOOLCHAIN", "local")
-            .env("GOPROXY", "https://proxy.golang.org")
-            .env("GOSUMDB", "sum.golang.org")
-            .env("GOFLAGS", "-modcacherw")
-            .env("GOPATH", &gopath)
-            .env("GOMODCACHE", state.join("mod"))
-            .env("GOCACHE", state.join("build"))
-            .env("CGO_ENABLED", "0")
-            .env("GOOS", goos)
-            .env("GOARCH", goarch);
-        command
-    };
-    let failed = |what: &str, out: &Output| {
-        ToolError::Download(format!(
-            "{what} {module}: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        ))
-    };
-    let out = run(&["mod", "download", "-json", module]).output().await?;
-    if !out.status.success() {
-        return Err(failed("go mod download", &out));
-    }
-
-    let info: serde_json::Value = serde_json::from_slice(&out.stdout)
-        .map_err(|e| ToolError::Download(format!("go mod download {module}: {e}")))?;
-    let actual = info["Sum"]
-        .as_str()
-        .and_then(|s| s.strip_prefix("h1:"))
-        .and_then(|h| STANDARD.decode(h).ok())
-        .map(|bytes| {
-            bytes
-                .iter()
-                .fold(String::new(), |hex, b| hex + &format!("{b:02x}"))
-        })
-        .unwrap_or_default();
-    if actual != artifact.sha256 {
-        return Err(ToolError::Checksum {
-            url: module.to_owned(),
-            expected: artifact.sha256.clone(),
-            actual,
-        });
-    }
-
-    let out = run(&["install", "-trimpath", module]).output().await?;
-    if !out.status.success() {
-        return Err(failed("go install", &out));
-    }
-
-    // A cross-compiled binary lands under `bin/<goos>_<goarch>/`.
-    let built = [
-        gopath.join("bin").join(&tool.binary),
-        gopath
-            .join("bin")
-            .join(format!("{goos}_{goarch}"))
-            .join(&tool.binary),
-    ]
-    .into_iter()
-    .find(|p| p.is_file())
-    .ok_or_else(|| ToolError::Download(format!("go install {module} built nothing")))?;
-    let installed = staging.path().join("out");
-    fs::create_dir(&installed)?;
-    fs::rename(built, installed.join(&tool.binary))?;
-    match fs::rename(&installed, dir) {
-        Err(_) if dir.join(&tool.binary).is_file() => Ok(()),
-        other => Ok(other?),
-    }
-}
-
 /// Verifies `bytes` against the pinned digest, unpacks them beside `dir` and renames into place.
 fn install(
     bytes: &[u8],
@@ -367,6 +275,9 @@ fn install(
         }
         // `unpack` refuses entries escaping the destination.
         ArchiveKind::TarGzip => tar::Archive::new(GzDecoder::new(bytes)).unpack(staging.path())?,
+        ArchiveKind::TarXz => {
+            tar::Archive::new(XzReader::new(bytes, false)).unpack(staging.path())?;
+        }
         ArchiveKind::Zip => {
             let limits = Limits {
                 max_entries: 1_000,
@@ -381,7 +292,7 @@ fn install(
             fs::write(&path, contents)?;
             make_executable(&path)?;
         }
-        ArchiveKind::GoModule => {
+        ArchiveKind::GoModule | ArchiveKind::PnpmLock => {
             return Err(ToolError::Unsupported(format!(
                 "{} is built, not unpacked",
                 tool.name
@@ -414,172 +325,4 @@ fn make_executable(_: &Path) -> io::Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::io::Write;
-
-    use flate2::Compression;
-    use flate2::write::GzEncoder;
-
-    use super::*;
-    use crate::ci::archive::tests::zip;
-
-    fn gzip(data: &[u8]) -> Vec<u8> {
-        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
-        encoder.write_all(data).expect("gzip");
-        encoder.finish().expect("gzip")
-    }
-
-    fn tool(archive: ArchiveKind, binary: &str) -> PinnedTool {
-        PinnedTool {
-            name: "t".into(),
-            version: "1".into(),
-            archive,
-            binary: binary.into(),
-            module: None,
-            targets: BTreeMap::new(),
-        }
-    }
-
-    fn artifact(bytes: &[u8]) -> Artifact {
-        Artifact {
-            url: "https://example.invalid/t".into(),
-            sha256: sha256(bytes).hex().to_owned(),
-            binary: None,
-        }
-    }
-
-    #[test]
-    fn manifest_pins_every_tool_for_supported_hosts() {
-        for tool in manifest() {
-            for target in [
-                "aarch64-linux",
-                "x86_64-linux",
-                "aarch64-macos",
-                "x86_64-macos",
-            ] {
-                let artifact = &tool.targets[target];
-                assert!(artifact.url.starts_with("https://"), "{}", tool.name);
-                assert_eq!(artifact.sha256.len(), 64, "{}", tool.name);
-            }
-        }
-        assert!(sole_pinned("rust-analyzer").is_ok());
-        assert!(sole_pinned("ty").is_ok());
-        assert!(sole_pinned("go").is_ok());
-        for linter in [
-            "ruff",
-            "oxlint",
-            "sqruff",
-            "mago",
-            "jarl",
-            "clj-kondo",
-            "actionlint",
-            "zizmor",
-        ] {
-            assert!(sole_pinned(linter).is_ok(), "{linter}");
-        }
-        assert!(sole_pinned("gopls").is_ok_and(|t| t.module.is_some()));
-        assert!(pinned("typescript", "7.0.2").is_ok());
-        assert!(matches!(
-            pinned("typescript", "5.9.3"),
-            Err(ToolError::Unsupported(_))
-        ));
-    }
-
-    #[test]
-    fn gzip_install_writes_executable_binary() {
-        let root = tempfile::tempdir().expect("tempdir");
-        let bytes = gzip(b"#!/bin/sh\n");
-        let dir = root.path().join("t/1/host");
-        install(
-            &bytes,
-            &tool(ArchiveKind::Gzip, "t"),
-            &artifact(&bytes),
-            &dir,
-        )
-        .expect("install");
-        assert_eq!(fs::read(dir.join("t")).expect("binary"), b"#!/bin/sh\n");
-    }
-
-    #[test]
-    fn zip_install_reads_only_the_binary_entry() {
-        let root = tempfile::tempdir().expect("tempdir");
-        let bytes = zip(&[
-            ("README.md", b"docs", true, 0o100_644),
-            ("t", b"#!/bin/sh\n", true, 0o100_755),
-        ]);
-        let dir = root.path().join("t/1/host");
-        install(
-            &bytes,
-            &tool(ArchiveKind::Zip, "t"),
-            &artifact(&bytes),
-            &dir,
-        )
-        .expect("install");
-        assert_eq!(fs::read(dir.join("t")).expect("binary"), b"#!/bin/sh\n");
-        assert!(
-            !dir.join("README.md").exists(),
-            "only the binary is written"
-        );
-
-        let escaping = zip(&[("../t", b"x", false, 0o100_755)]);
-        let other = root.path().join("t/2/host");
-        assert!(
-            install(
-                &escaping,
-                &tool(ArchiveKind::Zip, "t"),
-                &artifact(&escaping),
-                &other
-            )
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn tarball_install_keeps_member_layout() {
-        let mut tar = tar::Builder::new(Vec::new());
-        let mut header = tar::Header::new_gnu();
-        header.set_size(2);
-        header.set_mode(0o755);
-        header.set_cksum();
-        tar.append_data(&mut header, "package/lib/tsc", &b"ok"[..])
-            .expect("append");
-        let bytes = gzip(&tar.into_inner().expect("tar"));
-        let root = tempfile::tempdir().expect("tempdir");
-        let dir = root.path().join("t/1/host");
-        let tool = tool(ArchiveKind::TarGzip, "package/lib/tsc");
-        install(&bytes, &tool, &artifact(&bytes), &dir).expect("install");
-        assert!(dir.join("package/lib/tsc").is_file());
-    }
-
-    /// Downloads the pinned Go and builds gopls: `cargo test -p sych-adapters -- --ignored`.
-    #[tokio::test]
-    #[ignore = "needs network"]
-    async fn pinned_gopls_is_built_with_the_pinned_go() {
-        let root = tempfile::tempdir().expect("cache");
-        let cache = ToolCache::new(root.path().to_owned());
-        let gopls = sole_pinned("gopls").expect("pinned");
-        let binary = cache.ensure(gopls, &host_target()).await.expect("gopls");
-        let out = Command::new(&binary)
-            .arg("version")
-            .output()
-            .await
-            .expect("runs");
-        assert!(String::from_utf8_lossy(&out.stdout).contains("v0.24.0"));
-    }
-
-    #[test]
-    fn checksum_mismatch_installs_nothing() {
-        let root = tempfile::tempdir().expect("tempdir");
-        let bytes = gzip(b"tampered");
-        let dir = root.path().join("t/1/host");
-        let err = install(
-            &bytes,
-            &tool(ArchiveKind::Gzip, "t"),
-            &artifact(b"original"),
-            &dir,
-        )
-        .expect_err("mismatch");
-        assert!(matches!(err, ToolError::Checksum { .. }));
-        assert!(!dir.exists());
-    }
-}
+mod tests;

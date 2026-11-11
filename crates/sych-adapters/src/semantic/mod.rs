@@ -7,7 +7,7 @@
 mod access;
 mod cache;
 mod cargo;
-mod deps;
+pub(crate) mod deps;
 mod diagnostics;
 mod gomod;
 mod init;
@@ -16,6 +16,8 @@ mod lsp;
 mod profiles;
 mod symbols;
 mod tsproject;
+
+pub(crate) use profiles::toolchain;
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs;

@@ -2,7 +2,10 @@
 
 use sych_core::analysis::{AskOperation, Context, ContextAsk};
 use sych_core::broker::{OpStatus, Ops};
-use sych_core::{SnapshotReader, SourceSide};
+use sych_core::{
+    CodeRef, DiffManifest, ReadError, RepoPath, SnapshotReader, SourceSide, SourceSnapshotId,
+    SourceSpan,
+};
 
 use super::Reader;
 
@@ -119,4 +122,155 @@ fn a_whole_search_answer_says_it_never_matched_paths() {
             block.content
         );
     }
+}
+
+#[test]
+fn a_search_says_where_it_looked_and_what_the_other_side_has() {
+    let reader = Reader::new();
+    let ops = Ops {
+        generated: &[],
+        facts: &[],
+        evidence: &[],
+        reader: &reader,
+    };
+    let answer = |side, query: &str| {
+        let ask = ContextAsk {
+            question: "is it used?".into(),
+            operation: AskOperation::SearchSource {
+                side,
+                query: query.into(),
+            },
+        };
+        let mut context = Context::default();
+        ask.answer(&ops, &mut context, 10);
+        context.blocks.last().expect("status block").content.clone()
+    };
+    // Only the change adds it: a BASE search alone would read as "unused" (#160).
+    let added = answer(SourceSide::DiffBase, "items!.");
+    assert!(added.starts_with("no matches"), "{added}");
+    assert!(
+        added.contains(
+            "searched BASE (before this change); HEAD (this change) has 1 match: \
+             src/order.ts:2: the change adds them"
+        ),
+        "{added}"
+    );
+    let removed = answer(SourceSide::Head, "if (!items)");
+    assert!(
+        removed.contains(
+            "BASE (before this change) has 1 match: src/order.ts:2: the change removes them"
+        ),
+        "{removed}"
+    );
+    let kept = answer(SourceSide::Head, "export function total");
+    assert!(
+        kept.contains(
+            "searched HEAD (this change); BASE (before this change) has 1 match: src/order.ts:1"
+        ) && !kept.contains("the change"),
+        "{kept}"
+    );
+    let nowhere = answer(SourceSide::TargetTip, "no-such-text");
+    assert!(
+        nowhere.contains("searched TARGET_TIP (the target branch, without this change); HEAD (this change) has no matches"),
+        "{nowhere}"
+    );
+}
+
+/// The test reader, except that a search of BASE fails.
+struct BaseSearchFails(Reader);
+
+impl SnapshotReader for BaseSearchFails {
+    fn read_span(&self, r: &CodeRef) -> Result<SourceSpan, ReadError> {
+        self.0.read_span(r)
+    }
+
+    fn code_ref(
+        &self,
+        side: SourceSide,
+        p: &RepoPath,
+        start: u32,
+        end: u32,
+    ) -> Result<CodeRef, ReadError> {
+        self.0.code_ref(side, p, start, end)
+    }
+
+    fn search(
+        &self,
+        side: SourceSide,
+        literal: &str,
+        paths: &[RepoPath],
+        limit: usize,
+    ) -> Result<Vec<CodeRef>, ReadError> {
+        if side == SourceSide::DiffBase {
+            return Err(ReadError::Unavailable("search timed out".into()));
+        }
+
+        self.0.search(side, literal, paths, limit)
+    }
+
+    fn diff(&self, snapshot: &SourceSnapshotId) -> Result<DiffManifest, ReadError> {
+        self.0.diff(snapshot)
+    }
+}
+
+#[test]
+fn a_failed_search_never_says_what_the_change_adds() {
+    let reader = BaseSearchFails(Reader::new());
+    let ops = Ops {
+        generated: &[],
+        facts: &[],
+        evidence: &[],
+        reader: &reader,
+    };
+    let ask = ContextAsk {
+        question: "is it used?".into(),
+        operation: AskOperation::SearchSource {
+            side: SourceSide::DiffBase,
+            query: "items!.".into(),
+        },
+    };
+    let mut context = Context::default();
+    ask.answer(&ops, &mut context, 10);
+    let text = &context.blocks.last().expect("status block").content;
+    assert!(
+        text.starts_with("no answer (Failed): absence is not shown"),
+        "{text}"
+    );
+    assert!(
+        text.contains("HEAD (this change) has 1 match: src/order.ts:2"),
+        "{text}"
+    );
+    assert!(!text.contains("the change adds them"), "{text}");
+}
+
+#[test]
+fn an_incomplete_other_side_never_reads_as_absence() {
+    // More hits than the limit, all in a generated file: cut, and none can be shown.
+    let mut reader = Reader::new();
+    reader.0.insert(
+        (SourceSide::Head, super::path("gen/tokens.ts")),
+        "let generated_token = 1;\n".repeat(12).leak(),
+    );
+    let generated = [super::path("gen/tokens.ts")];
+    let ops = Ops {
+        generated: &generated,
+        facts: &[],
+        evidence: &[],
+        reader: &reader,
+    };
+    let ask = ContextAsk {
+        question: "is it used?".into(),
+        operation: AskOperation::SearchSource {
+            side: SourceSide::DiffBase,
+            query: "generated_token".into(),
+        },
+    };
+    let mut context = Context::default();
+    ask.answer(&ops, &mut context, 10);
+    let text = &context.blocks.last().expect("status block").content;
+    assert!(
+        text.contains("HEAD (this change) shows no matches, but its answer is incomplete"),
+        "{text}"
+    );
+    assert!(!text.contains("has no matches"), "{text}");
 }

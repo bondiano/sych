@@ -7,7 +7,8 @@ same facts (`--semantic off` disables this) and passes them to the ContextBroker
 
 ## Pinned language servers
 
-Server versions, URLs and SHA-256 are maintained by Sych: [`pinned.json`](../crates/sych-adapters/src/tools/pinned.json).
+Server versions, URLs and SHA-256 are maintained by Sych: [`pinned.json`](../crates/sych-adapters/src/tools/pinned.json),
+and for easement and the indexers it runs [`indexers.json`](../crates/sych-adapters/src/tools/indexers.json).
 `PATH` and system-installed servers are not used. On first request a server is downloaded over HTTPS,
 verified against the pinned SHA-256, unpacked into a temporary directory and atomically renamed into
 `$SYCH_TOOLS_DIR`, otherwise `$XDG_CACHE_HOME/sych/tools`, otherwise `~/.cache/sych/tools`
@@ -21,7 +22,11 @@ verified against the pinned SHA-256, unpacked into a temporary directory and ato
 | Python | ty `0.0.93` `ty server` (GitHub release, musl on Linux) with `untrustedWorkspace: true`, plus the syntax facts below | the single pinned one | same |
 
 Linters are pinned the same way (GitHub release, SHA-256 from the release digest): ruff `0.17.2`, oxlint `1.89.0`, sqruff `0.43.0`,
-mago `1.59.0`, jarl `0.7.1`, clj-kondo `2026.10.26`, actionlint `1.7.12`, zizmor `1.31.1`; see [Pinned linters](#pinned-linters).
+mago `1.59.0`, jarl `0.7.1`, clj-kondo `2026.10.26`, actionlint `1.7.12`, zizmor `1.31.1`, easement `0.6.1` (`.tar.xz`); see
+[Pinned linters](#pinned-linters). easement's indexers: Node `26.13.0` (`.tar.xz`, SHA-256 from the release `SHASUMS256.txt`),
+scip-python `0.6.8` (the npm tarball, a self-contained bundle), scip-typescript `0.6.1` (installed by the pinned pnpm
+`12.14.0` from a Sych-owned [lockfile](../crates/sych-adapters/src/tools/npm/scip-typescript/pnpm-lock.yaml) that holds the
+integrity of every package, scripts off; `sha256` is the lockfile's) and scip-go `0.2.9` (built with the pinned Go, like gopls).
 
 gopls is not published as binaries, hence `archive: go-module`: Sych downloads the pinned Go, verifies the `h1:`
 hash of the `golang.org/x/tools/gopls@v0.24.0` module (`sha256` in the manifest is its hex) via `go mod download -json`,
@@ -249,6 +254,7 @@ execute repository code and work without project setup:
 | jarl | `.r`, `.R` | `check --output-format sarif`; with an empty `PATH` it finds no `Rscript`, so package-specific rules (which would start R in the project) are skipped | `jarl.toml`, `.jarl.toml` |
 | actionlint | `.github/workflows/*.y(a)ml` | `-shellcheck= -pyflakes= -format '{{json .}}'` | `.github/actionlint.y(a)ml` |
 | zizmor | workflows, `action.y(a)ml`, `.github/dependabot.yml` | `--offline --format sarif` | `zizmor.yml`, `.github/zizmor.yml` |
+| easement | changed `.rs`, `.go`, TS/JS and `.py` files, manifests and policy files under a directory whose head has `easement.yml` | `check --format json --no-cache` on each such project, at most 600 s each | `easement.yml`, the files it `extends` (one level), its `baseline` (default `easement.baseline.yml`) and its `diagram` |
 
 Head is materialized from Git objects (as for language servers), and the linter runs in it with a cleared environment:
 empty `PATH` (actionlint will not find shellcheck, oxlint will not find node), `HOME` is an empty temporary directory (no
@@ -256,6 +262,32 @@ user configs or credentials), no network, at most 120 s. Absolute output paths a
 repository paths; a finding gets a `CodeRef` if its line exists on head. The result is `LintFacts` in the `facts` artifact and
 in the report (`lint_facts`), derived static evidence `PARTIAL` with producer `<linter> <version>`. If the linter
 configuration file is changed in this diff, a limitation states that the rule set is the change author's choice.
+
+easement is an architecture gate: components and the dependencies allowed between them, judged on the imports pinned
+SCIP indexers resolve. Every directory whose head has an `easement.yml` is a project when the diff changes a source or
+manifest under it, or one of its policy files. Each project is a document of its own, with producer `easement` (the
+root) or `easement:<dir>`, and repository paths.
+
+- `PATH` is a directory of the pinned indexers alone. It holds rust-analyzer (with the host `cargo` and `rustc`), scip-go
+  with the pinned `go` (the gopls environment, `GOPROXY=off`), Node with scip-typescript, and scip-python. scip-python
+  sits behind a Sych shim that passes an empty `--environment`, so it never runs `pip` or `python`: an interpreter
+  started in the workspace could import repository code. Only the indexers of the project's languages are fetched.
+- `rust-analyzer scip` always builds build scripts and proc-macros, whatever its configuration says. So cargo gets a
+  `RUSTC_WRAPPER` pointing at a path that does not exist, and it fails before anything from the repository compiles.
+  Imports that generated or macro-expanded code writes are therefore missing (a limitation). Cargo is offline, without
+  toolchain auto-install, and a `rust-toolchain` with `path` anywhere in the tree yields `UNSUPPORTED`.
+- With `tooling.dependency_install`, each `Cargo.lock` and `pnpm-lock.yaml` directory of the project, and its Go
+  modules, get their dependencies as for the language servers, in the sandbox. Without it, third-party imports stay
+  unresolved, and a `package.json` that declares dependencies stops easement (`dependencies are not installed`), which
+  is `LINT_UNAVAILABLE`. Python packages are never installed.
+- A violation is a diagnostic at its line and at every import behind it (`evidence`, such as each edge of a cycle), with
+  the rule's `because` in the message. easement's evidence gaps (unresolved imports, uncovered files) are limitations
+  naming the changed files they cover.
+- A violation that no changed line shows is checked against the diff base. easement runs on the base project too,
+  unless the base has no `easement.yml`. What the base lacks (by rule, components, specifier and file, through
+  renames) is `introduced`: a changed policy, a moved file or a change elsewhere brought it. It enters the packet of its
+  own file when that file changed (`lint easement … (new on head): …`), and of a changed policy file. Otherwise a
+  limitation lists it.
 
 In a unit's packet, findings on changed head lines are `REFUTING` (`lint <linter> <level> <rule>: …`); findings on
 unchanged lines do not enter the packet. A linter that could not be downloaded or run is the gap

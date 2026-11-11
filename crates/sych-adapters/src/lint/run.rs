@@ -1,6 +1,7 @@
 //! Running a linter in an empty environment with a time bound, and the formats that are not
 //! SARIF.
 
+use std::ffi::OsString;
 use std::io::{self, Read};
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
@@ -10,18 +11,20 @@ use std::{fs, thread};
 use serde_json::Value;
 use sych_core::CiDiagnostic;
 
-const TIMEOUT: Duration = Duration::from_secs(120);
+pub(super) const TIMEOUT: Duration = Duration::from_secs(120);
 const POLL: Duration = Duration::from_millis(20);
 /// Directories walked looking for oxlint configs; deeper ones are not found.
 const MAX_DEPTH: usize = 8;
 
-/// `program args` in `cwd` with only an empty `HOME` (under `scratch`) and an empty `PATH`:
-/// no user config, credentials or helper tools reach it. Killed after [`TIMEOUT`].
+/// `program args` in `cwd` with only an empty `HOME` (under `scratch`), an empty `PATH` and
+/// what `env` sets: no user config, credentials or helper tools reach it. Killed after `timeout`.
 pub(super) fn run(
     program: &Path,
     args: &[String],
     cwd: &Path,
     scratch: &Path,
+    env: &[(String, OsString)],
+    timeout: Duration,
 ) -> io::Result<Output> {
     let home = scratch.join("home");
     fs::create_dir_all(&home)?;
@@ -31,6 +34,7 @@ pub(super) fn run(
         .env_clear()
         .env("HOME", &home)
         .env("PATH", "")
+        .envs(env.iter().map(|(k, v)| (k, v)))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -63,7 +67,7 @@ pub(super) fn run(
             break status;
         }
 
-        if started.elapsed() > TIMEOUT {
+        if started.elapsed() > timeout {
             let _ = child.kill();
             let _ = child.wait();
             return Err(io::Error::new(io::ErrorKind::TimedOut, "timed out"));

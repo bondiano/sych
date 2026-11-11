@@ -26,7 +26,7 @@ sych explain --run RUN_ID --obligation EFFECT-01 --format markdown
 - `--format json|markdown` (JSON by default); `--output PATH` writes a file and creates the directory, otherwise stdout.
 - `--semantic on|off` (`on` by default): for Rust, TS/JS, Go and Python (ty) files, pinned language
   servers; the same switch runs the pinned linters ruff, oxlint, sqruff (SQL), mago (PHP), jarl (R), clj-kondo (Clojure), actionlint and
-  zizmor on changed head files ([SEMANTIC.md](SEMANTIC.md#pinned-linters)); they produce semantic facts
+  zizmor on changed head files, and easement on each project an `easement.yml` roots ([SEMANTIC.md](SEMANTIC.md#pinned-linters)); they produce semantic facts
   ([SEMANTIC.md](SEMANTIC.md)), which are stored as derived evidence, and the ContextBroker builds context packets.
   The first run downloads the servers; a repeat on the same snapshot takes facts from the semantic cache.
 - `--ci-facts FILE` (repeatable) imports ready-made CI reports: output of `cargo check/clippy/build

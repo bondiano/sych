@@ -27,7 +27,8 @@ is rejected without printing the value itself.
   `budgets.analysis.max_input_tokens`.
 - `tooling.dependency_install` (default `false`) allows installing the dependencies of the repository under review
   for semantic analysis: `pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile` with the pinned
-  pnpm from `packageManager`, and `cargo fetch` of the workspace and std into a Sych-owned `CARGO_HOME`. It runs only in
+  pnpm from `packageManager`, and `cargo fetch` of the workspace and std into a Sych-owned `CARGO_HOME`; easement's
+  projects get the same installs for each lockfile directory ([SEMANTIC.md](SEMANTIC.md#pinned-linters)). It runs only in
   `tooling.sandbox.backends` (in order: `bwrap`, `docker`; the first available one is used, the rest are
   fallbacks). `docker` requires `docker_image` with an `@sha256:` digest and currently installs only pnpm.
   `on_unavailable: fail` (default) stops the review with `TOOLING_UNAVAILABLE` (code 3) if no

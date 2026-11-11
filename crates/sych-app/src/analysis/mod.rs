@@ -426,6 +426,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             self.snap,
         );
         context.add_changes(&self.snap.manifest);
+        context.add_moves(&self.snap.manifest, self.snap);
         let obligation = self.packets[index].request.obligation_id;
         if self
             .plan
@@ -446,6 +447,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             context.add_packet(&self.packets[i], &self.packet_evidence[i], self.snap);
         }
         context.add_changes(&self.snap.manifest);
+        context.add_moves(&self.snap.manifest, self.snap);
 
         let units: Vec<ReviewUnitId> = batch
             .iter()

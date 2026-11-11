@@ -88,8 +88,9 @@ pub(super) fn ledger(
     }
 }
 
-/// Linter findings on the head's changed lines refute; a linter that could not run on the
-/// file is a gap, so its silence is not read as a clean result.
+/// Linter findings on the head's changed lines refute, and so do findings new on head in this
+/// file or caused by a changed configuration file; a linter that could not run on the file is a
+/// gap, so its silence is not read as a clean result.
 pub(super) fn lint(
     lint: &[LintFacts],
     path: &RepoPath,
@@ -104,31 +105,40 @@ pub(super) fn lint(
         return;
     };
     let ranges = file.changed_lines(SourceSide::Head);
-    for facts in lint
-        .iter()
-        .filter(|f| f.files.iter().any(|p| p == side.path.as_str()))
-    {
+    let at = side.path.as_str();
+    for facts in lint {
+        let linted = facts.files.iter().any(|p| p == at);
+        let config = facts.config.iter().any(|p| p == at);
         if facts.status != BackendStatus::Ready {
-            push_gap(
-                gaps,
-                format!(
-                    "LINT_UNAVAILABLE: {} for {}: {}",
-                    facts.producer.name,
-                    side.path,
-                    facts.limitations.last().map_or("", String::as_str)
-                ),
-            );
+            if linted {
+                push_gap(
+                    gaps,
+                    format!(
+                        "LINT_UNAVAILABLE: {} for {}: {}",
+                        facts.producer.name,
+                        side.path,
+                        facts.limitations.last().map_or("", String::as_str)
+                    ),
+                );
+            }
+
             continue;
         }
 
-        for d in &facts.diagnostics {
-            let Some(r) = d.code_ref.as_ref().filter(|r| r.path == side.path) else {
-                continue;
-            };
-            if !ranges.iter().any(|&(s, e)| (s..=e).contains(&r.start_line)) {
-                continue;
-            }
-
+        let changed = facts
+            .diagnostics
+            .iter()
+            .filter(|_| linted)
+            .filter_map(|d| Some((d, d.code_ref.as_ref().filter(|r| r.path == side.path)?)))
+            .filter(|(_, r)| ranges.iter().any(|&(s, e)| (s..=e).contains(&r.start_line)))
+            .map(|(d, r)| (d, r, ""));
+        let introduced = facts
+            .introduced
+            .iter()
+            .filter_map(|d| Some((d, d.code_ref.as_ref()?)))
+            .filter(|(_, r)| config || r.path == side.path)
+            .map(|(d, r)| (d, r, " (new on head)"));
+        for (d, r, new) in changed.chain(introduced) {
             let message: String = d.message.chars().take(120).collect();
             out.push(Candidate {
                 side: r.side,
@@ -137,7 +147,7 @@ pub(super) fn lint(
                 end: r.end_line,
                 priority: Priority::Refuting,
                 reason: format!(
-                    "lint {} {} {}: {message}",
+                    "lint {} {} {}{new}: {message}",
                     facts.producer.name,
                     d.level,
                     d.code.as_deref().unwrap_or("-")

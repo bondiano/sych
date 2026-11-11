@@ -12,7 +12,7 @@ with privileges.
 | `tools` | pinned versions of language servers and pnpm (`tools/pinned.json`: version, URL, SHA-256 per platform), download, verification and an atomic cache |
 | `semantic` | LSP client, rust-analyzer, TypeScript 7 (`tsc --lsp`), gopls and ty profiles, changed constructs, references/callers/implementations, pull diagnostics, semantic cache, dependency installation via `sandbox` |
 | `syntax` | syntax facts from `syn` (Rust), `oxc` (TS/React) and tree-sitter (Go, Python) in-process, without execution |
-| `lint` | pinned linters on changed head files (ruff, oxlint, sqruff, mago, jarl, clj-kondo, actionlint, zizmor), never executing repository code |
+| `lint` | pinned linters on changed head files (ruff, oxlint, sqruff, mago, jarl, clj-kondo, actionlint, zizmor) and easement for the architecture of Rust, Go, TS/JS and Python projects, never executing repository code |
 | `sandbox` | running installers in bwrap (read-only root, `$HOME`/`/tmp`/secrets hidden) or docker (pinned digest) |
 | `ci` | normalization of CI reports into `CiFacts` bound to the tested commit: cargo JSON, JUnit, SARIF, GitLab Code Quality, LCOV, Cobertura, Go test/cover/vet, Terraform plans, rendered Kubernetes manifests and the `sych_manifest` outcomes; in-memory artifact zip reading |
 | `execution` | targeted checks: allowed profiles run on the pinned head in docker without network or secrets; stdout is imported as a CI report |
