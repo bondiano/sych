@@ -74,9 +74,33 @@ async fn a_refused_review_sends_each_comment_alone() {
         "POST /repos/o/r/pulls/7/reviews".into(),
         (422, json!({"message": "line must be part of the diff"})),
     );
-    world::commit_result(&w, 2).await;
+    let head = world::commit_result(&w, 2).await;
     drain(&w).await;
-    assert_eq!(writes(&w, "POST /repos/o/r/pulls/7/comments ").len(), 2);
+    let alone = writes(&w, "POST /repos/o/r/pulls/7/comments ");
+    assert_eq!(alone.len(), 2);
+    for c in &alone {
+        assert_eq!(
+            (
+                c["commit_id"].as_str(),
+                c["path"].as_str(),
+                c["line"].as_u64(),
+                c["side"].as_str()
+            ),
+            (
+                Some(head.as_str()),
+                Some("src/b.rs"),
+                Some(1),
+                Some("RIGHT")
+            )
+        );
+        assert!(c.get("position").is_none(), "never the deprecated position");
+        assert!(
+            c["body"]
+                .as_str()
+                .expect("body")
+                .starts_with("<!-- sych:inline:")
+        );
+    }
     assert_eq!(inline_states(&w).await, ["DELIVERED", "DELIVERED"]);
 }
 

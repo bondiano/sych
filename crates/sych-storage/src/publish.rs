@@ -67,7 +67,8 @@ impl Storage {
     }
 
     /// The change's other due `PENDING` inline operations of `c`'s generation that have no
-    /// comment yet, claimed for the same owner so one review carries them all; in queue order.
+    /// comment yet, claimed for the same owner so one review carries them all; by operation id,
+    /// the order the plan queued them in.
     pub async fn claim_inline_siblings(
         &self,
         c: &PublishClaim,
