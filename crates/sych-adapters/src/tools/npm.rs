@@ -2,11 +2,16 @@
 
 use std::fs;
 use std::path::Path;
+use std::time::Duration;
 
 use sych_core::sha256;
 use tokio::process::Command;
+use tokio::time;
 
 use super::{Artifact, PinnedTool, ToolError};
+
+/// A fetch that hangs fails the install instead of the review.
+const INSTALL_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// The pnpm that wrote these lockfiles and installs them.
 pub(super) const PNPM: &str = "12.14.0";
@@ -56,7 +61,8 @@ pub(super) async fn pnpm_install(
     fs::create_dir_all(&home)?;
     fs::write(out.join("package.json"), manifest)?;
     fs::write(out.join("pnpm-lock.yaml"), lock)?;
-    let output = Command::new(pnpm)
+    let mut command = Command::new(pnpm);
+    command
         .args([
             "install",
             "--frozen-lockfile",
@@ -73,8 +79,11 @@ pub(super) async fn pnpm_install(
         .env_clear()
         .env("HOME", &home)
         .env("PATH", "")
-        .output()
-        .await?;
+        // A timed-out or dropped install leaves no pnpm running.
+        .kill_on_drop(true);
+    let output = time::timeout(INSTALL_TIMEOUT, command.output())
+        .await
+        .map_err(|_| ToolError::Download(format!("pnpm install {}: timed out", tool.name)))??;
     if !output.status.success() {
         return Err(ToolError::Download(format!(
             "pnpm install {}: {}",

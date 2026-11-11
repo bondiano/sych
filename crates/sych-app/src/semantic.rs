@@ -1,7 +1,7 @@
 //! Semantic facts from pinned language servers and diagnostics of pinned linters, downloaded
 //! and cached on first use.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 
@@ -23,9 +23,7 @@ pub fn collect_facts(
 ) -> anyhow::Result<Vec<SemanticFacts>> {
     let root = default_cache_root()
         .ok_or_else(|| Failure::invalid("no tool cache directory (set SYCH_TOOLS_DIR or HOME)"))?;
-    let state_dir = root
-        .parent()
-        .map_or_else(|| root.join("state"), Path::to_path_buf);
+    let state_dir = state_dir(&root);
     let semantic_cache = state_dir.join("semantic");
     let cache = ToolCache::new(root);
     let resolve = |tool, target: &str| {
@@ -47,9 +45,7 @@ pub fn collect_facts(
 pub fn collect_lint(snap: &LocalSnapshot, tooling: &Tooling) -> anyhow::Result<Vec<LintFacts>> {
     let root = default_cache_root()
         .ok_or_else(|| Failure::invalid("no tool cache directory (set SYCH_TOOLS_DIR or HOME)"))?;
-    let state_dir = root
-        .parent()
-        .map_or_else(|| root.join("state"), Path::to_path_buf);
+    let state_dir = state_dir(&root);
     let cache = ToolCache::new(root);
     let resolve = |tool, target: &str| {
         block_on(cache.ensure(tool, target))
@@ -62,4 +58,27 @@ pub fn collect_lint(snap: &LocalSnapshot, tooling: &Tooling) -> anyhow::Result<V
         state_dir: &state_dir,
     };
     Ok(lint::collect(snap, &options))
+}
+
+/// Sych-owned install state beside the tool cache; under it when the cache root has no
+/// parent of its own (`SYCH_TOOLS_DIR=tools`), never the directory the review runs in.
+fn state_dir(root: &Path) -> PathBuf {
+    root.parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .map_or_else(|| root.join("state"), Path::to_path_buf)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn install_state_never_lands_in_the_working_directory() {
+        assert_eq!(
+            state_dir(Path::new("/home/u/.cache/sych/tools")),
+            Path::new("/home/u/.cache/sych")
+        );
+        assert_eq!(state_dir(Path::new("tools")), Path::new("tools/state"));
+        assert_eq!(state_dir(Path::new("/")), Path::new("/state"));
+    }
 }
