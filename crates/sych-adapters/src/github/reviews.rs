@@ -75,7 +75,10 @@ impl Github {
         comments: &[(&InlineAnchor, &str)],
         token: &Secret,
     ) -> Result<Vec<Comment>, ScmError> {
-        let commit = comments.first().map(|(a, _)| a.commit_id.as_str());
+        let Some((first, _)) = comments.first() else {
+            return Ok(Vec::new());
+        };
+        let commit = first.commit_id.as_str();
         let payload = json!({"commit_id": commit, "event": "COMMENT", "body": "",
             "comments": comments.iter().map(|(a, body)| positioned(a, body)).collect::<Vec<_>>()});
         let path = format!("/repos/{repo}/pulls/{number}/reviews");
@@ -87,10 +90,17 @@ impl Github {
         let id = review["id"]
             .as_u64()
             .ok_or_else(|| ScmError::new(ScmErrorKind::PublicationUnknown, "review without id"))?;
-        let (items, _) = self
+        let (items, whole) = self
             .list(&format!("{path}/{id}/comments"), token, MAX_COMMENTS)
             .await
             .map_err(unknown)?;
+        if !whole {
+            return Err(ScmError::new(
+                ScmErrorKind::PublicationUnknown,
+                format!("review {id} holds more than {MAX_COMMENTS} comments"),
+            ));
+        }
+
         items
             .iter()
             .map(Comment::from_json)
