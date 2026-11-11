@@ -1,6 +1,7 @@
-//! The text of one finding, shared by its inline comment and the summary: a severity badge
-//! (a priority inline), the explanation, when it happens and what follows, the suggested action
-//! and a prompt a coding agent can act on.
+//! The text of one finding, shared by its inline comment and the summary: a severity badge,
+//! the explanation, when it happens and what follows, the suggested action and a prompt a
+//! coding agent can act on. Inline it is a priority and one paragraph of explanation and
+//! consequence; the when conditions stay in the summary table and the result.
 
 use std::fmt::Write;
 
@@ -73,25 +74,23 @@ pub(crate) fn details(out: &mut String, finding: &Finding, language: ReviewLangu
     also_and_action(out, finding, l, inline);
 }
 
-/// The explanation followed by the consequence as its last sentence.
+/// The explanation followed by the consequence as its last sentence; its case is kept, as it
+/// may start with an identifier.
 fn paragraph(finding: &Finding) -> String {
     let explanation = finding.explanation.trim();
     let consequence = finding.consequence.trim();
-    let mut chars = consequence.chars();
-    let Some(first) = chars.next() else {
+    if consequence.is_empty() {
         return explanation.to_owned();
-    };
+    }
+
     let stop = if consequence.ends_with(['.', '!', '?']) {
         ""
     } else {
         "."
     };
-    let consequence = format!("{}{}{stop}", first.to_uppercase(), chars.as_str());
-    if explanation.is_empty() {
-        consequence
-    } else {
-        format!("{explanation} {consequence}")
-    }
+    format!("{explanation} {consequence}{stop}")
+        .trim_start()
+        .to_owned()
 }
 
 fn table(out: &mut String, finding: &Finding, l: ReviewLanguage) {

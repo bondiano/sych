@@ -321,11 +321,12 @@ fn russian_summaries_and_inline_bodies_match_their_golden_files() {
     finding.triggering_conditions = vec!["two concurrent requests".into()];
     golden("inline.ru", &inline_body(&finding, ReviewLanguage::Ru));
     golden("inline.en", &inline_body(&finding, ReviewLanguage::En));
-    // A consequence written as a fragment still ends the paragraph as a sentence.
+    // A consequence written as a fragment still ends the paragraph, its leading identifier intact.
     let mut fragment = finding.clone();
-    fragment.consequence = "orders are lost".into();
+    fragment.consequence = "`createOrder` loses events".into();
     assert!(
-        inline_body(&fragment, ReviewLanguage::En).contains("the outbox row. Orders are lost.\n")
+        inline_body(&fragment, ReviewLanguage::En)
+            .contains("the outbox row. `createOrder` loses events.\n")
     );
 
     // A finding merged into an overlapping one is still named in its comment.
