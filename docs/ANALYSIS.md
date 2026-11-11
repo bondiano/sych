@@ -104,7 +104,8 @@ lines in the same order with the same text (indentation aside, at least 3 lines,
 first across the whole change, and each line belongs to one move at most; a block partly taken by a longer one keeps
 its free parts if they are still blocks. Blocks are found by their first three lines, so a line repeated in many places
 (`#[test]`) still starts one; the search compares at most a million candidate places and, past that, says it stopped. The test removals list a
-moved block by its move and count only what was really removed (`51 lines removed, 40 of them moved`). Assessment,
+moved block by its move and say how many removed lines moved (`51 lines removed, 40 of them moved`); only the lines
+really removed are shown or counted as not shown. Assessment,
 discovery and verifier contexts get the moves of the files they show (up to 40), so moving a test module into its own
 file or a function into a new module never reads as a dropped test or as untraced new code.
 A candidate anchored on removed BASE lines of a file that stays reaches the verifier with its anchors' side and the
