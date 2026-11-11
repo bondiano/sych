@@ -102,6 +102,12 @@ fn verdicts_need_an_admissible_basis() {
         "unit",
     );
     assert_eq!(again.candidates[5].verdicts[1].round, 2);
+    // A second round says each limitation once.
+    let times = |c: &sych_core::Candidate, text: &str| {
+        c.limitations.iter().filter(|l| l.contains(text)).count()
+    };
+    assert_eq!(times(&again.candidates[5], "no single verdict"), 1);
+    assert_eq!(times(&again.candidates[1], "HIGH_RISK_WITHOUT_TRACE"), 1);
     assert_eq!(verified.findings.len(), 1);
     let finding = &verified.findings[0];
     assert_eq!(finding.category, FindingCategory::Defect);

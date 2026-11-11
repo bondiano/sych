@@ -1,6 +1,8 @@
 //! Candidate verification: every candidate ends CONFIRMED, REJECTED or
 //! UNRESOLVED, and only a confirmed one with an admissible basis becomes a finding.
 
+use std::mem;
+
 use std::cmp::Reverse;
 
 use schemars::JsonSchema;
@@ -121,6 +123,13 @@ fn admissible(verdict: &CandidateVerdict, anchors: &[CodeRef]) -> Result<(), Str
 /// Applies verdicts to `candidates` (shown as `cand-N` in order), appending each verdict to
 /// the candidate's history. A candidate without a verdict stays UNRESOLVED; a rejected nit is
 /// dropped, not escalated.
+/// Adds `more` to a candidate's limitations, each once: a second verification round repeats
+/// what the first already said.
+fn note(limitations: &mut Vec<String>, more: impl IntoIterator<Item = String>) {
+    let all = mem::take(limitations).into_iter().chain(more).collect();
+    *limitations = super::texts(all);
+}
+
 pub fn validate(
     output: &VerifyOutput,
     mut candidates: Vec<Candidate>,
@@ -137,7 +146,7 @@ pub fn validate(
         let (Some(verdict), None) = (found.next(), found.next()) else {
             let problem = format!("verifier gave no single verdict for {id}");
             candidate.verification_status = VerificationStatus::Unresolved;
-            candidate.limitations.push(problem.clone());
+            note(&mut candidate.limitations, [problem.clone()]);
             // Recorded too, so a later round keeps its number.
             candidate.verdicts.push(VerdictRecord {
                 round,
@@ -155,9 +164,10 @@ pub fn validate(
         let mut problems = Vec::new();
         let anchors = context.anchors(&verdict.anchors, reader, &mut problems);
         let evidence_ids = context.evidence_ids(&verdict.evidence_ids, &mut problems);
-        candidate
-            .limitations
-            .extend(super::texts(verdict.limitations.clone()));
+        note(
+            &mut candidate.limitations,
+            verdict.limitations.iter().cloned(),
+        );
         candidate.verification_status = match verdict.verdict {
             Verdict::Rejected => VerificationStatus::Rejected,
             Verdict::Unresolved => VerificationStatus::Unresolved,
@@ -180,9 +190,10 @@ pub fn validate(
                 Ok(()) => VerificationStatus::Confirmed,
             },
         };
-        candidate
-            .limitations
-            .extend(problems.iter().map(|p| format!("engine: {p}")));
+        note(
+            &mut candidate.limitations,
+            problems.iter().map(|p| format!("engine: {p}")),
+        );
         candidate.verdicts.push(VerdictRecord {
             round,
             proposed: verdict.verdict.into(),
