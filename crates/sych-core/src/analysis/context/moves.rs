@@ -9,10 +9,12 @@ use super::{Context, hunk_lines, side_text};
 use crate::model::DataBlock;
 use crate::{DiffManifest, RepoPath, SnapshotReader, SourceSide};
 
-/// A shorter block is a coincidence; git's `--color-moved` uses the same 20 characters.
+/// A block of fewer lines is a coincidence (Sych's own rule).
 const MIN_LINES: usize = 3;
+/// Letters and digits a block needs, as git's `--color-moved` requires.
 const MIN_ALNUM: usize = 20;
 /// Places one line of text is matched at; boilerplate repeats.
+// shortcut: a block starting at a line with more than 64 HEAD copies is not found; index such lines by their neighbours if real moves are missed.
 const MAX_CANDIDATES: usize = 64;
 /// Moves one block lists; the rest are counted.
 const MAX_LISTED: usize = 40;
