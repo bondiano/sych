@@ -401,6 +401,7 @@ pub fn router<'a, L: Ledger>(
         now: Timestamp::now,
         redactor: Redactor::builtin(),
         cooldowns: RefCell::default(),
+        exhausted: RefCell::default(),
         reuse: BTreeMap::new(),
         models_revision: "fixture".into(),
         eligible: None,

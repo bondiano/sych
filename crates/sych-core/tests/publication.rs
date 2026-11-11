@@ -34,6 +34,29 @@ fn result() -> ReviewResult {
         .expect("result")
 }
 
+#[test]
+fn model_quota_error_is_clear_in_both_languages_and_folds_diagnostics() {
+    let mut r = result();
+    r.coverage = Coverage::Partial;
+    r.execution_outcome = ExecutionOutcome::LimitReached;
+    r.unresolved_questions = vec![
+        "MODEL_QUOTA_EXHAUSTED: Model usage limit reached. Increase the provider limit or top up your balance, then rerun the review.".into(),
+        "REQUIRED_OVER_BUDGET: web/DESIGN.md:276-397".into(),
+    ];
+    for (language, message) in [
+        (ReviewLanguage::En, "Model usage limit reached"),
+        (ReviewLanguage::Ru, "Исчерпан лимит использования моделей"),
+    ] {
+        r.language = language;
+        let text = render_summary(&r, &[], &ctx());
+        assert!(text.contains(message), "{text}");
+        let folded = text.find("<details>").expect("diagnostics are folded");
+        let diagnostic = text.find("REQUIRED_OVER_BUDGET").expect("gap is retained");
+        assert!(folded < diagnostic);
+        assert!(!text.contains("A budget or size limit stopped"));
+    }
+}
+
 fn finding(side: SourceSide, path: &str, blob: char, lines: (u32, u32)) -> Finding {
     let mut f = result().findings[0].clone();
     let r = &mut f.anchors[0];

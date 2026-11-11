@@ -8,14 +8,21 @@ use sych_core::analysis::{
 };
 use sych_core::broker::{Ops, REQUIRED_OVER_BUDGET, unseen_spans};
 use sych_core::config::Role;
-use sych_core::model::{Ledger, ModelProvider, Prompt, RoutedOutcome, TaskFailure};
+use sych_core::model::{
+    Ledger, MODEL_QUOTA_EXHAUSTED, ModelProvider, Prompt, RoutedOutcome, TaskFailure,
+};
 use sych_core::{Candidate, CodeRef, ObligationId, PlannedObligation, VerificationStatus};
 
 use super::{AskAnswer, Engine, MAX_REFS_PER_ANSWER, Outcome, Pass, PassStatus};
 
+const QUOTA_MESSAGE: &str = "Model usage limit reached. Increase the provider limit or top up your balance, then rerun the review.";
+
 /// The finalization of an obligation whose assessment call failed.
 fn failed(planned: &PlannedObligation, failure: &TaskFailure) -> AssessmentRecord {
     match failure {
+        failure if failure.quota_exhausted() => {
+            not_assessed(planned, MODEL_QUOTA_EXHAUSTED, QUOTA_MESSAGE)
+        }
         TaskFailure::Budget { denied } => not_assessed(
             planned,
             "BUDGET_EXHAUSTED",
@@ -390,12 +397,18 @@ pub(super) fn record<T>(
     let status = match &outcome.value {
         Ok(_) => PassStatus::Done,
         Err(failure) => {
-            out.limit_reached |=
-                matches!(failure, TaskFailure::Budget { .. } | TaskFailure::Truncated);
+            out.limit_reached |= failure.quota_exhausted()
+                || matches!(failure, TaskFailure::Budget { .. } | TaskFailure::Truncated);
             // The router already tried every eligible route, so a failed pass is final.
-            out.gaps.push(format!(
-                "{template} pass on packets {packets:?} did not complete: {failure:?}"
-            ));
+            let gap = if failure.quota_exhausted() {
+                format!("{MODEL_QUOTA_EXHAUSTED}: {QUOTA_MESSAGE}")
+            } else {
+                format!("{template} pass on packets {packets:?} did not complete: {failure:?}")
+            };
+            if !out.gaps.contains(&gap) {
+                out.gaps.push(gap);
+            }
+
             PassStatus::Failed {
                 failure: failure.clone(),
             }

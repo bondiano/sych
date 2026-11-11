@@ -44,6 +44,21 @@ pub enum TaskFailure {
     },
 }
 
+/// A provider quota stopped a model pass, not a failure of the reviewed code.
+pub const MODEL_QUOTA_EXHAUSTED: &str = "MODEL_QUOTA_EXHAUSTED";
+
+impl TaskFailure {
+    pub fn quota_exhausted(&self) -> bool {
+        matches!(
+            self,
+            Self::Provider {
+                kind: ErrorKind::QuotaExhausted,
+                ..
+            }
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ChargeState {

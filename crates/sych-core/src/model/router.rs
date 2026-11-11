@@ -154,6 +154,8 @@ pub struct Router<'a, P, L> {
     pub redactor: &'a Redactor,
     /// Profile → when it may be tried again; empty at the start of a run.
     pub cooldowns: RefCell<BTreeMap<String, Timestamp>>,
+    /// Quota failures stay disabled for this run; later tasks retain the original cause.
+    pub exhausted: RefCell<BTreeMap<String, TaskFailure>>,
     /// The parent run's checkpoints a successor may reuse; empty otherwise.
     pub reuse: BTreeMap<Sha256Digest, Checkpoint>,
     /// Digest of the trusted model config, a dependency of every checkpoint.
@@ -175,6 +177,14 @@ fn trigger(kind: ErrorKind) -> Option<FallbackTrigger> {
 }
 
 impl<P: ModelProvider, L: Ledger> Router<'_, P, L> {
+    fn remember_quota(&self, profile: &str, failure: &TaskFailure) {
+        if failure.quota_exhausted() {
+            self.exhausted
+                .borrow_mut()
+                .insert(profile.to_owned(), failure.clone());
+        }
+    }
+
     /// Whether `failure` lets the task move to the next profile.
     fn falls_back(&self, failure: &TaskFailure) -> bool {
         match failure {
@@ -385,6 +395,22 @@ impl<P: ModelProvider, L: Ledger> Router<'_, P, L> {
                 profile: profile.clone(),
                 outcome,
             };
+            if let Some(failure) = self.exhausted.borrow().get(profile).cloned() {
+                if !self.falls_back(&failure) {
+                    out.hops.push(hop(HopOutcome::Stopped {
+                        failure: failure.clone(),
+                    }));
+                    out.value = Err(failure);
+                    return out;
+                }
+
+                out.hops.push(hop(HopOutcome::Skipped {
+                    reason: "model usage limit reached for this run".into(),
+                }));
+                last = Some(failure);
+                continue;
+            }
+
             let resolved = self.usable(profile);
             let h = match resolved {
                 Ok(h) => h,
@@ -422,6 +448,7 @@ impl<P: ModelProvider, L: Ledger> Router<'_, P, L> {
                 }
                 Err(failure) => failure,
             };
+            self.remember_quota(profile, &failure);
             if !self.falls_back(&failure) {
                 out.hops.push(hop(HopOutcome::Stopped {
                     failure: failure.clone(),

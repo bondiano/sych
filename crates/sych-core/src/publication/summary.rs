@@ -6,6 +6,7 @@ use std::fmt::Write;
 
 use super::body::{agent_prompt, badge, category, details, lines, task};
 use super::{Placement, Planned, reason_text, tr};
+use crate::model::MODEL_QUOTA_EXHAUSTED;
 use crate::{
     Candidate, CodeRef, Coverage, ExecutionOutcome, Finding, FindingCategory, GENERATED_IN_CHANGE,
     ObligationStatus, ReviewResult, Severity, SourceSide,
@@ -42,6 +43,13 @@ fn short(sha: &str) -> &str {
     sha.get(..12).unwrap_or(sha)
 }
 
+fn quota_exhausted(result: &ReviewResult) -> bool {
+    result
+        .unresolved_questions
+        .iter()
+        .any(|q| q.starts_with(&format!("{MODEL_QUOTA_EXHAUSTED}:")))
+}
+
 /// Renders the summary of `result` with the inline plan of its revision, in the result's
 /// language.
 pub fn render_summary(result: &ReviewResult, plan: &[Planned], ctx: &SummaryContext<'_>) -> String {
@@ -59,6 +67,7 @@ fn render(
     ctx: &SummaryContext<'_>,
     detail: Detail,
 ) -> String {
+    let l = result.language;
     // The plan's order: severity, then fingerprint, so the ones over the inline limit come last.
     let mut problems: Vec<&Finding> = result
         .findings
@@ -81,7 +90,22 @@ fn render(
         problem(&mut out, result, plan, ctx, (i + 1, f), detail);
     }
 
-    unknowns(&mut out, result, ctx.earlier, detail);
+    if quota_exhausted(result) {
+        let _ = writeln!(
+            out,
+            "\n<details><summary>{}</summary>\n",
+            tr(
+                l,
+                "Incomplete checks and diagnostics",
+                "Незавершённые проверки и диагностика"
+            )
+        );
+        unknowns(&mut out, result, ctx.earlier, detail);
+        out.push_str("\n</details>\n");
+    } else {
+        unknowns(&mut out, result, ctx.earlier, detail);
+    }
+
     if detail == Detail::Full {
         optional(&mut out, result);
         if !problems.is_empty() {
@@ -170,7 +194,22 @@ fn header(
         "> [!{alert}]\n> **{found}** {}: {coverage}.",
         tr(l, "Coverage", "Покрытие")
     );
-    if result.execution_outcome == ExecutionOutcome::LimitReached {
+    if quota_exhausted(result) {
+        let _ = writeln!(
+            out,
+            "> **{}** {}",
+            tr(
+                l,
+                "Model usage limit reached.",
+                "Исчерпан лимит использования моделей."
+            ),
+            tr(
+                l,
+                "The review could not finish. Increase the provider limit or top up your balance, then rerun the review.",
+                "Ревью не удалось завершить. Увеличьте лимит у провайдера или пополните баланс, затем запустите ревью повторно."
+            )
+        );
+    } else if result.execution_outcome == ExecutionOutcome::LimitReached {
         let _ = writeln!(
             out,
             "> {}",

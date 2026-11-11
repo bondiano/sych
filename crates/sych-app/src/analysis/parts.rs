@@ -110,7 +110,12 @@ impl Outcome {
         r.attempts.extend(p.attempts);
         r.hops.extend(p.hops);
         self.limit_reached |= part.limit_reached;
-        self.gaps.extend(part.gaps);
+        for gap in part.gaps {
+            if !self.gaps.contains(&gap) {
+                self.gaps.push(gap);
+            }
+        }
+
         self.questions.extend(part.questions);
     }
 }

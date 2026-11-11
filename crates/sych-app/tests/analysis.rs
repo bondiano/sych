@@ -6,11 +6,40 @@ use sych_app::analysis::PassStatus;
 use sych_core::VerificationStatus;
 use sych_core::broker::OpStatus;
 use sych_core::config::Budgets;
-use sych_core::model::{ChargeState, ModelReply, ModelRequest, ProviderError, TaskFailure};
+use sych_core::model::{
+    ChargeState, ErrorKind, ModelReply, ModelRequest, ProviderError, TaskFailure,
+};
 
 mod harness;
 
 use harness::*;
+
+#[tokio::test(flavor = "current_thread")]
+async fn exhausted_model_quota_is_reported_once_without_spending_more_attempts() {
+    let exhausted = |_: &ModelRequest| {
+        Err(ProviderError {
+            kind: ErrorKind::QuotaExhausted,
+            dispatched: false,
+            message: "openrouter: Key limit exceeded (monthly limit).".into(),
+            retry_after_seconds: None,
+        })
+    };
+    for parallel in [1, 3] {
+        let mut budgets = Budgets::default();
+        budgets.analysis.max_parallel_calls = Some(parallel);
+        let (outcome, calls) = run_on(repo(true), exhausted, budgets, 1, true).await;
+        assert_eq!(calls.len(), 1, "no requests after the quota is exhausted");
+        assert!(outcome.limit_reached);
+        assert_eq!(outcome.gaps.len(), 1, "{:?}", outcome.gaps);
+        assert!(outcome.gaps[0].contains("Model usage limit reached"));
+        assert!(!outcome.gaps[0].contains("Provider {"));
+        assert_eq!(
+            reason(&outcome.assessments[0].status),
+            "MODEL_QUOTA_EXHAUSTED"
+        );
+        assert_eq!(outcome.record.attempts.len(), 1);
+    }
+}
 
 #[tokio::test(flavor = "current_thread")]
 async fn safe_change_with_empty_discovery_is_assessed_not_skipped() {

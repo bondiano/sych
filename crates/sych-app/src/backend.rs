@@ -344,6 +344,7 @@ impl Routing {
             now: Timestamp::now,
             redactor: &self.redactor,
             cooldowns: RefCell::default(),
+            exhausted: RefCell::default(),
             reuse,
             models_revision: self.models_revision.clone(),
             eligible: Some(&*self.recheck),

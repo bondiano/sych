@@ -79,6 +79,7 @@ fn router<'a>(
         now: clock,
         redactor: Redactor::builtin(),
         cooldowns: RefCell::default(),
+        exhausted: RefCell::default(),
         reuse: BTreeMap::new(),
         models_revision: "models-1".into(),
         eligible: None,
@@ -135,6 +136,45 @@ async fn cheap_then_subscription_then_premium_share_one_budget() {
     let profiles: Vec<&str> = out.attempts.iter().map(|a| a.profile.as_str()).collect();
     assert_eq!(profiles, ["cheap", "sub", "premium"]);
     assert_eq!(ledger.rows.borrow().len(), 3, "one ledger, one run");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn exhausted_profiles_stay_disabled_while_healthy_fallbacks_keep_working() {
+    let ledger = MemLedger::default();
+    let cheap = Scripted::new(vec![error(ErrorKind::QuotaExhausted, false)]);
+    let backup = Scripted::new(vec![ok(), ok()]);
+    let hops = BTreeMap::from([
+        ("cheap".into(), hop(&cheap, "cheap")),
+        ("backup".into(), hop(&backup, "backup")),
+    ]);
+    let r = router(&ledger, hops, &["cheap", "backup"], 6);
+    assert!(review(&r).await.value.is_ok());
+    let next = review(&r).await;
+    assert!(next.value.is_ok());
+    assert_eq!(
+        outcomes(&next),
+        [("cheap".into(), "skipped"), ("backup".into(), "answered")]
+    );
+    assert_eq!(cheap.seen.borrow().len(), 1);
+    assert_eq!(backup.seen.borrow().len(), 2);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn all_exhausted_routes_keep_the_quota_cause_without_new_attempts() {
+    let ledger = MemLedger::default();
+    let cheap = Scripted::new(vec![error(ErrorKind::QuotaExhausted, false)]);
+    let backup = Scripted::new(vec![error(ErrorKind::QuotaExhausted, false)]);
+    let hops = BTreeMap::from([
+        ("cheap".into(), hop(&cheap, "cheap")),
+        ("backup".into(), hop(&backup, "backup")),
+    ]);
+    let r = router(&ledger, hops, &["cheap", "backup"], 6);
+    let first = review(&r).await;
+    assert_eq!(first.attempts.len(), 2);
+    let next = review(&r).await;
+    assert_eq!(next.value, first.value);
+    assert!(next.attempts.is_empty());
+    assert!(next.value.expect_err("quota").quota_exhausted());
 }
 
 #[tokio::test(flavor = "current_thread")]
