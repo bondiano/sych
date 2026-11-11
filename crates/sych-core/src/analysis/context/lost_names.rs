@@ -4,9 +4,9 @@
 use std::collections::BTreeMap;
 use std::fmt::Write;
 
-use super::{Context, MAX_REMOVED_LINES};
+use super::{Context, MAX_REMOVED_LINES, hunk_lines, side_text};
 use crate::model::DataBlock;
-use crate::{CodeRef, DiffManifest, FileSide, RepoPath, SnapshotReader, SourceSide};
+use crate::{CodeRef, DiffManifest, RepoPath, SnapshotReader, SourceSide};
 
 /// Names a hypothesis's removed lines lose that one block follows.
 const MAX_LOST_NAMES: usize = 12;
@@ -17,24 +17,6 @@ const MAX_LOST_LINES_PER_FILE: usize = 3;
 fn names(text: &str) -> impl Iterator<Item = &str> {
     text.split(|c: char| !(c.is_alphanumeric() || c == '_'))
         .filter(|w| w.len() >= 3 && !w.starts_with(|c: char| c.is_ascii_digit()))
-}
-
-/// The whole text of one side of a changed file, when it is readable text.
-fn side_text(reader: &dyn SnapshotReader, side: SourceSide, file: &FileSide) -> Option<String> {
-    let lines = file.line_count.filter(|&n| n > 0)?;
-    let span = reader
-        .code_ref(side, &file.path, 1, lines)
-        .and_then(|r| reader.read_span(&r))
-        .ok()?;
-    Some(span.text)
-}
-
-/// The lines of `text` a hunk side covers, numbered as in the file.
-fn hunk_lines(text: &str, start: u32, count: u32) -> impl Iterator<Item = (u32, &str)> {
-    (1..)
-        .zip(text.lines())
-        .skip(start.saturating_sub(1) as usize)
-        .take(count as usize)
 }
 
 /// Where the rest of a change removes or adds one lost name.

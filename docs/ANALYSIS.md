@@ -98,6 +98,15 @@ An obligation about the tests themselves (the shipped `TEST-INTEGRITY`) also get
 test and CI file, shown or not, read verbatim from BASE (up to 40 lines per file, the rest counted), and
 "0 lines removed" for a file that only gained lines: a weakened assertion or gate is visible even when the file's
 spans did not fit the packet.
+Code the change moves is a fact, not a removal. A block of removed BASE lines that reappears among the added HEAD
+lines in the same order with the same text (indentation aside, at least 3 lines, and 20 letters or digits as git's
+`--color-moved` requires) is a move: `tests/lint.rs:15-40 moved to tests/common/repo.rs:14-39`. The longest blocks are taken
+first across the whole change, and each line belongs to one move at most; a block partly taken by a longer one keeps
+its free parts if they are still blocks. Blocks are found by their first three lines, so a line repeated in many places
+(`#[test]`) still starts one; the search compares at most a million candidate places and, past that, says it stopped. The test removals list a
+moved block by its move and count only what was really removed (`51 lines removed, 40 of them moved`). Assessment,
+discovery and verifier contexts get the moves of the files they show (up to 40), so moving a test module into its own
+file or a function into a new module never reads as a dropped test or as untraced new code.
 A candidate anchored on removed BASE lines of a file that stays reaches the verifier with its anchors' side and the
 names those lines use that the file's HEAD no longer has (up to 12). For each name it shows where else the change
 removes it (up to 3 BASE lines per file, 40 in all, the rest counted), the deleted files that named it and the files
