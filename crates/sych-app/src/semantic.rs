@@ -60,9 +60,9 @@ pub fn collect_lint(snap: &LocalSnapshot, tooling: &Tooling) -> anyhow::Result<V
     Ok(lint::collect(snap, &options))
 }
 
-/// Sych-owned install state beside the tool cache; under it when the cache root's parent is
-/// not a named directory (`tools`, `./tools`, `../tools`, `/tools`), so it is never the
-/// directory the review runs in.
+/// Sych-owned install state beside the tool cache, or under it when the cache root's parent is
+/// not a named directory (`tools`, `./tools`, `../tools`, `/tools`): a bare `.` or `..` never
+/// becomes the state directory.
 fn state_dir(root: &Path) -> PathBuf {
     root.parent()
         .filter(|p| p.file_name().is_some())
