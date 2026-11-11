@@ -116,8 +116,8 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
   an empty array. More than 20 candidates is `CANDIDATE_OVERFLOW`: the extra ones are dropped, which is a gap and `LIMIT_REACHED`
   (coverage `PARTIAL`); more than 4 context requests are rejected by count. The model's `unresolved_questions` go
   into the result's `unresolved_questions` as `open question: …`, without changing the execution outcome and coverage.
-  The model's free-text lists (open questions, an assessment's `missing_inputs` and `limitations`, a verdict's
-  `limitations`) are trimmed, and empty or repeated items are dropped, so a blank question never reaches a summary.
+  The model's free-text lists (open questions, a candidate's `conditions` and `causal_chain`, an assessment's
+  `missing_inputs` and `limitations`, a verdict's `limitations`) are trimmed, and empty or repeated items are dropped, so a blank question never reaches a summary.
   The prompt asks to keep only questions the shown spans cannot answer: when removed lines, doc comments or messages
   state the intent and the change breaks it, that is a candidate, not a question.
 - **Context requests** are a closed enum `read_lines | find_references | find_callers | find_callees |

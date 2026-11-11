@@ -219,7 +219,7 @@ fn draft(
     evidence: &[&str],
     obligations: &[&str],
 ) -> serde_json::Value {
-    json!({"category": "DEFECT", "claim": "guard removed", "conditions": ["items undefined"],
+    json!({"category": "DEFECT", "claim": "guard removed", "conditions": ["items undefined", " "],
            "causal_chain": ["guard gone", "reduce on undefined"], "consequence": "throws",
            "anchors": anchors, "evidence_ids": evidence, "obligation_ids": obligations,
            "proposed_severity": "HIGH", "disproof_question": "is items always defined?"})
@@ -253,6 +253,7 @@ fn discovery_keeps_only_handed_out_references() {
     assert_eq!(candidate.evidence_ids, [source.id]);
     assert_eq!(candidate.obligation_ids, obligations);
     assert_eq!(candidate.verification_status, VerificationStatus::Pending);
+    assert_eq!(candidate.conditions, ["items undefined"]);
     let problems: Vec<&str> = found
         .rejected
         .iter()
