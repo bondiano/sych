@@ -295,7 +295,7 @@ pub fn validate(
     reader: &dyn SnapshotReader,
 ) -> Discovered {
     let mut found = Discovered {
-        unresolved_questions: output.unresolved_questions,
+        unresolved_questions: super::texts(output.unresolved_questions),
         ..Discovered::default()
     };
     for (i, draft) in output.candidates.into_iter().enumerate() {
@@ -342,10 +342,10 @@ pub fn validate(
             category: draft.category,
             proposed_severity: draft.proposed_severity,
             claim: draft.claim,
-            causal_chain: draft.causal_chain,
+            causal_chain: super::texts(draft.causal_chain),
             anchors,
             consequences: vec![draft.consequence],
-            conditions: draft.conditions,
+            conditions: super::texts(draft.conditions),
             refutation: draft.disproof_question,
             evidence_ids,
             obligation_ids,
