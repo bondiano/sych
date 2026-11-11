@@ -242,3 +242,35 @@ fn a_failed_search_never_says_what_the_change_adds() {
     );
     assert!(!text.contains("the change adds them"), "{text}");
 }
+
+#[test]
+fn an_incomplete_other_side_never_reads_as_absence() {
+    // More hits than the limit, all in a generated file: cut, and none can be shown.
+    let mut reader = Reader::new();
+    reader.0.insert(
+        (SourceSide::Head, super::path("gen/tokens.ts")),
+        "let generated_token = 1;\n".repeat(12).leak(),
+    );
+    let generated = [super::path("gen/tokens.ts")];
+    let ops = Ops {
+        generated: &generated,
+        facts: &[],
+        evidence: &[],
+        reader: &reader,
+    };
+    let ask = ContextAsk {
+        question: "is it used?".into(),
+        operation: AskOperation::SearchSource {
+            side: SourceSide::DiffBase,
+            query: "generated_token".into(),
+        },
+    };
+    let mut context = Context::default();
+    ask.answer(&ops, &mut context, 10);
+    let text = &context.blocks.last().expect("status block").content;
+    assert!(
+        text.contains("HEAD (this change) shows no matches, but its answer is incomplete"),
+        "{text}"
+    );
+    assert!(!text.contains("has no matches"), "{text}");
+}

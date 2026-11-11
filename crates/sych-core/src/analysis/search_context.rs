@@ -83,7 +83,13 @@ pub(super) fn other_side(ops: &Ops<'_>, side: SourceSide, query: &str, absent: b
         status => return format!("{searched}; {} not searched ({status:?})", described(other)),
     };
     if n == 0 {
-        return format!("{searched}; {} has no matches", described(other));
+        // A cut answer whose hits were all in generated files shows none and proves nothing.
+        let none = if result.status == OpStatus::CompleteForQuery {
+            "has no matches"
+        } else {
+            "shows no matches, but its answer is incomplete"
+        };
+        return format!("{searched}; {} {none}", described(other));
     }
 
     let meaning = match (absent, other) {
