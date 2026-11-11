@@ -2,22 +2,27 @@
 //! (indentation aside), among the lines it adds on HEAD. A moved line is neither a removal nor
 //! new code, so a check that a test was dropped or behaviour kept reads the move as such.
 
-use std::collections::HashMap;
+use std::array;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap};
 use std::fmt::Write;
 
 use super::{Context, hunk_lines, side_text};
 use crate::model::DataBlock;
 use crate::{DiffManifest, RepoPath, SnapshotReader, SourceSide};
 
-/// A block of fewer lines is a coincidence (Sych's own rule).
+/// A block of fewer lines is a coincidence (Sych's own rule); blocks are found by their first
+/// `MIN_LINES` lines.
 const MIN_LINES: usize = 3;
 /// Letters and digits a block needs, as git's `--color-moved` requires.
 const MIN_ALNUM: usize = 20;
-/// Places one line of text is matched at; boilerplate repeats.
-// shortcut: a block starting at a line with more than 64 HEAD copies is not found; index such lines by their neighbours if real moves are missed.
-const MAX_CANDIDATES: usize = 64;
+/// Candidate places compared at most, so a change of many identical lines cannot make the search
+/// quadratic; past it the search stops and says so.
+const MAX_PAIRS: usize = 1_000_000;
 /// Moves one block lists; the rest are counted.
 const MAX_LISTED: usize = 40;
+pub(super) const CUT: &str =
+    "move detection stopped at its work bound: later moved blocks may read as removed and new";
 
 /// BASE lines `from` of `from_path` reappear as HEAD lines `to` of `to_path` (inclusive).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,6 +31,14 @@ pub struct Move {
     pub from: (u32, u32),
     pub to_path: RepoPath,
     pub to: (u32, u32),
+}
+
+/// Every block a change moves, and whether the search stopped at its work bound.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Moves {
+    pub blocks: Vec<Move>,
+    /// The search compared `MAX_PAIRS` places and stopped: later blocks may read as removed.
+    pub cut: bool,
 }
 
 /// The lines one hunk side covers, trimmed: a run that can match only in order.
@@ -65,64 +78,114 @@ fn alphanumeric(lines: &[(u32, String)]) -> usize {
         .sum()
 }
 
+/// A block's length and where it starts: removed run, line in it, added run, line in it.
+type Ranked = (usize, Reverse<(usize, usize, usize, usize)>);
+
+fn significant(text: &str) -> bool {
+    text.chars().any(char::is_alphanumeric)
+}
+
+/// The first `MIN_LINES` lines from `i`, when the first has a letter or digit: a block starts
+/// there, never at a brace or a blank line.
+fn key(lines: &[(u32, String)], i: usize) -> Option<[&str; MIN_LINES]> {
+    let window = lines.get(i..i + MIN_LINES)?;
+    significant(&window[0].1).then(|| array::from_fn(|k| window[k].1.as_str()))
+}
+
 /// Every block the change moves, in manifest order. The longest blocks are taken first across
-/// the whole change, so a shorter block that happens to come earlier never takes the HEAD lines
-/// a longer one needs; each removed and each added line belongs to one move at most. A block
-/// starts at a line with a letter or digit, so braces and blank lines never anchor one.
-// shortcut: a candidate that overlaps a longer accepted block is dropped whole, not trimmed; trim it if a split move shows up as removal.
+/// the whole change; a block partly taken by a longer one gives back its free parts, which
+/// compete again on their own length. Each removed and each added line belongs to one move at
+/// most.
 // shortcut: recomputed for each context it is shown in; keep it on the engine if a profile shows the cost.
-pub fn moves(manifest: &DiffManifest, reader: &dyn SnapshotReader) -> Vec<Move> {
+pub fn moves(manifest: &DiffManifest, reader: &dyn SnapshotReader) -> Moves {
     let removed = runs(manifest, reader, SourceSide::DiffBase);
     let added = runs(manifest, reader, SourceSide::Head);
-    let mut at: HashMap<&str, Vec<(usize, usize)>> = HashMap::new();
+    let mut at: HashMap<[&str; MIN_LINES], Vec<(usize, usize)>> = HashMap::new();
     for (r, run) in added.iter().enumerate() {
-        for (i, (_, text)) in run.lines.iter().enumerate() {
-            if text.chars().any(char::is_alphanumeric) {
-                let places = at.entry(text.as_str()).or_default();
-                if places.len() < MAX_CANDIDATES {
-                    places.push((r, i));
-                }
+        for j in 0..run.lines.len() {
+            if let Some(k) = key(&run.lines, j) {
+                at.entry(k).or_default().push((r, j));
             }
         }
     }
 
-    // (length, removed run, line in it, added run, line in it) of every block long enough.
-    let mut blocks: Vec<(usize, usize, usize, usize, usize)> = Vec::new();
-    for (q, run) in removed.iter().enumerate() {
+    // The longest pops first, equals in manifest order, so the result is stable.
+    let mut queue: BinaryHeap<Ranked> = BinaryHeap::new();
+    // How far each diagonal of a removed and an added run is already matched: a place inside a
+    // block found from an earlier place is that block's tail, not a block of its own.
+    let mut reached: HashMap<(usize, usize, usize), usize> = HashMap::new();
+    let (mut pairs, mut cut) = (0, false);
+    'search: for (q, run) in removed.iter().enumerate() {
         for i in 0..run.lines.len() {
-            for &(r, j) in at.get(run.lines[i].1.as_str()).into_iter().flatten() {
+            let Some(k) = key(&run.lines, i) else {
+                continue;
+            };
+            for &(r, j) in at.get(&k).into_iter().flatten() {
+                pairs += 1;
+                if pairs > MAX_PAIRS {
+                    cut = true;
+                    break 'search;
+                }
+
+                // `i - j`, shifted to stay unsigned.
+                let diagonal = (q, r, i + added[r].lines.len() - j);
+                if reached.get(&diagonal).is_some_and(|&end| i < end) {
+                    continue;
+                }
+
                 let len = run.lines[i..]
                     .iter()
                     .zip(&added[r].lines[j..])
                     .take_while(|(a, b)| a.1 == b.1)
                     .count();
-                if len >= MIN_LINES && alphanumeric(&run.lines[i..i + len]) >= MIN_ALNUM {
-                    blocks.push((len, q, i, r, j));
+                reached.insert(diagonal, i + len);
+                if alphanumeric(&run.lines[i..i + len]) >= MIN_ALNUM {
+                    queue.push((len, Reverse((q, i, r, j))));
                 }
             }
         }
     }
-    // Longest first; equals in manifest order, so the result is stable.
-    blocks.sort_by(|a, b| {
-        b.0.cmp(&a.0)
-            .then_with(|| (a.1, a.2, a.3, a.4).cmp(&(b.1, b.2, b.3, b.4)))
-    });
 
     let mut taken_from: Vec<Vec<bool>> =
         removed.iter().map(|r| vec![false; r.lines.len()]).collect();
     let mut taken_to: Vec<Vec<bool>> = added.iter().map(|r| vec![false; r.lines.len()]).collect();
     let mut kept = Vec::new();
-    for (len, q, i, r, j) in blocks {
-        let free = |taken: &[bool], at: usize| taken[at..at + len].iter().all(|t| !t);
-        if free(&taken_from[q], i) && free(&taken_to[r], j) {
+    while let Some((len, Reverse((q, i, r, j)))) = queue.pop() {
+        let free: Vec<bool> = (0..len)
+            .map(|k| !taken_from[q][i + k] && !taken_to[r][j + k])
+            .collect();
+        if free.iter().all(|&f| f) {
             taken_from[q][i..i + len].fill(true);
             taken_to[r][j..j + len].fill(true);
             kept.push((q, i, len, r, j));
+            continue;
+        }
+
+        // The free parts, each again from a line with a letter or digit.
+        let mut k = 0;
+        while k < len {
+            if !free[k] {
+                k += 1;
+                continue;
+            }
+
+            let mut start = k;
+            while k < len && free[k] {
+                k += 1;
+            }
+            while start < k && !significant(&removed[q].lines[i + start].1) {
+                start += 1;
+            }
+            let part = &removed[q].lines[i + start..i + k];
+            if part.len() >= MIN_LINES && alphanumeric(part) >= MIN_ALNUM {
+                queue.push((part.len(), Reverse((q, i + start, r, j + start))));
+            }
         }
     }
 
     kept.sort_unstable();
-    kept.into_iter()
+    let blocks = kept
+        .into_iter()
         .map(|(q, i, len, r, j)| {
             let (from, to) = (&removed[q].lines[i..i + len], &added[r].lines[j..j + len]);
             Move {
@@ -132,7 +195,8 @@ pub fn moves(manifest: &DiffManifest, reader: &dyn SnapshotReader) -> Vec<Move> 
                 to: (to[0].0, to[len - 1].0),
             }
         })
-        .collect()
+        .collect();
+    Moves { blocks, cut }
 }
 
 /// The parts of BASE lines `start..start+count` of `path` that no move covers.
@@ -174,11 +238,13 @@ impl Context {
     /// is read as a removal or as new code.
     pub fn add_moves(&mut self, manifest: &DiffManifest, reader: &dyn SnapshotReader) {
         let shown = |p: &RepoPath| self.refs.values().any(|r| &r.path == p);
-        let relevant: Vec<Move> = moves(manifest, reader)
+        let found = moves(manifest, reader);
+        let relevant: Vec<Move> = found
+            .blocks
             .into_iter()
             .filter(|m| shown(&m.from_path) || shown(&m.to_path))
             .collect();
-        if relevant.is_empty() {
+        if relevant.is_empty() && !found.cut {
             return;
         }
 
@@ -188,6 +254,10 @@ impl Context {
         }
         if relevant.len() > MAX_LISTED {
             let _ = writeln!(content, "{} more moved blocks", relevant.len() - MAX_LISTED);
+        }
+
+        if found.cut {
+            let _ = writeln!(content, "{CUT}");
         }
 
         self.blocks.push(DataBlock {

@@ -19,7 +19,7 @@ use crate::{
 mod lost_names;
 mod moves;
 
-pub use moves::{Move, moves};
+pub use moves::{Move, Moves, moves};
 
 /// Removed lines of one test or CI file shown verbatim, and as many of the lines replacing
 /// them; the rest is only counted.
@@ -287,7 +287,8 @@ impl Context {
     /// The lines every changed test or CI file loses, shown or not: a removed assertion or
     /// gate is visible verbatim, and a file without removals says so.
     pub fn add_test_removals(&mut self, manifest: &DiffManifest, reader: &dyn SnapshotReader) {
-        let moved_blocks = moves(manifest, reader);
+        let found = moves(manifest, reader);
+        let moved_blocks = &found.blocks;
         let mut content = String::new();
         for file in &manifest.files {
             let sides = file.old.iter().chain(&file.new);
@@ -332,7 +333,7 @@ impl Context {
                 }
 
                 for (start, count) in
-                    moves::unmoved(&moved_blocks, &old.path, h.old_start, h.old_lines)
+                    moves::unmoved(moved_blocks, &old.path, h.old_start, h.old_lines)
                 {
                     let take = count.min(MAX_REMOVED_LINES - shown);
                     if take == 0 {
@@ -383,6 +384,10 @@ impl Context {
                 );
             }
         }
+        if found.cut && !content.is_empty() {
+            let _ = writeln!(content, "{}", moves::CUT);
+        }
+
         if !content.is_empty() {
             self.blocks.push(DataBlock {
                 label: "removed lines of every changed test and CI file (BASE `-`), each hunk \

@@ -15,7 +15,7 @@ pub use assess::{
     AssessmentOutput, AssessmentRecord, CriterionRecord, CriterionResult, CriterionStatus,
     ProposedStatus, not_assessed, unknown, unseen_violation, validate as validate_assessment,
 };
-pub use context::{Anchor, Context, Move, moves, packet_evidence};
+pub use context::{Anchor, Context, Move, Moves, moves, packet_evidence};
 pub use discovery::{
     Answered, AskOperation, CANDIDATE_OVERFLOW, CandidateDraft, ContextAsk, Discovered,
     DiscoveryOutput, MAX_CONTEXT_ASKS, RejectedDraft, ReviewOutput, context_asks,

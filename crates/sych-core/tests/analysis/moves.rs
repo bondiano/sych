@@ -1,6 +1,8 @@
 //! Code the change moves: a block removed on BASE that reappears on HEAD is a move, so a test
 //! moved into its own file is not read as a removed test.
 
+use std::fmt::Write;
+
 use serde_json::json;
 use sych_core::analysis::{Context, Move, moves};
 use sych_core::{DiffManifest, SourceSide};
@@ -82,7 +84,7 @@ fn found(m: &Move) -> (String, (u32, u32), String, (u32, u32)) {
 #[test]
 fn moved_blocks_are_found_indentation_aside_and_short_lines_never_move() {
     let (reader, manifest) = fixture();
-    let moved: Vec<_> = moves(&manifest, &reader).iter().map(found).collect();
+    let moved: Vec<_> = moves(&manifest, &reader).blocks.iter().map(found).collect();
     assert_eq!(
         moved,
         [
@@ -174,9 +176,136 @@ fn the_longest_block_wins_even_when_a_shorter_one_comes_first() {
         "omissions": []
     }))
     .expect("manifest");
-    let moved: Vec<_> = moves(&manifest, &reader).iter().map(found).collect();
+    let moved: Vec<_> = moves(&manifest, &reader).blocks.iter().map(found).collect();
     assert_eq!(
         moved,
         [("src/b.rs".into(), (1, 5), "src/c.rs".into(), (1, 5))]
+    );
+}
+
+/// One-file manifest helper: `files` as `(path, BASE text, HEAD text)`, each side wholly changed.
+fn whole(
+    reader: &mut Reader,
+    files: &[(&str, Option<&'static str>, Option<&'static str>)],
+) -> DiffManifest {
+    let mut changes = Vec::new();
+    for &(p, base, head) in files {
+        let count =
+            |t: Option<&str>| t.map_or(0, |t| u32::try_from(t.lines().count()).expect("lines"));
+        if let Some(t) = base {
+            reader.0.insert((SourceSide::DiffBase, path(p)), t);
+        }
+
+        if let Some(t) = head {
+            reader.0.insert((SourceSide::Head, path(p)), t);
+        }
+
+        let hunk = [
+            u32::from(base.is_some()),
+            count(base),
+            u32::from(head.is_some()),
+            count(head),
+        ];
+        changes.push(file(p, [base, head], &[hunk]));
+    }
+    serde_json::from_value(json!({
+        "schema_version": 1, "method": "fixture",
+        "diff_base": "sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "head": "sha1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "files": changes, "omissions": []
+    }))
+    .expect("manifest")
+}
+
+#[test]
+fn a_block_partly_taken_by_a_longer_one_keeps_its_free_part() {
+    const HEAD: &str = "let alpha_value = one();\nlet beta_value = two();\nlet gamma_value = three();\nlet delta_value = four();\nlet epsilon_value = five();\nlet zeta_value = six();\nlet eta_value = seven();\nlet theta_value = eight();\nlet iota_value = nine();\nlet kappa_value = ten();\n";
+    // HEAD lines 5-10 and 1-6: equal length, so `a.rs` (first in the manifest) wins lines 5-6.
+    const A: &str = "let epsilon_value = five();\nlet zeta_value = six();\nlet eta_value = seven();\nlet theta_value = eight();\nlet iota_value = nine();\nlet kappa_value = ten();\n";
+    const B: &str = "let alpha_value = one();\nlet beta_value = two();\nlet gamma_value = three();\nlet delta_value = four();\nlet epsilon_value = five();\nlet zeta_value = six();\n";
+    let mut reader = Reader::new();
+    let manifest = whole(
+        &mut reader,
+        &[
+            ("src/a.rs", Some(A), None),
+            ("src/b.rs", Some(B), None),
+            ("src/c.rs", None, Some(HEAD)),
+        ],
+    );
+    let moved: Vec<_> = moves(&manifest, &reader).blocks.iter().map(found).collect();
+    assert_eq!(
+        moved,
+        [
+            ("src/a.rs".into(), (1, 6), "src/c.rs".into(), (5, 10)),
+            // Not dropped whole: its first four lines are still free and still a block.
+            ("src/b.rs".into(), (1, 4), "src/c.rs".into(), (1, 4)),
+        ]
+    );
+}
+
+#[test]
+fn a_block_starting_at_a_line_with_many_copies_is_still_found() {
+    const MOVED: &str = "#[test]\nfn case_70() {\n    assert_eq!(value(70), 70);\n}\n";
+    // 100 tests all start with `#[test]`; the 70th moves out on its own.
+    let mut suite = String::new();
+    for n in 1..=100 {
+        let _ = write!(
+            suite,
+            "#[test]\nfn case_{n}() {{\n    assert_eq!(value({n}), {n});\n}}\n"
+        );
+    }
+    let suite: &'static str = Box::leak(suite.into_boxed_str());
+    let mut reader = Reader::new();
+    let manifest = whole(
+        &mut reader,
+        &[
+            ("tests/one.rs", Some(MOVED), None),
+            ("tests/all.rs", None, Some(suite)),
+        ],
+    );
+    let found_blocks = moves(&manifest, &reader);
+    assert!(!found_blocks.cut);
+    let moved: Vec<_> = found_blocks.blocks.iter().map(found).collect();
+    assert_eq!(
+        moved,
+        [(
+            "tests/one.rs".into(),
+            (1, 4),
+            "tests/all.rs".into(),
+            (277, 280)
+        )]
+    );
+}
+
+#[test]
+fn a_change_of_many_identical_lines_stops_at_the_work_bound_and_says_so() {
+    let same: &'static str = Box::leak("let unit_value = 1;\n".repeat(1100).into_boxed_str());
+    let mut reader = Reader::new();
+    let manifest = whole(
+        &mut reader,
+        &[
+            ("src/a.rs", Some(same), None),
+            ("src/b.rs", None, Some(same)),
+        ],
+    );
+    let found_blocks = moves(&manifest, &reader);
+    assert!(found_blocks.cut, "over a million candidate places");
+    let moved: Vec<_> = found_blocks.blocks.iter().map(found).collect();
+    assert_eq!(
+        moved[0],
+        ("src/a.rs".into(), (1, 1100), "src/b.rs".into(), (1, 1100))
+    );
+
+    let mut context = Context::default();
+    let span = reader.at(SourceSide::Head, "src/b.rs", 1, 3);
+    context.add_span(&span, "the moved lines", &reader);
+    context.add_moves(&manifest, &reader);
+    let block = context.blocks.last().expect("moves block");
+    assert!(
+        block
+            .content
+            .contains("move detection stopped at its work bound"),
+        "{}",
+        block.content
     );
 }
