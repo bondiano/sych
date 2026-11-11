@@ -63,8 +63,11 @@ fn alphanumeric(lines: &[(u32, String)]) -> usize {
         .sum()
 }
 
-/// Every block the change moves, in manifest order. Each added line belongs to one move at most;
-/// a block starts at a line with a letter or digit, so braces and blank lines never anchor one.
+/// Every block the change moves, in manifest order. The longest blocks are taken first across
+/// the whole change, so a shorter block that happens to come earlier never takes the HEAD lines
+/// a longer one needs; each removed and each added line belongs to one move at most. A block
+/// starts at a line with a letter or digit, so braces and blank lines never anchor one.
+// shortcut: a candidate that overlaps a longer accepted block is dropped whole, not trimmed; trim it if a split move shows up as removal.
 // shortcut: recomputed for each context it is shown in; keep it on the engine if a profile shows the cost.
 pub fn moves(manifest: &DiffManifest, reader: &dyn SnapshotReader) -> Vec<Move> {
     let removed = runs(manifest, reader, SourceSide::DiffBase);
@@ -81,44 +84,53 @@ pub fn moves(manifest: &DiffManifest, reader: &dyn SnapshotReader) -> Vec<Move> 
         }
     }
 
-    let mut used: Vec<Vec<bool>> = added.iter().map(|r| vec![false; r.lines.len()]).collect();
-    let mut out = Vec::new();
-    for run in &removed {
-        let mut i = 0;
-        while i < run.lines.len() {
-            let from = &run.lines[i..];
-            // The longest block from here; the first of equals, so the result is stable.
-            let mut best: Option<(usize, usize, usize)> = None;
-            for &(r, j) in at.get(from[0].1.as_str()).into_iter().flatten() {
-                let len = from
+    // (length, removed run, line in it, added run, line in it) of every block long enough.
+    let mut blocks: Vec<(usize, usize, usize, usize, usize)> = Vec::new();
+    for (q, run) in removed.iter().enumerate() {
+        for i in 0..run.lines.len() {
+            for &(r, j) in at.get(run.lines[i].1.as_str()).into_iter().flatten() {
+                let len = run.lines[i..]
                     .iter()
                     .zip(&added[r].lines[j..])
-                    .zip(&used[r][j..])
-                    .take_while(|((a, b), used)| !**used && a.1 == b.1)
+                    .take_while(|(a, b)| a.1 == b.1)
                     .count();
-                if best.is_none_or(|(_, _, longest)| len > longest) {
-                    best = Some((r, j, len));
+                if len >= MIN_LINES && alphanumeric(&run.lines[i..i + len]) >= MIN_ALNUM {
+                    blocks.push((len, q, i, r, j));
                 }
-            }
-            match best {
-                Some((r, j, len))
-                    if len >= MIN_LINES && alphanumeric(&from[..len]) >= MIN_ALNUM =>
-                {
-                    used[r][j..j + len].fill(true);
-                    let to = &added[r].lines[j..j + len];
-                    out.push(Move {
-                        from_path: run.path.clone(),
-                        from: (from[0].0, from[len - 1].0),
-                        to_path: added[r].path.clone(),
-                        to: (to[0].0, to[len - 1].0),
-                    });
-                    i += len;
-                }
-                _ => i += 1,
             }
         }
     }
-    out
+    // Longest first; equals in manifest order, so the result is stable.
+    blocks.sort_by(|a, b| {
+        b.0.cmp(&a.0)
+            .then_with(|| (a.1, a.2, a.3, a.4).cmp(&(b.1, b.2, b.3, b.4)))
+    });
+
+    let mut taken_from: Vec<Vec<bool>> =
+        removed.iter().map(|r| vec![false; r.lines.len()]).collect();
+    let mut taken_to: Vec<Vec<bool>> = added.iter().map(|r| vec![false; r.lines.len()]).collect();
+    let mut kept = Vec::new();
+    for (len, q, i, r, j) in blocks {
+        let free = |taken: &[bool], at: usize| taken[at..at + len].iter().all(|t| !t);
+        if free(&taken_from[q], i) && free(&taken_to[r], j) {
+            taken_from[q][i..i + len].fill(true);
+            taken_to[r][j..j + len].fill(true);
+            kept.push((q, i, len, r, j));
+        }
+    }
+
+    kept.sort_unstable();
+    kept.into_iter()
+        .map(|(q, i, len, r, j)| {
+            let (from, to) = (&removed[q].lines[i..i + len], &added[r].lines[j..j + len]);
+            Move {
+                from_path: removed[q].path.clone(),
+                from: (from[0].0, from[len - 1].0),
+                to_path: added[r].path.clone(),
+                to: (to[0].0, to[len - 1].0),
+            }
+        })
+        .collect()
 }
 
 /// The parts of BASE lines `start..start+count` of `path` that no move covers.

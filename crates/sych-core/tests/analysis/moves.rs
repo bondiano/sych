@@ -148,3 +148,35 @@ fn a_context_lists_the_moves_of_the_files_it_shows() {
     );
     assert_eq!(block.content, "src/lib.rs:7-10 moved to src/tests.rs:1-4\n");
 }
+
+#[test]
+fn the_longest_block_wins_even_when_a_shorter_one_comes_first() {
+    const SHORT: &str =
+        "let total = items.len();\nlet first = items[0];\nlet last = items[total - 1];\n";
+    const LONG: &str = "let total = items.len();\nlet first = items[0];\nlet last = items[total - 1];\nlet spread = last - first;\nreport(spread);\n";
+    let mut reader = Reader::new();
+    for (s, p, text) in [
+        (SourceSide::DiffBase, "src/a.rs", SHORT),
+        (SourceSide::DiffBase, "src/b.rs", LONG),
+        (SourceSide::Head, "src/c.rs", LONG),
+    ] {
+        reader.0.insert((s, path(p)), text);
+    }
+    let manifest: DiffManifest = serde_json::from_value(json!({
+        "schema_version": 1, "method": "fixture",
+        "diff_base": "sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "head": "sha1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "files": [
+            file("src/a.rs", [Some(SHORT), None], &[[1, 3, 0, 0]]),
+            file("src/b.rs", [Some(LONG), None], &[[1, 5, 0, 0]]),
+            file("src/c.rs", [None, Some(LONG)], &[[0, 0, 1, 5]]),
+        ],
+        "omissions": []
+    }))
+    .expect("manifest");
+    let moved: Vec<_> = moves(&manifest, &reader).iter().map(found).collect();
+    assert_eq!(
+        moved,
+        [("src/b.rs".into(), (1, 5), "src/c.rs".into(), (1, 5))]
+    );
+}

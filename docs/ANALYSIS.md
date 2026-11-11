@@ -100,7 +100,8 @@ test and CI file, shown or not, read verbatim from BASE (up to 40 lines per file
 spans did not fit the packet.
 Code the change moves is a fact, not a removal. A block of removed BASE lines that reappears among the added HEAD
 lines in the same order with the same text (indentation aside, at least 3 lines and 20 letters or digits, as git's
-`--color-moved` counts) is a move: `tests/lint.rs:15-40 moved to tests/common/repo.rs:14-39`. The test removals list a
+`--color-moved` counts) is a move: `tests/lint.rs:15-40 moved to tests/common/repo.rs:14-39`. The longest blocks are taken
+first across the whole change, and each line belongs to one move at most. The test removals list a
 moved block by its move and count only what was really removed (`51 lines removed, 40 of them moved`). Assessment,
 discovery and verifier contexts get the moves of the files they show (up to 40), so moving a test module into its own
 file or a function into a new module never reads as a dropped test or as untraced new code.
