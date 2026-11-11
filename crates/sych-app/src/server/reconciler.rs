@@ -121,7 +121,11 @@ impl Engine {
             let Ok(token) = self.token(conn, &change).await else {
                 continue;
             };
-            let id = remote_id.parse()?;
+            // A row that cannot name its comment is skipped, so it never blocks the rest.
+            let Ok(id) = remote_id.parse() else {
+                tracing::warn!(change_id, %remote_id, "delivered summary with an unreadable remote id");
+                continue;
+            };
             let Ok(comment) = conn.gh.comment(&change.full_name, id, &token).await else {
                 continue;
             };

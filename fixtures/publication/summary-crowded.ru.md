@@ -8,33 +8,49 @@
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ показано в коде
 
+Когда: process stops after commit
+
 #### 2. 🔴 Critical · Нарушение правила: Defect 1
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ показано в коде
+
+Когда: process stops after commit
 
 #### 3. 🟠 High · Нарушение правила: Defect 4
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ показано в коде
 
+Когда: process stops after commit
+
 #### 4. 🟠 High · Нарушение правила: Defect 7
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ показано в коде
+
+Когда: process stops after commit
 
 #### 5. 🟠 High · Нарушение правила: Defect 9
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ показано в коде
 
+Когда: process stops after commit
+
 #### 6. 🟠 High · Нарушение правила: Defect 8
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ показано в коде
+
+Когда: process stops after commit
 
 #### 7. 🟠 High · Нарушение правила: Defect 6
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ показано в коде
 
+Когда: process stops after commit
+
 #### 8. 🟠 High · Нарушение правила: Defect 3
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ показано в коде
+
+Когда: process stops after commit
 
 #### 9. 🟠 High · Нарушение правила: Defect 2
 

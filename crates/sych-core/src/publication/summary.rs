@@ -276,7 +276,17 @@ fn problem(
         None => tr(l, "not inline", "не в коде").to_owned(),
     });
     let _ = writeln!(out, "{}", meta.join(" · "));
-    if inline || detail == Detail::Brief {
+    if detail == Detail::Brief {
+        return;
+    }
+
+    if inline {
+        // The inline note is one short paragraph; the conditions it happens under stay here.
+        if !f.triggering_conditions.is_empty() {
+            let when = f.triggering_conditions.join("; ");
+            let _ = writeln!(out, "\n{}: {when}", tr(l, "When", "Когда"));
+        }
+
         return;
     }
 

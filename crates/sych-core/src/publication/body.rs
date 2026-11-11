@@ -1,7 +1,7 @@
 //! The text of one finding, shared by its inline comment and the summary: a severity badge,
 //! the explanation, when it happens and what follows, the suggested action and a prompt a
 //! coding agent can act on. Inline it is a priority and one paragraph of explanation and
-//! consequence; the when conditions stay in the summary table and the result.
+//! consequence; the when conditions stay in the summary, under the finding's line, and the result.
 
 use std::fmt::Write;
 
