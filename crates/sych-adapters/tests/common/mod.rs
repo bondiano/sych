@@ -2,6 +2,8 @@
 //! some of them.
 #![allow(dead_code)]
 
+pub mod repo;
+
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;

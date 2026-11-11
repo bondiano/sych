@@ -34,6 +34,7 @@ fn ruff(status: BackendStatus) -> LintFacts {
         files: vec!["src/store.rs".into()],
         config: Vec::new(),
         diagnostics: vec![at(6), at(1)],
+        introduced: Vec::new(),
         limitations: vec!["download failed: offline".into()],
     }
 }
@@ -68,5 +69,36 @@ fn findings_on_changed_lines_refute_and_a_missing_linter_is_a_gap() {
             .gaps
             .iter()
             .any(|g| g == "LINT_UNAVAILABLE: ruff for src/store.rs: download failed: offline")
+    );
+}
+
+#[test]
+fn a_finding_new_on_head_enters_the_packet_of_its_file_at_an_unchanged_line() {
+    let mut facts = ruff(BackendStatus::Ready);
+    facts.introduced = vec![facts.diagnostics[1].clone()];
+    let mut elsewhere = facts.diagnostics[1].clone();
+    elsewhere.path = "src/other.rs".into();
+    elsewhere.message = "new in another file".into();
+    if let Some(r) = elsewhere.code_ref.as_mut() {
+        r.path = path("src/other.rs");
+    }
+
+    facts.introduced.push(elsewhere);
+    let (_, packets) = run_full(limits(), &[], &[], &EffectLedger::default(), &[facts]);
+    let reasons: Vec<&String> = packets[0]
+        .fragments
+        .iter()
+        .flat_map(|f| &f.reason_selected)
+        .filter(|r| r.starts_with("lint ruff"))
+        .collect();
+    assert!(
+        reasons
+            .iter()
+            .any(|r| r.contains("F821 (new on head): undefined name at 1")),
+        "{reasons:?}"
+    );
+    assert!(
+        !reasons.iter().any(|r| r.contains("another file")),
+        "{reasons:?}"
     );
 }

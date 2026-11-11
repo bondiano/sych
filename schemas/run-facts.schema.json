@@ -1046,6 +1046,13 @@
             "type": "string"
           }
         },
+        "introduced": {
+          "description": "Findings absent on the diff base at lines this diff does not change: a changed\nconfiguration, a moved file or a change elsewhere brought them. They enter the packet of\ntheir own file and of a changed configuration file.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CiDiagnostic"
+          }
+        },
         "limitations": {
           "type": "array",
           "default": [],

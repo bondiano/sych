@@ -2,8 +2,10 @@
 //! TypeScript backend applies), sqruff for SQL, mago for PHP, jarl for R, clj-kondo for Clojure,
 //! actionlint and zizmor for GitHub workflows. Each is a single verified binary that reads source
 //! and its own config but never executes repository code: it runs on a materialized head with an
-//! empty `PATH` and `HOME`, no network options, and a time bound.
+//! empty `PATH` and `HOME`, no network options, and a time bound. easement checks the
+//! architecture of each project an `easement.yml` roots (see [`easement`]).
 
+mod easement;
 mod run;
 
 use std::path::Path;
@@ -17,7 +19,7 @@ use sych_core::{
 
 use crate::ci;
 use crate::git::{LocalSnapshot, SnapshotError};
-use crate::semantic::Resolve;
+use crate::semantic::{Options, Resolve};
 use crate::tools::{self, ToolError, host_target};
 
 const MAX_WORKSPACE_BLOB_BYTES: u64 = 4 << 20;
@@ -154,9 +156,11 @@ const LINTERS: [Linter; 8] = [
     },
 ];
 
-/// One document per linter with changed files it reads; tool failures are reported inside.
+/// One document per linter with changed files it reads, and one per easement project the diff
+/// touches; tool failures are reported inside.
 #[tracing::instrument(level = "info", name = "lint", skip_all)]
-pub fn collect(snapshot: &LocalSnapshot, resolve: &Resolve<'_>) -> Vec<LintFacts> {
+pub fn collect(snapshot: &LocalSnapshot, options: &Options<'_>) -> Vec<LintFacts> {
+    let resolve = options.resolve;
     let changed: Vec<&str> = snapshot
         .manifest
         .files
@@ -175,7 +179,8 @@ pub fn collect(snapshot: &LocalSnapshot, resolve: &Resolve<'_>) -> Vec<LintFacts
         })
         .filter(|(_, files): &(_, Vec<&str>)| !files.is_empty())
         .collect();
-    if wanted.is_empty() {
+    let projects = easement::projects(snapshot);
+    if wanted.is_empty() && projects.is_empty() {
         return Vec::new();
     }
 
@@ -194,7 +199,7 @@ pub fn collect(snapshot: &LocalSnapshot, resolve: &Resolve<'_>) -> Vec<LintFacts
                 .materialize(SourceSide::Head, &root, MAX_WORKSPACE_BLOB_BYTES)
                 .map(|materialized| (root, materialized))
         });
-    wanted
+    let mut out: Vec<LintFacts> = wanted
         .into_iter()
         .map(|(linter, files)| {
             let mut facts = lint_facts(snapshot, linter, &files);
@@ -238,7 +243,16 @@ pub fn collect(snapshot: &LocalSnapshot, resolve: &Resolve<'_>) -> Vec<LintFacts
             tracing::info!(linter = linter.tool, status = ?facts.status, diagnostics = facts.diagnostics.len(), "lint facts collected");
             facts
         })
-        .collect()
+        .collect();
+    out.extend(easement::collect(
+        snapshot,
+        &projects,
+        &materialized,
+        scratch.path(),
+        options,
+    ));
+
+    out
 }
 
 fn lint_facts(snapshot: &LocalSnapshot, linter: &Linter, files: &[&str]) -> LintFacts {
@@ -257,6 +271,7 @@ fn lint_facts(snapshot: &LocalSnapshot, linter: &Linter, files: &[&str]) -> Lint
         files: files.iter().map(|f| (*f).to_owned()).collect(),
         config: Vec::new(),
         diagnostics: Vec::new(),
+        introduced: Vec::new(),
         limitations: Vec::new(),
     }
 }
@@ -291,24 +306,9 @@ fn run_linter(
         .filter(|c| root.join(c).is_file())
         .map(|c| (*c).to_owned())
         .collect();
-    let changed_config: Vec<&String> = facts
-        .config
-        .iter()
-        .filter(|c| {
-            snapshot.manifest.files.iter().any(|f| {
-                f.new
-                    .iter()
-                    .chain(&f.old)
-                    .any(|s| s.path.as_str() == c.as_str())
-            })
-        })
-        .collect();
-    if !changed_config.is_empty() {
-        facts.limitations.push(format!(
-            "linter configuration changed in this diff ({}): what it reports is the author's selection",
-            changed_config.iter().map(|c| c.as_str()).collect::<Vec<_>>().join(", ")
-        ));
-    }
+    facts
+        .limitations
+        .extend(changed_config(snapshot, linter.configs));
 
     let mut args: Vec<String> = linter.args.iter().map(|a| (*a).to_owned()).collect();
     if let Err(err) = isolate(
@@ -325,7 +325,7 @@ fn run_linter(
 
     // Absolute paths: a repository file named like `--output-file=…` must never become an option.
     args.extend(files.iter().map(|f| root.join(f).display().to_string()));
-    let out = match run::run(&binary, &args, root, scratch) {
+    let out = match run::run(&binary, &args, root, scratch, &[], run::TIMEOUT) {
         Ok(out) => out,
         Err(err) => {
             facts.status = BackendStatus::Failed;
@@ -368,6 +368,28 @@ fn run_linter(
             ));
         }
     }
+}
+
+/// The limitation for the declared project `configs` this diff adds, changes or deletes: what
+/// the tool then reports is the author's selection.
+fn changed_config(snapshot: &LocalSnapshot, configs: &[&str]) -> Option<String> {
+    let changed: Vec<&str> = configs
+        .iter()
+        .copied()
+        .filter(|c| {
+            snapshot
+                .manifest
+                .files
+                .iter()
+                .any(|f| f.new.iter().chain(&f.old).any(|s| s.path.as_str() == *c))
+        })
+        .collect();
+    (!changed.is_empty()).then(|| {
+        format!(
+            "linter configuration changed in this diff ({}): what it reports is the author's selection",
+            changed.join(", ")
+        )
+    })
 }
 
 /// Arguments that keep a linter off project code its configuration would run, each with the

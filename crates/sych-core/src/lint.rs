@@ -27,6 +27,11 @@ pub struct LintFacts {
     pub config: Vec<String>,
     /// Findings with a `CodeRef` when their line resolves on this side.
     pub diagnostics: Vec<CiDiagnostic>,
+    /// Findings absent on the diff base at lines this diff does not change: a changed
+    /// configuration, a moved file or a change elsewhere brought them. They enter the packet of
+    /// their own file and of a changed configuration file.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub introduced: Vec<CiDiagnostic>,
     #[serde(default)]
     pub limitations: Vec<String>,
 }
@@ -73,6 +78,7 @@ impl LintFacts {
             code_refs: self
                 .diagnostics
                 .iter()
+                .chain(&self.introduced)
                 .filter_map(|d| d.code_ref.clone())
                 .collect(),
             limitations: self.limitations.clone(),

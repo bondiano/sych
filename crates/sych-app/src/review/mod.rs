@@ -127,7 +127,7 @@ fn derived_facts(
     let (facts, lint) = match args.semantic {
         Switch::On => (
             semantic::collect_facts(snap, &effective.server.tooling)?,
-            semantic::collect_lint(snap)?,
+            semantic::collect_lint(snap, &effective.server.tooling)?,
         ),
         Switch::Off => (Vec::new(), Vec::new()),
     };

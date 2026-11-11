@@ -1,43 +1,11 @@
 //! Pinned linters through a scripted stand-in on a real Git snapshot: the empty environment,
 //! absolute locations mapped to repository paths, exact anchors and a changed linter config.
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::{env, fs};
+use std::fs;
 
-use sych_adapters::git::{LocalSnapshot, SnapshotRequest};
-use sych_adapters::lint;
-use sych_adapters::tools::PinnedTool;
 use sych_core::{BackendStatus, LintFacts};
 
 mod common;
-
-fn git(dir: &Path, args: &[&str]) {
-    let out = Command::new("git")
-        .current_dir(dir)
-        .env_clear()
-        .env("PATH", env::var_os("PATH").unwrap_or_default())
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/dev/null")
-        .env("GIT_AUTHOR_NAME", "Fixture")
-        .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
-        .env("GIT_COMMITTER_NAME", "Fixture")
-        .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
-        .args(args)
-        .output()
-        .expect("git runs");
-    assert!(out.status.success(), "git {args:?}");
-}
-
-fn commit(dir: &Path, files: &[(&str, &str)], message: &str) {
-    for (path, text) in files {
-        let path = dir.join(path);
-        fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
-        fs::write(path, text).expect("write");
-    }
-    git(dir, &["add", "-A"]);
-    git(dir, &["commit", "-q", "-m", message]);
-}
 
 /// Answers like actionlint when given `-shellcheck=`, else with SARIF citing line 2 of its
 /// last argument (an absolute path) as a file URI; the message reports the environment and arguments
@@ -57,24 +25,7 @@ esac
 "#;
 
 fn collect(base: &[(&str, &str)], head: &[(&str, &str)]) -> Vec<LintFacts> {
-    let repo = tempfile::tempdir().expect("repo");
-    git(repo.path(), &["init", "-q", "-b", "main"]);
-    commit(repo.path(), base, "base");
-    commit(repo.path(), head, "head");
-    let snapshot = LocalSnapshot::capture(&SnapshotRequest {
-        repo: repo.path(),
-        base: "HEAD~1",
-        head: "HEAD",
-        diff_base: None,
-        max_blob_bytes: 1 << 20,
-    })
-    .expect("snapshot");
-    let bin = tempfile::tempdir().expect("bin");
-    let script: PathBuf = bin.path().join("linter");
-    let shebang = format!("#!{}", common::host_sh().display());
-    common::write_executable(&script, &(shebang + STAND_IN));
-    let resolve = move |_: &'static PinnedTool, _: &str| Ok(script.clone());
-    lint::collect(&snapshot, &resolve)
+    common::repo::collect_with(base, head, |_| STAND_IN)
 }
 
 #[test]
