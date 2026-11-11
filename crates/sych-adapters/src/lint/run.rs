@@ -23,7 +23,7 @@ pub(super) fn run(
     args: &[String],
     cwd: &Path,
     scratch: &Path,
-    env: &[(&str, OsString)],
+    env: &[(String, OsString)],
     timeout: Duration,
 ) -> io::Result<Output> {
     let home = scratch.join("home");

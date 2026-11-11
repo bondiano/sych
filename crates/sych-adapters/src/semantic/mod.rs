@@ -7,7 +7,7 @@
 mod access;
 mod cache;
 mod cargo;
-mod deps;
+pub(crate) mod deps;
 mod diagnostics;
 mod gomod;
 mod init;

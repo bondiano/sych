@@ -1,0 +1,8 @@
+{
+  "name": "sych-scip-typescript",
+  "private": true,
+  "description": "scip-typescript for easement, installed by Sych from the lockfile beside this file",
+  "dependencies": {
+    "@sourcegraph/scip-typescript": "0.6.1"
+  }
+}

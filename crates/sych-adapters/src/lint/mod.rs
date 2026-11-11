@@ -2,8 +2,8 @@
 //! TypeScript backend applies), sqruff for SQL, mago for PHP, jarl for R, clj-kondo for Clojure,
 //! actionlint and zizmor for GitHub workflows. Each is a single verified binary that reads source
 //! and its own config but never executes repository code: it runs on a materialized head with an
-//! empty `PATH` and `HOME`, no network options, and a time bound. easement checks the Rust
-//! architecture of a head that has an `easement.yml` (see [`easement`]).
+//! empty `PATH` and `HOME`, no network options, and a time bound. easement checks the
+//! architecture of each project an `easement.yml` roots (see [`easement`]).
 
 mod easement;
 mod run;
@@ -19,7 +19,7 @@ use sych_core::{
 
 use crate::ci;
 use crate::git::{LocalSnapshot, SnapshotError};
-use crate::semantic::Resolve;
+use crate::semantic::{Options, Resolve};
 use crate::tools::{self, ToolError, host_target};
 
 const MAX_WORKSPACE_BLOB_BYTES: u64 = 4 << 20;
@@ -156,10 +156,11 @@ const LINTERS: [Linter; 8] = [
     },
 ];
 
-/// One document per linter with changed files it reads, and one for easement on changed Rust
-/// files when head opts in; tool failures are reported inside.
+/// One document per linter with changed files it reads, and one per easement project the diff
+/// touches; tool failures are reported inside.
 #[tracing::instrument(level = "info", name = "lint", skip_all)]
-pub fn collect(snapshot: &LocalSnapshot, resolve: &Resolve<'_>) -> Vec<LintFacts> {
+pub fn collect(snapshot: &LocalSnapshot, options: &Options<'_>) -> Vec<LintFacts> {
+    let resolve = options.resolve;
     let changed: Vec<&str> = snapshot
         .manifest
         .files
@@ -178,13 +179,8 @@ pub fn collect(snapshot: &LocalSnapshot, resolve: &Resolve<'_>) -> Vec<LintFacts
         })
         .filter(|(_, files): &(_, Vec<&str>)| !files.is_empty())
         .collect();
-    let rust: Vec<&str> = changed
-        .iter()
-        .copied()
-        .filter(|p| ext(p, &["rs"]))
-        .collect();
-    let architecture = !rust.is_empty() && easement::configured(snapshot);
-    if wanted.is_empty() && !architecture {
+    let projects = easement::projects(snapshot);
+    if wanted.is_empty() && projects.is_empty() {
         return Vec::new();
     }
 
@@ -248,15 +244,13 @@ pub fn collect(snapshot: &LocalSnapshot, resolve: &Resolve<'_>) -> Vec<LintFacts
             facts
         })
         .collect();
-    if architecture {
-        out.extend(easement::collect(
-            snapshot,
-            &rust,
-            &materialized,
-            scratch.path(),
-            resolve,
-        ));
-    }
+    out.extend(easement::collect(
+        snapshot,
+        &projects,
+        &materialized,
+        scratch.path(),
+        options,
+    ));
 
     out
 }
@@ -277,6 +271,7 @@ fn lint_facts(snapshot: &LocalSnapshot, linter: &Linter, files: &[&str]) -> Lint
         files: files.iter().map(|f| (*f).to_owned()).collect(),
         config: Vec::new(),
         diagnostics: Vec::new(),
+        introduced: Vec::new(),
         limitations: Vec::new(),
     }
 }

@@ -1,43 +1,11 @@
 //! Pinned linters through a scripted stand-in on a real Git snapshot: the empty environment,
 //! absolute locations mapped to repository paths, exact anchors and a changed linter config.
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::{env, fs};
+use std::fs;
 
-use sych_adapters::git::{LocalSnapshot, SnapshotRequest};
-use sych_adapters::lint;
-use sych_adapters::tools::PinnedTool;
 use sych_core::{BackendStatus, LintFacts};
 
 mod common;
-
-fn git(dir: &Path, args: &[&str]) {
-    let out = Command::new("git")
-        .current_dir(dir)
-        .env_clear()
-        .env("PATH", env::var_os("PATH").unwrap_or_default())
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/dev/null")
-        .env("GIT_AUTHOR_NAME", "Fixture")
-        .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
-        .env("GIT_COMMITTER_NAME", "Fixture")
-        .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
-        .args(args)
-        .output()
-        .expect("git runs");
-    assert!(out.status.success(), "git {args:?}");
-}
-
-fn commit(dir: &Path, files: &[(&str, &str)], message: &str) {
-    for (path, text) in files {
-        let path = dir.join(path);
-        fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
-        fs::write(path, text).expect("write");
-    }
-    git(dir, &["add", "-A"]);
-    git(dir, &["commit", "-q", "-m", message]);
-}
 
 /// Answers like actionlint when given `-shellcheck=`, else with SARIF citing line 2 of its
 /// last argument (an absolute path) as a file URI; the message reports the environment and arguments
@@ -56,47 +24,8 @@ case " $* " in
 esac
 "#;
 
-/// Answers like easement with one violation on line 2 of `src/lib.rs` whose message reports
-/// the environment and arguments it saw.
-const EASEMENT: &str = r#"
-printf '{"passed":false,"violations":[{"rule":"dependency","file":"src/lib.rs","line":2,"message":"PATH=[%s] WRAPPER=%s OFFLINE=%s ARGS=[%s]","because":"stay inside","from":"a","to":"b","target":"t","specifier":"s"}],"warnings":[],"evidence_gaps":[]}' "$PATH" "$RUSTC_WRAPPER" "$CARGO_NET_OFFLINE" "$*"
-exit 1
-"#;
-
 fn collect(base: &[(&str, &str)], head: &[(&str, &str)]) -> Vec<LintFacts> {
-    collect_with(base, head, |_| STAND_IN)
-}
-
-/// Each pinned tool resolves to `script(name)` in a directory of its own.
-fn collect_with(
-    base: &[(&str, &str)],
-    head: &[(&str, &str)],
-    script: fn(&str) -> &'static str,
-) -> Vec<LintFacts> {
-    let repo = tempfile::tempdir().expect("repo");
-    git(repo.path(), &["init", "-q", "-b", "main"]);
-    commit(repo.path(), base, "base");
-    commit(repo.path(), head, "head");
-    let snapshot = LocalSnapshot::capture(&SnapshotRequest {
-        repo: repo.path(),
-        base: "HEAD~1",
-        head: "HEAD",
-        diff_base: None,
-        max_blob_bytes: 1 << 20,
-    })
-    .expect("snapshot");
-    let bin = tempfile::tempdir().expect("bin");
-    let shebang = format!("#!{}", common::host_sh().display());
-    let resolve = move |tool: &'static PinnedTool, _: &str| {
-        let path: PathBuf = bin.path().join(&tool.name).join(&tool.name);
-        if !path.exists() {
-            fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
-            common::write_executable(&path, &format!("{shebang}{}", script(&tool.name)));
-        }
-
-        Ok(path)
-    };
-    lint::collect(&snapshot, &resolve)
+    common::repo::collect_with(base, head, |_| STAND_IN)
 }
 
 #[test]
@@ -206,63 +135,4 @@ fn a_file_named_like_an_option_stays_a_file() {
 fn nothing_to_lint_runs_nothing() {
     let facts = collect(&[("docs/a.md", "a\n")], &[("docs/a.md", "b\n")]);
     assert!(facts.is_empty());
-}
-
-#[test]
-fn easement_judges_changed_rust_files_only_where_configured() {
-    let stand_in = |tool: &str| {
-        if tool == "easement" {
-            EASEMENT
-        } else {
-            STAND_IN
-        }
-    };
-    let base = [
-        ("Cargo.toml", "[package]\nname = \"a\"\n"),
-        ("src/lib.rs", "mod a;\nmod b;\n"),
-    ];
-    let head = [("src/lib.rs", "mod a;\nmod c;\n")];
-    assert!(collect_with(&base, &head, stand_in).is_empty());
-
-    let configured: Vec<(&str, &str)> = base
-        .into_iter()
-        .chain([("easement.yml", "version: 1\n")])
-        .collect();
-    let facts = collect_with(&configured, &head, stand_in);
-    let [easement] = facts.as_slice() else {
-        panic!("one document: {facts:?}");
-    };
-    assert_eq!(easement.producer.name, "easement");
-    assert_eq!(easement.status, BackendStatus::Ready);
-    assert_eq!(
-        (easement.files.as_slice(), easement.config.as_slice()),
-        (
-            &["src/lib.rs".to_owned()][..],
-            &["easement.yml".to_owned()][..]
-        )
-    );
-    let [d] = easement.diagnostics.as_slice() else {
-        panic!("one diagnostic: {:?}", easement.diagnostics);
-    };
-    assert_eq!(
-        (d.path.as_str(), d.line, d.level.as_str()),
-        ("src/lib.rs", 2, "error")
-    );
-    assert!(d.code_ref.is_some(), "line 2 exists on head");
-    assert!(d.message.contains("WRAPPER=/nonexistent/"), "{}", d.message);
-    assert!(
-        d.message
-            .contains("OFFLINE=true ARGS=[check --format json --no-cache]")
-    );
-    assert!(d.message.ends_with("; because: stay inside"));
-    let path = d
-        .message
-        .split("PATH=[")
-        .nth(1)
-        .and_then(|r| r.split(']').next());
-    let first = path.and_then(|p| p.split(':').next()).expect("PATH");
-    assert!(
-        first.ends_with("/rust-analyzer"),
-        "pinned rust-analyzer first: {first}"
-    );
 }

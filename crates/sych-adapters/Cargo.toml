@@ -42,6 +42,8 @@ tree-sitter-python.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+# The encoder only builds `.tar.xz` fixtures in tests.
+lzma-rust2 = { workspace = true, features = ["encoder"] }
 tokio = { workspace = true, features = ["macros", "net", "io-util"] }
 tracing-subscriber.workspace = true
 
