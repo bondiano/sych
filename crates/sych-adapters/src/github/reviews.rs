@@ -66,7 +66,8 @@ impl Github {
 
     /// One `COMMENT` review carrying every comment, so they read as one review; it never
     /// approves or requests changes. GitHub refuses the whole review when one position is
-    /// invalid. Returns the comments the review holds.
+    /// invalid. The comments are one revision's, so they share the head commit of the first
+    /// anchor. Returns the comments the review holds.
     pub async fn create_review(
         &self,
         repo: &str,

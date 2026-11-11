@@ -74,23 +74,23 @@ pub(crate) fn details(out: &mut String, finding: &Finding, language: ReviewLangu
     also_and_action(out, finding, l, inline);
 }
 
-/// The explanation followed by the consequence as its last sentence; its case is kept, as it
-/// may start with an identifier.
+/// The explanation followed by the consequence, each ended as a sentence; their case is kept,
+/// as either may start with an identifier.
 fn paragraph(finding: &Finding) -> String {
-    let explanation = finding.explanation.trim();
-    let consequence = finding.consequence.trim();
-    if consequence.is_empty() {
-        return explanation.to_owned();
-    }
-
-    let stop = if consequence.ends_with(['.', '!', '?']) {
-        ""
-    } else {
-        "."
-    };
-    format!("{explanation} {consequence}{stop}")
-        .trim_start()
-        .to_owned()
+    [&finding.explanation, &finding.consequence]
+        .into_iter()
+        .map(|text| text.trim())
+        .filter(|text| !text.is_empty())
+        .map(|text| {
+            let stop = if text.ends_with(['.', '!', '?']) {
+                ""
+            } else {
+                "."
+            };
+            format!("{text}{stop}")
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn table(out: &mut String, finding: &Finding, l: ReviewLanguage) {
