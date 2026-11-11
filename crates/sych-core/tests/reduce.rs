@@ -122,6 +122,37 @@ fn violated(plan: &ReviewPlan, ev: &Evidence, findings: &[Finding]) -> Reduced {
 }
 
 #[test]
+fn quota_failures_share_one_actionable_gap_but_keep_each_obligation_unknown() {
+    let mut plan = two_file_plan();
+    for o in &mut plan.obligations {
+        o.obligation.status = ObligationStatus::Unknown {
+            reason_code: "MODEL_QUOTA_EXHAUSTED".into(),
+            next_evidence_needed: "an assessment of the acceptance criterion".into(),
+        };
+    }
+    let gap = "MODEL_QUOTA_EXHAUSTED: Model usage limit reached. Increase the provider limit or top up your balance, then rerun the review.".to_owned();
+    let r = reduce(&ReduceInput {
+        plan: &plan,
+        assessments: &[],
+        evidence: &[],
+        findings: &[],
+        candidates: &[],
+        task_gaps: slice::from_ref(&gap),
+        questions: &[],
+        outcome: ExecutionOutcome::LimitReached,
+        attention_threshold: DEFAULT_ATTENTION_THRESHOLD,
+        now: at(),
+    });
+    assert_eq!(r.unresolved_questions, [gap]);
+    assert_eq!(r.coverage, sych_core::Coverage::Partial);
+    assert!(
+        r.obligations
+            .iter()
+            .all(|o| matches!(o.obligation.status, ObligationStatus::Unknown { .. }))
+    );
+}
+
+#[test]
 fn a_linked_nit_does_not_hide_a_high_violation() {
     let plan = two_file_plan();
     let ev = anchored("src/live.go");

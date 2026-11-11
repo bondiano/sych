@@ -228,6 +228,16 @@ fn http_errors_are_typed_with_dispatch_and_retry_after() {
 }
 
 #[test]
+fn key_spending_limit_is_quota_exhaustion_not_missing_entitlement() {
+    let body = r#"{"error":{"code":403,"message":"Key limit exceeded (monthly limit). Manage it using https://openrouter.ai/workspaces/default/keys/test-key-id $50.02 of $50.00 used; resets 2026-12-01T00:00:00.000Z."}}"#;
+    for status in [403, 200] {
+        let e = err(parse_reply(status, None, body));
+        assert_eq!(e.kind, ErrorKind::QuotaExhausted);
+        assert_eq!(e.dispatched, status == 200);
+    }
+}
+
+#[test]
 fn provider_error_text_is_redacted() {
     let body =
         r#"{"error":{"code":401,"message":"bad key sk-or-v1-0123456789abcdef0123456789abcdef"}}"#;

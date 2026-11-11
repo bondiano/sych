@@ -175,6 +175,17 @@ pub fn provider_error(
     detail: &str,
     retry_after: Option<u32>,
 ) -> ProviderError {
+    // OpenRouter uses 403 for a key's spending cap, not only missing model access.
+    let kind = if vendor == "openrouter"
+        && kind == ErrorKind::Entitlement
+        && detail
+            .to_ascii_lowercase()
+            .starts_with("key limit exceeded")
+    {
+        ErrorKind::QuotaExhausted
+    } else {
+        kind
+    };
     let detail: String = detail.chars().take(300).collect();
     ProviderError {
         kind,

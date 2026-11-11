@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::model::MODEL_QUOTA_EXHAUSTED;
 use crate::{
     Applicability, Candidate, Completeness, Coverage, Evidence, EvidenceId, EvidenceManifest,
     ExecutionOutcome, Finding, FindingCategory, FindingId, Lifecycle, ObligationStatus, PathGap,
@@ -250,25 +251,40 @@ fn rule_violation(
 /// Every UNKNOWN obligation, diff omission and unverified candidate stays visible.
 fn unresolved_questions(
     obligations: &[PlannedObligation],
-    plan: &ReviewPlan,
-    candidates: &[Candidate],
+    input: &ReduceInput<'_>,
     unresolved: &mut Vec<String>,
 ) {
+    let quota_reported = input
+        .task_gaps
+        .iter()
+        .any(|g| g.starts_with(&format!("{MODEL_QUOTA_EXHAUSTED}:")));
     for o in obligations {
         if let ObligationStatus::Unknown {
             reason_code,
             next_evidence_needed,
         } = &o.obligation.status
         {
+            // The shared quota gap explains all of these; statuses remain on each obligation.
+            if quota_reported && reason_code == MODEL_QUOTA_EXHAUSTED {
+                continue;
+            }
+
             unresolved.push(format!(
                 "{}: {reason_code}; next: {next_evidence_needed}",
                 o.obligation.rule_id
             ));
         }
     }
-    unresolved.extend(plan.omissions.iter().map(|o| format!("diff omission: {o}")));
     unresolved.extend(
-        candidates
+        input
+            .plan
+            .omissions
+            .iter()
+            .map(|o| format!("diff omission: {o}")),
+    );
+    unresolved.extend(
+        input
+            .candidates
             .iter()
             .filter(|c| {
                 matches!(
@@ -401,7 +417,7 @@ pub fn reduce(input: &ReduceInput<'_>) -> Reduced {
         .filter(|o| !o.obligation.waivers.is_empty())
         .map(|o| o.obligation.id)
         .collect();
-    unresolved_questions(&obligations, plan, input.candidates, &mut unresolved);
+    unresolved_questions(&obligations, input, &mut unresolved);
     unresolved.extend(input.task_gaps.iter().cloned());
     unresolved.extend(input.questions.iter().cloned());
 
