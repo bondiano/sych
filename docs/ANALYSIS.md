@@ -128,7 +128,11 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
   read alongside its declaration or call. Expanded spans are hash-checked, at most 17 lines and
   4096 source bytes; long lines shrink the window, and a failed expansion keeps the original hit.
   Explicit `read_lines` stays exact. The answer still reports cut matches as `PARTIAL`, and says
-  the windows need not show whole constructs; secret and generated paths remain excluded.
+  the windows need not show whole constructs; secret and generated paths remain excluded. A search answer names the
+  side it ran on and runs the same literal on the other side (HEAD for a BASE or TARGET_TIP search, BASE for a HEAD
+  one): `searched BASE (before this change); HEAD (this change) has 2 matches: src/a.rs:15, src/b.rs:374: the change
+  adds them`. A BASE search never sees what the change adds, so "unused" or "missing" must not rest on it alone; the
+  shared prompt rule says so too.
 - **Redaction**: secret values in all DATA blocks (spans, broker answers, candidate texts) are replaced with
   `[REDACTED]` when the prompt is rendered (`Prompt::messages`), and a changed block is marked `[secret values redacted]`;
   `CodeRef`, hashes and line numbers stay as they were.

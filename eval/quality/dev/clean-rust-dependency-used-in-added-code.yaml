@@ -1,0 +1,56 @@
+schema_version: 1
+id: clean-rust-dependency-used-in-added-code
+split: development
+language: rust
+variant: safe
+profiles: [correctness, project_rules]
+rationale: "A dependency arrives with the only file that uses it; on BASE neither exists, and its crate name differs from its path (percent-encoding → percent_encoding), as lzma-rust2 did in #160."
+base:
+  Cargo.toml: |
+    [package]
+    name = "links"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+  rust-toolchain.toml: |
+    [toolchain]
+    channel = "1.94.1"
+  src/lib.rs: |
+    pub mod slug;
+  src/slug.rs: |
+    /// Lowercase words joined by dashes.
+    pub fn slug(title: &str) -> String {
+        title
+            .split_whitespace()
+            .map(str::to_lowercase)
+            .collect::<Vec<_>>()
+            .join("-")
+    }
+head:
+  Cargo.toml: |
+    [package]
+    name = "links"
+    version = "0.1.0"
+    edition = "2024"
+
+    [dependencies]
+    percent-encoding = "2.3"
+  src/lib.rs: |
+    pub mod query;
+    pub mod slug;
+  src/query.rs: |
+    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+
+    /// A `key=value` pair for a URL query, both sides percent-encoded.
+    pub fn pair(key: &str, value: &str) -> String {
+        format!(
+            "{}={}",
+            utf8_percent_encode(key, NON_ALPHANUMERIC),
+            utf8_percent_encode(value, NON_ALPHANUMERIC)
+        )
+    }
+expected:
+  forbidden_claims:
+    - "The percent-encoding dependency is unused or never imported."
+    - "src/query.rs is not part of the crate."
