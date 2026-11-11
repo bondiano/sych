@@ -17,6 +17,8 @@ mod profiles;
 mod symbols;
 mod tsproject;
 
+pub(crate) use profiles::toolchain;
+
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};

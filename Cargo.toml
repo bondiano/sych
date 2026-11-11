@@ -19,6 +19,8 @@ futures-util = { version = "0.3.34", default-features = false, features = ["allo
 jiff = { version = "0.2.37", features = ["serde"] }
 # SMTP over rustls with ring and webpki roots, as sqlx already uses them.
 lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "ring", "webpki-roots"] }
+# Pure-Rust xz for pinned `.tar.xz` releases; the encoder and lzip are left out.
+lzma-rust2 = { version = "0.25.0", default-features = false, features = ["std", "xz"] }
 oxc_allocator = "0.139.0"
 oxc_ast = "0.139.0"
 oxc_ast_visit = "0.139.0"

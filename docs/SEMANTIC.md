@@ -21,7 +21,8 @@ verified against the pinned SHA-256, unpacked into a temporary directory and ato
 | Python | ty `0.0.93` `ty server` (GitHub release, musl on Linux) with `untrustedWorkspace: true`, plus the syntax facts below | the single pinned one | same |
 
 Linters are pinned the same way (GitHub release, SHA-256 from the release digest): ruff `0.17.2`, oxlint `1.89.0`, sqruff `0.43.0`,
-mago `1.59.0`, jarl `0.7.1`, clj-kondo `2026.10.26`, actionlint `1.7.12`, zizmor `1.31.1`; see [Pinned linters](#pinned-linters).
+mago `1.59.0`, jarl `0.7.1`, clj-kondo `2026.10.26`, actionlint `1.7.12`, zizmor `1.31.1`, easement `0.6.1` (`.tar.xz`); see
+[Pinned linters](#pinned-linters).
 
 gopls is not published as binaries, hence `archive: go-module`: Sych downloads the pinned Go, verifies the `h1:`
 hash of the `golang.org/x/tools/gopls@v0.24.0` module (`sha256` in the manifest is its hex) via `go mod download -json`,
@@ -249,6 +250,7 @@ execute repository code and work without project setup:
 | jarl | `.r`, `.R` | `check --output-format sarif`; with an empty `PATH` it finds no `Rscript`, so package-specific rules (which would start R in the project) are skipped | `jarl.toml`, `.jarl.toml` |
 | actionlint | `.github/workflows/*.y(a)ml` | `-shellcheck= -pyflakes= -format '{{json .}}'` | `.github/actionlint.y(a)ml` |
 | zizmor | workflows, `action.y(a)ml`, `.github/dependabot.yml` | `--offline --format sarif` | `zizmor.yml`, `.github/zizmor.yml` |
+| easement | changed `.rs` files, only when head has `easement.yml` at its root | `check --format json --no-cache` on the whole workspace, at most 600 s | `easement.yml`, `easement.baseline.yml` |
 
 Head is materialized from Git objects (as for language servers), and the linter runs in it with a cleared environment:
 empty `PATH` (actionlint will not find shellcheck, oxlint will not find node), `HOME` is an empty temporary directory (no
@@ -256,6 +258,17 @@ user configs or credentials), no network, at most 120 s. Absolute output paths a
 repository paths; a finding gets a `CodeRef` if its line exists on head. The result is `LintFacts` in the `facts` artifact and
 in the report (`lint_facts`), derived static evidence `PARTIAL` with producer `<linter> <version>`. If the linter
 configuration file is changed in this diff, a limitation states that the rule set is the change author's choice.
+
+easement is an architecture gate: components and the dependencies allowed between them, judged on the imports the
+pinned rust-analyzer resolves (`rust-analyzer scip`). That command always builds build scripts and proc-macros, so
+easement runs with `RUSTC_WRAPPER` pointing at a path that does not exist: cargo fails before anything from the
+repository compiles, and imports that generated or macro-expanded code writes are missing (a limitation). `PATH` holds
+only the pinned rust-analyzer and the host's `cargo`/`rustc`, cargo is offline (`CARGO_NET_OFFLINE`, no toolchain
+auto-install), and a `rust-toolchain` with `path` yields `UNSUPPORTED`. No other indexer is on `PATH`, so files of
+other languages are easement's `uncovered` gap; a project with them excludes them in `easement.yml` or easement may
+refuse to run. A violation is a diagnostic at its line and at every import behind it (`evidence`, such as each edge of a
+cycle), with the rule's `because` in the message. easement's evidence gaps (unresolved imports, uncovered files) are
+limitations naming the changed files they cover. Only Rust is wired for now.
 
 In a unit's packet, findings on changed head lines are `REFUTING` (`lint <linter> <level> <rule>: …`); findings on
 unchanged lines do not enter the packet. A linter that could not be downloaded or run is the gap

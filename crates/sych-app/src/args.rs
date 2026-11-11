@@ -193,8 +193,8 @@ pub struct ReviewArguments {
     #[arg(long, value_name = "REF")]
     pub policy_ref: Option<String>,
     /// Semantic facts from pinned language servers and findings of pinned linters (ruff, oxlint,
-    /// sqruff, mago, jarl, clj-kondo, actionlint, zizmor) become derived evidence and context
-    /// packets; tools are downloaded on first use
+    /// sqruff, mago, jarl, clj-kondo, actionlint, zizmor, easement) become derived evidence and
+    /// context packets; tools are downloaded on first use
     #[arg(long, value_enum, default_value = "on")]
     pub semantic: Switch,
     /// CI report to import: `cargo … --message-format=json` output or `JUnit` XML (repeatable).

@@ -356,6 +356,34 @@
           "sha256": "46716b2c4fa250f9c267c8f6d140ef7ed6d5a1c4c3798720c634142b5fa35bf9"
         }
       }
+    },
+    {
+      "name": "easement",
+      "version": "0.6.1",
+      "archive": "tar-xz",
+      "binary": "easement",
+      "targets": {
+        "aarch64-linux": {
+          "url": "https://github.com/mokevnin/easement/releases/download/v0.6.1/easement-aarch64-unknown-linux-gnu.tar.xz",
+          "sha256": "fab828198d18a116a9e13e2717638e28a86dc8f1990460d883f165fbb732971f",
+          "binary": "easement-aarch64-unknown-linux-gnu/easement"
+        },
+        "x86_64-linux": {
+          "url": "https://github.com/mokevnin/easement/releases/download/v0.6.1/easement-x86_64-unknown-linux-gnu.tar.xz",
+          "sha256": "cb830eae4271a29e156381bf03d158acf05ae83d6dc5fe03e753bf827d10e895",
+          "binary": "easement-x86_64-unknown-linux-gnu/easement"
+        },
+        "aarch64-macos": {
+          "url": "https://github.com/mokevnin/easement/releases/download/v0.6.1/easement-aarch64-apple-darwin.tar.xz",
+          "sha256": "e89f84d4e1820e3af58c77b5aabfcd9ea7f58b0b9822a6b3ab6ba041e45e1d44",
+          "binary": "easement-aarch64-apple-darwin/easement"
+        },
+        "x86_64-macos": {
+          "url": "https://github.com/mokevnin/easement/releases/download/v0.6.1/easement-x86_64-apple-darwin.tar.xz",
+          "sha256": "668595da82307682935d3d40e8b7be56a8760f682978bd0454bc14ce4d4b75c0",
+          "binary": "easement-x86_64-apple-darwin/easement"
+        }
+      }
     }
   ]
 }

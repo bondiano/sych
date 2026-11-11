@@ -12,6 +12,7 @@ use std::{env, fs};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use flate2::read::GzDecoder;
+use lzma_rust2::XzReader;
 use reqwest::Client;
 use serde::Deserialize;
 use sych_core::sha256;
@@ -32,6 +33,8 @@ pub enum ArchiveKind {
     Gzip,
     /// A gzip-compressed tarball unpacked whole; `binary` is a path inside it.
     TarGzip,
+    /// An xz-compressed tarball unpacked whole, like [`Self::TarGzip`].
+    TarXz,
     /// A zip of which only the `binary` entry is read, through the CI artifact reader.
     Zip,
     /// A Go module built with the pinned `go`: `sha256` is the hex of the module's `h1:` hash,
@@ -367,6 +370,9 @@ fn install(
         }
         // `unpack` refuses entries escaping the destination.
         ArchiveKind::TarGzip => tar::Archive::new(GzDecoder::new(bytes)).unpack(staging.path())?,
+        ArchiveKind::TarXz => {
+            tar::Archive::new(XzReader::new(bytes, false)).unpack(staging.path())?;
+        }
         ArchiveKind::Zip => {
             let limits = Limits {
                 max_entries: 1_000,
@@ -474,6 +480,7 @@ mod tests {
             "clj-kondo",
             "actionlint",
             "zizmor",
+            "easement",
         ] {
             assert!(sole_pinned(linter).is_ok(), "{linter}");
         }
