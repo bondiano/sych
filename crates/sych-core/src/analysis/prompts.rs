@@ -86,6 +86,11 @@ const QUESTION_RULE: &str = "Before leaving an open question about what the code
     the intent. If they answer it and the change breaks that intent, propose a candidate instead; \
     if they answer it otherwise, drop the question. Keep only questions the spans cannot answer.";
 
+/// A BASE search never sees what the change adds (#160: "unused" for a dependency used on HEAD).
+const ABSENCE_RULE: &str = "A claim that something is unused, unreferenced, unhandled or missing \
+    needs a complete search on HEAD; BASE and TARGET_TIP predate this change and never show what it \
+    adds. Each search answer also says what the other side has.";
+
 const ANCHORS: &str = "Anchors name a handed-out span and lines inside it: \
     {\"ref_id\": \"ref-N\", \"start_line\": a, \"end_line\": b}, using the line numbers printed in \
     that span. Every candidate, criterion result and verdict that claims something needs at \
@@ -98,6 +103,7 @@ pub(super) fn shared_rules(context: &Context) -> Vec<String> {
         "Do not claim that any test, build or command was run; nothing was executed.",
         "An empty answer is valid. Do not invent problems to have something to report.",
         "Keep explanations short and causal. Do not include hidden reasoning.",
+        ABSENCE_RULE,
         ANCHORS,
         context.language.instruction(),
     ]

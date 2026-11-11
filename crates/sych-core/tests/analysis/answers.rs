@@ -120,3 +120,55 @@ fn a_whole_search_answer_says_it_never_matched_paths() {
         );
     }
 }
+
+#[test]
+fn a_search_says_where_it_looked_and_what_the_other_side_has() {
+    let reader = Reader::new();
+    let ops = Ops {
+        generated: &[],
+        facts: &[],
+        evidence: &[],
+        reader: &reader,
+    };
+    let answer = |side, query: &str| {
+        let ask = ContextAsk {
+            question: "is it used?".into(),
+            operation: AskOperation::SearchSource {
+                side,
+                query: query.into(),
+            },
+        };
+        let mut context = Context::default();
+        ask.answer(&ops, &mut context, 10);
+        context.blocks.last().expect("status block").content.clone()
+    };
+    // Only the change adds it: a BASE search alone would read as "unused" (#160).
+    let added = answer(SourceSide::DiffBase, "items!.");
+    assert!(added.starts_with("no matches"), "{added}");
+    assert!(
+        added.contains(
+            "searched BASE (before this change); HEAD (this change) has 1 match: \
+             src/order.ts:2: the change adds them"
+        ),
+        "{added}"
+    );
+    let removed = answer(SourceSide::Head, "if (!items)");
+    assert!(
+        removed.contains(
+            "BASE (before this change) has 1 match: src/order.ts:2: the change removes them"
+        ),
+        "{removed}"
+    );
+    let kept = answer(SourceSide::Head, "export function total");
+    assert!(
+        kept.contains(
+            "searched HEAD (this change); BASE (before this change) has 1 match: src/order.ts:1"
+        ) && !kept.contains("the change"),
+        "{kept}"
+    );
+    let nowhere = answer(SourceSide::TargetTip, "no-such-text");
+    assert!(
+        nowhere.contains("searched TARGET_TIP (the target branch, without this change); HEAD (this change) has no matches"),
+        "{nowhere}"
+    );
+}

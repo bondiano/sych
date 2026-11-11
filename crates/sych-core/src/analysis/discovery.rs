@@ -239,6 +239,16 @@ impl ContextAsk {
                 format!("{n} matches shown ({status:?}): absence of others is not shown")
             }
         };
+        if let AskOperation::SearchSource { side, query } = &self.operation {
+            body.push('\n');
+            body.push_str(&super::search_context::other_side(
+                ops,
+                *side,
+                query,
+                result.refs.len(),
+            ));
+        }
+
         for limitation in &limitations {
             body.push('\n');
             body.push_str(limitation);
