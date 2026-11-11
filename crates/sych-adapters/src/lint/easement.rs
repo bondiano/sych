@@ -71,9 +71,7 @@ pub(super) fn collect(
         .filter(|c| root.join(c).is_file())
         .map(|c| (*c).to_owned())
         .collect();
-    facts
-        .limitations
-        .extend(changed_config(snapshot, &facts.config));
+    facts.limitations.extend(changed_config(snapshot, &CONFIGS));
     facts.limitations.push(
         "build scripts and proc-macros are not run: imports that generated or macro-expanded \
          code writes are not judged; only the Rust indexer is available"
@@ -250,9 +248,12 @@ fn parse(
         let places = iter::once((v.file.as_str(), v.line))
             .chain(v.evidence.iter().map(|p| (p.file.as_str(), p.line)));
         for (path, line) in places {
-            let seen = diagnostics
-                .iter()
-                .any(|d: &CiDiagnostic| d.path == path && d.line == line && d.message == message);
+            let seen = diagnostics.iter().any(|d: &CiDiagnostic| {
+                d.path == path
+                    && d.line == line
+                    && d.message == message
+                    && d.code.as_deref() == Some(v.rule.as_str())
+            });
             if files.iter().any(|f| f == path) && !seen {
                 diagnostics.push(CiDiagnostic {
                     code_ref: None,
@@ -302,6 +303,10 @@ mod tests {
              "from": "handlers", "to": "repository", "target": "src/repository/store.rs",
              "specifier": "src/repository/store.rs",
              "evidence": [{"file": "src/handlers/books.rs", "line": 1}]},
+            {"rule": "privacy", "file": "src/handlers/books.rs", "line": 1,
+             "message": "handlers -> repository is not allowed", "because": "go through services",
+             "from": "handlers", "to": "repository", "target": "src/repository/store.rs",
+             "specifier": "src/repository/store.rs"},
             {"rule": "cycle", "file": "src/a.rs", "line": 3, "message": "a -> b -> a",
              "from": "a", "to": "b", "target": "src/b.rs", "specifier": "b",
              "evidence": [{"file": "src/a.rs", "line": 3}, {"file": "src/b.rs", "line": 7}]}
@@ -322,29 +327,23 @@ mod tests {
             .map(String::from)
             .into();
         let (diagnostics, gaps) = parse(report, &files).expect("parses");
-        let seen: Vec<(&str, u32, &str, &str)> = diagnostics
+        let seen: Vec<(&str, u32, &str, Option<&str>)> = diagnostics
             .iter()
-            .map(|d| {
-                (
-                    d.path.as_str(),
-                    d.line,
-                    d.level.as_str(),
-                    d.message.as_str(),
-                )
-            })
+            .map(|d| (d.path.as_str(), d.line, d.level.as_str(), d.code.as_deref()))
             .collect();
         assert_eq!(
             seen,
             [
-                (
-                    "src/handlers/books.rs",
-                    1,
-                    "error",
-                    "handlers -> repository is not allowed; because: go through services"
-                ),
+                // One per rule at the same place and message.
+                ("src/handlers/books.rs", 1, "error", Some("dependency")),
+                ("src/handlers/books.rs", 1, "error", Some("privacy")),
                 // The changed edge of a cycle reported at an unchanged file.
-                ("src/b.rs", 7, "error", "a -> b -> a"),
+                ("src/b.rs", 7, "error", Some("cycle")),
             ]
+        );
+        assert_eq!(
+            diagnostics[0].message,
+            "handlers -> repository is not allowed; because: go through services"
         );
         assert_eq!(
             gaps,

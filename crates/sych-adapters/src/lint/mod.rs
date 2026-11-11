@@ -156,7 +156,8 @@ const LINTERS: [Linter; 8] = [
     },
 ];
 
-/// One document per linter with changed files it reads; tool failures are reported inside.
+/// One document per linter with changed files it reads, and one for easement on changed Rust
+/// files when head opts in; tool failures are reported inside.
 #[tracing::instrument(level = "info", name = "lint", skip_all)]
 pub fn collect(snapshot: &LocalSnapshot, resolve: &Resolve<'_>) -> Vec<LintFacts> {
     let changed: Vec<&str> = snapshot
@@ -312,7 +313,7 @@ fn run_linter(
         .collect();
     facts
         .limitations
-        .extend(changed_config(snapshot, &facts.config));
+        .extend(changed_config(snapshot, linter.configs));
 
     let mut args: Vec<String> = linter.args.iter().map(|a| (*a).to_owned()).collect();
     if let Err(err) = isolate(
@@ -374,12 +375,12 @@ fn run_linter(
     }
 }
 
-/// The limitation for project `configs` this diff changes: what the tool then reports is the
-/// author's selection.
-fn changed_config(snapshot: &LocalSnapshot, configs: &[String]) -> Option<String> {
+/// The limitation for the declared project `configs` this diff adds, changes or deletes: what
+/// the tool then reports is the author's selection.
+fn changed_config(snapshot: &LocalSnapshot, configs: &[&str]) -> Option<String> {
     let changed: Vec<&str> = configs
         .iter()
-        .map(String::as_str)
+        .copied()
         .filter(|c| {
             snapshot
                 .manifest
