@@ -78,6 +78,7 @@ fn a_finding_new_on_head_enters_the_packet_of_its_file_at_an_unchanged_line() {
     facts.introduced = vec![facts.diagnostics[1].clone()];
     let mut elsewhere = facts.diagnostics[1].clone();
     elsewhere.path = "src/other.rs".into();
+    elsewhere.message = "new in another file".into();
     if let Some(r) = elsewhere.code_ref.as_mut() {
         r.path = path("src/other.rs");
     }
@@ -96,5 +97,8 @@ fn a_finding_new_on_head_enters_the_packet_of_its_file_at_an_unchanged_line() {
             .any(|r| r.contains("F821 (new on head): undefined name at 1")),
         "{reasons:?}"
     );
-    assert!(!reasons.iter().any(|r| r.contains("other")), "{reasons:?}");
+    assert!(
+        !reasons.iter().any(|r| r.contains("another file")),
+        "{reasons:?}"
+    );
 }

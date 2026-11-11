@@ -91,7 +91,11 @@ pub(super) async fn go_install(
                 .iter()
                 .fold(String::new(), |hex, b| hex + &format!("{b:02x}"))
         })
-        .unwrap_or_default();
+        .ok_or_else(|| {
+            ToolError::Download(format!(
+                "go mod download {module}: no h1: hash in its answer"
+            ))
+        })?;
     if actual != artifact.sha256 {
         return Err(ToolError::Checksum {
             url: module.to_owned(),

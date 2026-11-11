@@ -226,6 +226,9 @@ fn introduced(
 
         facts.introduced.push(d);
     }
+    // A new finding in a changed file is said once, as new.
+    let new = &facts.introduced;
+    facts.diagnostics.retain(|d| !new.contains(d));
     if !unplaced.is_empty() {
         let shown: Vec<&str> = unplaced
             .iter()

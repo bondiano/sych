@@ -60,11 +60,12 @@ pub fn collect_lint(snap: &LocalSnapshot, tooling: &Tooling) -> anyhow::Result<V
     Ok(lint::collect(snap, &options))
 }
 
-/// Sych-owned install state beside the tool cache; under it when the cache root has no
-/// parent of its own (`SYCH_TOOLS_DIR=tools`), never the directory the review runs in.
+/// Sych-owned install state beside the tool cache; under it when the cache root's parent is
+/// not a named directory (`tools`, `./tools`, `../tools`, `/tools`), so it is never the
+/// directory the review runs in.
 fn state_dir(root: &Path) -> PathBuf {
     root.parent()
-        .filter(|p| !p.as_os_str().is_empty())
+        .filter(|p| p.file_name().is_some())
         .map_or_else(|| root.join("state"), Path::to_path_buf)
 }
 
@@ -78,7 +79,12 @@ mod tests {
             state_dir(Path::new("/home/u/.cache/sych/tools")),
             Path::new("/home/u/.cache/sych")
         );
-        assert_eq!(state_dir(Path::new("tools")), Path::new("tools/state"));
+        for relative in ["tools", "./tools", "../tools"] {
+            assert_eq!(
+                state_dir(Path::new(relative)),
+                Path::new(relative).join("state")
+            );
+        }
         assert_eq!(state_dir(Path::new("/")), Path::new("/state"));
     }
 }
