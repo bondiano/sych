@@ -22,8 +22,8 @@ it installs a release archive after checking its sha256. Never pipe a downloaded
 
 ## 3. Run the review
 
-- Make sure `.sych-data/` is in `.gitignore`, then run `sych db migrate` once. With `--config`, pass it to
-  `db migrate` as well.
+- Make sure `.sych-data/` (the local store) and `.sych-output/` (the review output) are in `.gitignore`, then run
+  `sych db migrate` once. With `--config`, pass it to `db migrate` as well.
 - With `--config` and `--models` in the arguments, the review calls that model profile, so ask the user before the
   first paid call. Without them, use `--models fake`: it makes no model calls and leaves model-only checks
   `UNKNOWN`/`NOT_ASSESSED`.

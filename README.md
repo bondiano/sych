@@ -48,7 +48,8 @@ In Claude Code, the `sych` plugin adds `/sych:review` and a review-before-push s
 as above):
 
 ```text
-/plugin install sych --marketplace bondiano/sych
+/plugin marketplace add bondiano/sych
+/plugin install sych@sych
 ```
 
 By hand, on Linux (x86_64, aarch64) or macOS (Apple silicon) with a

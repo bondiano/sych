@@ -107,7 +107,8 @@ It runs `sych serve --config /etc/sych/sych.yaml` as uid 10001.
 ## Claude Code plugin
 
 ```text
-/plugin install sych --marketplace bondiano/sych
+/plugin marketplace add bondiano/sych
+/plugin install sych@sych
 ```
 
 The plugin needs the `sych` CLI on `PATH` and installs nothing itself.
