@@ -108,5 +108,7 @@ fn intent_seen_only_by_discovery(request: &ModelRequest) -> Result<ModelReply, P
 #[tokio::test(flavor = "current_thread")]
 async fn the_authors_description_reaches_discovery_and_no_verifier() {
     let (_, calls) = run(intent_seen_only_by_discovery, Budgets::default()).await;
+    // Both sides were asked, so the assertions above ran on each.
+    assert!(calls.iter().any(|c| c == "review"), "{calls:?}");
     assert!(calls.iter().any(|c| c == "candidate_verdicts"), "{calls:?}");
 }

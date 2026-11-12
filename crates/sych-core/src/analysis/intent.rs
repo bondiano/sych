@@ -20,7 +20,11 @@ pub fn with_intent(mut prompt: Prompt, intent: Option<&str>) -> Prompt {
         return prompt;
     };
 
-    let kept = |c: &char| !c.is_control() || matches!(c, '\n' | '\t');
+    // Bidi overrides and isolates could make the text read otherwise than it is; they go too.
+    let kept = |c: &char| {
+        let bidi = matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}');
+        (!c.is_control() || matches!(c, '\n' | '\t')) && !bidi
+    };
     let mut content: String = text.chars().filter(kept).take(MAX_INTENT_CHARS).collect();
     if text.chars().filter(kept).count() > MAX_INTENT_CHARS {
         content.push_str("\n[the rest is cut]");
@@ -63,7 +67,10 @@ mod tests {
 
     #[test]
     fn intent_is_the_first_data_block_with_its_rule_and_no_control_characters() {
-        let p = with_intent(prompt(), Some("fix: keep the retry\u{1b}[31m\nbody"));
+        let p = with_intent(
+            prompt(),
+            Some("fix: keep the \u{202e}retry\u{1b}[31m\nbody"),
+        );
         assert_eq!(p.data[0].label, LABEL);
         assert_eq!(p.data[0].content, "fix: keep the retry[31m\nbody");
         assert_eq!(p.data[1].label, "ref-1");
