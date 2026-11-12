@@ -188,6 +188,29 @@ Fixtures: `crates/sych-adapters/tests/opencode_go.rs` (path, headers, session, b
 allowance, balance charge), `crates/sych-core/tests/gateway.rs` (allowance separate from charge, repair in the same
 task), `crates/sych-core/tests/config.rs` (the `/go` boundary).
 
+## OpenAI-compatible endpoint
+
+The `openai_compatible` adapter (`sych_adapters::openai_compatible`) sends `POST <endpoint>/chat/completions` to any
+OpenAI-compatible chat completions endpoint you run or pay for: a VPC gateway, vLLM, LiteLLM, Ollama, a vendor API.
+This is the only route a `corporate` config can use.
+
+- **Endpoint and key.**
+  - `endpoint` is the base URL. Like every provider endpoint, it is part of the egress allowlist.
+  - `api_key_env` is sent as `Authorization: Bearer`, with `User-Agent: sych/<version>`.
+  - An endpoint without auth still needs `api_key_env`: set the variable to any value.
+- **Money.** The profile is `api_usage` / `api_hard`, so its model needs a card in `price_catalog_file`.
+  - Every request carries `max_tokens`, so the card bounds a call before it is sent. With no card the call is refused
+    as `NO_PRICE_BOUND`.
+  - The charge is computed from the card and the reported usage (`stream_options.include_usage`). A cost field in the
+    reply is ignored.
+  - With no usage reported the charge is `UNKNOWN`.
+- **Schema.** Native structured output is not claimed: the schema goes into the system message and the reply is
+  validated locally, with at most one repair.
+- **Not covered.** No vendor routing fields, reasoning controls or extra headers. A gateway that requires its own header
+  (OpenCode Go wants `x-opencode-session`) needs its dedicated adapter.
+
+Fixtures: `crates/sych-adapters/tests/openai_compatible.rs` (path, key, `max_tokens`, no schema, reported cost ignored).
+
 ## GLM Coding Plan via Pi
 
 Z.ai permits the Coding Plan in supported coding tools ([usage rules](https://docs.z.ai/legal-agreement/subscription-terms),
@@ -332,6 +355,8 @@ deny-external, subscription local only).
 
 - The subscription transports (ChatGPT plan, GLM Coding Plan, OpenCode Go) are verified by fixtures and loopback stubs,
   not against the live services: each needs its own sign-in or key, `fixed_fee` and a confirmed `overage_disabled`.
+- `openai_compatible` is verified by loopback stubs. A live call to OpenCode Go reached the endpoint with a price-card
+  reservation and was refused for the missing `x-opencode-session` header; no other endpoint has been tried live.
 - Cooldowns live within a single run; they are not persisted across processes.
 - Reconciliation of `UNKNOWN` attempts via `GET /generation` is not implemented yet: the generation id of a cut-off stream
   is in the attempt's error message, but the reservation stays held for now.
