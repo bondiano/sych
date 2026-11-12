@@ -20,8 +20,8 @@ use tokio::time;
 use super::ci::{Collected, Head};
 use super::engine::Engine;
 use super::mirrors;
-use crate::args::{Comparison, ExitPolicy, Output, ReviewArguments};
-use crate::render::Format;
+use crate::args::{Comparison, ExitPolicy, ReportOutput, ReviewArguments};
+use crate::render::ReportFormat;
 use crate::review;
 
 const FETCH_TIMEOUT: Duration = Duration::from_secs(120);
@@ -54,8 +54,8 @@ impl Engine {
             ci_facts: Vec::new(),
             ci_manifest: None,
             exit_policy: ExitPolicy::Operational,
-            out: Output {
-                format: Format::Json,
+            out: ReportOutput {
+                format: ReportFormat::Json,
                 output: None,
             },
             risk_audit: true,

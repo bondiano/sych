@@ -3,8 +3,10 @@
 //! `CodeRef` and the expected syntax shapes are present — not that any model finds them.
 //! `sych eval measure` ([`measure`]) reviews the cases with a real model profile;
 //! `sych eval compare` ([`compare`]) puts saved measurements side by side;
-//! `sych eval judge` ([`judge`]) rescores one by the owner's judgments of meaning.
+//! `sych eval judge` ([`judge`]) rescores one by the owner's judgments of meaning;
+//! `sych eval auto-judge` ([`auto_judge`]) writes those judgments with a model.
 
+pub mod auto_judge;
 mod ci;
 pub mod compare;
 pub mod judge;

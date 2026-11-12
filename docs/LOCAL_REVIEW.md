@@ -23,7 +23,13 @@ sych explain --run RUN_ID --obligation EFFECT-01 --format markdown
   the change writes still keeps the file from the models, but it is reported as unreviewed `GENERATED_IN_CHANGE`:
   coverage is partial, and the summary names the file for a human to check. A change cannot quietly hide its code
   that way. The models are told which generated files changed, without their content.
-- `--format json|markdown` (JSON by default); `--output PATH` writes a file and creates the directory, otherwise stdout.
+- `--format json|markdown|sarif` (JSON by default); `--output PATH` writes a file and creates the directory, otherwise stdout.
+  `sarif` (only `review` and `show`) writes SARIF 2.1.0 for GitHub code scanning and editors:
+  - every open finding is a result at its first HEAD anchor, keyed by `partialFingerprints["sych/v1"]`;
+  - a dismissed finding carries a suppression, and resolved or obsolete findings are left out;
+  - a finding only on deleted lines has no location;
+  - partial coverage, UNKNOWN obligations, unreviewed paths and open questions go to
+    `invocations[0].toolExecutionNotifications`, so an empty `results` is not a clean review.
 - `--semantic on|off` (`on` by default): for Rust, TS/JS, Go and Python (ty) files, pinned language
   servers; the same switch runs the pinned linters ruff, oxlint, sqruff (SQL), mago (PHP), jarl (R), clj-kondo (Clojure), actionlint and
   zizmor on changed head files, and easement on each project an `easement.yml` roots ([SEMANTIC.md](SEMANTIC.md#pinned-linters)); they produce semantic facts
@@ -302,3 +308,15 @@ location but is no judgment candidate: by meaning it is an overrated nit.
 
 A location match or a kept unknown that nobody judged is listed in `unjudged` and does not count by meaning.
 Nitpicks and obligations stay scored by location and status.
+
+`eval auto-judge` writes the same judgments with a model instead of by hand. For each measured run it makes one call:
+the call sees the run's labels and every correctness finding that overlaps one, and names the label each finding
+states or `null` — the same-place, same-concern match AACR-Bench scores as SEM-F1. Each call is a follow-up of the
+judged run, counted in its ledger under `budgets.followup_session`. Use the config the report was measured with,
+since its store holds the runs. A run whose call fails is reported on stderr, and the exit code is 1; its findings
+stay `unjudged`. Unknown runs are never judged this way.
+
+```sh
+sych eval auto-judge report.json --config sych.yaml --models cheap_go --output judgments.json
+sych eval judge report.json --judgments judgments.json
+```
