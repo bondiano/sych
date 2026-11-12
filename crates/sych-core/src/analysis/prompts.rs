@@ -7,11 +7,11 @@ use super::context::{Context, side_name};
 use crate::model::{DataBlock, Prompt};
 use crate::{Candidate, PlannedObligation};
 
-pub const DISCOVERY: &str = "discovery@9";
+pub const DISCOVERY: &str = "discovery@10";
 pub const RISK_AUDIT: &str = "risk_audit@8";
 pub const ASSESSMENT: &str = "assessment@4";
 pub const VERIFY: &str = "verify@6";
-pub const REVIEW: &str = "review@8";
+pub const REVIEW: &str = "review@9";
 
 /// The fields of one assessment; `ob` names the obligation id the answer must carry.
 fn assessment_fields(ob: &str) -> String {

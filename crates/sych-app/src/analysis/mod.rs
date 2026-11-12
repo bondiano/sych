@@ -11,7 +11,7 @@ use std::cmp::Reverse;
 use serde::Serialize;
 use sych_adapters::git::LocalSnapshot;
 use sych_core::analysis::{
-    self, AssessmentRecord, Context, Discovered, merge_overlapping, prompts,
+    self, AssessmentRecord, Context, Discovered, intent, merge_overlapping, prompts,
 };
 use sych_core::broker::{EvidencePacket, OpStatus};
 use sych_core::config::{BillingKind, Enforcement, ReasoningEffort, Role};
@@ -147,6 +147,8 @@ pub struct Engine<'a, P, L> {
     pub verify: bool,
     /// Further discovery rounds a batch may earn with answered asks (`context.expansion_rounds`).
     pub expansion_rounds: u32,
+    /// The author's description of the change, for discovery only ([`intent::with_intent`]).
+    pub intent: Option<&'a str>,
     /// Model calls in flight at once (`budgets.analysis.max_parallel_calls`), at least 1.
     pub parallel: usize,
     /// `review.language`: every prompt asks for prose in it.
@@ -381,7 +383,10 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         let mut part = self.part();
         let (context, linked) = self.batch_view(batch);
         let ids: Vec<ObligationId> = linked.iter().map(|o| o.obligation.id).collect();
-        let prompt = prompts::discovery(&context, &linked, &self.title(batch));
+        let prompt = intent::with_intent(
+            prompts::discovery(&context, &linked, &self.title(batch)),
+            self.intent,
+        );
         let found = self
             .discover(batch, None, &prompt, &context, &ids, 1, &mut part)
             .await;

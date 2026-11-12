@@ -108,6 +108,7 @@ fn review_case(
         deep: false,
         parent: None,
         replay,
+        intent_file: None,
         risk_audit: args.risk_audit,
     };
     // The configured store: its ledger keeps the money caps across the whole suite.
