@@ -140,3 +140,29 @@ fn read_diff_never_shows_a_generated_or_unchanged_file_as_a_diff() {
     let answered = read_diff(&mut bare, &reader, "src/order.ts");
     assert_eq!(answered.status, Some(OpStatus::Unsupported));
 }
+
+#[test]
+fn read_diff_of_a_rename_reads_each_side_at_its_own_path_and_a_failed_read_is_partial() {
+    let reader = Reader::new();
+    let mut manifest = order_change();
+    let mut missing = manifest.files[0].clone();
+    let renamed = &mut manifest.files[0];
+    renamed.status = ChangeStatus::Renamed;
+    let head = renamed.new.as_mut().expect("head side");
+    head.path = path("src/order.test.ts");
+    for side in missing.old.iter_mut().chain(missing.new.iter_mut()) {
+        side.path = path("src/missing.ts");
+    }
+    manifest.files.push(missing);
+    let mut ctx = Context::default();
+    ctx.add_changes(&manifest);
+    let answered = read_diff(&mut ctx, &reader, "src/order.test.ts");
+    assert_eq!(answered.refs, 2, "{:?}", answered.limitations);
+    let base = ctx.span("ref-2").expect("base window");
+    assert_eq!(
+        (base.side, base.path.as_str()),
+        (SourceSide::DiffBase, "src/order.ts")
+    );
+    let failed = read_diff(&mut ctx, &reader, "src/missing.ts");
+    assert_eq!((failed.refs, failed.status), (0, Some(OpStatus::Partial)));
+}

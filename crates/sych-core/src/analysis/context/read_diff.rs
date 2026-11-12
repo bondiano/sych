@@ -12,15 +12,26 @@ use crate::{FileChange, RepoPath, SnapshotReader, SourceSide};
 /// Unchanged lines shown on each side of a hunk.
 const AROUND: u32 = 3;
 
-/// One window of a hunk side: `start..=end` on `side`, cut to `max_lines`.
+/// One window of a hunk side, read at that side's own path (a rename's BASE has the old one).
+struct Window {
+    side: SourceSide,
+    path: RepoPath,
+    start: u32,
+    end: u32,
+    /// The hunk side and its context were longer than `max_lines`.
+    cut: bool,
+}
+
+/// `start..=end` of `lines` hunk lines on `side` and [`AROUND`] lines each way, cut to `max_lines`.
 fn window(
     file: &FileChange,
     side: SourceSide,
     start: u32,
     lines: u32,
     max_lines: u32,
-) -> Option<(SourceSide, u32, u32, bool)> {
-    let count = file.side(side)?.line_count?;
+) -> Option<Window> {
+    let shown = file.side(side)?;
+    let count = shown.line_count?;
     if lines == 0 || count == 0 {
         return None;
     }
@@ -28,12 +39,46 @@ fn window(
     let first = start.saturating_sub(AROUND).max(1);
     let last = (start + lines - 1 + AROUND).min(count);
     let cut = last - first + 1 > max_lines;
-    Some((
+    Some(Window {
         side,
-        first,
-        if cut { first + max_lines - 1 } else { last },
+        path: shown.path.clone(),
+        start: first,
+        end: if cut { first + max_lines - 1 } else { last },
         cut,
-    ))
+    })
+}
+
+/// Every hunk side of `file` as a window, HEAD before BASE within each hunk.
+fn windows(file: &FileChange, max_lines: u32) -> Vec<Window> {
+    file.hunks
+        .iter()
+        .flat_map(|h| {
+            [
+                window(file, SourceSide::Head, h.new_start, h.new_lines, max_lines),
+                window(
+                    file,
+                    SourceSide::DiffBase,
+                    h.old_start,
+                    h.old_lines,
+                    max_lines,
+                ),
+            ]
+        })
+        .flatten()
+        .collect()
+}
+
+/// The file's change line and each hunk as `-start,count +start,count`.
+fn summary(file: &FileChange) -> String {
+    let mut body = change_line(file);
+    for h in &file.hunks {
+        let _ = write!(
+            body,
+            " -{},{} +{},{}",
+            h.old_start, h.old_lines, h.new_start, h.new_lines
+        );
+    }
+    body
 }
 
 impl Context {
@@ -64,7 +109,7 @@ impl Context {
             .find(|f| f.old.iter().chain(&f.new).any(|s| &s.path == path))
             .cloned();
         let mut limitations = Vec::new();
-        let (status, mut body, windows) = match file {
+        let (mut status, mut body, windows) = match file {
             None => (
                 OpStatus::CompleteForQuery,
                 format!("{path} is not changed by this change"),
@@ -76,54 +121,37 @@ impl Context {
                 Vec::new(),
             ),
             Some(f) => {
-                let windows: Vec<_> = f
-                    .hunks
-                    .iter()
-                    .flat_map(|h| {
-                        [
-                            window(&f, SourceSide::Head, h.new_start, h.new_lines, max_lines),
-                            window(
-                                &f,
-                                SourceSide::DiffBase,
-                                h.old_start,
-                                h.old_lines,
-                                max_lines,
-                            ),
-                        ]
-                    })
-                    .flatten()
-                    .collect();
-                let mut body = change_line(&f);
-                for h in &f.hunks {
-                    let _ = write!(
-                        body,
-                        " -{},{} +{},{}",
-                        h.old_start, h.old_lines, h.new_start, h.new_lines
-                    );
-                }
-                let status = if windows.len() > max_refs || windows.iter().any(|w| w.3) {
+                let windows = windows(&f, max_lines);
+                let partial = windows.len() > max_refs || windows.iter().any(|w| w.cut);
+                let status = if partial {
                     OpStatus::Partial
                 } else {
                     OpStatus::CompleteForQuery
                 };
-                (status, body, windows)
+                (status, summary(&f), windows)
             }
         };
         let mut refs = 0;
-        for (side, start, end, cut) in windows.iter().take(max_refs) {
-            match reader.code_ref(*side, path, *start, *end) {
+        for w in windows.iter().take(max_refs) {
+            let (side, at) = (
+                side_name(w.side),
+                format!("{} {}-{}", w.path, w.start, w.end),
+            );
+            match reader.code_ref(w.side, &w.path, w.start, w.end) {
                 Ok(code_ref) => {
                     self.add_span(&code_ref, &reason, reader);
                     refs += 1;
                 }
                 Err(err) => {
-                    limitations.push(format!("{path} {} {start}-{end}: {err}", side_name(*side)));
+                    // A window not shown leaves the answer short of the change.
+                    status = OpStatus::Partial;
+                    limitations.push(format!("{side} {at}: {err}"));
                 }
             }
-            if *cut {
+            if w.cut {
                 limitations.push(format!(
-                    "{path} {} from line {start}: a hunk longer than {max_lines} lines is cut; read_lines shows the rest",
-                    side_name(*side)
+                    "{side} {at}: the hunk and its context are longer than {max_lines} lines, so \
+                     this window is cut; read_lines shows the rest"
                 ));
             }
         }
