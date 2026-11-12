@@ -1,5 +1,5 @@
 //! Any OpenAI-compatible chat completions endpoint as a [`ModelProvider`]: a VPC gateway, vLLM,
-//! LiteLLM, Ollama or a vendor API. The owner names the endpoint, the key and the price card.
+//! `LiteLLM`, `Ollama` or a vendor API. The owner names the endpoint, the key and the price card.
 //! Every request carries `max_tokens`, so the price card bounds a call before it is sent. No
 //! native schema is claimed: the gateway validates locally and repairs at most once.
 

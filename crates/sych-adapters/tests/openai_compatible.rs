@@ -39,11 +39,11 @@ const REPLY: &str = concat!(
 
 #[test]
 fn a_bounded_request_carries_max_tokens_and_no_native_schema() {
-    assert!(
-        CAPABILITIES.output_cap_enforced,
-        "the price card bounds a call by max_tokens"
-    );
-    assert!(!CAPABILITIES.cost_reported && !CAPABILITIES.structured_output);
+    // The price card bounds a call by `max_tokens`; the endpoint's cost and schema are not used.
+    const {
+        assert!(CAPABILITIES.output_cap_enforced);
+        assert!(!CAPABILITIES.cost_reported && !CAPABILITIES.structured_output);
+    }
     let body = request_body(&request(Some(4000)));
     assert_eq!(body["model"], "qwen3-coder");
     assert_eq!(body["max_tokens"], 4000);
