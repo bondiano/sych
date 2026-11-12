@@ -86,10 +86,18 @@ struct Question {
     findings: Vec<usize>,
 }
 
+/// A finding's labels that the run lists; a report is input, so an index past them is ignored.
+fn candidates<'a>(m: &'a ReportMeasured, f: &'a ReportFinding) -> impl Iterator<Item = usize> + 'a {
+    f.labels.iter().copied().filter(|&l| l < m.labels.len())
+}
+
 /// `None` when no correctness finding of the run overlaps a label: nothing to judge.
 fn question(m: &ReportMeasured) -> Option<Question> {
     let findings: Vec<usize> = (0..m.findings.len())
-        .filter(|&i| correctness(m.findings[i].category) && !m.findings[i].labels.is_empty())
+        .filter(|&i| {
+            let f = &m.findings[i];
+            correctness(f.category) && candidates(m, f).next().is_some()
+        })
         .collect();
     if findings.is_empty() {
         return None;
@@ -108,7 +116,7 @@ fn question(m: &ReportMeasured) -> Option<Question> {
         .collect();
     for (n, &i) in findings.iter().enumerate() {
         let f = &m.findings[i];
-        let candidates: Vec<String> = f.labels.iter().map(|l| format!("l-{}", l + 1)).collect();
+        let candidates: Vec<String> = candidates(m, f).map(|l| format!("l-{}", l + 1)).collect();
         let _ = writeln!(task, "- f-{}: candidates {}", n + 1, candidates.join(", "));
         data.push(DataBlock {
             label: format!("finding f-{}", n + 1),
@@ -155,7 +163,7 @@ fn judgments(run: &ReportRun, m: &ReportMeasured, q: &Question, out: JudgeOutput
         };
         let label = match label.as_deref().map(|l| local(l, "l-")) {
             None => None,
-            Some(Some(l)) if m.findings[i].labels.contains(&l) => Some(l),
+            Some(Some(l)) if candidates(m, &m.findings[i]).any(|c| c == l) => Some(l),
             Some(_) => continue,
         };
         judged.entry(i).or_insert(label);
@@ -315,6 +323,14 @@ mod tests {
             (3, None),
             "the first answer wins"
         );
+    }
+
+    #[test]
+    fn a_label_index_past_the_runs_labels_is_never_a_candidate() {
+        let (_, mut m) = measured();
+        m.findings[3].labels = vec![7];
+        let q = question(&m).expect("question");
+        assert_eq!(q.findings, vec![0], "finding 3 has no listed label left");
     }
 
     #[test]

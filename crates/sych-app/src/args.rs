@@ -387,7 +387,7 @@ pub struct EvalAutoJudgeArguments {
     /// `roles` or one model profile of `--config`
     #[arg(long, value_parser = ModelSelection::parse)]
     pub models: ModelSelection,
-    /// Judgments file for `eval judge --judgments`
+    /// Judgments file for `eval judge --judgments`; stdout when omitted
     #[arg(long)]
     pub output: Option<PathBuf>,
 }
