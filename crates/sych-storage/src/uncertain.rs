@@ -47,7 +47,8 @@ impl Storage {
             .collect())
     }
 
-    /// Reconciliation found the object: it is delivered after all.
+    /// Reconciliation found the object: it is delivered after all. An operation another pass
+    /// or the operator already resolved stays as it is.
     pub async fn uncertain_found(
         &self,
         u: &Uncertain,
@@ -56,16 +57,19 @@ impl Storage {
     ) -> Result<(), StorageError> {
         let at = now.as_second();
         let mut tx = self.write().await?;
-        let generation: i64 = sqlx::query(
+        let Some(row) = sqlx::query(
             "UPDATE publication_operations SET state = 'DELIVERED', remote_id = $1, finished_at = $2
              WHERE id = $3 AND state = 'UNCERTAIN' RETURNING generation",
         )
         .bind(remote_id)
         .bind(at)
         .bind(u.op_id)
-        .fetch_one(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await?
-        .get(0);
+        else {
+            return Ok(());
+        };
+        let generation: i64 = row.get(0);
         observe(&mut tx, u.object_id, remote_id, generation, &u.body, at).await?;
         tx.commit().await?;
         Ok(())

@@ -1,4 +1,3 @@
-use std::fs;
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,11 +8,12 @@ use tokio::time;
 
 use crate::args::ReviewArguments;
 use crate::errors::Failure;
-use crate::output::emit_as;
+use crate::output::{emit_json, emit_report};
+use crate::render::ReportFormat;
 use crate::server::App;
 use crate::server::build::{EngineConfig, connections, engine};
 use crate::storage::{block_on, store_config};
-use crate::{config, render, review};
+use crate::{config, render_sarif, review};
 
 pub fn run(args: &ReviewArguments) -> anyhow::Result<ExitCode> {
     if let Some(change) = &args.change {
@@ -28,7 +28,7 @@ pub fn run(args: &ReviewArguments) -> anyhow::Result<ExitCode> {
 
     let report = review::run(args, None)?;
     // The result is saved before it is written; `sych show` can still print it.
-    emit_as(&report, || render::markdown(&report), &args.out)?;
+    emit_report(&report, &args.out)?;
     let r = &report.review_result;
     tracing::info!(run = %r.run_id, recommendation = ?r.recommendation, coverage = ?r.coverage, "review saved");
     Ok(review::exit_code(args.exit_policy, r))
@@ -47,6 +47,14 @@ fn parse(change: &str) -> Option<(&str, &str, u64)> {
 fn change_review(args: &ReviewArguments, change: &str) -> anyhow::Result<ExitCode> {
     let (connection, repo, number) = parse(change)
         .ok_or_else(|| Failure::invalid("--change is github:CONNECTION:OWNER/REPO:NUMBER"))?;
+    // Only the result comes back from the server path; Markdown renders a whole saved run.
+    if matches!(args.out.format, ReportFormat::Markdown) {
+        return Err(Failure::invalid(
+            "--change writes json or sarif; `sych show --run RUN --format markdown` renders the run",
+        )
+        .into());
+    }
+
     let path = args
         .config
         .as_deref()
@@ -97,10 +105,12 @@ fn change_review(args: &ReviewArguments, change: &str) -> anyhow::Result<ExitCod
             .await
             .context("the run ended without a result")
     })??;
-    let out = serde_json::to_string_pretty(&result)?;
-    match &args.out.output {
-        Some(path) => fs::write(path, out + "\n")?,
-        None => println!("{out}"),
+    let path = args.out.output.as_deref();
+    if matches!(args.out.format, ReportFormat::Sarif) {
+        emit_json(&render_sarif::sarif(&result), path)?;
+    } else {
+        emit_json(&result, path)?;
     }
+
     Ok(review::exit_code(args.exit_policy, &result))
 }

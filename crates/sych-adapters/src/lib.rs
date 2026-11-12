@@ -5,6 +5,7 @@ pub mod git;
 pub mod github;
 pub mod lint;
 pub mod notify;
+pub mod openai_compatible;
 pub mod opencode_go;
 pub mod openrouter;
 pub mod pi;

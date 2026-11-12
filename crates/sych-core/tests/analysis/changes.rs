@@ -181,3 +181,23 @@ fn a_hunk_past_the_end_of_its_side_shows_no_window_for_that_side() {
         Some(SourceSide::DiffBase)
     );
 }
+
+#[test]
+fn a_file_whose_hunks_cannot_be_shown_is_a_partial_answer_that_says_so() {
+    let reader = Reader::new();
+    let mut manifest = order_change();
+    let file = &mut manifest.files[0];
+    for side in file.old.iter_mut().chain(file.new.iter_mut()) {
+        side.line_count = None;
+    }
+    let mut ctx = Context::default();
+    ctx.add_changes(&manifest);
+    let answered = read_diff(&mut ctx, &reader, "src/order.ts");
+    assert_eq!(answered.refs, 0);
+    assert_eq!(answered.status, Some(OpStatus::Partial));
+    assert!(
+        answered.limitations[0].starts_with("no hunk of src/order.ts can be shown"),
+        "{:?}",
+        answered.limitations
+    );
+}

@@ -37,7 +37,10 @@ fn window(
     }
 
     let first = start.saturating_sub(AROUND).max(1);
-    let last = (start + lines - 1 + AROUND).min(count);
+    let last = start
+        .saturating_add(lines - 1)
+        .saturating_add(AROUND)
+        .min(count);
     // A hunk past the side's end (a manifest of other blobs) has nothing to show.
     if first > last {
         return None;
@@ -127,7 +130,19 @@ impl Context {
             ),
             Some(f) => {
                 let windows = windows(&f, max_lines);
-                let partial = windows.len() > max_refs || windows.iter().any(|w| w.cut);
+                // Hunks with no window (no line count, past the side's end) are a change unseen.
+                if windows.is_empty() && !f.hunks.is_empty() {
+                    let mut lost = format!("no hunk of {path} can be shown");
+                    for l in &f.limitations {
+                        lost.push_str("; ");
+                        lost.push_str(l);
+                    }
+                    limitations.push(lost);
+                }
+
+                let partial = !limitations.is_empty()
+                    || windows.len() > max_refs
+                    || windows.iter().any(|w| w.cut);
                 let status = if partial {
                     OpStatus::Partial
                 } else {
