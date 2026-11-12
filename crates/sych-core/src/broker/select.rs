@@ -36,7 +36,25 @@ struct Merged {
 /// Overlapping or adjacent spans of one file and side become one span of at most
 /// `max_lines`; past that the rest of an overlapping span starts a new one, so a long change
 /// stays in pieces that each fit a request.
-fn merge(mut candidates: Vec<Candidate>, max_lines: u32) -> Vec<Merged> {
+fn merge(candidates: Vec<Candidate>, max_lines: u32) -> Vec<Merged> {
+    // A neighbour longer than a span may be keeps only the lines no required span covers:
+    // holding a small hunk whole, it would make it a required span past the limit, which is
+    // never cut to a signature and takes a request of its own.
+    let required: Vec<Lines> = candidates
+        .iter()
+        .filter(|c| c.priority == Priority::Required)
+        .map(|c| (c.side, c.path.clone(), c.start, c.end))
+        .collect();
+    let mut candidates: Vec<Candidate> = candidates
+        .into_iter()
+        .flat_map(|c| {
+            if c.priority == Priority::Required || c.end - c.start < max_lines {
+                vec![c]
+            } else {
+                outside(&c, &required)
+            }
+        })
+        .collect();
     candidates.sort_by(|a, b| (a.side, &a.path, a.start).cmp(&(b.side, &b.path, b.start)));
     let mut out: Vec<Merged> = Vec::new();
     for mut c in candidates {
@@ -74,6 +92,42 @@ fn merge(mut candidates: Vec<Candidate>, max_lines: u32) -> Vec<Merged> {
         }
     }
     out
+}
+
+/// Side, path, first and last line of a span.
+type Lines = (SourceSide, RepoPath, u32, u32);
+
+/// The parts of `c` that no span of `required` covers.
+fn outside(c: &Candidate, required: &[Lines]) -> Vec<Candidate> {
+    let mut covering: Vec<(u32, u32)> = required
+        .iter()
+        .filter(|(side, path, start, end)| {
+            *side == c.side && *path == c.path && *start <= c.end && c.start <= *end
+        })
+        .map(|&(_, _, start, end)| (start, end))
+        .collect();
+    covering.sort_unstable();
+    let mut pieces = Vec::new();
+    let mut from = c.start;
+    for (start, end) in covering {
+        if start > from {
+            pieces.push((from, start - 1));
+        }
+
+        from = from.max(end.saturating_add(1));
+    }
+    if from <= c.end {
+        pieces.push((from, c.end));
+    }
+
+    pieces
+        .into_iter()
+        .map(|(start, end)| Candidate {
+            start,
+            end,
+            ..c.clone()
+        })
+        .collect()
 }
 
 fn fragment_id(r: &CodeRef) -> String {
@@ -359,4 +413,67 @@ fn resolve_links(fragments: &[Fragment], links: Vec<RawLink>) -> Vec<Link> {
         }
     }
     link_set.into_values().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn span(start: u32, end: u32, priority: Priority, reason: &str) -> Candidate {
+        Candidate {
+            side: SourceSide::DiffBase,
+            path: "src/engine.rs".parse().expect("path"),
+            start,
+            end,
+            priority,
+            reason: reason.into(),
+            evidence: None,
+            completeness: Completeness::CompleteForQuery,
+            link: None,
+        }
+    }
+
+    fn spans(merged: &[Merged]) -> Vec<(u32, u32, Priority)> {
+        let mut spans: Vec<_> = merged
+            .iter()
+            .map(|m| (m.start, m.end, m.priority))
+            .collect();
+        spans.sort_unstable();
+        spans
+    }
+
+    #[test]
+    fn a_neighbour_past_the_span_limit_does_not_make_a_hunk_inside_it_that_long() {
+        let merged = merge(
+            vec![
+                span(163, 474, Priority::Supporting, "implementation of `Engine`"),
+                span(381, 396, Priority::Required, "diff hunk (base)"),
+            ],
+            160,
+        );
+        // The part after the hunk glues to it within the limit, as any neighbour does.
+        assert_eq!(
+            spans(&merged),
+            [
+                (163, 380, Priority::Supporting),
+                (381, 474, Priority::Required)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_neighbour_within_the_limit_still_holds_the_hunk_inside_it() {
+        let merged = merge(
+            vec![
+                span(100, 200, Priority::Supporting, "caller of `f`"),
+                span(150, 160, Priority::Required, "diff hunk (base)"),
+            ],
+            160,
+        );
+        assert_eq!(spans(&merged), [(100, 200, Priority::Required)]);
+        assert_eq!(
+            merged[0].reasons,
+            ["caller of `f`".to_owned(), "diff hunk (base)".to_owned()]
+        );
+    }
 }
