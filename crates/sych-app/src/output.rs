@@ -8,7 +8,8 @@ use serde::Serialize;
 
 use crate::args::Output;
 use crate::errors::Failure;
-use crate::render::{self, Format};
+use crate::render::{self, Format, Report};
+use crate::render_sarif;
 
 /// Writes `text` to `output` (creating its directory) or stdout.
 pub fn emit(text: &str, output: Option<&Path>) -> anyhow::Result<()> {
@@ -39,5 +40,19 @@ pub fn emit_as<T: Serialize>(
     match out.format {
         Format::Json => emit_json(value, out.output.as_deref()),
         Format::Markdown => emit(&markdown(), out.output.as_deref()),
+        Format::Sarif => {
+            Err(Failure::invalid("--format sarif is for `review` and `show` only").into())
+        }
+    }
+}
+
+/// A saved review as `out` asks, SARIF included.
+pub fn emit_report(report: &Report, out: &Output) -> anyhow::Result<()> {
+    match out.format {
+        Format::Sarif => emit_json(
+            &render_sarif::sarif(&report.review_result),
+            out.output.as_deref(),
+        ),
+        _ => emit_as(report, || render::markdown(report), out),
     }
 }

@@ -9,11 +9,11 @@ use tokio::time;
 
 use crate::args::ReviewArguments;
 use crate::errors::Failure;
-use crate::output::emit_as;
+use crate::output::emit_report;
 use crate::server::App;
 use crate::server::build::{EngineConfig, connections, engine};
 use crate::storage::{block_on, store_config};
-use crate::{config, render, review};
+use crate::{config, review};
 
 pub fn run(args: &ReviewArguments) -> anyhow::Result<ExitCode> {
     if let Some(change) = &args.change {
@@ -28,7 +28,7 @@ pub fn run(args: &ReviewArguments) -> anyhow::Result<ExitCode> {
 
     let report = review::run(args, None)?;
     // The result is saved before it is written; `sych show` can still print it.
-    emit_as(&report, || render::markdown(&report), &args.out)?;
+    emit_report(&report, &args.out)?;
     let r = &report.review_result;
     tracing::info!(run = %r.run_id, recommendation = ?r.recommendation, coverage = ?r.coverage, "review saved");
     Ok(review::exit_code(args.exit_policy, r))

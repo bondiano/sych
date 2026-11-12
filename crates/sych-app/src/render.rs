@@ -47,6 +47,8 @@ pub struct Report {
 pub enum Format {
     Json,
     Markdown,
+    /// SARIF 2.1.0 for code scanning; `review` and `show` only
+    Sarif,
 }
 
 /// Bidi overrides and isolates can make reviewed text read differently than it runs.
