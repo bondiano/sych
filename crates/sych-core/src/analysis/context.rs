@@ -10,14 +10,15 @@ use serde::{Deserialize, Serialize};
 use crate::broker::{EvidencePacket, Priority, REQUIRED_OVER_BUDGET};
 use crate::model::DataBlock;
 use crate::{
-    BindingKind, ChangeStatus, CodeRef, Completeness, DiffManifest, Evidence, EvidenceBinding,
-    EvidenceId, EvidenceKind, FileChange, FileSide, Producer, RepoPath, ReviewLanguage,
-    SchemaVersion, SnapshotReader, SourceSide, SourceSnapshot, Timestamp, TrustClass, Validity,
-    canonical_sha256, derived_uuid,
+    BindingKind, CodeRef, Completeness, DiffManifest, Evidence, EvidenceBinding, EvidenceId,
+    EvidenceKind, FileChange, FileSide, Producer, RepoPath, ReviewLanguage, SchemaVersion,
+    SnapshotReader, SourceSide, SourceSnapshot, Timestamp, TrustClass, Validity, canonical_sha256,
+    derived_uuid,
 };
 
 mod lost_names;
 mod moves;
+mod read_diff;
 
 pub use moves::{Move, Moves, moves};
 
@@ -125,6 +126,8 @@ pub struct Context {
     pub limitations: Vec<String>,
     /// The language the model writes its prose in.
     pub language: ReviewLanguage,
+    /// Every file of the change, once [`Context::add_changes`] named them: what `read_diff` reads.
+    changes: Option<Vec<FileChange>>,
 }
 
 /// `count` lines of `path` from `start` on `side`, each after `mark`.
@@ -220,23 +223,17 @@ impl Context {
     /// Every hunk of the changed files that the spans show, so a model can tell a shown hunk
     /// is its file's whole change: lines no hunk lists are unchanged. Generated files the change
     /// also touches are named without content, so their absence is never read as "not changed".
-    /// Files the change adds, deletes, renames or copies outside the spans are named too: a search
-    /// of contents never finds a path, so only this tells a model such a file exists at HEAD.
+    /// Every other file the change touches is named with its line counts, so a model reviewing
+    /// one file knows what else changed and can ask `read_diff` for it; a search of contents
+    /// never finds a path, so only this tells a model an added file exists at HEAD.
     pub fn add_changes(&mut self, manifest: &DiffManifest) {
+        self.changes = Some(manifest.files.clone());
         let mut content = String::new();
         let mut unshown: Vec<&FileChange> = Vec::new();
         for file in &manifest.files {
             let sides: Vec<_> = file.old.iter().chain(&file.new).map(|s| &s.path).collect();
             if !self.refs.values().any(|r| sides.contains(&&r.path)) {
-                if !file.hidden()
-                    && matches!(
-                        file.status,
-                        ChangeStatus::Added
-                            | ChangeStatus::Deleted
-                            | ChangeStatus::Renamed
-                            | ChangeStatus::Copied
-                    )
-                {
+                if !file.hidden() {
                     unshown.push(file);
                 }
 
@@ -264,8 +261,8 @@ impl Context {
 
         if !unshown.is_empty() {
             self.blocks.push(DataBlock {
-                label: "other files this change adds, deletes, renames or copies; not shown here: \
-                        each exists at HEAD exactly as this list says"
+                label: "other files this change touches; not shown here: each exists at HEAD \
+                        exactly as this list says, and read_diff shows a file's hunks"
                     .into(),
                 content: listed(&unshown),
             });

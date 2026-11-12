@@ -87,9 +87,10 @@ builds the `CodeRef` itself through the snapshot reader with a hash check.
 A further DATA block lists every hunk of each changed file the spans show (`-start,count +start,count` and the lines
 removed and added), so the model can tell that a shown hunk is its file's whole change: for example, that a test
 file only gained lines, which `TEST-INTEGRITY` otherwise could not settle from the spans alone.
-Files the change adds, deletes, renames or copies that the spans do not show are named in another block, by path,
-status and line counts, at most 50. `search_source` matches file contents, never paths, and its answer says so, so
-this list is how a model knows that an imported file the change adds does exist at HEAD.
+Every other file the change touches is named in another block, by path, status and line counts, at most 50.
+A model reviewing one file thus knows what else changed, and can ask `read_diff` for it. `search_source` matches
+file contents, never paths, and its answer says so, so this list is how a model knows that an imported file the
+change adds does exist at HEAD.
 Generated files the change also touches are listed in their own block, by path, status and line counts, at most 50,
 and never with their content. A model therefore knows a regenerated file did change, and does not report it as stale.
 A context request never reads them either: `read_span` and `read_symbol` answer `UNSUPPORTED`, and a search leaves
@@ -130,8 +131,12 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
   `missing_inputs` and `limitations`, a verdict's `limitations`) are trimmed, and empty or repeated items are dropped, so a blank question never reaches a summary.
   The prompt asks to keep only questions the shown spans cannot answer: when removed lines, doc comments or messages
   state the intent and the change breaks it, that is a candidate, not a question.
-- **Context requests** are a closed enum `read_lines | find_references | find_callers | find_callees |
-  find_implementations | search_source` without hashes or commands; it is translated into a typed broker operation, answered by `Ops` against the pinned
+- **Context requests** are a closed enum `read_lines | read_diff | find_references | find_callers | find_callees |
+  find_implementations | search_source` without hashes or commands.
+  - `read_diff` names a changed file. The answer comes from the change itself: each hunk side becomes a span with 3
+    unchanged lines around it, HEAD before BASE, at most 160 lines each. A generated file is refused, and an
+    unchanged path is answered as such.
+  - The other operations are translated into a typed broker operation, answered by `Ops` against the pinned
   snapshot (fixed-string search up to 5 s, secret paths are not read, up to 3 spans per answer). The answer is added to the
   verify pass packet as a new `ref-N` with the reason `answer to: …`. Search matches include up to
   8 neighbouring lines on each side from the same pinned blob, so a helper's guard or return can be
