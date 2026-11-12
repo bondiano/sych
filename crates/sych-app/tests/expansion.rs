@@ -91,3 +91,24 @@ async fn without_expansion_rounds_discovery_is_asked_once() {
         "the asks are still answered for the verifier"
     );
 }
+
+/// Discovery-like calls see the author's description; the verifier and the risk audit do not,
+/// so it can add a hypothesis but never argue one away.
+fn intent_seen_only_by_discovery(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
+    let (system, user) = (&request.messages[0].content, &request.messages[1].content);
+    let audit = system.contains("risk auditor");
+    let shown = user.contains("fix: keep the guard for missing items");
+    match request.schema_name.as_str() {
+        "review" | "discovery" if !audit => assert!(shown, "discovery sees the intent: {user}"),
+        _ => assert!(!shown, "{} must not see the intent", request.schema_name),
+    }
+    expanding(request)
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn the_authors_description_reaches_discovery_and_no_verifier() {
+    let (_, calls) = run(intent_seen_only_by_discovery, Budgets::default()).await;
+    // Both sides were asked, so the assertions above ran on each.
+    assert!(calls.iter().any(|c| c == "review"), "{calls:?}");
+    assert!(calls.iter().any(|c| c == "candidate_verdicts"), "{calls:?}");
+}

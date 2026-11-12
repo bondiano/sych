@@ -121,6 +121,7 @@ impl Session<'_> {
             risk_audit: self.risk_audit,
             verify: self.verify,
             expansion_rounds: self.expansion_rounds,
+            intent: self.intent.as_deref(),
             parallel: self
                 .budgets
                 .analysis
