@@ -16,17 +16,19 @@ const RULE: &str = "The author's description of the change says what it is meant
 
 /// `prompt` with `intent`, when there is one, as its first data block and with its rule.
 pub fn with_intent(mut prompt: Prompt, intent: Option<&str>) -> Prompt {
-    let Some(text) = intent.map(str::trim).filter(|t| !t.is_empty()) else {
-        return prompt;
-    };
-
     // Bidi overrides and isolates could make the text read otherwise than it is; they go too.
     let kept = |c: &char| {
         let bidi = matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}');
         (!c.is_control() || matches!(c, '\n' | '\t')) && !bidi
     };
-    let mut content: String = text.chars().filter(kept).take(MAX_INTENT_CHARS).collect();
-    if text.chars().filter(kept).count() > MAX_INTENT_CHARS {
+    let clean: String = intent.unwrap_or_default().chars().filter(kept).collect();
+    let text = clean.trim();
+    if text.is_empty() {
+        return prompt;
+    }
+
+    let mut content: String = text.chars().take(MAX_INTENT_CHARS).collect();
+    if text.chars().count() > MAX_INTENT_CHARS {
         content.push_str("\n[the rest is cut]");
     }
 
@@ -63,6 +65,7 @@ mod tests {
     fn no_intent_leaves_the_prompt_as_it_was() {
         assert_eq!(with_intent(prompt(), None), prompt());
         assert_eq!(with_intent(prompt(), Some(" \n ")), prompt());
+        assert_eq!(with_intent(prompt(), Some("\u{202e} \u{1b}")), prompt());
     }
 
     #[test]
