@@ -37,7 +37,8 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    obligation's verification packet.
    It does not see the discovery output and runs even when discovery is empty; this is not a promise of
    statistical independence of errors.
-3. **Discovery** (`discovery@8`) — over the discovery packets of review units with the list of their obligations. Adjacent
+3. **Discovery** (`discovery@8`) — over the discovery packets of review units with the list of their obligations. A
+   review unit is one changed file, so each file gets its own code budget (`context.initial_tokens_per_unit`). Adjacent
    packets are merged into one call as long as their tokens fit in `context.max_tokens_per_request`: for a
    small PR this is one discovery instead of a call per unit. The reviewer's primary profile may bound a call further
    with `max_units_per_call` and `max_shown_tokens_per_call` ([MODELS.md](MODELS.md)). Its rules put defects

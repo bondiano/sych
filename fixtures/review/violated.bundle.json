@@ -80,7 +80,7 @@
         ],
         "predecessor_finding_id": null,
         "rule_id": "EFFECT-01",
-        "scope": "5a55fb0c-a44c-8573-a809-e3ccf69b469a",
+        "scope": "cacca7eb-2bed-8247-bddd-a8ba2292017e",
         "severity": "HIGH",
         "suggested_action": "Restore the behavior the rule requires.",
         "support": "EXPLICIT_RULE",
@@ -108,7 +108,7 @@
         "question": "A stored order publishes order-created.",
         "required": true,
         "review_unit_ids": [
-          "5a55fb0c-a44c-8573-a809-e3ccf69b469a"
+          "cacca7eb-2bed-8247-bddd-a8ba2292017e"
         ],
         "risk_level": "HIGH",
         "rule_id": "EFFECT-01",
@@ -169,18 +169,18 @@
       "revision": 1,
       "units": [
         {
-          "id": "8c5292ef-815c-8c9c-b98f-ffa1f94b0a35",
+          "id": "c2471535-e5ab-8dba-8aa8-9529c8401371",
           "paths": [
             "assets/logo.png"
           ],
-          "title": "assets"
+          "title": "assets/logo.png"
         },
         {
-          "id": "5a55fb0c-a44c-8573-a809-e3ccf69b469a",
+          "id": "cacca7eb-2bed-8247-bddd-a8ba2292017e",
           "paths": [
             "backend/orders/create.go"
           ],
-          "title": "backend/orders"
+          "title": "backend/orders/create.go"
         }
       ]
     },
@@ -222,18 +222,18 @@
     "revision": 1,
     "units": [
       {
-        "id": "8c5292ef-815c-8c9c-b98f-ffa1f94b0a35",
+        "id": "c2471535-e5ab-8dba-8aa8-9529c8401371",
         "paths": [
           "assets/logo.png"
         ],
-        "title": "assets"
+        "title": "assets/logo.png"
       },
       {
-        "id": "5a55fb0c-a44c-8573-a809-e3ccf69b469a",
+        "id": "cacca7eb-2bed-8247-bddd-a8ba2292017e",
         "paths": [
           "backend/orders/create.go"
         ],
-        "title": "backend/orders"
+        "title": "backend/orders/create.go"
       }
     ]
   }
