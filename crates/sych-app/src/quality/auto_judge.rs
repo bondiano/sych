@@ -3,7 +3,8 @@
 //! finding overlapping some of them, and names for each finding the one label it states, or
 //! none: the same-place, same-concern match AACR-Bench scores as SEM-F1. The calls are
 //! follow-ups of the judged run, in its ledger under `budgets.followup_session`. A run whose call
-//! fails is left out, so `eval judge` lists its findings as unjudged.
+//! fails, or that the store does not hold, is left out, so `eval judge` lists its findings as
+//! unjudged.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -213,7 +214,17 @@ pub fn run(args: &EvalAutoJudgeArguments) -> anyhow::Result<ExitCode> {
         for run in &report.runs {
             let Some(m) = &run.measured else { continue };
             let Some(q) = question(m) else { continue };
-            let handle = storage.run_handle(TENANT_LOCAL, m.run_id).await?;
+            // A run this store does not hold is left unjudged, like a failed call.
+            let handle = match storage.run_handle(TENANT_LOCAL, m.run_id).await {
+                Ok(handle) => handle,
+                Err(e) => {
+                    failed.push(format!(
+                        "{} run {}: not in this store: {e}",
+                        run.id, run.run
+                    ));
+                    continue;
+                }
+            };
             let ledger = RunLedger::new(&storage, &handle, Timestamp::now);
             let limits = Limits::new(&server.budgets, Purpose::Followup);
             let router = routing.router(
