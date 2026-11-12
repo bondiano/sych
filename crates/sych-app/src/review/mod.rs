@@ -2,6 +2,7 @@
 //! analysis, reduce and a durable result.
 
 use std::process::ExitCode;
+use std::{fs, io};
 
 use anyhow::Context;
 
@@ -228,6 +229,32 @@ impl Pinned {
     }
 }
 
+/// Commit messages a prompt names at most; the newest come first.
+const MAX_INTENT_COMMITS: usize = 20;
+/// Bytes of an `--intent-file` read at most; a prompt shows its first 8000 characters.
+const MAX_INTENT_FILE_BYTES: u64 = 1 << 20;
+
+/// `--intent-file`, else the commit messages of the change. History that cannot be read leaves
+/// no intent rather than failing the review: intent is optional context.
+fn intent(args: &ReviewArguments, snap: &LocalSnapshot) -> anyhow::Result<Option<String>> {
+    let Some(path) = &args.intent_file else {
+        return Ok(snap
+            .commit_messages(MAX_INTENT_COMMITS)
+            .ok()
+            .map(|m| m.join("\n\n")));
+    };
+    let read = fs::metadata(path)
+        .and_then(|m| {
+            if m.len() > MAX_INTENT_FILE_BYTES {
+                Err(io::Error::other("larger than 1 MiB"))
+            } else {
+                fs::read(path)
+            }
+        })
+        .map_err(|e| Failure::invalid(format!("--intent-file {}: {e}", path.display())))?;
+    Ok(Some(String::from_utf8_lossy(&read).into_owned()))
+}
+
 /// Pins the comparison and reads the trusted policy at its target tip.
 pub fn pin(args: &ReviewArguments) -> anyhow::Result<Pinned> {
     let snap = snapshot::capture(&args.comparison).context("cannot pin the comparison")?;
@@ -362,6 +389,7 @@ fn execute(
         risk_audit: args.risk_audit,
         verify: args.verify,
         expansion_rounds: effective.repository.config.context.expansion_rounds,
+        intent: intent(args, &snap)?,
         replay: args.replay.as_deref(),
         ci_gaps: &ci_gaps,
         parent: args.parent,
@@ -430,6 +458,8 @@ struct Session<'a> {
     verify: bool,
     /// `context.expansion_rounds` of the trusted policy.
     expansion_rounds: u32,
+    /// `--intent-file`, else the change's commit messages: for discovery only.
+    intent: Option<String>,
     /// `eval measure --replay`: these discoveries are verified again instead of a new search.
     replay: Option<&'a [Discovered]>,
     /// Expected CI reports that are not evidence; each is a task gap.

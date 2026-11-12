@@ -7,7 +7,7 @@ use super::prompts::discovery;
 use crate::model::{DataBlock, Prompt};
 use crate::{Candidate, PlannedObligation};
 
-pub const EXPANSION: &str = "discovery_expansion@1";
+pub const EXPANSION: &str = "discovery_expansion@2";
 
 pub fn expansion(
     context: &Context,

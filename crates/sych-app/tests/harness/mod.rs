@@ -343,6 +343,7 @@ pub async fn run_reusing(
         risk_audit: true,
         verify,
         expansion_rounds: policy.config.context.expansion_rounds,
+        intent: Some("fix: keep the guard for missing items"),
         parallel: budgets
             .analysis
             .max_parallel_calls
