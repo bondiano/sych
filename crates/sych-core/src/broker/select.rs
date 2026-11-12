@@ -151,6 +151,8 @@ const MAX_CHUNKS: usize = 4;
 struct Chunk {
     fragments: Vec<Fragment>,
     tokens: u32,
+    /// Tokens kept for the required spans still to come of the files placed here.
+    reserved: u32,
     files: BTreeSet<(SourceSide, RepoPath)>,
 }
 
@@ -187,16 +189,16 @@ pub(super) fn select(
         )
     });
     let budget = request.remaining_budget;
-    // A packet whose required spans do not fit together is split.
+    // A packet whose required spans do not fit together is split, but the required spans of
+    // one file, both sides, stay in one chunk when any can hold them: a call that sees the
+    // old side of a change without its new one cannot compare them.
+    let spans = read_all(reader, merged);
+    let need = required_tokens(&spans);
+    let mut home: BTreeMap<RepoPath, Option<usize>> = BTreeMap::new();
     let mut chunks = vec![Chunk::default()];
     let mut excluded = Vec::new();
-    for m in merged {
-        if is_secret_path(m.path.as_str()) {
-            gaps.push(format!("SECRET_PATH {} not read", m.path));
-            continue;
-        }
-
-        let (mut code_ref, mut tokens) = match read(reader, &m, m.end) {
+    for (m, read) in spans {
+        let (mut code_ref, mut tokens) = match read {
             Ok(read) => read,
             Err(err) => {
                 gaps.push(err);
@@ -217,12 +219,11 @@ pub(super) fn select(
             continue;
         }
 
-        let fits = |tokens: u32| {
-            chunks
-                .iter()
-                .position(|c| c.tokens.saturating_add(tokens) <= budget)
-        };
-        let mut room = fits(tokens);
+        let homed = (m.priority == Priority::Required)
+            .then(|| home_of(&mut chunks, &mut home, &need, &m.path, budget))
+            .flatten();
+        let fits = |tokens: u32| first_fit(&chunks, tokens, budget);
+        let mut room = homed.or_else(|| fits(tokens));
         let mut transformation = "none";
         if room.is_none()
             && let Some((head, head_tokens, i)) = signature(reader, &m, fits)
@@ -250,6 +251,9 @@ pub(super) fn select(
         };
 
         chunk.tokens += tokens;
+        chunk.reserved = chunk
+            .reserved
+            .saturating_sub(if homed.is_some() { tokens } else { 0 });
         chunk.files.insert(file.clone());
         state.files.insert(file);
         chunk.fragments.push(Fragment {
@@ -277,6 +281,68 @@ pub(super) fn select(
         semantic_items: requests,
     };
     assemble(request, chunks, &links, rest)
+}
+
+/// A merged span with its exact reference and tokens, or why it cannot be read.
+type Read = (Merged, Result<(CodeRef, u32), String>);
+
+fn read_all(reader: &dyn SnapshotReader, merged: Vec<Merged>) -> Vec<Read> {
+    merged
+        .into_iter()
+        .map(|m| {
+            let read = if is_secret_path(m.path.as_str()) {
+                Err(format!("SECRET_PATH {} not read", m.path))
+            } else {
+                read(reader, &m, m.end)
+            };
+            (m, read)
+        })
+        .collect()
+}
+
+/// Tokens of the required spans of each file, both sides.
+fn required_tokens(spans: &[Read]) -> BTreeMap<RepoPath, u32> {
+    let mut need: BTreeMap<RepoPath, u32> = BTreeMap::new();
+    for (m, read) in spans {
+        if let (Priority::Required, Ok((_, tokens))) = (m.priority, read) {
+            *need.entry(m.path.clone()).or_default() += tokens;
+        }
+    }
+    need
+}
+
+/// The first chunk with room for `tokens` beside what it keeps for others.
+fn first_fit(chunks: &[Chunk], tokens: u32, budget: u32) -> Option<usize> {
+    chunks
+        .iter()
+        .position(|c| c.tokens.saturating_add(c.reserved).saturating_add(tokens) <= budget)
+}
+
+/// The chunk kept for the required spans of `path`, reserved when the first of them comes.
+fn home_of(
+    chunks: &mut Vec<Chunk>,
+    home: &mut BTreeMap<RepoPath, Option<usize>>,
+    need: &BTreeMap<RepoPath, u32>,
+    path: &RepoPath,
+    budget: u32,
+) -> Option<usize> {
+    *home
+        .entry(path.clone())
+        .or_insert_with(|| reserve(chunks, need.get(path).copied()?, budget))
+}
+
+/// The chunk that keeps `all` tokens for one file's required spans: the first with room, or
+/// a new one; none when no chunk can hold them together.
+fn reserve(chunks: &mut Vec<Chunk>, all: u32, budget: u32) -> Option<usize> {
+    let free = |c: &Chunk| c.tokens.saturating_add(c.reserved).saturating_add(all) <= budget;
+    let i = chunks.iter().position(free).or_else(|| {
+        (all <= budget && chunks.len() < MAX_CHUNKS).then(|| {
+            chunks.push(Chunk::default());
+            chunks.len() - 1
+        })
+    })?;
+    chunks[i].reserved += all;
+    Some(i)
 }
 
 /// What the first packet records (queries, semantic items) and the last one keeps (what
