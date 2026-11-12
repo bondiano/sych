@@ -38,6 +38,11 @@ fn window(
 
     let first = start.saturating_sub(AROUND).max(1);
     let last = (start + lines - 1 + AROUND).min(count);
+    // A hunk past the side's end (a manifest of other blobs) has nothing to show.
+    if first > last {
+        return None;
+    }
+
     let cut = last - first + 1 > max_lines;
     Some(Window {
         side,
