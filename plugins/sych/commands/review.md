@@ -17,8 +17,9 @@ it installs a release archive after checking its sha256. Never pipe a downloaded
 - Sych reads Git objects only, so uncommitted changes are not reviewed. If `git status --porcelain` lists changes,
   tell the user and ask whether to continue with the committed state.
 - Base: `--base` from the arguments. Otherwise use the remote default branch
-  (`git symbolic-ref --short refs/remotes/origin/HEAD`, for example `origin/main`). If HEAD has no commits beyond
-  it, use `HEAD~1`.
+  (`git symbolic-ref --short refs/remotes/origin/HEAD`, for example `origin/main`); if there is none, ask the user
+  for the base. If HEAD has no commits beyond it, use `HEAD~1`; if HEAD has no parent either
+  (`git rev-parse --verify -q HEAD~1` prints nothing), there is no change to compare: say so and stop.
 
 ## 3. Run the review
 
