@@ -7,11 +7,11 @@ use super::context::{Context, side_name};
 use crate::model::{DataBlock, Prompt};
 use crate::{Candidate, PlannedObligation};
 
-pub const DISCOVERY: &str = "discovery@8";
-pub const RISK_AUDIT: &str = "risk_audit@7";
+pub const DISCOVERY: &str = "discovery@9";
+pub const RISK_AUDIT: &str = "risk_audit@8";
 pub const ASSESSMENT: &str = "assessment@4";
 pub const VERIFY: &str = "verify@6";
-pub const REVIEW: &str = "review@7";
+pub const REVIEW: &str = "review@8";
 
 /// The fields of one assessment; `ob` names the obligation id the answer must carry.
 fn assessment_fields(ob: &str) -> String {
@@ -43,8 +43,8 @@ fn criteria_text(obligation: &PlannedObligation) -> String {
 pub(super) const CANDIDATES_CONTRACT: &str = "Each candidate has category (DEFECT, RULE_VIOLATION, \
     IMPROVEMENT, NIT), claim, conditions, causal_chain, consequence, anchors, evidence_ids, \
     obligation_ids (ob-N or empty), proposed_severity and disproof_question. A context request \
-    has a concrete question and one typed operation (read_lines, find_references, find_callers, \
-    find_callees, find_implementations or search_source). Be brief: at most 4 candidates, the \
+    has a concrete question and one typed operation (read_lines, read_diff of another changed file, \
+    find_references, find_callers, find_callees, find_implementations or search_source). Be brief: at most 4 candidates, the \
     strongest first, and 4 context requests; each text field one sentence.";
 
 /// How a seasoned reviewer picks small remarks.

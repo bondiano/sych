@@ -15,7 +15,7 @@ use crate::model::Prompt;
 use crate::tour::{QuestionKind, TourArtifact, TourStep};
 use crate::{Candidate, CodeRef, ReviewResult, SchemaVersion, SnapshotReader, Timestamp, TourId};
 
-pub const FOLLOWUP: &str = "followup@1";
+pub const FOLLOWUP: &str = "followup@2";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
