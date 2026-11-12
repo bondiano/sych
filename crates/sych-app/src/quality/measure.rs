@@ -21,10 +21,10 @@ use super::replay::frozen;
 use super::score::{RunReport, Totals, candidate_remarks, remarks, score};
 use super::stages::{Shown, Spread};
 use super::{QualityCase, materialize, not_given, read_cases, repo_paths};
-use crate::args::{ExitPolicy, ModelSelection, Output, ReviewArguments, Switch};
+use crate::args::{ExitPolicy, ModelSelection, ReportOutput, ReviewArguments, Switch};
 use crate::errors::Failure;
 use crate::output::emit_json;
-use crate::render::Format;
+use crate::render::ReportFormat;
 use crate::review;
 
 pub struct MeasureArguments<'a> {
@@ -91,8 +91,8 @@ fn review_case(
         ci_facts: ci.reports.clone(),
         ci_manifest: ci.manifest.clone(),
         exit_policy: ExitPolicy::Operational,
-        out: Output {
-            format: Format::Json,
+        out: ReportOutput {
+            format: ReportFormat::Json,
             output: None,
         },
         verify: args.verify,

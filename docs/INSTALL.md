@@ -104,6 +104,21 @@ It runs `sych serve --config /etc/sych/sych.yaml` as uid 10001.
    comment arrives.
 ```
 
+## Claude Code plugin
+
+```text
+/plugin marketplace add bondiano/sych
+/plugin install sych@sych
+```
+
+The plugin needs the `sych` CLI on `PATH` and installs nothing itself.
+
+- `/sych:review [--base REF] [--config PATH --models PROFILE]` reviews the committed changes of the branch against
+  the remote default branch. It uses `--models fake` unless you pass a profile, and asks before the first paid
+  call. It then reports the recommendation, coverage, findings, UNKNOWN obligations and unreviewed paths.
+- Fixes go through `sych handoff` with your consent.
+- The `sych-review` skill applies the same steps before a push.
+
 ## Manual install
 
 Prebuilt binaries cover Linux x86_64 and aarch64 (glibc 2.35+) and macOS on Apple silicon:

@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use sych_core::analysis::Discovered;
 use sych_core::config::{CheckRequest, Execution, RuleException, RunMode};
 
-use crate::render::Format;
+use crate::render::{Format, ReportFormat};
 
 mod tour;
 
@@ -101,6 +101,9 @@ pub enum EvalCommands {
     /// Rescore a saved `eval measure` report by the owner's judgments of which label each
     /// correctness finding states; shows location and meaning scores; never calls a model
     Judge(EvalJudgeArguments),
+    /// Write the judgments `eval judge` reads by asking a model, once per measured run, which
+    /// label each located correctness finding states; quota-counted follow-ups of each run
+    AutoJudge(EvalAutoJudgeArguments),
 }
 
 #[derive(Subcommand)]
@@ -164,6 +167,16 @@ pub struct Output {
     pub output: Option<PathBuf>,
 }
 
+/// [`Output`] of a saved review, which can also be SARIF.
+#[derive(clap::Args)]
+pub struct ReportOutput {
+    #[arg(long, value_enum, default_value = "json")]
+    pub format: ReportFormat,
+    /// Write the rendered result here instead of stdout; parent directories are created
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+
 #[derive(clap::Args)]
 pub struct ReviewArguments {
     #[command(flatten)]
@@ -216,7 +229,7 @@ pub struct ReviewArguments {
     #[arg(long, value_enum, default_value = "operational")]
     pub exit_policy: ExitPolicy,
     #[command(flatten)]
-    pub out: Output,
+    pub out: ReportOutput,
     /// The extra high-risk search; only `eval measure` turns it off, for baseline B
     #[arg(skip = true)]
     pub risk_audit: bool,
@@ -285,7 +298,7 @@ pub struct ShowArguments {
     #[arg(long)]
     pub config: Option<PathBuf>,
     #[command(flatten)]
-    pub out: Output,
+    pub out: ReportOutput,
 }
 
 #[derive(clap::Args)]
@@ -370,6 +383,21 @@ pub struct EvalJudgeArguments {
     /// YAML list of `{case, run, finding, label}` and `{case, run, unknown_kept}` judgments
     #[arg(long)]
     pub judgments: PathBuf,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+
+#[derive(clap::Args)]
+pub struct EvalAutoJudgeArguments {
+    /// `eval measure` report
+    pub report: PathBuf,
+    /// The server config the report was measured with: its store holds the runs
+    #[arg(long)]
+    pub config: PathBuf,
+    /// `roles` or one model profile of `--config`
+    #[arg(long, value_parser = ModelSelection::parse)]
+    pub models: ModelSelection,
+    /// Judgments file for `eval judge --judgments`; stdout when omitted
     #[arg(long)]
     pub output: Option<PathBuf>,
 }

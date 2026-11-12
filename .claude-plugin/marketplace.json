@@ -1,0 +1,16 @@
+{
+  "name": "sych",
+  "owner": {
+    "name": "bondiano"
+  },
+  "description": "Sych, a code reviewer with a deterministic core: findings cite exact code, and what was not checked is reported as UNKNOWN.",
+  "plugins": [
+    {
+      "name": "sych",
+      "source": "./plugins/sych",
+      "description": "Review the current branch with Sych, go through its findings and UNKNOWN obligations, and fix what holds through `sych handoff`.",
+      "version": "0.2.0",
+      "license": "Apache-2.0"
+    }
+  ]
+}
