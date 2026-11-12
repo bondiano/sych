@@ -31,6 +31,7 @@ mod spend;
 mod suggestions;
 mod totals;
 mod tour_sessions;
+mod uncertain;
 mod views;
 
 use std::path::PathBuf;
@@ -56,7 +57,7 @@ pub use gc::{PruneCandidate, PruneReason, PruneReport};
 pub use jobs::{Claim, Fence};
 pub use lineage::{FindingRow, WaiverRecord};
 pub use outbox::Operation;
-pub use publish::{MAX_PUBLISH_ATTEMPTS, PublishClaim, Uncertain, Unresolved};
+pub use publish::{MAX_PUBLISH_ATTEMPTS, PublishClaim};
 pub use queue::JobFilter;
 pub use retention::RecordPrune;
 pub use scheduler::ChangeRow;
@@ -64,6 +65,7 @@ pub use sessions::Session;
 pub use spend::Spend;
 pub use suggestions::Decision;
 pub use tour_sessions::tour_role;
+pub use uncertain::{Uncertain, Unresolved};
 pub use views::{ChangeFilter, FindingFilter, Visibility};
 
 static MIGRATOR: Migrator = sqlx::migrate!("../../migrations/sqlite");

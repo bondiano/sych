@@ -35,19 +35,6 @@ pub struct PublishClaim {
     pub epoch: i64,
 }
 
-/// An `UNCERTAIN` operation due for reconciliation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Uncertain {
-    pub op_id: i64,
-    pub object_id: i64,
-    pub kind: String,
-    pub change_id: i64,
-    pub marker: String,
-    pub remote_id: Option<String>,
-    pub body: String,
-    pub reconcile_deadline: i64,
-}
-
 impl Storage {
     /// Claims the oldest due `PENDING` operation whose object has nothing in flight.
     pub async fn claim_publication(
@@ -74,38 +61,49 @@ impl Storage {
         .fetch_optional(&mut *tx)
         .await?;
         let Some(id) = id else { return Ok(None) };
-        let r = sqlx::query(
-            "SELECT o.id, o.object_id, p.change_id, c.tenant_id, c.access_scope, p.slot, p.marker,
-                 p.remote_id, o.run_id, o.result_id, o.generation, o.attempts, o.owner, o.lease_epoch,
-                 p.kind, p.fingerprint, p.anchor
-             FROM publication_operations o JOIN publication_objects p ON p.id = o.object_id
-             JOIN changes c ON c.id = p.change_id WHERE o.id = $1",
-        )
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?;
+        let claim = claimed(&mut tx, id).await?;
         tx.commit().await?;
-        Ok(Some(PublishClaim {
-            op_id: r.get(0),
-            object_id: r.get(1),
-            kind: r.get(14),
-            fingerprint: r.get(15),
-            anchor: r.get(16),
-            change_id: r.get(2),
-            partition: Partition {
-                tenant_id: r.get(3),
-                access_scope: r.get(4),
-            },
-            slot: r.get(5),
-            marker: r.get(6),
-            remote_id: r.get(7),
-            run_id: r.get(8),
-            result_id: r.get(9),
-            generation: r.get(10),
-            attempts: r.get(11),
-            owner: r.get(12),
-            epoch: r.get(13),
-        }))
+        Ok(Some(claim))
+    }
+
+    /// The change's other due `PENDING` inline operations of `c`'s generation that have no
+    /// comment yet, claimed for the same owner so one review carries them all; by operation id,
+    /// the order the plan queued them in.
+    pub async fn claim_inline_siblings(
+        &self,
+        c: &PublishClaim,
+        lease_seconds: i64,
+        now: Timestamp,
+    ) -> Result<Vec<PublishClaim>, StorageError> {
+        let at = now.as_second();
+        let mut tx = self.write().await?;
+        let mut ids: Vec<i64> = sqlx::query_scalar(
+            "UPDATE publication_operations SET owner = $1, lease_epoch = lease_epoch + 1,
+                 lease_until = $2
+             WHERE id IN (SELECT o.id FROM publication_operations o
+                 JOIN publication_objects p ON p.id = o.object_id
+                 WHERE p.change_id = $3 AND p.kind = 'INLINE' AND p.remote_id IS NULL
+                 AND o.generation = $4 AND o.state = 'PENDING' AND o.next_action_at <= $5
+                 AND o.id <> $6
+                 AND NOT EXISTS (SELECT 1 FROM publication_operations b
+                     WHERE b.object_id = o.object_id AND b.state IN ('PUBLISHING', 'UNCERTAIN')))
+             RETURNING id",
+        )
+        .bind(&c.owner)
+        .bind(at + lease_seconds)
+        .bind(c.change_id)
+        .bind(c.generation)
+        .bind(at)
+        .bind(c.op_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        ids.sort_unstable();
+        let mut claims = Vec::with_capacity(ids.len());
+        for id in ids {
+            claims.push(claimed(&mut tx, id).await?);
+        }
+        tx.commit().await?;
+        Ok(claims)
     }
 
     /// The local gate before a write: the operation is still the change's desired generation
@@ -321,86 +319,47 @@ impl Storage {
             })
             .collect())
     }
-
-    /// `UNCERTAIN` operations due for a reconciliation pass.
-    pub async fn uncertain_due(&self, now: Timestamp) -> Result<Vec<Uncertain>, StorageError> {
-        let rows = sqlx::query(
-            "SELECT o.id, o.object_id, p.change_id, p.marker, p.remote_id, coalesce(o.body, ''),
-                 o.reconcile_deadline, p.kind
-             FROM publication_operations o JOIN publication_objects p ON p.id = o.object_id
-             WHERE o.state = 'UNCERTAIN' AND o.next_action_at <= $1 ORDER BY o.id",
-        )
-        .bind(now.as_second())
-        .fetch_all(self.pool())
-        .await?;
-        Ok(rows
-            .iter()
-            .map(|r| Uncertain {
-                op_id: r.get(0),
-                object_id: r.get(1),
-                kind: r.get(7),
-                change_id: r.get(2),
-                marker: r.get(3),
-                remote_id: r.get(4),
-                body: r.get(5),
-                reconcile_deadline: r.get(6),
-            })
-            .collect())
-    }
-
-    /// Reconciliation found the object: it is delivered after all.
-    pub async fn uncertain_found(
-        &self,
-        u: &Uncertain,
-        remote_id: &str,
-        now: Timestamp,
-    ) -> Result<(), StorageError> {
-        let at = now.as_second();
-        let mut tx = self.write().await?;
-        let generation: i64 = sqlx::query(
-            "UPDATE publication_operations SET state = 'DELIVERED', remote_id = $1, finished_at = $2
-             WHERE id = $3 AND state = 'UNCERTAIN' RETURNING generation",
-        )
-        .bind(remote_id)
-        .bind(at)
-        .bind(u.op_id)
-        .fetch_one(&mut *tx)
-        .await?
-        .get(0);
-        observe(&mut tx, u.object_id, remote_id, generation, &u.body, at).await?;
-        tx.commit().await?;
-        Ok(())
-    }
-
-    /// Not found this pass: look again later; past the window the operation stays `UNCERTAIN`
-    /// for the operator and is not retried by itself.
-    pub async fn uncertain_unresolved(
-        &self,
-        u: &Uncertain,
-        next: i64,
-        now: Timestamp,
-    ) -> Result<(), StorageError> {
-        let exhausted = now.as_second() >= u.reconcile_deadline;
-        let mut tx = self.write().await?;
-        sqlx::query(
-            "UPDATE publication_operations SET next_action_at = $1, last_error = $2
-             WHERE id = $3 AND state = 'UNCERTAIN'",
-        )
-        .bind(if exhausted { i64::MAX } else { next })
-        .bind(if exhausted {
-            "RECONCILIATION_WINDOW_EXHAUSTED: operator decision needed"
-        } else {
-            "not found yet"
-        })
-        .bind(u.op_id)
-        .execute(&mut *tx)
-        .await?;
-        tx.commit().await?;
-        Ok(())
-    }
 }
 
-async fn observe(
+/// The claim of operation `id` as the publisher needs it.
+async fn claimed(
+    tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+    id: i64,
+) -> Result<PublishClaim, StorageError> {
+    let r = sqlx::query(
+        "SELECT o.id, o.object_id, p.change_id, c.tenant_id, c.access_scope, p.slot, p.marker,
+             p.remote_id, o.run_id, o.result_id, o.generation, o.attempts, o.owner, o.lease_epoch,
+             p.kind, p.fingerprint, p.anchor
+         FROM publication_operations o JOIN publication_objects p ON p.id = o.object_id
+         JOIN changes c ON c.id = p.change_id WHERE o.id = $1",
+    )
+    .bind(id)
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok(PublishClaim {
+        op_id: r.get(0),
+        object_id: r.get(1),
+        kind: r.get(14),
+        fingerprint: r.get(15),
+        anchor: r.get(16),
+        change_id: r.get(2),
+        partition: Partition {
+            tenant_id: r.get(3),
+            access_scope: r.get(4),
+        },
+        slot: r.get(5),
+        marker: r.get(6),
+        remote_id: r.get(7),
+        run_id: r.get(8),
+        result_id: r.get(9),
+        generation: r.get(10),
+        attempts: r.get(11),
+        owner: r.get(12),
+        epoch: r.get(13),
+    })
+}
+
+pub(crate) async fn observe(
     tx: &mut sqlx::Transaction<'_, sqlx::Any>,
     object_id: i64,
     remote_id: &str,
@@ -424,52 +383,6 @@ async fn observe(
     .execute(&mut **tx)
     .await?;
     Ok(())
-}
-
-/// An unresolved publication as the operator sees it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Unresolved {
-    pub op_id: i64,
-    pub change_id: i64,
-    pub slot: String,
-    pub state: String,
-    pub attempts: i64,
-    pub created_at: i64,
-    pub reconcile_deadline: Option<i64>,
-    pub last_error: Option<String>,
-}
-
-impl Storage {
-    /// `PUBLISHING` and `UNCERTAIN` operations, optionally of one change, oldest first.
-    pub async fn unresolved_publications(
-        &self,
-        change_id: Option<i64>,
-    ) -> Result<Vec<Unresolved>, StorageError> {
-        let rows = sqlx::query(
-            "SELECT o.id, p.change_id, p.slot, o.state, o.attempts, o.created_at,
-                 o.reconcile_deadline, o.last_error
-             FROM publication_operations o JOIN publication_objects p ON p.id = o.object_id
-             WHERE o.state IN ('PUBLISHING', 'UNCERTAIN')
-                 AND (CAST($1 AS BIGINT) IS NULL OR p.change_id = $1)
-             ORDER BY o.created_at, o.id",
-        )
-        .bind(change_id)
-        .fetch_all(self.pool())
-        .await?;
-        Ok(rows
-            .iter()
-            .map(|r| Unresolved {
-                op_id: r.get(0),
-                change_id: r.get(1),
-                slot: r.get(2),
-                state: r.get(3),
-                attempts: r.get(4),
-                created_at: r.get(5),
-                reconcile_deadline: r.get(6),
-                last_error: r.get(7),
-            })
-            .collect())
-    }
 }
 
 impl Storage {

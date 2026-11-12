@@ -21,6 +21,7 @@ mod policy;
 mod publisher;
 mod questions;
 mod queue;
+mod reconciler;
 pub mod requests;
 mod slack;
 pub mod smoke;

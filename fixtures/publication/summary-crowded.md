@@ -8,33 +8,49 @@
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ shown inline
 
+When: process stops after commit
+
 #### 2. 🔴 Critical · Rule violation: Defect 1
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ shown inline
+
+When: process stops after commit
 
 #### 3. 🟠 High · Rule violation: Defect 4
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ shown inline
 
+When: process stops after commit
+
 #### 4. 🟠 High · Rule violation: Defect 7
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ shown inline
+
+When: process stops after commit
 
 #### 5. 🟠 High · Rule violation: Defect 9
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ shown inline
 
+When: process stops after commit
+
 #### 6. 🟠 High · Rule violation: Defect 8
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ shown inline
+
+When: process stops after commit
 
 #### 7. 🟠 High · Rule violation: Defect 6
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ shown inline
 
+When: process stops after commit
+
 #### 8. 🟠 High · Rule violation: Defect 3
 
 `EFFECT-01` · `backend/orders/create.go:42` · ↳ shown inline
+
+When: process stops after commit
 
 #### 9. 🟠 High · Rule violation: Defect 2
 

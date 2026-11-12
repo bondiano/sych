@@ -8,6 +8,8 @@
 
 `EFFECT-01` · `backend/orders/create.go:41-47` · ↳ shown inline
 
+When: process stops after commit
+
 #### Unknown and missing checks (2)
 
 - **required** `EFFECT-02` Is cancellation behavior preserved? — SEMANTIC_PROVIDER_UNAVAILABLE; needs: Callers of CreateOrder from gopls references.
