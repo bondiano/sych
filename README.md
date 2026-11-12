@@ -44,6 +44,13 @@ Install Sych 0.2.0 (https://github.com/bondiano/sych) and run a free trial revie
 More prompts are on the [install page](https://bondiano.github.io/sych/install/): a real model review through
 OpenRouter, a rule that makes your agent review before every push, and a self-hosted GitHub App.
 
+In Claude Code, the `sych` plugin adds `/sych:review` and a review-before-push skill (the CLI itself is installed
+as above):
+
+```text
+/plugin install sych --marketplace bondiano/sych
+```
+
 By hand, on Linux (x86_64, aarch64) or macOS (Apple silicon) with a
 [release archive](https://github.com/bondiano/sych/releases/latest), or from source:
 
