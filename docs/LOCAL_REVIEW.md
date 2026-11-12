@@ -23,6 +23,14 @@ sych explain --run RUN_ID --obligation EFFECT-01 --format markdown
   the change writes still keeps the file from the models, but it is reported as unreviewed `GENERATED_IN_CHANGE`:
   coverage is partial, and the summary names the file for a human to check. A change cannot quietly hide its code
   that way. The models are told which generated files changed, without their content.
+- The author's description of the change reaches discovery as data of low trust. By default it is the commit
+  messages from the diff base to the head, newest first, at most 20, without merges. `--intent-file PATH` (up to
+  1 MiB) replaces them, for example with a pull request description or a ticket.
+  - Discovery, the combined review and expansion rounds see its first 8000 characters, without control characters
+    and redacted like all repository text. They are told to look for code that does something else or only part of
+    it; the text is not a requirement and does not excuse a defect.
+  - No verifier and no high-risk audit sees it, so a description can add a hypothesis, never argue one away.
+  - Unreadable history leaves no description rather than failing the review.
 - `--format json|markdown` (JSON by default); `--output PATH` writes a file and creates the directory, otherwise stdout.
 - `--semantic on|off` (`on` by default): for Rust, TS/JS, Go and Python (ty) files, pinned language
   servers; the same switch runs the pinned linters ruff, oxlint, sqruff (SQL), mago (PHP), jarl (R), clj-kondo (Clojure), actionlint and

@@ -37,7 +37,7 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    obligation's verification packet.
    It does not see the discovery output and runs even when discovery is empty; this is not a promise of
    statistical independence of errors.
-3. **Discovery** (`discovery@9`) — over the discovery packets of review units with the list of their obligations. Adjacent
+3. **Discovery** (`discovery@10`) — over the discovery packets of review units with the list of their obligations. Adjacent
    packets are merged into one call as long as their tokens fit in `context.max_tokens_per_request`: for a
    small PR this is one discovery instead of a call per unit. The reviewer's primary profile may bound a call further
    with `max_units_per_call` and `max_shown_tokens_per_call` ([MODELS.md](MODELS.md)). Its rules put defects
@@ -46,7 +46,11 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    before claiming it; and file code that contradicts its own comment, message or name as a defect. The limit of
    4 candidates counts defects and rule violations only, nits come on top.
 
-   **Expansion rounds** (`discovery_expansion@1`, `context.expansion_rounds`, default 2; 0 turns them off).
+   **Intent.** Discovery, the combined review and expansion rounds get the author's description of the change
+   (commit messages or `--intent-file`, [LOCAL_REVIEW.md](LOCAL_REVIEW.md)) as the first data block, of low trust:
+   it points at code that may do something else, and no verifier or audit sees it.
+
+   **Expansion rounds** (`discovery_expansion@2`, `context.expansion_rounds`, default 2; 0 turns them off).
    Discovery's context requests are answered before verification. When the answers add spans, the same batch
    gets one more discovery call.
    - The call sees those spans and the hypotheses already proposed (claim and anchors, as data). It is asked
