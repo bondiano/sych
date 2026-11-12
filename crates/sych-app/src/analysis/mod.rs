@@ -13,7 +13,7 @@ use sych_adapters::git::LocalSnapshot;
 use sych_core::analysis::{
     self, AssessmentRecord, Context, Discovered, merge_overlapping, prompts,
 };
-use sych_core::broker::{EvidencePacket, OpStatus, REQUIRED_OVER_BUDGET};
+use sych_core::broker::{EvidencePacket, OpStatus};
 use sych_core::config::{BillingKind, Enforcement, ReasoningEffort, Role};
 use sych_core::model::{
     AttemptRecord, HopRecord, Ledger, ModelProvider, RoutePlan, Router, TaskFailure,
@@ -24,6 +24,7 @@ use sych_core::{
     SchemaVersion,
 };
 
+mod expand;
 mod parts;
 mod passes;
 mod redo;
@@ -144,6 +145,8 @@ pub struct Engine<'a, P, L> {
     pub risk_audit: bool,
     /// Verification of candidates; off only for evaluation baseline A (one reviewer).
     pub verify: bool,
+    /// Further discovery rounds a batch may earn with answered asks (`context.expansion_rounds`).
+    pub expansion_rounds: u32,
     /// Model calls in flight at once (`budgets.analysis.max_parallel_calls`), at least 1.
     pub parallel: usize,
     /// `review.language`: every prompt asks for prose in it.
@@ -289,7 +292,8 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         for (batch, linked, context, found) in reviewed {
             searching.push(Box::pin(async move {
                 let mut part = self.part();
-                self.verify(batch, &linked, context, found, &mut part).await;
+                self.expand_and_verify(batch, &linked, context, found, &mut part)
+                    .await;
                 (part, None)
             }));
         }
@@ -375,17 +379,14 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     /// Discovery of one batch, its context asks answered, and verification.
     async fn search(&self, batch: &[usize]) -> Outcome {
         let mut part = self.part();
-        let (mut context, linked) = self.batch_view(batch);
+        let (context, linked) = self.batch_view(batch);
         let ids: Vec<ObligationId> = linked.iter().map(|o| o.obligation.id).collect();
         let prompt = prompts::discovery(&context, &linked, &self.title(batch));
         let found = self
             .discover(batch, None, &prompt, &context, &ids, 1, &mut part)
             .await;
-        if let Some(found) = &found {
-            self.answer(batch[0], &found.asks, &mut context, &mut part);
-        }
-
-        self.verify(batch, &linked, context, found, &mut part).await;
+        self.expand_and_verify(batch, &linked, context, found, &mut part)
+            .await;
         part
     }
 
@@ -469,46 +470,5 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         }
 
         (context, linked)
-    }
-
-    fn title(&self, batch: &[usize]) -> String {
-        let mut questions: Vec<&str> = batch
-            .iter()
-            .map(|&i| self.packets[i].request.question.as_str())
-            .collect();
-        // The chunks of one unit ask the same question.
-        questions.dedup();
-        questions.join("\n")
-    }
-
-    /// Whether every span of the obligation's verification packet lies inside the batch's
-    /// spans, with no required span left over the budget.
-    fn shown_whole(&self, obligation: ObligationId, batch: &[usize]) -> bool {
-        let chunks: Vec<&EvidencePacket> = self
-            .verification_packets(obligation)
-            .map(|i| &self.packets[i])
-            .collect();
-        let shown: Vec<&CodeRef> = batch
-            .iter()
-            .flat_map(|&i| &self.packets[i].fragments)
-            .map(|f| &f.code_ref)
-            .collect();
-        let inside = |r: &CodeRef| {
-            shown.iter().any(|s| {
-                s.side == r.side
-                    && s.path == r.path
-                    && s.blob_oid == r.blob_oid
-                    && s.start_line <= r.start_line
-                    && r.end_line <= s.end_line
-            })
-        };
-        !chunks.is_empty()
-            && chunks.iter().all(|packet| {
-                packet
-                    .excluded
-                    .iter()
-                    .all(|e| e.reason != REQUIRED_OVER_BUDGET)
-                    && packet.fragments.iter().all(|f| inside(&f.code_ref))
-            })
     }
 }

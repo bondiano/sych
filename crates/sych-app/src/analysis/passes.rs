@@ -99,14 +99,13 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     }
 
     /// One call for discovery over `batch` and the assessments of `linked[assessed]`, leaving
-    /// `kept` attempts to later passes; the asks are answered into the returned context for
-    /// the verifier.
+    /// `kept` attempts to later passes; its asks are answered later, by [`Engine::expand`].
     pub(super) async fn review(
         &self,
         batch: &[usize],
         linked: &[&PlannedObligation],
         assessed: &[usize],
-        mut context: Context,
+        context: Context,
         kept: u32,
         out: &mut Outcome,
     ) -> (Context, Option<Discovered>) {
@@ -172,7 +171,6 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         });
         if let Some(found) = &found {
             note(found, out);
-            self.answer(batch[0], &found.asks, &mut context, out);
         }
 
         (context, found)

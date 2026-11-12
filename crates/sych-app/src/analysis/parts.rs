@@ -5,10 +5,10 @@
 
 use futures_util::future::LocalBoxFuture;
 use futures_util::stream::{self, StreamExt};
-use sych_core::PlannedObligation;
-use sych_core::SchemaVersion;
 use sych_core::analysis::{Context, Discovered};
+use sych_core::broker::{EvidencePacket, REQUIRED_OVER_BUDGET};
 use sych_core::model::{Ledger, ModelProvider};
+use sych_core::{CodeRef, ObligationId, PlannedObligation, SchemaVersion};
 
 use super::{AnalysisRecord, Engine, Outcome, PassStatus};
 
@@ -65,6 +65,47 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     /// so earlier ones still reserve the budget first.
     pub(super) async fn each<T>(&self, tasks: Vec<Task<'_, T>>) -> Vec<(Outcome, T)> {
         in_order(tasks, self.parallel).await
+    }
+
+    pub(super) fn title(&self, batch: &[usize]) -> String {
+        let mut questions: Vec<&str> = batch
+            .iter()
+            .map(|&i| self.packets[i].request.question.as_str())
+            .collect();
+        // The chunks of one unit ask the same question.
+        questions.dedup();
+        questions.join("\n")
+    }
+
+    /// Whether every span of the obligation's verification packet lies inside the batch's
+    /// spans, with no required span left over the budget.
+    pub(super) fn shown_whole(&self, obligation: ObligationId, batch: &[usize]) -> bool {
+        let chunks: Vec<&EvidencePacket> = self
+            .verification_packets(obligation)
+            .map(|i| &self.packets[i])
+            .collect();
+        let shown: Vec<&CodeRef> = batch
+            .iter()
+            .flat_map(|&i| &self.packets[i].fragments)
+            .map(|f| &f.code_ref)
+            .collect();
+        let inside = |r: &CodeRef| {
+            shown.iter().any(|s| {
+                s.side == r.side
+                    && s.path == r.path
+                    && s.blob_oid == r.blob_oid
+                    && s.start_line <= r.start_line
+                    && r.end_line <= s.end_line
+            })
+        };
+        !chunks.is_empty()
+            && chunks.iter().all(|packet| {
+                packet
+                    .excluded
+                    .iter()
+                    .all(|e| e.reason != REQUIRED_OVER_BUDGET)
+                    && packet.fragments.iter().all(|f| inside(&f.code_ref))
+            })
     }
 }
 
