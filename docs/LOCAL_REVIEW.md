@@ -302,3 +302,15 @@ location but is no judgment candidate: by meaning it is an overrated nit.
 
 A location match or a kept unknown that nobody judged is listed in `unjudged` and does not count by meaning.
 Nitpicks and obligations stay scored by location and status.
+
+`eval auto-judge` writes the same judgments with a model instead of by hand. For each measured run it makes one call:
+the call sees the run's labels and every correctness finding that overlaps one, and names the label each finding
+states or `null` — the same-place, same-concern match AACR-Bench scores as SEM-F1. Each call is a follow-up of the
+judged run, counted in its ledger under `budgets.followup_session`. Use the config the report was measured with,
+since its store holds the runs. A run whose call fails is reported on stderr, and the exit code is 1; its findings
+stay `unjudged`. Unknown runs are never judged this way.
+
+```sh
+sych eval auto-judge report.json --config sych.yaml --models cheap_go --output judgments.json
+sych eval judge report.json --judgments judgments.json
+```
