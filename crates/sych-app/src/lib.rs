@@ -18,6 +18,7 @@ pub mod output;
 pub mod probe;
 pub mod quality;
 pub mod render;
+pub mod render_sarif;
 pub mod review;
 pub mod semantic;
 pub mod server;
