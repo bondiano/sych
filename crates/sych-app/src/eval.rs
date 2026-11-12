@@ -13,10 +13,10 @@ use sych_core::{Coverage, ObligationStatus, Recommendation, RepoPath, SchemaVers
 use sych_storage::{Database, Storage, StoreConfig};
 use tempfile::TempDir;
 
-use crate::args::{Comparison, ExitPolicy, ModelSelection, Output, ReviewArguments, Switch};
+use crate::args::{Comparison, ExitPolicy, ModelSelection, ReportOutput, ReviewArguments, Switch};
 use crate::errors::{EXIT_EVAL_FAILED, Failure};
 use crate::output::emit_json;
-use crate::render::{self, Format};
+use crate::render::{self, ReportFormat};
 use crate::{review, storage};
 
 #[derive(Deserialize)]
@@ -234,8 +234,8 @@ fn run_case(case: &Case, suite_dir: &Path) -> Result<Actual, String> {
         ci_facts: Vec::new(),
         ci_manifest: None,
         exit_policy: ExitPolicy::Operational,
-        out: Output {
-            format: Format::Json,
+        out: ReportOutput {
+            format: ReportFormat::Json,
             output: None,
         },
         verify: true,

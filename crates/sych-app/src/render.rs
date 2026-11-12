@@ -47,7 +47,14 @@ pub struct Report {
 pub enum Format {
     Json,
     Markdown,
-    /// SARIF 2.1.0 for code scanning; `review` and `show` only
+}
+
+/// A saved review's formats: [`Format`] and SARIF, which only a review has.
+#[derive(Clone, Copy, clap::ValueEnum)]
+pub enum ReportFormat {
+    Json,
+    Markdown,
+    /// SARIF 2.1.0 for code scanning
     Sarif,
 }
 
