@@ -166,3 +166,18 @@ fn read_diff_of_a_rename_reads_each_side_at_its_own_path_and_a_failed_read_is_pa
     let failed = read_diff(&mut ctx, &reader, "src/missing.ts");
     assert_eq!((failed.refs, failed.status), (0, Some(OpStatus::Partial)));
 }
+
+#[test]
+fn a_hunk_past_the_end_of_its_side_shows_no_window_for_that_side() {
+    let reader = Reader::new();
+    let mut manifest = order_change();
+    manifest.files[0].hunks[0].new_start = 50;
+    let mut ctx = Context::default();
+    ctx.add_changes(&manifest);
+    let answered = read_diff(&mut ctx, &reader, "src/order.ts");
+    assert_eq!(answered.refs, 1, "only the BASE window");
+    assert_eq!(
+        ctx.span("ref-1").map(|r| r.side),
+        Some(SourceSide::DiffBase)
+    );
+}

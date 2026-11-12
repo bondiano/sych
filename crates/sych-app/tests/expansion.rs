@@ -85,8 +85,9 @@ async fn without_expansion_rounds_discovery_is_asked_once() {
             "candidate_verdicts"
         ]
     );
+    let answers = &outcome.record.answers;
     assert!(
-        outcome.record.answers.iter().all(|a| a.refs == 1),
+        !answers.is_empty() && answers.iter().all(|a| a.refs == 1),
         "the asks are still answered for the verifier"
     );
 }
