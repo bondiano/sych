@@ -250,6 +250,58 @@ fn a_tight_discovery_budget_keeps_the_head_side_of_a_modified_file() {
     );
 }
 
+#[test]
+fn a_split_unit_keeps_each_file_with_its_old_side_in_one_chunk() {
+    let reader = Reader::new();
+    let mut two = two_files();
+    for file in &mut two.files {
+        file.status = ChangeStatus::Modified;
+        file.old = file.new.clone();
+        let hunk = &mut file.hunks[0];
+        (hunk.old_start, hunk.old_lines) = (hunk.new_start, hunk.new_lines);
+    }
+    let none = EffectLedger::default();
+    let required = |packets: &[EvidencePacket]| -> Vec<(usize, String, SourceSide, u32)> {
+        let discovery = packets.iter().filter(|p| p.request.obligation_id.is_none());
+        discovery
+            .enumerate()
+            .flat_map(|(i, p)| p.fragments.iter().map(move |f| (i, f)))
+            .filter(|(_, f)| f.priority == Priority::Required)
+            .map(|(i, f)| (i, f.code_ref.path.to_string(), f.code_ref.side, f.tokens))
+            .collect()
+    };
+    let (_, whole) = run_on(&two, limits(), &[facts(&reader)], &[], &none, &[]);
+    let whole = required(&whole);
+    let file = |name: &str| -> u32 { whole.iter().filter(|r| r.1 == name).map(|r| r.3).sum() };
+    let largest = file("src/store.rs").max(file("src/tx.rs"));
+    assert!(
+        largest < file("src/store.rs") + file("src/tx.rs"),
+        "the files do not fit together"
+    );
+    // Room for one whole file: the old sides must not trail behind both new ones.
+    let tight = Limits {
+        unit_tokens: largest,
+        request_tokens: largest,
+        ..limits()
+    };
+    let (_, packets) = run_on(&two, tight, &[facts(&reader)], &[], &none, &[]);
+    let split = required(&packets);
+    assert_eq!(
+        split.len(),
+        whole.len(),
+        "every required span is shown once"
+    );
+    for name in ["src/store.rs", "src/tx.rs"] {
+        let chunks: Vec<_> = split.iter().filter(|r| r.1 == name).map(|r| r.0).collect();
+        assert!(
+            chunks.windows(2).all(|w| w[0] == w[1]),
+            "{name} is split over chunks {chunks:?}"
+        );
+        let sides: Vec<_> = split.iter().filter(|r| r.1 == name).map(|r| r.2).collect();
+        assert!(sides.contains(&SourceSide::Head) && sides.contains(&SourceSide::DiffBase));
+    }
+}
+
 /// A second changed file in the same unit: two required spans for the guard.
 fn two_files() -> DiffManifest {
     let mut two = manifest();
