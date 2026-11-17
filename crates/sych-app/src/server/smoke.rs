@@ -77,7 +77,8 @@ pub async fn smoke(
         (Ok(found), Ok(())) => found,
         (Err(e), Ok(())) | (Ok(_), Err(e)) => return Err(e),
         (Err(check), Err(delete)) => {
-            let left = format!("{check}; comment {} was not deleted: {delete}", created.id);
+            // A delete that failed in transport may still have happened: say what is known.
+            let left = format!("{check}; deleting comment {} failed: {delete}", created.id);
             return Err(ScmError::new(check.kind, left));
         }
     };
