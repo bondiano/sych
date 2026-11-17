@@ -16,9 +16,13 @@ const RULE: &str = "The author's description of the change says what it is meant
 
 /// `prompt` with `intent`, when there is one, as its first data block and with its rule.
 pub fn with_intent(mut prompt: Prompt, intent: Option<&str>) -> Prompt {
-    // Bidi overrides and isolates could make the text read otherwise than it is; they go too.
+    // Bidi overrides, isolates and directional marks could make the text read otherwise than it
+    // is; they go too.
     let kept = |c: &char| {
-        let bidi = matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}');
+        let bidi = matches!(
+            c,
+            '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{200e}'..='\u{200f}' | '\u{061c}'
+        );
         (!c.is_control() || matches!(c, '\n' | '\t')) && !bidi
     };
     let clean: String = intent.unwrap_or_default().chars().filter(kept).collect();
@@ -72,7 +76,7 @@ mod tests {
     fn intent_is_the_first_data_block_with_its_rule_and_no_control_characters() {
         let p = with_intent(
             prompt(),
-            Some("fix: keep the \u{202e}retry\u{1b}[31m\nbody"),
+            Some("fix: keep the \u{202e}retry\u{200e}\u{200f}\u{061c}\u{1b}[31m\nbody"),
         );
         assert_eq!(p.data[0].label, LABEL);
         assert_eq!(p.data[0].content, "fix: keep the retry[31m\nbody");
