@@ -79,12 +79,25 @@ async fn a_lost_reply_is_uncertain_and_reconciled_by_marker_across_pages() {
     assert!(w.engine.publish_once().await.expect("publish"));
     assert_eq!(states(&w).await, ["UNCERTAIN"]);
     assert!(!w.engine.publish_once().await.expect("nothing else to send"));
+    let stale = w
+        .app
+        .storage
+        .uncertain_due(world::now())
+        .await
+        .expect("due");
     w.engine
         .reconcile_publications_once()
         .await
         .expect("reconcile");
     assert_eq!(states(&w).await, ["DELIVERED"]);
     assert_eq!(creates(&w), 1, "no second CREATE");
+    // A second pass that read the row before the first resolved it finds it delivered.
+    w.app
+        .storage
+        .uncertain_found(&stale[0], "9001", world::now())
+        .await
+        .expect("an already resolved operation is left as it is");
+    assert_eq!(states(&w).await, ["DELIVERED"]);
     let ops = w.app.storage.operations(1).await.expect("ops");
     assert_eq!(ops.len(), 1);
     // Reconciled to the bot's comment, not the human copy.

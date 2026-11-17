@@ -1,0 +1,12 @@
+{
+  "name": "sych",
+  "version": "0.2.0",
+  "description": "Review the current branch with Sych and act on its findings, UNKNOWN obligations and coverage gaps.",
+  "author": {
+    "name": "bondiano"
+  },
+  "homepage": "https://bondiano.github.io/sych/",
+  "repository": "https://github.com/bondiano/sych",
+  "license": "Apache-2.0",
+  "keywords": ["code-review", "sych", "review"]
+}

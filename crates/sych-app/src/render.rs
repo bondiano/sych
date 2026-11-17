@@ -49,6 +49,15 @@ pub enum Format {
     Markdown,
 }
 
+/// A saved review's formats: [`Format`] and SARIF, which only a review has.
+#[derive(Clone, Copy, clap::ValueEnum)]
+pub enum ReportFormat {
+    Json,
+    Markdown,
+    /// SARIF 2.1.0 for code scanning
+    Sarif,
+}
+
 /// Bidi overrides and isolates can make reviewed text read differently than it runs.
 fn is_bidi_control(c: char) -> bool {
     matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')

@@ -6,9 +6,10 @@ use std::path::Path;
 
 use serde::Serialize;
 
-use crate::args::Output;
+use crate::args::{Output, ReportOutput};
 use crate::errors::Failure;
-use crate::render::{self, Format};
+use crate::render::{self, Format, Report, ReportFormat};
+use crate::render_sarif;
 
 /// Writes `text` to `output` (creating its directory) or stdout.
 pub fn emit(text: &str, output: Option<&Path>) -> anyhow::Result<()> {
@@ -39,5 +40,15 @@ pub fn emit_as<T: Serialize>(
     match out.format {
         Format::Json => emit_json(value, out.output.as_deref()),
         Format::Markdown => emit(&markdown(), out.output.as_deref()),
+    }
+}
+
+/// A saved review as `out` asks, SARIF included.
+pub fn emit_report(report: &Report, out: &ReportOutput) -> anyhow::Result<()> {
+    let path = out.output.as_deref();
+    match out.format {
+        ReportFormat::Json => emit_json(report, path),
+        ReportFormat::Markdown => emit(&render::markdown(report), path),
+        ReportFormat::Sarif => emit_json(&render_sarif::sarif(&report.review_result), path),
     }
 }

@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use sych_adapters::openai_compatible::{self, OpenaiCompatible};
 use sych_adapters::opencode_go::{self, OpencodeGo};
 use sych_adapters::openrouter::{self, OpenRouter};
 use sych_adapters::pi::{self, PiCli};
@@ -30,6 +31,7 @@ use tokio::time::timeout;
 pub enum Backend {
     OpenRouter(OpenRouter),
     OpencodeGo(OpencodeGo),
+    OpenaiCompatible(OpenaiCompatible),
     Pi(PiCli),
     Siwc(Siwc),
 }
@@ -40,6 +42,7 @@ impl ModelProvider for Backend {
             match self {
                 Self::OpenRouter(p) => p.complete(request).await,
                 Self::OpencodeGo(p) => p.complete(request).await,
+                Self::OpenaiCompatible(p) => p.complete(request).await,
                 Self::Pi(p) => p.complete(request).await,
                 Self::Siwc(p) => p.complete(request).await,
             }
@@ -143,7 +146,6 @@ fn endpoint<'a>(
 /// The adapter of the profile's provider, built with its endpoint and credentials.
 fn transport(
     server: &ServerConfig,
-    name: &str,
     profile: &Profile,
     model: &str,
 ) -> Result<(&'static str, Capabilities, Backend), ResolveError> {
@@ -211,9 +213,13 @@ fn transport(
             ("chatgpt_subscription", siwc::CAPABILITIES, Backend::Siwc(p))
         }
         Adapter::OpenaiCompatible => {
-            return Err(Invalid(format!(
-                "profile `{name}` uses an adapter that is not implemented"
-            )));
+            let base = endpoint(server, provider, provider_name, "/chat/completions")?;
+            let p = OpenaiCompatible::new(base, key()?, model).map_err(invalid)?;
+            (
+                "openai_compatible",
+                openai_compatible::CAPABILITIES,
+                Backend::OpenaiCompatible(p),
+            )
         }
     })
 }
@@ -252,7 +258,7 @@ pub fn resolve(
         }
         (None, None) => return Err(Invalid(format!("profile `{name}` has no model"))),
     };
-    let (adapter, capabilities, backend) = transport(server, name, profile, &model)?;
+    let (adapter, capabilities, backend) = transport(server, profile, &model)?;
     let (price, price_revision) = price(config, server, &model)?;
     Ok(Resolved {
         route: Route {

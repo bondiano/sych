@@ -112,53 +112,16 @@ async fn dispatched_timeout_keeps_an_unknown_charge() {
     assert_eq!(unknown["status"], "FAILED");
 }
 
-/// Discovery proposes one hypothesis and asks for lines 1-3 of the head file; the verifier
-/// must see that answer as a span and rejects the hypothesis.
-fn expanding(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
-    let user = &request.messages[1].content;
-    match request.schema_name.as_str() {
-        "obligation_assessment" => supported_and_empty(request),
-        "discovery" | "review" => {
-            let (id, line) = first_ref(request, "HEAD");
-            let mut found = json!({
-                "candidates": [{"category": "DEFECT", "claim": "undefined items throw",
-                    "conditions": ["items undefined"], "causal_chain": ["no guard"], "consequence": "throws",
-                    "anchors": [{"ref_id": id, "start_line": line, "end_line": line}], "evidence_ids": [],
-                    "obligation_ids": [], "proposed_severity": "MEDIUM", "disproof_question": "a fallback?"}],
-                "context_requests": [{"question": "the whole head function",
-                    "operation": {"op": "read_lines", "side": "HEAD", "path": "src/order.ts", "start_line": 1, "end_line": 3}}],
-                "unresolved_questions": []
-            });
-            if request.schema_name == "review" {
-                found["assessments"] = json!([supported(request)]);
-            }
-
-            Ok(reply(&found.to_string()))
-        }
-        _ => {
-            assert!(
-                user.contains("answer to: the whole head function"),
-                "verifier sees the answer"
-            );
-            Ok(reply(
-                &json!({"verdicts": [{"candidate_id": "cand-1", "verdict": "REJECTED",
-                "category": "DEFECT", "severity": "MEDIUM", "support": "SEMANTIC_ARGUMENT",
-                "title": "t", "explanation": "`?? []` keeps it",  "anchors": [], "evidence_ids": [],
-                "alternatives_checked": ["nullish fallback"], "suggested_action": "",
-                "validation_expectation": "", "limitations": []}], "context_requests": []})
-                .to_string(),
-            ))
-        }
-    }
-}
-
 #[tokio::test(flavor = "current_thread")]
 async fn context_request_is_answered_through_the_broker_for_the_verifier() {
     let (outcome, calls) = run(expanding, Budgets::default()).await;
+    // The answer added a span, so the review earns one expansion round; it asks the same again,
+    // which shows nothing new and ends the rounds.
     assert_eq!(
         calls,
         [
             "review",
+            "discovery",
             "discovery",
             "candidate_verdicts",
             "candidate_verdicts"
@@ -243,7 +206,11 @@ async fn a_review_that_assesses_an_obligation_twice_leaves_it_unknown() {
 #[tokio::test(flavor = "current_thread")]
 async fn without_the_verifier_candidates_stay_unverified() {
     let (outcome, calls) = run_on(repo(false), expanding, Budgets::default(), 14_000, false).await;
-    assert_eq!(calls, ["review", "discovery"], "no verification call");
+    assert_eq!(
+        calls,
+        ["review", "discovery", "discovery"],
+        "an expansion round, no verification call"
+    );
     assert!(!outcome.candidates.is_empty());
     assert!(
         outcome

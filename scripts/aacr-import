@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# Imports AACR-Bench v2 (Apache-2.0, https://huggingface.co/datasets/Alibaba-Aone/aacr-bench) as
+# holdout cases of real pull requests: one `unsafe` case per PR in a language Sych reviews
+# semantically (TypeScript, JavaScript, Go, Python, Rust), its expert-verified review comments as
+# expected findings. The cases stay outside this repository (eval/quality/holdout/README.md).
+# Usage: scripts/aacr-import [DIR] — default ~/.local/share/sych-holdout/aacr. Writes
+#   DIR/cases/<id>.yaml   the suite for `sych eval validate|measure --suite`
+#   DIR/repos/<name>      clones with every object the review reads (Sych never fetches lazily)
+#   DIR/repos.args        the `--repo NAME=PATH` arguments, one per line
+#   DIR/subset.txt        every third PR of each language by sha256 of its URL: `--case` ids
+# Re-running reuses the download and the clones. Needs curl, jq, git and sha256sum.
+set -euo pipefail
+
+dir="${1:-$HOME/.local/share/sych-holdout/aacr}"
+revision=86705ac25e4da6d8fdf178ef12c07bf28de3f491
+checksum=98ef74e4d4d9adb08b6b6feab41294df785ebc9312570e1a77bbff48638c4129
+url="https://huggingface.co/datasets/Alibaba-Aone/aacr-bench/resolve/$revision/data/v2/dataset.json"
+mkdir -p "$dir/cases" "$dir/repos"
+dataset="$dir/dataset-v2.json"
+
+if ! echo "$checksum  $dataset" | sha256sum -c --status 2>/dev/null; then
+    curl -fsSL --retry 3 -o "$dataset.part" "$url"
+    echo "$checksum  $dataset.part" | sha256sum -c --status || {
+        echo "aacr-import: $url does not match the pinned sha256" >&2
+        exit 1
+    }
+    mv "$dataset.part" "$dataset"
+fi
+
+# One record per PR in a supported language: its repository, refs and comments.
+prs="$(jq -c '
+    def lang: {"TypeScript": "typescript", "JavaScript": "typescript", "Go": "go",
+               "Python": "python", "Rust": "rust"}[.];
+    map(select(.project_main_language | lang))
+    | group_by(.pr_url)[]
+    | (.[0].pr_url | capture("^https://github.com/(?<owner>[^/]+)/(?<name>[^/]+)/pull/(?<n>[0-9]+)$")) as $u
+    | {url: .[0].pr_url, owner: $u.owner, name: $u.name, number: $u.n,
+       aacr_language: .[0].project_main_language, language: (.[0].project_main_language | lang),
+       category: .[0].pr_category,
+       # The names are the other way round: the source commit is the PR base (`base.sha` of
+       # the GitHub API) and the target commit is the reviewed head of the PR branch.
+       base: .[0].pr_source_commit, head: .[0].pr_target_commit,
+       comments: map({note, path, from_line, to_line, category, context})}
+' "$dataset")"
+
+# A clone with the commits of every PR of the repository and the trees and blobs the review
+# reads: target tip, merge base and head. A blobless clone fetches blobs only on checkout.
+prepare() {
+    local repo="$1" owner="$2" name="$3"
+    if [[ ! -d "$repo" ]]; then
+        git clone -q --filter=blob:none --no-checkout "https://github.com/$owner/$name" "$repo"
+    fi
+}
+
+fetch_pr() {
+    local repo="$1" number="$2" base="$3" head="$4"
+    local have=1
+    git -C "$repo" cat-file -e "$base^{commit}" 2>/dev/null || have=0
+    git -C "$repo" cat-file -e "$head^{commit}" 2>/dev/null || have=0
+    if ((have == 0)); then
+        git -C "$repo" fetch -q origin "$base" "$head" 2>/dev/null ||
+            git -C "$repo" fetch -q origin "$base" "+refs/pull/$number/head:refs/aacr/pull/$number" ||
+            return 1
+    fi
+    git -C "$repo" cat-file -e "$head^{commit}" 2>/dev/null || return 1
+    local merge_base
+    merge_base="$(git -C "$repo" merge-base "$base" "$head")" || return 1
+    for commit in "$merge_base" "$base" "$head"; do
+        git -C "$repo" -c advice.detachedHead=false checkout -q --detach "$commit" || return 1
+    done
+}
+
+# The comments whose lines exist in the head file; the rest are reported and left out.
+anchored() {
+    local repo="$1" head="$2" pr="$3" url="$4"
+    local kept="[]" comment path to lines
+    while IFS= read -r comment; do
+        path="$(jq -r .path <<<"$comment")"
+        to="$(jq -r .to_line <<<"$comment")"
+        if lines="$(git -C "$repo" cat-file -p "$head:$path" 2>/dev/null | wc -l)" && ((to <= lines + 1)); then
+            kept="$(jq -c --argjson c "$comment" '. + [$c]' <<<"$kept")"
+        else
+            echo "aacr-import: $url: $path:$to is not in the head file; comment left out" >&2
+        fi
+    done < <(jq -c '.comments[]' <<<"$pr")
+    echo "$kept"
+}
+
+: >"$dir/repos.args.part"
+: >"$dir/subset.part"
+rm -f "$dir/cases/"*.yaml
+declare -A prepared=()
+written=0 skipped=0
+while IFS= read -r pr; do
+    owner="$(jq -r .owner <<<"$pr")" name="$(jq -r .name <<<"$pr")"
+    number="$(jq -r .number <<<"$pr")" url="$(jq -r .url <<<"$pr")"
+    base="$(jq -r .base <<<"$pr")" head="$(jq -r .head <<<"$pr")"
+    fixture="${owner}__${name}"
+    repo="$dir/repos/$fixture"
+    id="$(echo "aacr-$owner-$name-$number" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9\n-' '-')"
+    if [[ -z "${prepared[$fixture]:-}" ]]; then
+        prepare "$repo" "$owner" "$name"
+        prepared[$fixture]=1
+        echo "--repo $fixture=$repo" >>"$dir/repos.args.part"
+    fi
+    if ! fetch_pr "$repo" "$number" "$base" "$head"; then
+        echo "aacr-import: $url: commits not fetched; PR skipped" >&2
+        skipped=$((skipped + 1))
+        continue
+    fi
+    comments="$(anchored "$repo" "$head" "$pr" "$url")"
+    if ! jq -e 'any(.[]; .category != "Maintainability and Readability")' <<<"$comments" >/dev/null; then
+        echo "aacr-import: $url: no defect comment left; PR skipped" >&2
+        skipped=$((skipped + 1))
+        continue
+    fi
+    jq -n --arg id "$id" --arg fixture "$fixture" --argjson pr "$pr" --argjson comments "$comments" '{
+        schema_version: 1,
+        id: $id,
+        split: "holdout",
+        language: $pr.language,
+        variant: "unsafe",
+        profiles: ["correctness", "nitpicks"],
+        rationale: "AACR-Bench v2 \($pr.url) (\($pr.category)): \($comments | length) expert-verified review comments. The labels are not exhaustive: an unlabelled remark may still be right.",
+        repository_fixture: {repo: $fixture, base_ref: $pr.base, head_ref: $pr.head},
+        expected: {findings: [$comments[] | {
+            category: (if .category == "Maintainability and Readability" then "nitpick" else "defect" end),
+            semantic_target: (.note | gsub("\\s+$"; "")),
+            required_condition: "\(.category), \(.context | ascii_downcase)",
+            evidence_locations: [{side: "HEAD", path, start_line: .from_line, end_line: .to_line}]
+        }]}
+    }' >"$dir/cases/$id.yaml"
+    echo "$(jq -r .aacr_language <<<"$pr") $(printf %s "$url" | sha256sum | cut -c1-16) $id" >>"$dir/subset.part"
+    written=$((written + 1))
+done < <(jq -c . <<<"$prs")
+
+sort -u "$dir/repos.args.part" >"$dir/repos.args"
+sort "$dir/subset.part" | awk '$1 != lang { lang = $1; i = 0 } i++ % 3 == 0 { print $3 }' >"$dir/subset.txt"
+rm -f "$dir/repos.args.part" "$dir/subset.part"
+echo "aacr-import: $written cases in $dir/cases, $skipped PRs skipped, $(wc -l <"$dir/subset.txt") in subset.txt" >&2

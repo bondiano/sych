@@ -483,7 +483,7 @@ Errors — `{"error": {code, message, retryable, correlation_id, details}}`: 400
 
 | CLI | What it does |
 |---|---|
-| `sych review --change github:CONN:OWNER/REPO:N --config sych.yaml` | the same server pipeline in-process from the current PR state; publishes nothing; exit codes as for `review` |
+| `sych review --change github:CONN:OWNER/REPO:N --config sych.yaml` | the same server pipeline in-process from the current PR state; publishes nothing; exit codes as for `review`; writes the result as `--format json` or `sarif` (`markdown` is refused: `sych show --run RUN --format markdown` renders the run) |
 | `sych publish --run ID --as CLIENT --config …` | puts the summary of a committed run into the outbox (writer); the server sends it |
 | `sych cancel --run ID --as CLIENT --config …` | cancellation before commit — exit 130 and `CANCELLED`; committed — exit 0 and the previous state |
 | `sych rerun --change ID [--profile deep] --as CLIENT --config …` | a new generation (writer) |
