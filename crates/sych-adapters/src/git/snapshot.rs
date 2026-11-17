@@ -147,6 +147,29 @@ impl LocalSnapshot {
         Ok((commit, files))
     }
 
+    /// The messages of the commits from `diff_base` to `head`, newest first, merges left out:
+    /// what the author says the change does. At most `max_commits` of them.
+    pub fn commit_messages(&self, max_commits: usize) -> Result<Vec<String>, SnapshotError> {
+        let range = format!(
+            "{}..{}",
+            self.snapshot.diff_base.hex(),
+            self.snapshot.head.hex()
+        );
+        let out = self.git.stdout([
+            "log",
+            "--no-merges",
+            "--format=%B%x00",
+            &format!("--max-count={max_commits}"),
+            &range,
+        ])?;
+        Ok(String::from_utf8_lossy(&out)
+            .split('\0')
+            .map(str::trim)
+            .filter(|m| !m.is_empty())
+            .map(str::to_owned)
+            .collect())
+    }
+
     /// Writes the tree at `side` under `dest` for a semantic backend.
     pub fn materialize(
         &self,

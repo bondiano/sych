@@ -5,7 +5,9 @@
 mod assess;
 mod context;
 mod discovery;
+pub mod expansion;
 pub mod followup;
+pub mod intent;
 pub mod prompts;
 mod search_context;
 pub mod tour_prompt;

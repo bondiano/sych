@@ -248,6 +248,7 @@ fn run_case(case: &Case, suite_dir: &Path) -> Result<Actual, String> {
         deep: false,
         parent: None,
         replay: None,
+        intent_file: None,
         risk_audit: true,
     };
     let report =

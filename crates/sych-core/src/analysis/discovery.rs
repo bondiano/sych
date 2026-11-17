@@ -113,6 +113,8 @@ pub enum AskOperation {
     },
     /// Fixed string, one line.
     SearchSource { side: SourceSide, query: String },
+    /// The hunks of one changed file, with three lines around each.
+    ReadDiff { path: RepoPath },
 }
 
 const ASK_LIMIT: usize = 10;
@@ -163,6 +165,7 @@ impl AskOperation {
                 side: *side,
                 limit: ASK_LIMIT,
             },
+            Self::ReadDiff { .. } => return Err("read_diff is answered from the change".into()),
         })
     }
 }
@@ -180,6 +183,15 @@ impl ContextAsk {
     /// Answers through the broker's typed operations: at most `max_refs` spans join `context`,
     /// or a block says what the query showed.
     pub fn answer(&self, ops: &Ops<'_>, context: &mut Context, max_refs: usize) -> Answered {
+        if let AskOperation::ReadDiff { path } = &self.operation {
+            return context.add_file_diff(
+                path,
+                &self.question,
+                ops.reader,
+                (max_refs, MAX_ASK_LINES),
+            );
+        }
+
         let operation = match self.operation.to_operation(ops.reader) {
             Ok(operation) => operation,
             Err(problem) => {

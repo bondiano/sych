@@ -1,7 +1,7 @@
 # Corporate server config: code goes only to an approved VPC endpoint. No
 # public API or personal subscription can be a route or a fallback here; validation rejects
-# each of them. `openai_compatible` transports are not implemented yet, so this config is a
-# boundary example that validates, not a runnable review setup.
+# each of them. The `openai_compatible` route needs a price card for its model
+# (`models.price_catalog_file`) before a review can call it.
 schema_version: 1
 mode: corporate
 

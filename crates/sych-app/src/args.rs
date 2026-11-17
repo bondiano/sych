@@ -101,6 +101,9 @@ pub enum EvalCommands {
     /// Rescore a saved `eval measure` report by the owner's judgments of which label each
     /// correctness finding states; shows location and meaning scores; never calls a model
     Judge(EvalJudgeArguments),
+    /// Write the judgments `eval judge` reads by asking a model, once per measured run, which
+    /// label each located correctness finding states; quota-counted follow-ups of each run
+    AutoJudge(EvalAutoJudgeArguments),
 }
 
 #[derive(Subcommand)]
@@ -257,6 +260,9 @@ pub struct ReviewArguments {
     /// new search.
     #[arg(skip)]
     pub replay: Option<Vec<Discovered>>,
+    /// The author's description of the change, instead of its commit messages
+    #[arg(long, value_name = "PATH")]
+    pub intent_file: Option<PathBuf>,
 }
 
 #[derive(clap::Args)]
@@ -380,6 +386,21 @@ pub struct EvalJudgeArguments {
     /// YAML list of `{case, run, finding, label}` and `{case, run, unknown_kept}` judgments
     #[arg(long)]
     pub judgments: PathBuf,
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+
+#[derive(clap::Args)]
+pub struct EvalAutoJudgeArguments {
+    /// `eval measure` report
+    pub report: PathBuf,
+    /// The server config the report was measured with: its store holds the runs
+    #[arg(long)]
+    pub config: PathBuf,
+    /// `roles` or one model profile of `--config`
+    #[arg(long, value_parser = ModelSelection::parse)]
+    pub models: ModelSelection,
+    /// Judgments file for `eval judge --judgments`; stdout when omitted
     #[arg(long)]
     pub output: Option<PathBuf>,
 }

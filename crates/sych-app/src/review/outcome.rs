@@ -120,6 +120,8 @@ impl Session<'_> {
             batch_units: units.map_or(usize::MAX, |u| usize::try_from(u).unwrap_or(usize::MAX)),
             risk_audit: self.risk_audit,
             verify: self.verify,
+            expansion_rounds: self.expansion_rounds,
+            intent: self.intent.as_deref(),
             parallel: self
                 .budgets
                 .analysis

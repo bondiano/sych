@@ -10,7 +10,7 @@ use sych_app::commands::{
     eval_measure, eval_run, eval_validate, explain, handoff, reconcile, review, run_action,
     semantic, serve, show, tour,
 };
-use sych_app::quality::{compare, judge};
+use sych_app::quality::{auto_judge, compare, judge};
 use sych_app::run_command;
 use sych_app::server::Role;
 use tracing_subscriber::EnvFilter;
@@ -58,6 +58,9 @@ fn main() -> ExitCode {
         Commands::Eval(EvalCommands::Judge(args)) => run_command("eval judge", || {
             judge::run(&args.report, &args.judgments, args.output.as_deref())
         }),
+        Commands::Eval(EvalCommands::AutoJudge(args)) => {
+            run_command("eval auto-judge", || auto_judge::run(&args))
+        }
         Commands::Db(DbCommands::Migrate(args)) => {
             run_command("db migrate", || db_migrate::run(&args))
         }
