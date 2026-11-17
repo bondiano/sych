@@ -4,7 +4,7 @@
 
 use serde::Serialize;
 use serde_json::Value;
-use sych_adapters::github::{Comment, Github, Secret, capabilities, own_comment};
+use sych_adapters::github::{Comment, Github, Secret, TokenScope, capabilities, own_comment};
 use sych_core::scm::{ProviderCapabilities, ScmError, ScmErrorKind};
 use sych_core::sha256;
 
@@ -63,7 +63,9 @@ pub async fn smoke(
 ) -> Result<SmokeReport, ScmError> {
     let installation = gh.installation(repo, now).await?;
     let caps = capabilities(&installation.permissions);
-    let token = gh.token(installation.id, repo, now).await?;
+    let token = gh
+        .token(installation.id, repo, TokenScope::Publish, now)
+        .await?;
     let marker = format!("sych:smoke:{nonce}");
     let created = gh
         .create_comment(repo, pr, &body(&marker, 1), &token)

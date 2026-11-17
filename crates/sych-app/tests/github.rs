@@ -5,7 +5,7 @@ use std::fs;
 use std::process::Command;
 
 use serde_json::{Value, json};
-use sych_adapters::github::{AppKey, Github, capabilities};
+use sych_adapters::github::{AppKey, Github, TokenScope, capabilities};
 use sych_app::server::smoke::smoke;
 use sych_core::scm::ScmErrorKind;
 
@@ -38,21 +38,34 @@ async fn installation_token_is_scoped_cached_and_capabilities_recorded() {
             .missing(false)
             .is_empty()
     );
-    let first = gh.token(installation.id, "o/r", NOW).await.expect("token");
+    let first = gh
+        .token(installation.id, "o/r", TokenScope::Read, NOW)
+        .await
+        .expect("token");
     let again = gh
-        .token(installation.id, "o/r", NOW + 60)
+        .token(installation.id, "o/r", TokenScope::Read, NOW + 60)
         .await
         .expect("token");
     assert_eq!(first.expose(), TOKEN);
     assert_eq!(again, first);
+    gh.token(installation.id, "o/r", TokenScope::Publish, NOW)
+        .await
+        .expect("publish token");
     let s = lock(&fake);
-    assert_eq!(s.tokens_issued, 1, "the cached token is reused");
-    assert!(
-        s.log
-            .iter()
-            .any(|l| l.ends_with(r#"{"repositories":["r"]}"#)),
-        "{:?}",
-        s.log
+    assert_eq!(s.tokens_issued, 2, "the cached token is reused, per scope");
+    let asked: Vec<&str> = s
+        .log
+        .iter()
+        .filter_map(|l| l.split_once("/access_tokens ").map(|(_, body)| body))
+        .collect();
+    // Read asks for no write; Publish gets no contents. Neither asks for what the installation
+    // lacks (checks, issues), which GitHub would refuse.
+    assert_eq!(
+        asked,
+        [
+            r#"{"permissions":{"actions":"read","contents":"read","metadata":"read","pull_requests":"read"},"repositories":["r"]}"#,
+            r#"{"permissions":{"metadata":"read","pull_requests":"write"},"repositories":["r"]}"#,
+        ]
     );
 }
 
@@ -74,7 +87,10 @@ async fn pull_state_and_files_come_from_the_api() {
         );
     }
     let gh = Github::new(&url, app_key()).expect("client");
-    let token = gh.token(9, "o/r", NOW).await.expect("token");
+    let token = gh
+        .token(9, "o/r", TokenScope::Read, NOW)
+        .await
+        .expect("token");
     let pull = gh.pull("o/r", 7, &token).await.expect("pull");
     assert_eq!(
         (pull.head_sha.as_str(), pull.base_sha.as_str()),
@@ -96,7 +112,10 @@ async fn pull_state_and_files_come_from_the_api() {
 async fn errors_map_without_guessing() {
     let (url, fake) = start().await;
     let gh = Github::new(&url, app_key()).expect("client");
-    let token = gh.token(9, "o/r", NOW).await.expect("token");
+    let token = gh
+        .token(9, "o/r", TokenScope::Read, NOW)
+        .await
+        .expect("token");
     lock(&fake).fail_next.insert(
         "/pulls/1".into(),
         (

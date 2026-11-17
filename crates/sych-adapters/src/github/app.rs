@@ -10,6 +10,7 @@ use base64::Engine;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use ring::rand::SystemRandom;
 use ring::signature::{RSA_PKCS1_SHA256, RsaKeyPair};
+use serde_json::{Map, Value};
 use sych_core::scm::{ScmError, ScmErrorKind};
 
 /// A token this close to expiry is refreshed before use.
@@ -98,26 +99,81 @@ pub struct InstallationToken {
     pub expires_at: i64,
 }
 
-/// Tokens by `(installation, repository)`, shared by the API and the engine.
+/// What an installation token may do. Reading the change, its code and its CI never needs a
+/// write, so the token that fetches untrusted code cannot publish; only the publisher's can.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TokenScope {
+    Read,
+    Publish,
+}
+
+impl TokenScope {
+    /// The permissions this scope asks for, capped by what the installation was `granted`: one
+    /// it lacks is left out, since GitHub refuses a token that asks for more.
+    pub fn permissions(self, granted: &Value) -> Value {
+        let wanted: &[(&str, &str)] = match self {
+            Self::Read => &[
+                ("actions", "read"),
+                ("checks", "read"),
+                ("contents", "read"),
+                ("issues", "read"),
+                ("metadata", "read"),
+                ("pull_requests", "read"),
+            ],
+            Self::Publish => &[
+                ("checks", "write"),
+                ("issues", "write"),
+                ("metadata", "read"),
+                ("pull_requests", "write"),
+            ],
+        };
+        let rank = |level: &str| match level {
+            "read" => 1,
+            "write" => 2,
+            _ => 0,
+        };
+        let mut out = Map::new();
+        for &(name, level) in wanted {
+            let have = granted[name].as_str().unwrap_or("none");
+            let level = if rank(have) < rank(level) {
+                have
+            } else {
+                level
+            };
+            if rank(level) > 0 {
+                out.insert(name.to_owned(), Value::String(level.to_owned()));
+            }
+        }
+        Value::Object(out)
+    }
+}
+
+/// Tokens by `(installation, repository, scope)`, shared by the API and the engine.
 #[derive(Debug, Default)]
 pub struct TokenCache {
-    tokens: Mutex<BTreeMap<(u64, String), InstallationToken>>,
+    tokens: Mutex<BTreeMap<(u64, String, TokenScope), InstallationToken>>,
 }
 
 impl TokenCache {
     /// A cached token with more than the refresh margin left.
-    pub fn fresh(&self, installation: u64, repo: &str, now: i64) -> Option<Secret> {
+    pub fn fresh(
+        &self,
+        installation: u64,
+        repo: &str,
+        scope: TokenScope,
+        now: i64,
+    ) -> Option<Secret> {
         self.tokens
             .lock()
             .ok()?
-            .get(&(installation, repo.to_owned()))
+            .get(&(installation, repo.to_owned(), scope))
             .filter(|t| t.expires_at - REFRESH_MARGIN_SECONDS > now)
             .map(|t| t.token.clone())
     }
 
-    pub fn put(&self, installation: u64, repo: &str, token: InstallationToken) {
+    pub fn put(&self, installation: u64, repo: &str, scope: TokenScope, token: InstallationToken) {
         if let Ok(mut tokens) = self.tokens.lock() {
-            tokens.insert((installation, repo.to_owned()), token);
+            tokens.insert((installation, repo.to_owned(), scope), token);
         }
     }
 }
@@ -130,19 +186,42 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_scope_asks_for_no_more_than_it_needs_or_the_installation_has() {
+        let granted = serde_json::json!({"contents": "write", "pull_requests": "read",
+            "checks": "write", "metadata": "read", "administration": "write"});
+        assert_eq!(
+            TokenScope::Read.permissions(&granted),
+            serde_json::json!({"checks": "read", "contents": "read", "metadata": "read",
+                "pull_requests": "read"})
+        );
+        assert_eq!(
+            TokenScope::Publish.permissions(&granted),
+            serde_json::json!({"checks": "write", "metadata": "read", "pull_requests": "read"})
+        );
+    }
+
+    #[test]
     fn tokens_refresh_before_expiry() {
         let cache = TokenCache::default();
         cache.put(
             1,
             "r",
+            TokenScope::Read,
             InstallationToken {
                 token: Secret::new("t".into()),
                 expires_at: 1_000,
             },
         );
-        assert!(cache.fresh(1, "r", 600).is_some());
-        assert!(cache.fresh(1, "r", 701).is_none(), "inside the margin");
-        assert!(cache.fresh(1, "other", 0).is_none());
+        assert!(cache.fresh(1, "r", TokenScope::Read, 600).is_some());
+        assert!(
+            cache.fresh(1, "r", TokenScope::Read, 701).is_none(),
+            "inside the margin"
+        );
+        assert!(cache.fresh(1, "other", TokenScope::Read, 0).is_none());
+        assert!(
+            cache.fresh(1, "r", TokenScope::Publish, 600).is_none(),
+            "per scope"
+        );
         assert_eq!(format!("{:?}", Secret::new("t".into())), "Secret(***)");
     }
 

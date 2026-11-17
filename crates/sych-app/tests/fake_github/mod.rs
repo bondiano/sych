@@ -124,6 +124,12 @@ async fn installation(
     Json(json!({"id": 9, "permissions": s.installation_permissions})).into_response()
 }
 
+/// `GET /app/installations/{id}`: the installation with the permissions it was granted.
+async fn app_installation(State(state): State<Shared>, Path(id): Path<u64>) -> Response {
+    let s = lock(&state);
+    Json(json!({"id": id, "permissions": s.installation_permissions})).into_response()
+}
+
 async fn access_token(
     State(state): State<Shared>,
     Path(id): Path<u64>,
@@ -133,6 +139,23 @@ async fn access_token(
         let mut s = lock(&state);
         s.log
             .push(format!("POST /app/installations/{id}/access_tokens {body}"));
+        // As GitHub: a token may not ask for more than the installation was granted.
+        let rank = |l: Option<&str>| match l {
+            Some("read") => 1,
+            Some("write") => 2,
+            _ => 0,
+        };
+        let granted = &s.installation_permissions;
+        let over = body["permissions"].as_object().is_some_and(|asked| {
+            asked
+                .iter()
+                .any(|(name, level)| rank(level.as_str()) > rank(granted[name].as_str()))
+        });
+        if over {
+            let message = json!({"message": "The permissions requested are not granted to this installation."});
+            return (StatusCode::UNPROCESSABLE_ENTITY, Json(message)).into_response();
+        }
+
         s.tokens_issued += 1;
         s.token_delay
     };
@@ -437,6 +460,7 @@ pub async fn start() -> (String, Shared) {
     let app = Router::new()
         .route("/repos/{o}/{r}", get(repository))
         .route("/repos/{o}/{r}/installation", get(installation))
+        .route("/app/installations/{id}", get(app_installation))
         .route("/app/installations/{id}/access_tokens", post(access_token))
         .route("/repos/{o}/{r}/pulls", get(pulls))
         .route("/repos/{o}/{r}/pulls/{n}", get(pull))

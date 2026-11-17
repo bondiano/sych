@@ -3,6 +3,7 @@
 
 use std::fmt::Display;
 
+use sych_adapters::github::TokenScope;
 use sych_core::RunId;
 use sych_core::config::RuleException;
 use sych_core::lineage::decide;
@@ -64,7 +65,7 @@ impl Engine {
             .map_err(|e| unavailable(&e))?;
         let token = conn
             .gh
-            .token(installation.id, full_name, now)
+            .token(installation.id, full_name, TokenScope::Read, now)
             .await
             .map_err(|e| unavailable(&e))?;
         conn.gh

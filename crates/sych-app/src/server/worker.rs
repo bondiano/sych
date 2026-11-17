@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use serde_json::json;
 use sych_adapters::git::{SnapshotError, fetch_commits};
-use sych_adapters::github::Secret;
+use sych_adapters::github::{Secret, TokenScope};
 use sych_core::config::{ExpectedReport, RuleException};
 use sych_core::glob_match;
 use sych_core::schedule::{CI_WAIT_SECONDS, Trigger, retry_at};
@@ -151,7 +151,7 @@ impl Engine {
             anyhow::anyhow!("connection `{}` is not configured", change.connection_id)
         })?;
         let mirror = self.mirror(&conn.config.id, &change.full_name);
-        let token = match self.token(conn, &change).await {
+        let token = match self.token(conn, &change, TokenScope::Read).await {
             Ok(token) => token,
             Err(e) => {
                 return self
