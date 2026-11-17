@@ -342,6 +342,7 @@ pub async fn run_reusing(
         batch_units,
         risk_audit: true,
         verify,
+        expansion_rounds: policy.config.context.expansion_rounds,
         parallel: budgets
             .analysis
             .max_parallel_calls
@@ -425,5 +426,45 @@ pub fn reason(status: &ObligationStatus) -> &str {
         ObligationStatus::Supported => "SUPPORTED",
         ObligationStatus::Violated => "VIOLATED",
         ObligationStatus::NotApplicable { .. } => "NOT_APPLICABLE",
+    }
+}
+
+/// Discovery proposes one hypothesis and asks for lines 1-3 of the head file; the verifier
+/// must see that answer as a span and rejects the hypothesis.
+pub fn expanding(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
+    let user = &request.messages[1].content;
+    match request.schema_name.as_str() {
+        "obligation_assessment" => supported_and_empty(request),
+        "discovery" | "review" => {
+            let (id, line) = first_ref(request, "HEAD");
+            let mut found = json!({
+                "candidates": [{"category": "DEFECT", "claim": "undefined items throw",
+                    "conditions": ["items undefined"], "causal_chain": ["no guard"], "consequence": "throws",
+                    "anchors": [{"ref_id": id, "start_line": line, "end_line": line}], "evidence_ids": [],
+                    "obligation_ids": [], "proposed_severity": "MEDIUM", "disproof_question": "a fallback?"}],
+                "context_requests": [{"question": "the whole head function",
+                    "operation": {"op": "read_lines", "side": "HEAD", "path": "src/order.ts", "start_line": 1, "end_line": 3}}],
+                "unresolved_questions": []
+            });
+            if request.schema_name == "review" {
+                found["assessments"] = json!([supported(request)]);
+            }
+
+            Ok(reply(&found.to_string()))
+        }
+        _ => {
+            assert!(
+                user.contains("answer to: the whole head function"),
+                "verifier sees the answer"
+            );
+            Ok(reply(
+                &json!({"verdicts": [{"candidate_id": "cand-1", "verdict": "REJECTED",
+                "category": "DEFECT", "severity": "MEDIUM", "support": "SEMANTIC_ARGUMENT",
+                "title": "t", "explanation": "`?? []` keeps it",  "anchors": [], "evidence_ids": [],
+                "alternatives_checked": ["nullish fallback"], "suggested_action": "",
+                "validation_expectation": "", "limitations": []}], "context_requests": []})
+                .to_string(),
+            ))
+        }
     }
 }

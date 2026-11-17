@@ -462,6 +462,11 @@ impl Context {
         self.refs.get(ref_id)
     }
 
+    /// Spans handed out so far.
+    pub fn spans(&self) -> usize {
+        self.refs.len()
+    }
+
     /// The exact `CodeRef` of lines inside a handed-out span, hashed by the reader. Lines that
     /// lie outside the named span but inside another shown span of the same file and side were
     /// still shown, so they resolve through that span.

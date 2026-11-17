@@ -37,7 +37,7 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    obligation's verification packet.
    It does not see the discovery output and runs even when discovery is empty; this is not a promise of
    statistical independence of errors.
-3. **Discovery** (`discovery@8`) — over the discovery packets of review units with the list of their obligations. Adjacent
+3. **Discovery** (`discovery@9`) — over the discovery packets of review units with the list of their obligations. Adjacent
    packets are merged into one call as long as their tokens fit in `context.max_tokens_per_request`: for a
    small PR this is one discovery instead of a call per unit. The reviewer's primary profile may bound a call further
    with `max_units_per_call` and `max_shown_tokens_per_call` ([MODELS.md](MODELS.md)). Its rules put defects
@@ -45,6 +45,17 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    non-default flags; trace one concrete triggering input through HEAD per defect; check a premise against the spans
    before claiming it; and file code that contradicts its own comment, message or name as a defect. The limit of
    4 candidates counts defects and rule violations only, nits come on top.
+
+   **Expansion rounds** (`discovery_expansion@1`, `context.expansion_rounds`, default 2; 0 turns them off).
+   Discovery's context requests are answered before verification. When the answers add spans, the same batch
+   gets one more discovery call.
+   - The call sees those spans and the hypotheses already proposed (claim and anchors, as data). It is asked
+     only for hypotheses the list does not hold, and may ask again.
+   - An operation already answered for the batch is not answered again. A round whose answers add no span ends
+     the rounds, as does a failed call, which keeps what earlier rounds found.
+   - Each round is a search attempt, so it never spends the verifier's reserve.
+   - Candidates of every round are verified together, and a claim repeated word for word is kept once.
+   - The audit of a high-risk obligation runs no expansion rounds.
 4. **Verify** (`verify@6`) — a verdict for each candidate of a pass, on the same packets plus the answers to context
    requests. Before the first round the engine also searches HEAD for each effect the ledger saw removed or left
    unresolved in a file the candidates point at (by the target's last name of 3 to 64 bytes, four per call, registered effects first), and the

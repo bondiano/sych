@@ -361,6 +361,7 @@ fn execute(
         budgets: &effective.server.budgets,
         risk_audit: args.risk_audit,
         verify: args.verify,
+        expansion_rounds: effective.repository.config.context.expansion_rounds,
         replay: args.replay.as_deref(),
         ci_gaps: &ci_gaps,
         parent: args.parent,
@@ -427,6 +428,8 @@ struct Session<'a> {
     budgets: &'a Budgets,
     risk_audit: bool,
     verify: bool,
+    /// `context.expansion_rounds` of the trusted policy.
+    expansion_rounds: u32,
     /// `eval measure --replay`: these discoveries are verified again instead of a new search.
     replay: Option<&'a [Discovered]>,
     /// Expected CI reports that are not evidence; each is a task gap.
