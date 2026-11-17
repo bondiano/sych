@@ -356,7 +356,8 @@ const PRUNE_SECONDS: i64 = 86_400;
 const DIGEST_SECONDS: i64 = 60;
 
 impl Engine {
-    /// Scheduler with reconcile and reaper on one task, the worker on another, until `stop`.
+    /// Scheduler with reconcile and reaper on one task, publications on another and the worker
+    /// on a third, until `stop`.
     pub async fn run(self: Arc<Self>, stop: watch::Receiver<bool>) {
         let engine = self;
         let scheduler = {
@@ -403,6 +404,29 @@ impl Engine {
                 }
             })
         };
+        // Publications on a task of their own: an analysis of minutes does not hold them back.
+        let publisher = {
+            let (engine, mut stop) = (Arc::clone(&engine), stop.clone());
+            task::spawn_local(async move {
+                let mut tick = time::interval(Duration::from_secs(1));
+                loop {
+                    tokio::select! {
+                        _ = stop.changed() => break,
+                        _ = tick.tick() => {}
+                    }
+                    while !*stop.borrow() {
+                        match engine.publish_once().await {
+                            Ok(true) => {}
+                            Ok(false) => break,
+                            Err(e) => {
+                                report::<()>(Err(e), "publish");
+                                break;
+                            }
+                        }
+                    }
+                }
+            })
+        };
         let worker = {
             let (engine, mut stop) = (Arc::clone(&engine), stop);
             task::spawn_local(async move {
@@ -413,11 +437,6 @@ impl Engine {
                         _ = tick.tick() => {}
                     }
                     while !*stop.borrow() {
-                        match engine.publish_once().await {
-                            Ok(true) => continue,
-                            Ok(false) => {}
-                            Err(e) => report::<()>(Err(e), "publish"),
-                        }
                         match engine.work_once().await {
                             Ok(true) => {}
                             Ok(false) => break,
@@ -430,7 +449,7 @@ impl Engine {
                 }
             })
         };
-        let _ = tokio::join!(scheduler, worker);
+        let _ = tokio::join!(scheduler, publisher, worker);
     }
 }
 
