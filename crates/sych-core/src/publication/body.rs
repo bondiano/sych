@@ -5,6 +5,7 @@
 
 use std::fmt::Write;
 
+use super::prose::prose;
 use super::tr;
 use crate::{Finding, FindingCategory, ReviewLanguage, Severity, SourceSide};
 
@@ -87,21 +88,19 @@ fn paragraph(finding: &Finding) -> String {
             } else {
                 "."
             };
-            format!("{text}{stop}")
+            format!("{}{stop}", prose(text))
         })
         .collect::<Vec<_>>()
         .join(" ")
 }
 
 fn table(out: &mut String, finding: &Finding, l: ReviewLanguage) {
-    let _ = writeln!(out, "{}", finding.explanation);
-    let when = finding.triggering_conditions.join("; ");
+    let _ = writeln!(out, "{}", prose(&finding.explanation));
+    let when = prose(&finding.triggering_conditions.join("; "));
+    let consequence = prose(&finding.consequence);
     let columns: Vec<_> = [
         (tr(l, "When", "Когда"), when.as_str()),
-        (
-            tr(l, "Consequence", "Последствие"),
-            finding.consequence.as_str(),
-        ),
+        (tr(l, "Consequence", "Последствие"), consequence.as_str()),
     ]
     .into_iter()
     .filter(|(_, text)| !text.is_empty())
@@ -133,10 +132,10 @@ fn also_and_action(out: &mut String, finding: &Finding, l: ReviewLanguage, inlin
                 "- {} · {}: {}",
                 badge(also.severity),
                 category(l, also.category),
-                also.title
+                prose(&also.title)
             );
             if !also.consequence.is_empty() {
-                let _ = write!(out, " — {}", also.consequence);
+                let _ = write!(out, " — {}", prose(&also.consequence));
             }
 
             out.push('\n');
@@ -148,7 +147,7 @@ fn also_and_action(out: &mut String, finding: &Finding, l: ReviewLanguage, inlin
             out,
             "\n**{}:** {}",
             tr(l, "Suggested", "Что сделать"),
-            finding.suggested_action
+            prose(&finding.suggested_action)
         );
     }
 
@@ -246,7 +245,7 @@ pub fn inline_body(finding: &Finding, language: ReviewLanguage) -> String {
         "<!-- sych:inline:{} -->\n**[{}] {}**{rule}\n\n",
         finding.fingerprint,
         priority(finding.severity),
-        finding.title
+        prose(&finding.title)
     );
     details(&mut out, finding, l, true);
     agent_prompt(

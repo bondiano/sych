@@ -5,6 +5,7 @@
 use std::fmt::Write;
 
 use super::body::{agent_prompt, badge, category, details, lines, task};
+use super::prose::prose;
 use super::{Placement, Planned, reason_text, tr};
 use crate::model::MODEL_QUOTA_EXHAUSTED;
 use crate::{
@@ -256,7 +257,7 @@ fn problem(
         "\n#### {n}. {} · {}: {}\n",
         badge(f.severity),
         category(l, f.category),
-        f.title
+        prose(&f.title)
     );
     let mut meta: Vec<String> = f.rule_id.iter().map(|r| format!("`{r}`")).collect();
     meta.extend(lines(f).map(|at| format!("`{at}`")));
@@ -279,7 +280,7 @@ fn problem(
     // The inline note is one short paragraph; the conditions it happens under stay here, in a
     // brief entry too.
     if inline && !f.triggering_conditions.is_empty() {
-        let when = f.triggering_conditions.join("; ");
+        let when = prose(&f.triggering_conditions.join("; "));
         let _ = writeln!(out, "\n{}: {when}", tr(l, "When", "Когда"));
     }
 
@@ -359,25 +360,28 @@ fn unknowns(out: &mut String, result: &ReviewResult, earlier: &[Candidate], deta
             } => Some((
                 o.required,
                 format!(
-                    "{}`{}` {} — {reason_code}; {}: {next_evidence_needed}",
+                    "{}`{}` {} — {reason_code}; {}: {}",
                     if o.required {
                         tr(l, "**required** ", "**обязательное** ")
                     } else {
                         ""
                     },
                     o.rule_id,
-                    o.question,
-                    tr(l, "needs", "нужно")
+                    prose(&o.question),
+                    tr(l, "needs", "нужно"),
+                    prose(next_evidence_needed)
                 ),
             )),
             _ => None,
         })
         .partition(|(required, _)| *required);
+    // Open questions are model text.
     let (again, fresh) = repeated(result, earlier);
+    let again: Vec<String> = again.iter().map(|q| prose(q)).collect();
     let other: Vec<String> = other
         .into_iter()
         .map(|(_, text)| text)
-        .chain(fresh)
+        .chain(fresh.iter().map(|q| prose(q)))
         .collect();
     let hidden = hidden_paths(result);
     if hidden.is_empty() && required.is_empty() && other.is_empty() && again.is_empty() {
@@ -485,7 +489,7 @@ fn optional(out: &mut String, result: &ReviewResult) {
                 out,
                 "- {} · {basis}: {}{at}",
                 category(l, f.category),
-                f.title
+                prose(&f.title)
             );
         }
         let _ = writeln!(out, "\n</details>");

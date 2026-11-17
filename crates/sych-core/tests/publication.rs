@@ -448,3 +448,29 @@ fn a_question_asked_by_the_previous_revision_is_listed_apart() {
     let none = render_summary(&r, &planned, &ctx());
     assert!(!none.contains("Still open from the previous revision"));
 }
+
+/// Model text a prompt injection steered posts no image, HTML, forged marker or mention.
+#[test]
+fn model_text_renders_as_words_not_markup() {
+    let attack = "![x](https://e.example/?q=s) <img src=x> <!-- sych:inline:x --> @org/team";
+    let mut r = result();
+    let f = &mut r.findings[0];
+    f.title = attack.into();
+    f.explanation = attack.into();
+    f.consequence = attack.into();
+    f.suggested_action = attack.into();
+    f.triggering_conditions = vec![attack.into()];
+    r.unresolved_questions = vec![attack.into()];
+    let planned = plan(&r, &manifest(), &[], &[], true);
+    for text in [
+        render_summary(&r, &planned, &ctx()),
+        render_summary(&r, &[], &ctx()),
+        inline_body(&r.findings[0], ReviewLanguage::En),
+    ] {
+        // The agent prompt is a fenced block longer than any backtick run: GitHub renders none of it.
+        let rendered = text.split("🤖").next().expect("text");
+        for markup in ["![x]", "<img", "<!-- sych:inline:x", "@org/team"] {
+            assert!(!rendered.contains(markup), "{markup} in {text}");
+        }
+    }
+}
