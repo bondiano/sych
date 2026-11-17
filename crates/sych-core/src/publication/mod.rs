@@ -3,6 +3,7 @@
 //! the immutable result and the diff manifest, never from model prose.
 
 mod body;
+mod prose;
 mod summary;
 
 use schemars::JsonSchema;
