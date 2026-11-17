@@ -46,6 +46,7 @@ fn a_file_the_change_marks_generated_is_hidden_yet_keeps_coverage_partial() {
         outcome: ExecutionOutcome::PlanExecuted,
         attention_threshold: DEFAULT_ATTENTION_THRESHOLD,
         now: "2026-10-25T00:00:00Z".parse().expect("timestamp"),
+        block_on: &[],
     });
     assert_eq!(reduced.coverage, Coverage::Partial);
 }

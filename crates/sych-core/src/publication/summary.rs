@@ -564,14 +564,19 @@ fn footer(out: &mut String, result: &ReviewResult, ctx: &SummaryContext<'_>) {
         );
     }
 
-    let _ = writeln!(
-        out,
-        "<br>\n{}</sub>",
+    let gate = if result.blocked_by.is_empty() {
         tr(
             l,
             "Advisory: Sych never approves, requests changes or gates merges.",
             "Рекомендательно: Sych никогда не одобряет, не запрашивает изменения и не блокирует \
-             слияние."
+             слияние.",
         )
-    );
+    } else {
+        tr(
+            l,
+            "Blocking: findings of rules `review.block_on` names fail the check run.",
+            "Блокирует: замечания по правилам из `review.block_on` проваливают check run.",
+        )
+    };
+    let _ = writeln!(out, "<br>\n{gate}</sub>");
 }

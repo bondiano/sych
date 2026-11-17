@@ -307,8 +307,8 @@ Outbox lag / uncertain age / repairs metrics and the alert — see "Metrics and 
 
 ## Summary, inline and check run
 
-Publication is advisory: Sych never approves, requests changes, merges or becomes a required check; the
-adapter has no such calls. Everything is rendered from the run's immutable result and diff manifest (`sych_core::publication`),
+Publication is advisory: Sych never approves, requests changes or merges; the adapter has no such calls. The only
+gate is opt-in: rules `review.block_on` names fail the check run, which a branch rule can then require. Everything is rendered from the run's immutable result and diff manifest (`sych_core::publication`),
 not from model prose; only findings that passed engine verification enter the result.
 
 **Summary** is one updatable comment per change: the reviewed head and target, result and revision; coverage
@@ -344,9 +344,11 @@ then each comment is sent alone and only the refused one moves to the summary. A
 code, and a collapsed prompt for coding agents.
 
 **Check run** — off by default; `checks: true` (together with `publish: true`) requires Checks write. One check
-`Sych (advisory)` per change, pinned to the head SHA, `external_id` = marker; the conclusion is always `neutral` —
+`Sych (advisory)` per change, pinned to the head SHA, `external_id` = marker; the conclusion is `neutral` —
 both for a result (`Advisory review`) and for a run failure (`Sych could not complete this review`), so a failure
-is distinguishable by the title rather than passed off as success. Reconciliation of an unknown outcome is by `external_id` and `app.id`.
+is distinguishable by the title rather than passed off as success. It is never `success`. It is `failure`
+(`Blocked by review.block_on`) only when the result's `blocked_by` names an open finding of a rule that
+`review.block_on` lists; the summary then says it blocks. Reconciliation of an unknown outcome is by `external_id` and `app.id`.
 
 ## Lineage, feedback and waivers
 

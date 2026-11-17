@@ -367,12 +367,23 @@ impl Engine {
             }
             ("CHECK", remote) => {
                 let failed = c.result_id.is_empty();
+                // Advisory unless `review.block_on` named a rule with an open finding: never
+                // success, so no one reads a neutral run as a pass.
+                let blocking = !failed
+                    && !self
+                        .load(c)
+                        .await
+                        .map_err(|e| bad(format!("{e:#}")))?
+                        .0
+                        .blocked_by
+                        .is_empty();
                 let output = CheckOutput {
                     name: CHECK_NAME,
-                    // Advisory: never success or failure, so no one reads it as a gate.
-                    conclusion: "neutral",
+                    conclusion: if blocking { "failure" } else { "neutral" },
                     title: if failed {
                         "Sych could not complete this review"
+                    } else if blocking {
+                        "Blocked by review.block_on"
                     } else {
                         "Advisory review"
                     },

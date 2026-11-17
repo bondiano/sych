@@ -3048,6 +3048,14 @@
       },
       "ReviewResult": {
         "properties": {
+          "blocked_by": {
+            "description": "Open findings of the rules `review.block_on` names: the check run fails on them.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
           "coverage": {
             "$ref": "#/components/schemas/Coverage"
           },

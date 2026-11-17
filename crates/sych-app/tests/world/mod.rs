@@ -451,6 +451,17 @@ pub async fn commit_claimed(w: &World, head: &str, defects: u32) {
 
 /// [`commit_claimed`] under the policy snapshot whose rules are `policy`.
 pub async fn commit_claimed_under(w: &World, head: &str, defects: u32, policy: &[u8]) {
+    commit_claimed_with(w, head, defects, policy, |_| {}).await;
+}
+
+/// [`commit_claimed_under`] with `edit` applied to the result before it is committed.
+pub async fn commit_claimed_with(
+    w: &World,
+    head: &str,
+    defects: u32,
+    policy: &[u8],
+    edit: impl FnOnce(&mut ReviewResult),
+) {
     let head = head.to_owned();
     let s = &w.app.storage;
     let c = s.claim("w", 60, now()).await.expect("claim").expect("job");
@@ -526,6 +537,7 @@ pub async fn commit_claimed_under(w: &World, head: &str, defects: u32, policy: &
             f
         })
         .collect();
+    edit(&mut result);
     let digest = s
         .put_artifact(
             &c.run,

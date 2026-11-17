@@ -3,6 +3,14 @@
   "title": "ReviewResult",
   "type": "object",
   "properties": {
+    "blocked_by": {
+      "description": "Open findings of the rules `review.block_on` names: the check run fails on them.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      }
+    },
     "coverage": {
       "$ref": "#/$defs/Coverage"
     },

@@ -254,6 +254,7 @@ impl Session<'_> {
             outcome,
             attention_threshold: DEFAULT_ATTENTION_THRESHOLD,
             now,
+            block_on: self.block_on,
         });
         let info = RunInfo {
             run_id: run.id,

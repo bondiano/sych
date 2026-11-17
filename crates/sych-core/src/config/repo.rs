@@ -39,6 +39,10 @@ pub struct ReviewSettings {
     /// candidate anchored only there is dropped, since a planted defect in a fixture is the point.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub fixture_paths: Vec<String>,
+    /// Globs of rule ids (`SEC-*`) whose open findings fail the check run instead of leaving it
+    /// neutral; empty keeps the review advisory.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub block_on: Vec<String>,
 }
 
 impl Default for ReviewSettings {
@@ -56,6 +60,7 @@ impl Default for ReviewSettings {
             ],
             draft_policy: DraftPolicy::ManualOnly,
             fixture_paths: Vec::new(),
+            block_on: Vec::new(),
         }
     }
 }
