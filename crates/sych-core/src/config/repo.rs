@@ -18,6 +18,8 @@ pub enum ReviewProfile {
     MigrationCompatibility,
     Infrastructure,
     Nitpicks,
+    /// Deterministic checks of added lines: committed secrets and hidden text (`scan`).
+    Security,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,6 +52,7 @@ impl Default for ReviewSettings {
                 ReviewProfile::MigrationCompatibility,
                 ReviewProfile::Infrastructure,
                 ReviewProfile::Nitpicks,
+                ReviewProfile::Security,
             ],
             draft_policy: DraftPolicy::ManualOnly,
             fixture_paths: Vec::new(),

@@ -8,6 +8,7 @@ review:
     - migration_compatibility
     - infrastructure
     - nitpicks
+    - security
   draft_policy: manual_only
 
 policy:

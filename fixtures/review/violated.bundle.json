@@ -16,16 +16,16 @@
         "validity": "VALID"
       }
     ],
-    "external_input_manifest_id": "sha256:c3d32752f21d0fe03250de1154aee92cd70f8cf0229885364aa9e5845cf35583",
+    "external_input_manifest_id": "sha256:21d97f2eb76b6d131c5a1be30b19274a42763e1799534a44b50bbfea5d780589",
     "frozen_at": "2026-10-25T00:00:00Z",
-    "id": "ab8241ab-ef29-8297-bfbe-f829956e8f3d",
-    "policy_snapshot_id": "sha256:6ba976f4b063053a80496b2bc15841b8ea6d623ce352b4520b95b86f2a7041b7",
+    "id": "f8ada81a-5900-8803-9529-9cebb7540972",
+    "policy_snapshot_id": "sha256:97c03d378b1432a07f33d12091f3b5a2a6c7664b2e5c8f14414f42c0b4d00660",
     "schema_version": 1,
     "source_snapshot_id": "sha256:40be609af9d1e7f8c02e4149ec30246718a311e4dddfe8ec488d400c0bd44572"
   },
   "external_input_manifest": {
     "frozen_at": "2026-10-25T00:00:00Z",
-    "id": "sha256:c3d32752f21d0fe03250de1154aee92cd70f8cf0229885364aa9e5845cf35583",
+    "id": "sha256:21d97f2eb76b6d131c5a1be30b19274a42763e1799534a44b50bbfea5d780589",
     "inputs": [
       {
         "artifact_sha256": "sha256:cb9a02f579da3ffa03dc3ed340e0162018c4c446875d8b15d9f4e23152b25822",
@@ -33,15 +33,15 @@
         "kind": "test"
       }
     ],
-    "policy_snapshot_id": "sha256:6ba976f4b063053a80496b2bc15841b8ea6d623ce352b4520b95b86f2a7041b7",
+    "policy_snapshot_id": "sha256:97c03d378b1432a07f33d12091f3b5a2a6c7664b2e5c8f14414f42c0b4d00660",
     "schema_version": 1,
     "source_snapshot_id": "sha256:40be609af9d1e7f8c02e4149ec30246718a311e4dddfe8ec488d400c0bd44572"
   },
   "policy_snapshot": {
     "authorization_policy_version": 1,
-    "config_hash": "sha256:9be4e2e5e38f0fb5fba6e484fb24dcb2c453218638d7908529b95e7b1a6cbd8d",
+    "config_hash": "sha256:84d16b1eee9fd2132875d5510df26aee14c595b5c4d42378ee13f15d2a2198d2",
     "created_at": "2026-10-25T00:00:00Z",
-    "id": "sha256:6ba976f4b063053a80496b2bc15841b8ea6d623ce352b4520b95b86f2a7041b7",
+    "id": "sha256:97c03d378b1432a07f33d12091f3b5a2a6c7664b2e5c8f14414f42c0b4d00660",
     "rules_hash": "sha256:b6be6ee9263ee65ce080a322663f91ced15380e6e4a9b657ce29ca38fd08842c",
     "schema_version": 1,
     "source": {
@@ -53,7 +53,7 @@
   "review_result": {
     "coverage": "COMPLETE_FOR_SCOPE",
     "created_at": "2026-10-25T00:00:00Z",
-    "evidence_manifest_id": "ab8241ab-ef29-8297-bfbe-f829956e8f3d",
+    "evidence_manifest_id": "f8ada81a-5900-8803-9529-9cebb7540972",
     "excluded_or_unreviewed": [
       {
         "path": "assets/logo.png",
@@ -134,7 +134,7 @@
       }
     ],
     "parent_result_id": null,
-    "policy_snapshot_id": "sha256:6ba976f4b063053a80496b2bc15841b8ea6d623ce352b4520b95b86f2a7041b7",
+    "policy_snapshot_id": "sha256:97c03d378b1432a07f33d12091f3b5a2a6c7664b2e5c8f14414f42c0b4d00660",
     "provenance": {
       "engine_version": "fixture",
       "model_adapters": [
@@ -160,7 +160,8 @@
         "side_effects",
         "migration_compatibility",
         "infrastructure",
-        "nitpicks"
+        "nitpicks",
+        "security"
       ],
       "required_obligation_ids": [
         "be938388-e1b1-8968-856d-5a0f0f4845f6",
@@ -213,7 +214,8 @@
       "side_effects",
       "migration_compatibility",
       "infrastructure",
-      "nitpicks"
+      "nitpicks",
+      "security"
     ],
     "required_obligation_ids": [
       "be938388-e1b1-8968-856d-5a0f0f4845f6",

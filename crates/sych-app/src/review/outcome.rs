@@ -10,6 +10,7 @@ use sych_core::broker::{
 };
 use sych_core::config::{BillingKind, Role};
 use sych_core::model::{ChargeState, Limits as ModelLimits, Purpose};
+use sych_core::scan::scan;
 use sych_core::{
     DEFAULT_ATTENTION_THRESHOLD, Evidence, EvidenceManifest, ExecutionOutcome,
     ExternalInputManifest, MicroUsd, Provenance, ReduceInput, ResultId, ReviewResult, RouteUsage,
@@ -230,11 +231,23 @@ impl Session<'_> {
         let mut task_gaps = analysis.map_or_else(Vec::new, |a| a.outcome.gaps.clone());
         task_gaps.extend(context_gaps(packets));
         task_gaps.extend(self.ci_gaps.iter().cloned());
+        // Deterministic, so they stand beside the verified findings without a model.
+        let findings: Vec<_> = if self.scan {
+            let found = scan(
+                &self.snap.manifest,
+                self.snap,
+                self.fixture_paths,
+                self.language,
+            );
+            findings.iter().cloned().chain(found).collect()
+        } else {
+            findings.to_vec()
+        };
         let reduced = reduce(&ReduceInput {
             plan,
             assessments: &assessments,
             evidence: &all,
-            findings,
+            findings: &findings,
             candidates,
             task_gaps: &task_gaps,
             questions: analysis.map_or(&[][..], |a| &a.outcome.questions),
