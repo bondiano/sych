@@ -348,7 +348,10 @@ code, and a collapsed prompt for coding agents.
 both for a result (`Advisory review`) and for a run failure (`Sych could not complete this review`), so a failure
 is distinguishable by the title rather than passed off as success. It is never `success`. It is `failure`
 (`Blocked by review.block_on`) only when the result's `blocked_by` names an open finding of a rule that
-`review.block_on` lists; the summary then says it blocks. Reconciliation of an unknown outcome is by `external_id` and `app.id`.
+`review.block_on` lists; the summary then says it blocks. The gate fails open: a run that ends without a result
+leaves the check `neutral`, which GitHub's required checks accept, because without a result the publisher cannot tell
+whether the policy had a `block_on`. Pair it with a rule that a reviewer reads the summary when the check says
+`Sych could not complete this review`. Reconciliation of an unknown outcome is by `external_id` and `app.id`.
 
 ## Lineage, feedback and waivers
 
