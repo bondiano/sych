@@ -269,11 +269,20 @@ impl Engine {
             let outcome = review::run_claimed(&args, store, run, cancel_rx).map(drop);
             let _ = done_tx.send(outcome);
         });
+        // The analysis stops itself at its deadline; one stuck past it and the slack (a call that
+        // never returns) is cancelled and given up, so it cannot hold the job and the worker.
+        let until = (self.now)().as_second() + self.after_evidence_seconds;
         let outcome = loop {
             tokio::select! {
                 outcome = &mut done_rx => break outcome?,
                 () = time::sleep(self.heartbeat) => {
-                    let alive = self.app.storage.heartbeat(&claim.fence, self.lease_seconds, (self.now)()).await?;
+                    let now = (self.now)();
+                    if now.as_second() > until {
+                        let _ = cancel_tx.send(true);
+                        anyhow::bail!("the analysis outlasted its {} s", self.after_evidence_seconds);
+                    }
+
+                    let alive = self.app.storage.heartbeat(&claim.fence, self.lease_seconds, now).await?;
                     if !alive {
                         tracing::warn!(run = %claim.run.id, "lease lost; cancelling analysis");
                         let _ = cancel_tx.send(true);

@@ -3,7 +3,10 @@
 //! target-only move, drafts, commands, close, bot comments, CI waits and successors, a crashed
 //! worker and missed webhooks.
 
-use std::sync::atomic::Ordering;
+use std::net::TcpListener;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
 use std::time::Duration;
 
 use serde_json::json;
@@ -19,7 +22,7 @@ mod world;
 use fake_github::{lock, pull_json};
 use sych_app::server::JOB_SLACK_SECONDS;
 use sych_core::config::ANALYSIS_DEADLINE_SECONDS;
-use world::{World, advance, commit, now, world, world_server};
+use world::{World, advance, commit, now, world, world_server, world_with};
 
 #[tokio::test(flavor = "current_thread")]
 async fn events_become_bounded_generations_and_only_new_inputs_run_again() {
@@ -467,4 +470,49 @@ async fn a_pull_request_github_keeps_failing_to_return_is_given_up_after_its_ret
             .expect("intents")
             .is_empty()
     );
+}
+
+/// An analysis stuck in a model call that never answers cannot hold its job: past its own
+/// deadline and the slack the worker cancels it and fails the run, so the queue moves on.
+#[tokio::test(flavor = "current_thread")]
+async fn an_analysis_stuck_past_its_deadline_gives_up_its_job() {
+    // Accepts every connection and never answers.
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let endpoint = format!("http://{}/api/v1", listener.local_addr().expect("addr"));
+    let accepted = Arc::new(AtomicBool::new(false));
+    let seen = Arc::clone(&accepted);
+    thread::spawn(move || {
+        let mut held = Vec::new();
+        for socket in listener.incoming().flatten() {
+            held.push(socket);
+            seen.store(true, Ordering::Relaxed);
+        }
+    });
+    let w = world_with(None, Some(&endpoint)).await;
+    let head = w.branch("src/b.rs");
+    w.open_pull(&head, &w.base, false);
+    w.pr_event("d-1", "opened", &head).await;
+    w.schedule(6).await;
+    let clock = async {
+        while !accepted.load(Ordering::Relaxed) {
+            time::sleep(Duration::from_millis(5)).await;
+        }
+        // Heartbeats keep the lease while the clock passes the analysis deadline and the slack.
+        let run = w.run_ids().await.remove(0);
+        let steps = (i64::from(ANALYSIS_DEADLINE_SECONDS) + JOB_SLACK_SECONDS) / 30 + 1;
+        for _ in 0..steps {
+            if !renewed(&w, &run).await {
+                break;
+            }
+
+            advance(30);
+        }
+    };
+    let worked = time::timeout(Duration::from_secs(60), async {
+        tokio::join!(w.engine.work_once(), clock).0
+    })
+    .await
+    .expect("the worker gives the job up instead of waiting for the model");
+    assert!(worked.expect("work"));
+    assert_eq!(w.states().await, ["FAILED"]);
 }
