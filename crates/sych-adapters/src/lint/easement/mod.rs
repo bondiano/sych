@@ -22,6 +22,7 @@ use tempfile::TempDir;
 
 use super::{MAX_WORKSPACE_BLOB_BYTES, changed_config, run};
 use crate::git::{LocalSnapshot, Materialized, SnapshotError};
+use crate::sandbox::{self, NOT_ISOLATED};
 use crate::semantic::{Options, deps, toolchain};
 use crate::tools::{self, ToolError, host_target};
 use report::{Key, Report};
@@ -302,6 +303,10 @@ fn check(
     // Later entries win: an installed `CARGO_HOME` replaces the host's.
     vars.extend(installed);
     let args: Vec<String> = ARGS.map(String::from).into();
+    if !sandbox::isolated() {
+        limitations.push(NOT_ISOLATED.into());
+    }
+
     let out = run::run(&easement, &args, &project, scratch, &vars, TIMEOUT)
         .map_err(|e| (BackendStatus::Failed, format!("{TOOL}: {e}")))?;
     let stderr = || -> String {

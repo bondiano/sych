@@ -81,7 +81,8 @@ fn write_message(writer: &mut impl Write, message: &Value) -> io::Result<()> {
 }
 
 impl LspServer {
-    /// `extra` overrides the passed-through variables (e.g. a Sych-owned `CARGO_HOME`).
+    /// `extra` overrides the passed-through variables (e.g. a Sych-owned `CARGO_HOME`). The server
+    /// runs without network where [`crate::sandbox::isolated`].
     pub fn spawn(
         program: &Path,
         args: &[&str],
