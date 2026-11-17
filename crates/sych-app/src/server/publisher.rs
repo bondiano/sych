@@ -369,11 +369,12 @@ impl Engine {
                 let failed = c.result_id.is_empty();
                 // Advisory unless `review.block_on` named a rule with an open finding: never
                 // success, so no one reads a neutral run as a pass.
+                // A result that cannot be read now is retried, like any transient failure.
                 let blocking = !failed
                     && !self
                         .load(c)
                         .await
-                        .map_err(|e| bad(format!("{e:#}")))?
+                        .map_err(|e| ScmError::new(ScmErrorKind::Transient, format!("{e:#}")))?
                         .0
                         .blocked_by
                         .is_empty();
