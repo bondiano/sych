@@ -22,7 +22,7 @@ pub(crate) use profiles::toolchain;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 use sych_core::{
@@ -45,6 +45,9 @@ use symbols::{changed_symbols, type_names};
 const MAX_WORKSPACE_BLOB_BYTES: u64 = 4 << 20;
 const READY_TIMEOUT: Duration = Duration::from_secs(600);
 const QUERY_TIMEOUT: Duration = Duration::from_secs(120);
+/// All queries of one server once it answered its first document: a slow or stuck server
+/// cannot take `MAX_SYMBOLS` times the query timeout.
+const QUERY_BUDGET: Duration = Duration::from_secs(180);
 const MAX_SYMBOLS: usize = 60;
 /// Type names per construct whose definitions are looked up.
 const MAX_TYPES: usize = 6;
@@ -262,8 +265,16 @@ impl Workspace<'_> {
         let mut server = LspServer::spawn(binary, profile.args, self.root, &profile.env)?;
         let capabilities = initialize(&mut server, self.root, profile, facts)?;
         let mut texts = HashMap::new();
+        let mut until = None;
         for file in files {
-            self.query_file(&mut server, &capabilities, file, facts, &mut texts)?;
+            self.query_file(
+                &mut server,
+                &capabilities,
+                file,
+                facts,
+                &mut texts,
+                &mut until,
+            )?;
         }
         server.shutdown();
         Ok(())
@@ -276,6 +287,7 @@ impl Workspace<'_> {
         file: &Target,
         facts: &mut SemanticFacts,
         texts: &mut HashMap<PathBuf, String>,
+        until: &mut Option<Instant>,
     ) -> Result<(), LspError> {
         let has = |name: &str| !capabilities[name].is_null() && capabilities[name] != false;
         let uri = file_uri(&self.root.join(file.path.as_str()));
@@ -296,12 +308,10 @@ impl Workspace<'_> {
             &json!({"textDocument": {"uri": uri}}),
             READY_TIMEOUT,
         )?;
+        let until = *until.get_or_insert_with(|| Instant::now() + QUERY_BUDGET);
         for symbol in changed_symbols(&symbols, &file.ranges) {
-            if facts.symbols.len() == MAX_SYMBOLS {
-                facts.limitations.push(format!(
-                    "{}: {} not queried (symbol cap)",
-                    file.path, symbol.name
-                ));
+            let (queried, limits) = (&facts.symbols, &mut facts.limitations);
+            if skipped(queried, limits, &file.path, &symbol.name, until) {
                 continue;
             }
 
@@ -460,11 +470,49 @@ impl Workspace<'_> {
     }
 }
 
+/// Whether a symbol is left unqueried, with the reason as a limitation: the symbol cap or the
+/// server's time budget.
+fn skipped<T>(
+    queried: &[T],
+    limitations: &mut Vec<String>,
+    path: &RepoPath,
+    name: &str,
+    until: Instant,
+) -> bool {
+    let reason = if queried.len() == MAX_SYMBOLS {
+        "symbol cap"
+    } else if Instant::now() >= until {
+        "time budget"
+    } else {
+        return false;
+    };
+    limitations.push(format!("{path}: {name} not queried ({reason})"));
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use std::slice;
 
     use super::*;
+
+    #[test]
+    fn a_symbol_past_the_cap_or_the_time_budget_is_skipped_and_says_why() {
+        let path: RepoPath = "src/a.rs".parse().expect("path");
+        let later = Instant::now() + Duration::from_secs(60);
+        let mut limitations = Vec::new();
+        let (none, all) = ([(); 0], [(); MAX_SYMBOLS]);
+        assert!(!skipped(&none, &mut limitations, &path, "f", later));
+        assert!(skipped(&all, &mut limitations, &path, "g", later));
+        assert!(skipped(&none, &mut limitations, &path, "h", Instant::now()));
+        assert_eq!(
+            limitations,
+            [
+                "src/a.rs: g not queried (symbol cap)",
+                "src/a.rs: h not queried (time budget)"
+            ]
+        );
+    }
 
     #[test]
     fn zero_count_hunk_selects_the_insertion_point() {
