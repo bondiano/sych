@@ -176,13 +176,14 @@ on a test from the same change is `TEST_ORACLE_ONLY`.
 
 ### Security checks
 
-The `security` profile (on by default) scans the lines a change adds, without a model; each hit is a `HIGH` finding
-with its rule, one per rule and file, anchored on up to five of its lines. Generated files and `review.fixture_paths`
+The `security` profile (on by default) scans the lines a change adds, without a model; each hit is a finding with
+its rule (`HIGH`, `MEDIUM` for supply-chain signals), one per rule and file, anchored on up to five of its lines. Generated files and `review.fixture_paths`
 are skipped.
 
 | ID | Finds |
 |---|---|
 | SEC-SECRET | a private key block or a token in a well-known format (GitHub, GitLab, Slack, AWS, Google, OpenAI); also an added or changed file that `is_secret_path` denies, which is never read. The value is never quoted. A value assigned to a key such as `password` is redacted but not reported, since `password = os.environ[...]` looks the same |
+| SEC-SUPPLY-CHAIN | a manifest line that takes code from outside the package registry or runs it on install: an npm `preinstall`/`install`/`postinstall` script or a `git+`/`github:`/`file:`/URL dependency in `package.json`; a `git` dependency in `Cargo.toml` or `pyproject.toml`; a `git+` or direct-URL requirement or `--index-url`/`--extra-index-url`/`--trusted-host`/`--find-links` in `requirements*.txt`; a `replace` (`=>`) in `go.mod`. Lockfiles and comments are left out. A signal, not proof: an intended git dependency is common |
 | SEC-HIDDEN-TEXT | a bidi override or isolate (Trojan Source, CVE-2021-42574) or an invisible character (`U+200B`, `U+2060`, a `U+FEFF` past the start of the file); joiners are allowed |
 
 ### Preferences and nitpicks
