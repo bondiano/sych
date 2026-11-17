@@ -36,7 +36,25 @@ struct Merged {
 /// Overlapping or adjacent spans of one file and side become one span of at most
 /// `max_lines`; past that the rest of an overlapping span starts a new one, so a long change
 /// stays in pieces that each fit a request.
-fn merge(mut candidates: Vec<Candidate>, max_lines: u32) -> Vec<Merged> {
+fn merge(candidates: Vec<Candidate>, max_lines: u32) -> Vec<Merged> {
+    // A neighbour longer than a span may be keeps only the lines no required span covers:
+    // holding a small hunk whole, it would make it a required span past the limit, which is
+    // never cut to a signature and takes a request of its own.
+    let required: Vec<Lines> = candidates
+        .iter()
+        .filter(|c| c.priority == Priority::Required)
+        .map(|c| (c.side, c.path.clone(), c.start, c.end))
+        .collect();
+    let mut candidates: Vec<Candidate> = candidates
+        .into_iter()
+        .flat_map(|c| {
+            if c.priority == Priority::Required || c.end - c.start < max_lines {
+                vec![c]
+            } else {
+                outside(&c, &required)
+            }
+        })
+        .collect();
     candidates.sort_by(|a, b| (a.side, &a.path, a.start).cmp(&(b.side, &b.path, b.start)));
     let mut out: Vec<Merged> = Vec::new();
     for mut c in candidates {
@@ -76,6 +94,42 @@ fn merge(mut candidates: Vec<Candidate>, max_lines: u32) -> Vec<Merged> {
     out
 }
 
+/// Side, path, first and last line of a span.
+type Lines = (SourceSide, RepoPath, u32, u32);
+
+/// The parts of `c` that no span of `required` covers.
+fn outside(c: &Candidate, required: &[Lines]) -> Vec<Candidate> {
+    let mut covering: Vec<(u32, u32)> = required
+        .iter()
+        .filter(|(side, path, start, end)| {
+            *side == c.side && *path == c.path && *start <= c.end && c.start <= *end
+        })
+        .map(|&(_, _, start, end)| (start, end))
+        .collect();
+    covering.sort_unstable();
+    let mut pieces = Vec::new();
+    let mut from = c.start;
+    for (start, end) in covering {
+        if start > from {
+            pieces.push((from, start - 1));
+        }
+
+        from = from.max(end.saturating_add(1));
+    }
+    if from <= c.end {
+        pieces.push((from, c.end));
+    }
+
+    pieces
+        .into_iter()
+        .map(|(start, end)| Candidate {
+            start,
+            end,
+            ..c.clone()
+        })
+        .collect()
+}
+
 fn fragment_id(r: &CodeRef) -> String {
     let key = format!(
         "{:?}:{}:{}:{}-{}",
@@ -97,6 +151,8 @@ const MAX_CHUNKS: usize = 4;
 struct Chunk {
     fragments: Vec<Fragment>,
     tokens: u32,
+    /// Tokens kept for the required spans still to come of the files placed here.
+    reserved: u32,
     files: BTreeSet<(SourceSide, RepoPath)>,
 }
 
@@ -133,16 +189,16 @@ pub(super) fn select(
         )
     });
     let budget = request.remaining_budget;
-    // A packet whose required spans do not fit together is split.
+    // A packet whose required spans do not fit together is split, but the required spans of
+    // one file, both sides, stay in one chunk when any can hold them: a call that sees the
+    // old side of a change without its new one cannot compare them.
+    let spans = read_all(reader, merged);
+    let need = required_tokens(&spans);
+    let mut home: BTreeMap<RepoPath, Option<usize>> = BTreeMap::new();
     let mut chunks = vec![Chunk::default()];
     let mut excluded = Vec::new();
-    for m in merged {
-        if is_secret_path(m.path.as_str()) {
-            gaps.push(format!("SECRET_PATH {} not read", m.path));
-            continue;
-        }
-
-        let (mut code_ref, mut tokens) = match read(reader, &m, m.end) {
+    for (m, read) in spans {
+        let (mut code_ref, mut tokens) = match read {
             Ok(read) => read,
             Err(err) => {
                 gaps.push(err);
@@ -163,12 +219,11 @@ pub(super) fn select(
             continue;
         }
 
-        let fits = |tokens: u32| {
-            chunks
-                .iter()
-                .position(|c| c.tokens.saturating_add(tokens) <= budget)
-        };
-        let mut room = fits(tokens);
+        let homed = (m.priority == Priority::Required)
+            .then(|| home_of(&mut chunks, &mut home, &need, &m.path, budget))
+            .flatten();
+        let fits = |tokens: u32| first_fit(&chunks, tokens, budget);
+        let mut room = homed.or_else(|| fits(tokens));
         let mut transformation = "none";
         if room.is_none()
             && let Some((head, head_tokens, i)) = signature(reader, &m, fits)
@@ -196,6 +251,9 @@ pub(super) fn select(
         };
 
         chunk.tokens += tokens;
+        chunk.reserved = chunk
+            .reserved
+            .saturating_sub(if homed.is_some() { tokens } else { 0 });
         chunk.files.insert(file.clone());
         state.files.insert(file);
         chunk.fragments.push(Fragment {
@@ -223,6 +281,68 @@ pub(super) fn select(
         semantic_items: requests,
     };
     assemble(request, chunks, &links, rest)
+}
+
+/// A merged span with its exact reference and tokens, or why it cannot be read.
+type Read = (Merged, Result<(CodeRef, u32), String>);
+
+fn read_all(reader: &dyn SnapshotReader, merged: Vec<Merged>) -> Vec<Read> {
+    merged
+        .into_iter()
+        .map(|m| {
+            let read = if is_secret_path(m.path.as_str()) {
+                Err(format!("SECRET_PATH {} not read", m.path))
+            } else {
+                read(reader, &m, m.end)
+            };
+            (m, read)
+        })
+        .collect()
+}
+
+/// Tokens of the required spans of each file, both sides.
+fn required_tokens(spans: &[Read]) -> BTreeMap<RepoPath, u32> {
+    let mut need: BTreeMap<RepoPath, u32> = BTreeMap::new();
+    for (m, read) in spans {
+        if let (Priority::Required, Ok((_, tokens))) = (m.priority, read) {
+            *need.entry(m.path.clone()).or_default() += tokens;
+        }
+    }
+    need
+}
+
+/// The first chunk with room for `tokens` beside what it keeps for others.
+fn first_fit(chunks: &[Chunk], tokens: u32, budget: u32) -> Option<usize> {
+    chunks
+        .iter()
+        .position(|c| c.tokens.saturating_add(c.reserved).saturating_add(tokens) <= budget)
+}
+
+/// The chunk kept for the required spans of `path`, reserved when the first of them comes.
+fn home_of(
+    chunks: &mut Vec<Chunk>,
+    home: &mut BTreeMap<RepoPath, Option<usize>>,
+    need: &BTreeMap<RepoPath, u32>,
+    path: &RepoPath,
+    budget: u32,
+) -> Option<usize> {
+    *home
+        .entry(path.clone())
+        .or_insert_with(|| reserve(chunks, need.get(path).copied()?, budget))
+}
+
+/// The chunk that keeps `all` tokens for one file's required spans: the first with room, or
+/// a new one; none when no chunk can hold them together.
+fn reserve(chunks: &mut Vec<Chunk>, all: u32, budget: u32) -> Option<usize> {
+    let free = |c: &Chunk| c.tokens.saturating_add(c.reserved).saturating_add(all) <= budget;
+    let i = chunks.iter().position(free).or_else(|| {
+        (all <= budget && chunks.len() < MAX_CHUNKS).then(|| {
+            chunks.push(Chunk::default());
+            chunks.len() - 1
+        })
+    })?;
+    chunks[i].reserved += all;
+    Some(i)
 }
 
 /// What the first packet records (queries, semantic items) and the last one keeps (what
@@ -359,4 +479,67 @@ fn resolve_links(fragments: &[Fragment], links: Vec<RawLink>) -> Vec<Link> {
         }
     }
     link_set.into_values().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn span(start: u32, end: u32, priority: Priority, reason: &str) -> Candidate {
+        Candidate {
+            side: SourceSide::DiffBase,
+            path: "src/engine.rs".parse().expect("path"),
+            start,
+            end,
+            priority,
+            reason: reason.into(),
+            evidence: None,
+            completeness: Completeness::CompleteForQuery,
+            link: None,
+        }
+    }
+
+    fn spans(merged: &[Merged]) -> Vec<(u32, u32, Priority)> {
+        let mut spans: Vec<_> = merged
+            .iter()
+            .map(|m| (m.start, m.end, m.priority))
+            .collect();
+        spans.sort_unstable();
+        spans
+    }
+
+    #[test]
+    fn a_neighbour_past_the_span_limit_does_not_make_a_hunk_inside_it_that_long() {
+        let merged = merge(
+            vec![
+                span(163, 474, Priority::Supporting, "implementation of `Engine`"),
+                span(381, 396, Priority::Required, "diff hunk (base)"),
+            ],
+            160,
+        );
+        // The part after the hunk glues to it within the limit, as any neighbour does.
+        assert_eq!(
+            spans(&merged),
+            [
+                (163, 380, Priority::Supporting),
+                (381, 474, Priority::Required)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_neighbour_within_the_limit_still_holds_the_hunk_inside_it() {
+        let merged = merge(
+            vec![
+                span(100, 200, Priority::Supporting, "caller of `f`"),
+                span(150, 160, Priority::Required, "diff hunk (base)"),
+            ],
+            160,
+        );
+        assert_eq!(spans(&merged), [(100, 200, Priority::Required)]);
+        assert_eq!(
+            merged[0].reasons,
+            ["caller of `f`".to_owned(), "diff hunk (base)".to_owned()]
+        );
+    }
 }
