@@ -80,6 +80,13 @@ fn is_token_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b'-'
 }
 
+/// Whether `text` holds a private key block or a token of a well-known format: what the
+/// built-in rules find with confidence. A value assigned to a secret-like key is left out, since
+/// `password = os.environ["DB_PASSWORD"]` looks the same.
+pub fn holds_secret(text: &str) -> bool {
+    redact_private_keys(text) != text || redact_tokens(text, &[]) != text
+}
+
 /// Replaces private key blocks, well-known token formats and values assigned to secret-like
 /// keys with the built-in rules. Returns the input unchanged when nothing matched.
 pub fn redact(text: &str) -> Cow<'_, str> {

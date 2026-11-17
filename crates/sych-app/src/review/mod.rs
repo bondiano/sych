@@ -12,8 +12,8 @@ use sych_core::analysis::Discovered;
 use sych_core::broker::{EvidencePacket, Limits};
 use sych_core::config::Budgets;
 use sych_core::config::{
-    EffectiveConfig, PolicyFiles, PolicyInput, RuleException, ServerConfig, ServerInput,
-    policy_diff,
+    EffectiveConfig, PolicyFiles, PolicyInput, ReviewProfile, RuleException, ServerConfig,
+    ServerInput, policy_diff,
 };
 use sych_core::{
     Candidate, Coverage, Evidence, EvidenceManifest, ExternalInputManifest, FileChange,
@@ -402,6 +402,12 @@ fn execute(
         parent: args.parent,
         language: effective.repository.config.review.language,
         fixture_paths: &effective.repository.config.review.fixture_paths,
+        scan: effective
+            .repository
+            .config
+            .review
+            .profiles
+            .contains(&ReviewProfile::Security),
         now,
     };
     let saved =
@@ -477,5 +483,7 @@ struct Session<'a> {
     /// `review.language` of the trusted policy.
     language: sych_core::ReviewLanguage,
     fixture_paths: &'a [String],
+    /// The `security` profile: added lines are scanned for secrets and hidden text.
+    scan: bool,
     now: Timestamp,
 }
