@@ -70,6 +70,7 @@ pub async fn github(
         // A signed event the App is subscribed to but the server does not use: acknowledged and
         // not stored, so GitHub does not list it as a failed delivery.
         Err(Rejection::Event(name)) => {
+            tracing::info!(connection, event = %name, "webhook ignored");
             let ignored = format!("event `{name}` is not used");
             return Ok((StatusCode::ACCEPTED, Json(json!({"ignored": ignored}))));
         }
