@@ -336,9 +336,7 @@ pub async fn serve(
                 result = axum::serve(
                     listener,
                     routes.into_make_service_with_connect_info::<SocketAddr>(),
-                ).with_graceful_shutdown(async {
-                    signal::ctrl_c().await.ok();
-                }) => result.map_err(anyhow::Error::from),
+                ).with_graceful_shutdown(stopped()) => result.map_err(anyhow::Error::from),
                 result = metrics => result,
             };
             let _ = stop_tx.send(true);
@@ -349,4 +347,23 @@ pub async fn serve(
             result
         })
         .await
+}
+
+/// Ctrl-C, or SIGTERM, which a container runtime sends to stop the server. As PID 1 the server
+/// ignores a signal it has no handler for, so without this it would be killed mid-work at the
+/// end of the grace period.
+async fn stopped() {
+    let mut term = signal::unix::signal(signal::unix::SignalKind::terminate()).ok();
+    let term = async {
+        match term.as_mut() {
+            Some(term) => {
+                term.recv().await;
+            }
+            None => pending::<()>().await,
+        }
+    };
+    tokio::select! {
+        _ = signal::ctrl_c() => {}
+        () = term => {}
+    }
 }
