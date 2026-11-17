@@ -65,11 +65,20 @@ pub async fn github(
             .ok_or(Rejection::MissingHeader("X-GitHub-Delivery"))?;
         Ok((delivery, webhook::parse(event, &body, &conn.bot_login)?))
     };
-    let (delivery, event) = check().map_err(|r| {
-        let e = refused(&r);
-        app.counters.reject(e.code);
-        e
-    })?;
+    let (delivery, event) = match check() {
+        Ok(checked) => checked,
+        // A signed event the App is subscribed to but the server does not use: acknowledged and
+        // not stored, so GitHub does not list it as a failed delivery.
+        Err(Rejection::Event(name)) => {
+            let ignored = format!("event `{name}` is not used");
+            return Ok((StatusCode::ACCEPTED, Json(json!({"ignored": ignored}))));
+        }
+        Err(r) => {
+            let e = refused(&r);
+            app.counters.reject(e.code);
+            return Err(e);
+        }
+    };
     let allowed = event
         .repository
         .as_ref()

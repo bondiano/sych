@@ -59,7 +59,8 @@ GitHub issues it, or PKCS#8) and is valid for 9 minutes.
 | body larger than `max_body_bytes` | 413 |
 | `Content-Type` is not `application/json` | 415 |
 | `X-Hub-Signature-256` does not match the HMAC-SHA256 of the raw body (constant-time, `ring`) | 401 |
-| no `X-GitHub-Event`/`X-GitHub-Delivery`, event not in the list, invalid JSON | 400 |
+| no `X-GitHub-Event`/`X-GitHub-Delivery`, invalid JSON | 400 |
+| signed event not in the list (the App may subscribe to more) | 202 `{ignored}`, nothing stored |
 | storage error | 503 — no ACK; GitHub marks the delivery failed, reconciliation catches up |
 | new delivery | 202 `{inbox_id, duplicate: false, intents}` |
 | repeat of `provider_instance + connection + X-GitHub-Delivery` | 200 `{inbox_id, duplicate: true}`, nothing changes |

@@ -211,13 +211,6 @@ async fn unsigned_oversized_or_foreign_deliveries_store_nothing() {
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
         ),
         (
-            "/hooks/github/gh",
-            good.clone(),
-            "application/json",
-            "push",
-            StatusCode::BAD_REQUEST,
-        ),
-        (
             "/hooks/github/other",
             good.clone(),
             "application/json",
@@ -246,6 +239,35 @@ async fn unsigned_oversized_or_foreign_deliveries_store_nothing() {
     let large = [b' '; 600];
     let (status, _) = signed(&s, "d-large", &large).await;
     assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+    assert!(
+        s.app
+            .storage
+            .open_intents()
+            .await
+            .expect("intents")
+            .is_empty()
+    );
+}
+
+/// A signed event the App subscribes to but the server does not use is acknowledged, so GitHub
+/// does not list it as a failed delivery, and nothing is stored.
+#[tokio::test(flavor = "current_thread")]
+async fn a_signed_event_the_server_does_not_use_is_acknowledged_and_not_stored() {
+    let s = start(1 << 20).await;
+    let body = pull_request("o/r");
+    let signature = sign(SECRET.as_bytes(), &body);
+    let (status, reply) = deliver(
+        &s,
+        "/hooks/github/gh",
+        "d-1",
+        &body,
+        &signature,
+        "application/json",
+        "pull_request_review",
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{reply}");
+    assert!(reply["ignored"].is_string(), "{reply}");
     assert!(
         s.app
             .storage
