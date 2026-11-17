@@ -258,7 +258,9 @@ execute repository code and work without project setup:
 
 Head is materialized from Git objects (as for language servers), and the linter runs in it with a cleared environment:
 empty `PATH` (actionlint will not find shellcheck, oxlint will not find node), `HOME` is an empty temporary directory (no
-user configs or credentials), no network, at most 120 s. Absolute output paths are mapped to
+user configs or credentials), at most 120 s. Linters and language servers run under `bwrap --unshare-net` (the host
+file system as is, no network) where bwrap can make a network namespace; where it cannot (a container without user
+namespaces), they run with the host network and their facts carry `NOT_ISOLATED`. Absolute output paths are mapped to
 repository paths; a finding gets a `CodeRef` if its line exists on head. The result is `LintFacts` in the `facts` artifact and
 in the report (`lint_facts`), derived static evidence `PARTIAL` with producer `<linter> <version>`. If the linter
 configuration file is changed in this diff, a limitation states that the rule set is the change author's choice.

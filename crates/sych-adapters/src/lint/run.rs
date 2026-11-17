@@ -4,12 +4,14 @@
 use std::ffi::OsString;
 use std::io::{self, Read};
 use std::path::Path;
-use std::process::{Command, Output, Stdio};
+use std::process::{Output, Stdio};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
 
 use serde_json::Value;
 use sych_core::CiDiagnostic;
+
+use crate::sandbox::offline;
 
 pub(super) const TIMEOUT: Duration = Duration::from_secs(120);
 const POLL: Duration = Duration::from_millis(20);
@@ -28,7 +30,7 @@ pub(super) fn run(
 ) -> io::Result<Output> {
     let home = scratch.join("home");
     fs::create_dir_all(&home)?;
-    let mut child = Command::new(program)
+    let mut child = offline(program)
         .args(args)
         .current_dir(cwd)
         .env_clear()

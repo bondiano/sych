@@ -19,6 +19,7 @@ use sych_core::{
 
 use crate::ci;
 use crate::git::{LocalSnapshot, SnapshotError};
+use crate::sandbox::{self, NOT_ISOLATED};
 use crate::semantic::{Options, Resolve};
 use crate::tools::{self, ToolError, host_target};
 
@@ -325,6 +326,10 @@ fn run_linter(
 
     // Absolute paths: a repository file named like `--output-file=…` must never become an option.
     args.extend(files.iter().map(|f| root.join(f).display().to_string()));
+    if !sandbox::isolated() {
+        facts.limitations.push(NOT_ISOLATED.into());
+    }
+
     let out = match run::run(&binary, &args, root, scratch, &[], run::TIMEOUT) {
         Ok(out) => out,
         Err(err) => {

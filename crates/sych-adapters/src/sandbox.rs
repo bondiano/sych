@@ -1,4 +1,5 @@
-//! Running repository tooling (dependency installers) in a sandbox.
+//! Running repository tooling (dependency installers) in a sandbox, and analysis tools
+//! (language servers, linters) without network where `bwrap` can make a network namespace.
 //!
 //! Every mount keeps its host path inside the sandbox. bwrap sees the host root read-only
 //! with the home directory, `/tmp`, `/root`, `/run/user` and `/run/secrets` replaced by
@@ -11,6 +12,7 @@ use std::io::{self, Read, Seek, SeekFrom};
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Child, Command, ExitStatus, Stdio};
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -45,6 +47,67 @@ pub struct Isolation {
     pub memory_mb: u32,
     pub cpu_millis: u32,
     pub pids: u32,
+}
+
+/// The limitation of facts from a tool that ran with the host network.
+pub const NOT_ISOLATED: &str =
+    "NOT_ISOLATED: ran with the host network; bwrap cannot make a network namespace here";
+
+/// `bwrap` by absolute path, when it can make a network namespace here; probed once. A tool run
+/// with an empty `PATH` could not find it by name.
+fn offline_bwrap() -> Option<&'static Path> {
+    static BWRAP: OnceLock<Option<PathBuf>> = OnceLock::new();
+    BWRAP
+        .get_or_init(|| {
+            let bwrap = env::split_paths(&env::var_os("PATH")?)
+                .map(|dir| dir.join("bwrap"))
+                .find(|p| p.is_file())?;
+            let works = Command::new(&bwrap)
+                .args([
+                    "--unshare-net",
+                    "--die-with-parent",
+                    "--dev-bind",
+                    "/",
+                    "/",
+                    "--",
+                    "true",
+                ])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success());
+            works.then_some(bwrap)
+        })
+        .as_deref()
+}
+
+/// Whether analysis tools run without network here.
+pub fn isolated() -> bool {
+    offline_bwrap().is_some()
+}
+
+/// A command for `program` with no network when [`isolated`], else as is: a parser bug or a
+/// config that names a URL then reaches nothing. The file system stays the host's, so the tool
+/// finds its toolchain and caches as before. Arguments, environment and directory are the
+/// caller's.
+pub fn offline(program: &Path) -> Command {
+    match offline_bwrap() {
+        Some(bwrap) => {
+            let mut cmd = Command::new(bwrap);
+            cmd.args([
+                "--unshare-net",
+                "--die-with-parent",
+                "--dev-bind",
+                "/",
+                "/",
+                "--",
+            ])
+            .arg(program);
+            cmd
+        }
+        None => Command::new(program),
+    }
 }
 
 pub fn name(backend: SandboxBackend) -> &'static str {
@@ -360,7 +423,34 @@ fn remove_container(container: &str) {
 
 #[cfg(test)]
 mod tests {
+    use std::net::TcpListener;
+
     use super::*;
+
+    /// A tool run through `offline` cannot reach a port the host reaches; where bwrap cannot
+    /// isolate, it runs as is and says so through `isolated`.
+    #[test]
+    fn an_offline_tool_cannot_reach_the_network() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        let probe = format!("exec 3<>/dev/tcp/127.0.0.1/{port}");
+        let Some(bash) = env::split_paths(&env::var_os("PATH").unwrap_or_default())
+            .map(|d| d.join("bash"))
+            .find(|p| p.is_file())
+        else {
+            return;
+        };
+        let host = Command::new(&bash)
+            .args(["-c", &probe])
+            .status()
+            .expect("bash");
+        assert!(host.success(), "the host reaches the port");
+        let offline = offline(&bash)
+            .args(["-c", &probe])
+            .status()
+            .expect("offline");
+        assert_eq!(offline.success(), !isolated(), "isolated: {}", isolated());
+    }
 
     #[test]
     fn bwrap_hides_home_and_rebinds_only_listed_mounts() {

@@ -6,12 +6,14 @@
 use std::env;
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::Path;
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{Child, ChildStdin, Stdio};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
+
+use crate::sandbox::offline;
 
 const PASSED_ENV: &[&str] = &[
     "PATH",
@@ -86,7 +88,7 @@ impl LspServer {
         cwd: &Path,
         extra: &[(String, String)],
     ) -> Result<Self, LspError> {
-        let mut command = Command::new(program);
+        let mut command = offline(program);
         command.args(args).current_dir(cwd).env_clear();
         for name in PASSED_ENV {
             if let Some(value) = env::var_os(name) {
