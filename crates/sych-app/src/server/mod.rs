@@ -38,6 +38,7 @@ use std::fs;
 use std::future::pending;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
+use std::process;
 use std::sync::{Arc, OnceLock};
 
 use axum::extract::{DefaultBodyLimit, State};
@@ -287,8 +288,9 @@ pub enum Role {
     Worker,
 }
 
-/// Serves until Ctrl-C: admission stops first, then the engine stops claiming; a job in
-/// flight keeps its lease until it expires and the reaper hands it to the next start.
+/// Serves until Ctrl-C or SIGTERM: admission stops first, then the engine stops claiming; a job
+/// in flight keeps its lease until it expires and the reaper hands it to the next start. A
+/// second signal exits at once.
 pub async fn serve(
     app: Arc<App>,
     bind: SocketAddr,
@@ -354,8 +356,19 @@ pub async fn serve(
 /// end of the grace period.
 async fn stopped() {
     let mut term = signal::unix::signal(signal::unix::SignalKind::terminate()).ok();
+    signalled(term.as_mut()).await;
+    // The handler now catches every later SIGTERM too: a second signal ends a stuck shutdown.
+    tokio::spawn(async move {
+        signalled(term.as_mut()).await;
+        tracing::warn!("second stop signal; exiting without waiting");
+        process::exit(143);
+    });
+}
+
+/// The next Ctrl-C or SIGTERM.
+async fn signalled(term: Option<&mut signal::unix::Signal>) {
     let term = async {
-        match term.as_mut() {
+        match term {
             Some(term) => {
                 term.recv().await;
             }

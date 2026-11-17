@@ -3,11 +3,21 @@
 
 use std::fs;
 use std::net::{TcpListener, TcpStream};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use tempfile::TempDir;
+
+/// The server process, killed and reaped however the test ends.
+struct Server(Child);
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
 
 fn sych(dir: &TempDir) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_sych"));
@@ -35,12 +45,14 @@ fn sigterm_stops_the_server_cleanly() {
         .expect("migrate");
     assert!(migrated.status.success());
 
-    let mut server = sych(&dir)
-        .args(["serve", "--config", "sych.yaml"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("serve");
+    let mut server = Server(
+        sych(&dir)
+            .args(["serve", "--config", "sych.yaml"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("serve"),
+    );
     let started = Instant::now();
     while TcpStream::connect(("127.0.0.1", port)).is_err() {
         assert!(
@@ -51,20 +63,20 @@ fn sigterm_stops_the_server_cleanly() {
     }
 
     let sent = Command::new("kill")
-        .args(["-TERM", &server.id().to_string()])
+        .args(["-TERM", &server.0.id().to_string()])
         .status()
         .expect("kill");
     assert!(sent.success());
     let stopped = Instant::now();
     let status = loop {
-        if let Some(status) = server.try_wait().expect("wait") {
+        if let Some(status) = server.0.try_wait().expect("wait") {
             break status;
         }
 
-        if stopped.elapsed() > Duration::from_secs(20) {
-            let _ = server.kill();
-            panic!("the server ignored SIGTERM");
-        }
+        assert!(
+            stopped.elapsed() < Duration::from_secs(20),
+            "the server ignored SIGTERM"
+        );
 
         thread::sleep(Duration::from_millis(50));
     };
