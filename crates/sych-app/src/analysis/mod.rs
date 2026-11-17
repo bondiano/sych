@@ -147,7 +147,8 @@ pub struct Engine<'a, P, L> {
     pub verify: bool,
     /// Further discovery rounds a batch may earn with answered asks (`context.expansion_rounds`).
     pub expansion_rounds: u32,
-    /// The author's description of the change, for discovery only ([`intent::with_intent`]).
+    /// The author's description of the change, for the discovery, review and expansion prompts
+    /// ([`intent::with_intent`]); no verifier and no risk audit sees it.
     pub intent: Option<&'a str>,
     /// Model calls in flight at once (`budgets.analysis.max_parallel_calls`), at least 1.
     pub parallel: usize,
