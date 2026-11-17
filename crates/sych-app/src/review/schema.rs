@@ -111,6 +111,7 @@ mod tests {
             base: "target".into(),
             head: "HEAD".into(),
             diff_base: None,
+            fork: false,
         })
         .expect("snapshot");
         let refs = schema_refs(&snap);

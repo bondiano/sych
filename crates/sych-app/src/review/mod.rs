@@ -117,7 +117,14 @@ fn derived_facts(
         .execution
         .as_ref()
         .unwrap_or(&effective.server.execution);
-    let (executed, refused) = execution::run_profiles(snap, profiles, &args.checks);
+    let (executed, refused) = if args.comparison.fork {
+        (
+            Vec::new(),
+            execution::refused_for_fork(profiles, &args.checks),
+        )
+    } else {
+        execution::run_profiles(snap, profiles, &args.checks)
+    };
     ci.extend(executed);
     let ci_gaps = args
         .ci_gaps

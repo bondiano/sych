@@ -366,6 +366,7 @@ fn materialize(
         base,
         head,
         diff_base: None,
+        fork: false,
     }))
 }
 

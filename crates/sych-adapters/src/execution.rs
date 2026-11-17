@@ -28,26 +28,7 @@ pub fn run_profiles(
     checks: &[CheckRequest],
 ) -> (Vec<CiFacts>, Vec<CiGap>) {
     let (mut facts, mut gaps) = (Vec::new(), Vec::new());
-    // A requested check on a disabled server is refused below, so the request leaves a gap.
-    if !execution.enabled && checks.is_empty() {
-        return (facts, gaps);
-    }
-
-    let all: Vec<CheckRequest>;
-    let checks = if checks.is_empty() {
-        all = execution
-            .allowed_profiles
-            .iter()
-            .map(|p| CheckRequest {
-                profile: p.clone(),
-                params: BTreeMap::new(),
-            })
-            .collect();
-        &all
-    } else {
-        checks
-    };
-    for check in checks {
+    for check in &selected(execution, checks) {
         match run_one(snapshot, execution, check) {
             Ok(Some(f)) => facts.push(f),
             Ok(None) => {}
@@ -55,6 +36,39 @@ pub fn run_profiles(
         }
     }
     (facts, gaps)
+}
+
+/// A gap for each check a fork's head would run: its code never runs, and the review says so.
+pub fn refused_for_fork(execution: &Execution, checks: &[CheckRequest]) -> Vec<CiGap> {
+    selected(execution, checks)
+        .iter()
+        .map(|check| CiGap {
+            report: format!("execution:{}", check.label()),
+            code: "EXECUTION_REFUSED".into(),
+            detail: "the head is from a fork; its code does not run".into(),
+        })
+        .collect()
+}
+
+/// The requested checks, else every allowed profile with no parameters. A requested check on a
+/// disabled server stays, so `run_one` refuses it and the request leaves a gap.
+fn selected(execution: &Execution, checks: &[CheckRequest]) -> Vec<CheckRequest> {
+    if !checks.is_empty() {
+        return checks.to_vec();
+    }
+
+    if !execution.enabled {
+        return Vec::new();
+    }
+
+    execution
+        .allowed_profiles
+        .iter()
+        .map(|p| CheckRequest {
+            profile: p.clone(),
+            params: BTreeMap::new(),
+        })
+        .collect()
 }
 
 /// What one run of a profile on one side left behind.
@@ -287,6 +301,19 @@ mod tests {
             allowed_profiles: vec!["outcomes".into()],
             profiles: BTreeMap::from([("outcomes".into(), profile)]),
         }
+    }
+
+    #[test]
+    fn a_fork_runs_nothing_and_each_check_it_would_run_is_a_gap() {
+        let enabled = execution(Vec::new());
+        let gaps = refused_for_fork(&enabled, &[]);
+        let shown: Vec<_> = gaps
+            .iter()
+            .map(|g| (g.report.as_str(), g.code.as_str()))
+            .collect();
+        assert_eq!(shown, [("execution:outcomes", "EXECUTION_REFUSED")]);
+        assert!(gaps[0].detail.contains("fork"));
+        assert!(refused_for_fork(&Execution::default(), &[]).is_empty());
     }
 
     #[test]

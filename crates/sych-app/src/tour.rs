@@ -147,6 +147,7 @@ pub fn run(args: &TourArguments) -> anyhow::Result<ExitCode> {
         head: saved.head.hex().to_owned(),
         diff_base: (saved.comparison == ComparisonMode::ExplicitDiffBase)
             .then(|| saved.diff_base.hex().to_owned()),
+        fork: false,
     })?;
     if snap.snapshot.id != result.source_snapshot_id {
         return Err(Failure::invalid("--repo is not the repository this run reviewed").into());
