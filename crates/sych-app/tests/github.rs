@@ -172,3 +172,24 @@ async fn scm_smoke_writes_reads_finds_and_deletes_its_own_comment() {
         .collect();
     assert_eq!(writes.len(), 3, "{writes:?}");
 }
+
+/// A smoke test whose update and delete both fail reports both: the comment it left behind is
+/// named, not hidden behind the first error.
+#[tokio::test(flavor = "current_thread")]
+async fn a_smoke_test_that_cannot_delete_its_comment_says_so_beside_its_failure() {
+    let (url, fake) = start().await;
+    for path in [
+        "PATCH /repos/o/r/issues/comments/",
+        "DELETE /repos/o/r/issues/comments/",
+    ] {
+        lock(&fake)
+            .fail_next
+            .insert(path.into(), (422, json!({"message": "refused"})));
+    }
+    let gh = Github::new(&url, app_key()).expect("client");
+    let err = smoke(&gh, "o/r", 7, "sych[bot]", "n1", NOW)
+        .await
+        .expect_err("both failed");
+    assert!(err.to_string().contains("was not deleted"), "{err}");
+    assert_eq!(lock(&fake).comments.len(), 1, "the comment is still there");
+}
