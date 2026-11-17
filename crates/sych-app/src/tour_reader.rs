@@ -124,6 +124,7 @@ pub(crate) fn pinned(
         head: saved.head.hex().to_owned(),
         diff_base: (saved.comparison == ComparisonMode::ExplicitDiffBase)
             .then(|| saved.diff_base.hex().to_owned()),
+        fork: false,
     })
     .ok()
     .filter(|s| s.snapshot.id == saved.id)

@@ -224,6 +224,7 @@ fn run_case(case: &Case, suite_dir: &Path) -> Result<Actual, String> {
             base: "target".into(),
             head: "HEAD".into(),
             diff_base: None,
+            fork: false,
         },
         config: None,
         models: ModelSelection::Fake,

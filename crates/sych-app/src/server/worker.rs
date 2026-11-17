@@ -45,6 +45,7 @@ impl Engine {
                 base: claim.inputs.base_sha.clone(),
                 head: claim.inputs.head_sha.clone(),
                 diff_base: None,
+                fork: claim.inputs.fork,
             },
             config: Some(self.review.config.clone()),
             models: self.review.models.clone(),

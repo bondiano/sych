@@ -86,7 +86,8 @@ intent. The raw payload is not stored: PR text is untrusted and is re-read from 
 Debounce: one open intent per change and kind; each new event moves the deadline, but no further than
 `first event + 6 × debounce` (30 s for PRs, 60 s for CI) — a continuous stream does not postpone work indefinitely.
 A repository outside `repositories` gets a `REPOSITORY_NOT_ALLOWED` receipt without
-work. A fork (`head.repo` ≠ base, or deleted) is flagged and analyzed read-only.
+work. A fork (`head.repo` ≠ base, or deleted) is flagged and analyzed read-only: its code never runs, so each
+execution profile the review would run is an `EXECUTION_REFUSED` gap instead.
 
 Isolation: access scope = `provider_instance/connection/external_id`, so the same repository in two tenants or
 connections has separate changes, generations, artifacts and publication state; an artifact with the same hash in a foreign

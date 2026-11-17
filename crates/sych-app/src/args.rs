@@ -156,6 +156,9 @@ pub struct Comparison {
     /// Explicit two-dot comparison base instead of merge-base
     #[arg(long)]
     pub diff_base: Option<String>,
+    /// The head is a fork's, from a server run: its code never runs.
+    #[arg(skip)]
+    pub fork: bool,
 }
 
 #[derive(clap::Args)]
