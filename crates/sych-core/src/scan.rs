@@ -26,8 +26,9 @@ pub fn is_hidden(c: char) -> bool {
 }
 
 /// Whether an added line of a dependency manifest takes code from outside the package registry
-/// (a git, URL or local-path dependency, another index, a `replace`) or runs it at install time:
-/// what a supply-chain attack needs. Comments and lockfiles are left out.
+/// (a git or URL dependency, an npm `file:`/`link:` one, another index, a `replace`) or runs it at
+/// install time: what a supply-chain attack needs. Comments and lockfiles are left out, and so are
+/// Cargo `path` dependencies, which every workspace has.
 pub fn outside_registry(path: &str, line: &str) -> bool {
     let name = path.rsplit('/').next().unwrap_or(path);
     let line = line.trim();
@@ -38,10 +39,10 @@ pub fn outside_registry(path: &str, line: &str) -> bool {
 
     match name {
         "package.json" => npm(line),
-        "Cargo.toml" => compact.contains("git=\""),
+        "Cargo.toml" => git_dependency(&compact),
         "go.mod" => line.contains("=>"),
         "pyproject.toml" => {
-            compact.contains("git=\"")
+            git_dependency(&compact)
                 || ["git+", "@ http", "@ file:"]
                     .iter()
                     .any(|p| line.contains(p))
@@ -94,6 +95,11 @@ const SOURCES: &[&str] = &[
     "https:",
 ];
 
+/// `git = "…"` or `git = '…'` in TOML with the whitespace removed.
+fn git_dependency(compact: &str) -> bool {
+    compact.contains("git=\"") || compact.contains("git='")
+}
+
 /// An install lifecycle script, or a dependency whose spec is not a registry version.
 fn npm(line: &str) -> bool {
     let Some((key, value)) = line.split_once(':') else {
@@ -101,7 +107,10 @@ fn npm(line: &str) -> bool {
     };
     let key = key.trim().trim_matches('"');
     let value = value.trim().trim_start_matches('"');
-    matches!(key, "preinstall" | "install" | "postinstall")
+    // `install` is also a package name: a version range is a dependency, not a script.
+    let script = !value.starts_with(|c: char| c.is_ascii_digit() || "^~<>=*".contains(c))
+        && !value.starts_with("latest");
+    (matches!(key, "preinstall" | "install" | "postinstall") && script)
         || (!METADATA.contains(&key) && SOURCES.iter().any(|p| value.starts_with(p)))
 }
 
@@ -295,11 +304,19 @@ fn finding(rule: &str, path: &RepoPath, anchors: Vec<CodeRef>, l: ReviewLanguage
         rule_id: Some(rule.into()),
         obligation_ids: Vec::new(),
         suggested_action: action.into(),
-        validation_expectation: tr(
-            l,
-            "The added lines hold no secret or hidden text.",
-            "В добавленных строках нет секретов и скрытого текста.",
-        )
+        validation_expectation: if rule == SUPPLY_CHAIN {
+            tr(
+                l,
+                "Each added dependency comes from the registry at a pinned version, or its source is pinned and explained.",
+                "Каждая добавленная зависимость взята из реестра с закреплённой версией, либо её источник закреплён и объяснён.",
+            )
+        } else {
+            tr(
+                l,
+                "The added lines hold no secret or hidden text.",
+                "В добавленных строках нет секретов и скрытого текста.",
+            )
+        }
         .into(),
         // The rule and the file: lineage follows the finding while lines move.
         fingerprint: sha256(format!("{rule}\0{key}").as_bytes()),
@@ -321,6 +338,12 @@ mod tests {
     fn sources_outside_the_registry_and_install_scripts_are_flagged_and_metadata_is_not() {
         for (path, line) in [
             ("package.json", r#"    "postinstall": "node setup.js","#),
+            ("package.json", r#"    "preinstall": "./fetch.sh","#),
+            ("package.json", r#"    "install": "node-gyp rebuild","#),
+            (
+                "Cargo.toml",
+                "serde = { git = 'https://example.com/serde' }",
+            ),
             (
                 "web/package.json",
                 r#"    "left-pad": "git+https://example.com/left-pad.git","#,
@@ -353,6 +376,8 @@ mod tests {
                 r#"    "url": "git+https://example.com/repo.git""#,
             ),
             ("package.json", r#"    "lodash": "^4.17.21","#),
+            ("package.json", r#"    "install": "^0.13.0","#),
+            ("Cargo.toml", r#"sych-core = { path = "../sych-core" }"#),
             ("package.json", r#"    "build": "tsc","#),
             (
                 "Cargo.toml",
