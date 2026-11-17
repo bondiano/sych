@@ -316,7 +316,7 @@ fn repeated(result: &ReviewResult, earlier: &[Candidate]) -> (Vec<String>, Vec<S
         .unresolved_candidates
         .iter()
         .filter(|c| earlier.iter().any(|e| same_code(c, e)))
-        .map(|c| format!("unverified candidate: {}", c.claim))
+        .map(Candidate::open_question)
         .collect();
     result
         .unresolved_questions

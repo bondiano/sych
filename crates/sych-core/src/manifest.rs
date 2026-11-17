@@ -56,6 +56,9 @@ pub struct Hunk {
     pub new_lines: u32,
 }
 
+/// The limitation code of a file whose blob was too large to read.
+pub const BLOB_TOO_LARGE: &str = "BLOB_TOO_LARGE";
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct FileChange {
     pub status: ChangeStatus,

@@ -9,7 +9,7 @@ use crate::config::{RepositoryPolicy, Rule, RuleException, RuleKind, RuleSeverit
 use crate::deploy::TransitionMatrix;
 use crate::generic;
 use crate::{
-    Applicability, ContentKind, DiffManifest, FileChange, Obligation, ObligationId,
+    Applicability, BLOB_TOO_LARGE, ContentKind, DiffManifest, FileChange, Obligation, ObligationId,
     ObligationStatus, PathGap, RepoPath, ReviewUnit, ReviewUnitId, RiskHint, RiskLevel, RunFacts,
     ScopeManifest, Severity, Sha256Digest, SourceSnapshotId, derived_uuid, glob_match,
 };
@@ -94,7 +94,7 @@ fn unreviewed_reason(file: &FileChange) -> Option<String> {
         ContentKind::NotRead => Some(
             file.limitations
                 .iter()
-                .find(|l| l.starts_with("BLOB_TOO_LARGE"))
+                .find(|l| l.starts_with(BLOB_TOO_LARGE))
                 .cloned()
                 .unwrap_or_else(|| "NOT_READ".into()),
         ),

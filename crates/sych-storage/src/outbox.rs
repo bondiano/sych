@@ -8,6 +8,10 @@ use sych_core::{ResultId, schedule::RunInputs};
 use crate::audit::Audit;
 use crate::{RunHandle, StorageError};
 
+/// The failure code of an inline comment GitHub refused at its position; the finding moves to
+/// the summary.
+pub const INVALID_ANCHOR: &str = "INVALID_ANCHOR";
+
 fn publication_flags(inputs: Option<&str>) -> Result<(bool, bool), StorageError> {
     let inputs = inputs.map(serde_json::from_str::<RunInputs>).transpose()?;
     // A playground run publishes nothing, whatever its other flags say.
@@ -240,11 +244,12 @@ impl crate::Storage {
         let rows = sqlx::query(
             "SELECT p.fingerprint, CAST(CASE WHEN p.remote_id IS NULL AND EXISTS
                  (SELECT 1 FROM publication_operations o WHERE o.object_id = p.id
-                     AND o.state = 'FAILED' AND o.last_error LIKE 'INVALID_ANCHOR%')
+                     AND o.state = 'FAILED' AND o.last_error LIKE $2 || '%')
                  THEN 1 ELSE 0 END AS BIGINT)
              FROM publication_objects p WHERE p.change_id = $1 AND p.kind = 'INLINE'",
         )
         .bind(change_id)
+        .bind(INVALID_ANCHOR)
         .fetch_all(self.pool())
         .await?;
         Ok(rows
