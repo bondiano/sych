@@ -224,5 +224,12 @@ fn block_on_names_the_violations_that_fail_the_check_and_a_waiver_lifts_them() {
     let mut plan = two_file_plan();
     plan.obligations[0].exceptions = vec![legacy_exception()];
     let waived = violated(&plan, &anchored("src/legacy.go"), &[], &block);
-    assert!(waived.blocked_by.is_empty());
+    assert!(waived.blocked_by.is_empty(), "{:?}", waived.blocked_by);
+
+    // Below the attention threshold, a finding that blocks still needs attention.
+    let mut plan = two_file_plan();
+    plan.obligations[0].severity_on_violation = Some(Severity::Low);
+    let low = violated(&plan, &anchored("src/live.go"), &[], &block);
+    assert_eq!(low.blocked_by.len(), 1);
+    assert_eq!(low.recommendation, Recommendation::AttentionRequired);
 }

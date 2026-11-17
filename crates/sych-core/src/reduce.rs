@@ -477,7 +477,8 @@ pub fn reduce(input: &ReduceInput<'_>) -> Reduced {
         .iter()
         .any(|f| f.severity >= input.attention_threshold && in_force(f, &waived));
     let blocked_by = blocked_by(&findings, input.block_on, &waived);
-    let recommendation = if significant {
+    // A finding that fails the check run needs attention, whatever its severity.
+    let recommendation = if significant || !blocked_by.is_empty() {
         Recommendation::AttentionRequired
     } else if blocking_unknown || coverage == Coverage::Unavailable {
         Recommendation::NeedsEvidence
