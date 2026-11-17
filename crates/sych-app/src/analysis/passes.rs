@@ -13,6 +13,7 @@ use sych_core::model::{
 };
 use sych_core::{Candidate, CodeRef, ObligationId, PlannedObligation, VerificationStatus};
 
+use super::redo::{turned_away, turned_away_pass};
 use super::{AskAnswer, Engine, MAX_REFS_PER_ANSWER, Outcome, Pass, PassStatus};
 
 const QUOTA_MESSAGE: &str = "Model usage limit reached. Increase the provider limit or top up your balance, then rerun the review.";
@@ -43,7 +44,15 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         let id = planned.obligation.id;
         let chunks: Vec<usize> = self.verification_packets(id).collect();
         for index in chunks {
-            self.assess_chunk(planned, index, kept, out).await;
+            let mut part = self.part();
+            self.assess_chunk(planned, index, kept, &mut part).await;
+            // Turned away by the provider, it is asked once more after the cooldown.
+            if turned_away_pass(&part, &[prompts::ASSESSMENT]) && self.rested().await {
+                out.absorb_cut(part);
+                self.assess_chunk(planned, index, kept, out).await;
+            } else {
+                out.absorb(part);
+            }
         }
     }
 
@@ -281,10 +290,29 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         // Searches, not model calls: where an effect gone from these files happens now.
         let moved = effect_asks(&self.facts.ledger.entries, &found.candidates);
         self.answer(batch[0], &moved, &mut context, out);
-        let (asks, mut verified) = match self
-            .verify_round(batch, obligations, &context, found.candidates.clone(), out)
+        let mut first = self.part();
+        let round = match self
+            .verify_round(
+                batch,
+                obligations,
+                &context,
+                found.candidates.clone(),
+                &mut first,
+            )
             .await
         {
+            // Turned away by the provider, it is asked once more after the cooldown.
+            Err(failure) if turned_away(&failure) && self.rested().await => {
+                out.absorb_cut(first);
+                self.verify_round(batch, obligations, &context, found.candidates.clone(), out)
+                    .await
+            }
+            round => {
+                out.absorb(first);
+                round
+            }
+        };
+        let (asks, mut verified) = match round {
             Ok(round) => round,
             Err(failure) => {
                 for mut candidate in found.candidates {

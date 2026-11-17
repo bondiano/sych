@@ -168,3 +168,47 @@ async fn a_search_the_provider_turned_away_is_asked_again_without_a_gap() {
     assert!(outcome.gaps.is_empty(), "{:?}", outcome.gaps);
     assert_eq!(reason(&outcome.assessments[0].status), "SUPPORTED");
 }
+
+static FIRST_REVIEW: AtomicBool = AtomicBool::new(false);
+static FIRST_ASSESSMENT: AtomicBool = AtomicBool::new(false);
+
+/// Rate limits the first review, so its rule is assessed alone, and that first assessment.
+fn first_assessment_rate_limited(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
+    let first = match request.schema_name.as_str() {
+        "review" => !FIRST_REVIEW.swap(true, Ordering::SeqCst),
+        "obligation_assessment" => !FIRST_ASSESSMENT.swap(true, Ordering::SeqCst),
+        _ => false,
+    };
+    if first {
+        return Err(ProviderError {
+            kind: ErrorKind::RateLimited,
+            dispatched: false,
+            message: "rate limited".into(),
+            retry_after_seconds: None,
+        });
+    }
+
+    supported_and_empty(request)
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn an_assessment_the_provider_turned_away_is_asked_again_without_a_gap() {
+    let (outcome, calls) = run_on(
+        repo(true),
+        first_assessment_rate_limited,
+        Budgets::default(),
+        14_000,
+        true,
+    )
+    .await;
+    let asked = calls.iter().filter(|c| *c == "obligation_assessment");
+    assert_eq!(asked.count(), 2, "{calls:?}");
+    assert_eq!(reason(&outcome.assessments[0].status), "SUPPORTED");
+    assert!(outcome.gaps.is_empty(), "{:?}", outcome.gaps);
+    let failed = outcome.record.passes.iter();
+    assert!(
+        !failed
+            .into_iter()
+            .any(|p| matches!(p.status, PassStatus::Failed { .. }))
+    );
+}
