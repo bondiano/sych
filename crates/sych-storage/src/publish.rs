@@ -238,6 +238,34 @@ impl Storage {
         Ok(())
     }
 
+    /// An operation that failed before anything was sent (its body could not be rendered, say):
+    /// counted like a send, so one that always fails ends `FAILED` instead of being claimed first
+    /// on every tick. Fenced.
+    pub async fn publication_unsent(
+        &self,
+        c: &PublishClaim,
+        error: &str,
+        retry_at: i64,
+    ) -> Result<(), StorageError> {
+        let mut tx = self.write().await?;
+        sqlx::query(
+            "UPDATE publication_operations SET attempts = attempts + 1,
+                 state = CASE WHEN attempts + 1 >= $1 THEN 'FAILED' ELSE 'PENDING' END,
+                 owner = NULL, last_error = $2, next_action_at = $3
+             WHERE id = $4 AND owner = $5 AND lease_epoch = $6 AND state = 'PENDING'",
+        )
+        .bind(MAX_PUBLISH_ATTEMPTS)
+        .bind(error)
+        .bind(retry_at)
+        .bind(c.op_id)
+        .bind(&c.owner)
+        .bind(c.epoch)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
     /// Ends an operation that must not be sent (`FAILED`, `CANCELLED`, `SUPERSEDED`).
     pub async fn publication_end(
         &self,

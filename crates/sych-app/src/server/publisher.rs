@@ -6,7 +6,7 @@ use sych_core::publication::{
     InlineAnchor, Placement, SummaryContext, inline_body, plan, render_summary,
 };
 use sych_core::scm::{ScmError, ScmErrorKind};
-use sych_core::{Candidate, DiffManifest, ReviewResult, RunId};
+use sych_core::{Candidate, DiffManifest, ReviewResult, RunId, Timestamp};
 use sych_storage::{ChangeRow, PublishClaim};
 
 use super::engine::{Conn, Engine};
@@ -41,6 +41,22 @@ impl Engine {
         else {
             return Ok(false);
         };
+        let op = c.clone();
+        if let Err(e) = self.publish(c, now).await {
+            // Nothing was sent if the operation is still pending (a body that cannot be
+            // rendered, a connection gone): count it and pause, doubling up to eight minutes.
+            let reason = format!("{e:#}");
+            tracing::warn!(op = op.op_id, error = %reason, "publication not sent");
+            let at = now.as_second() + (30 << op.attempts.clamp(0, 4));
+            storage.publication_unsent(&op, &reason, at).await?;
+        }
+
+        Ok(true)
+    }
+
+    /// Gates, renders and sends one claimed operation.
+    async fn publish(&self, c: PublishClaim, now: Timestamp) -> anyhow::Result<()> {
+        let storage = &self.app.storage;
         if let Err(reason) = storage.publication_gate(&c).await? {
             let state = if reason == "SUPERSEDED" {
                 "SUPERSEDED"
@@ -50,7 +66,7 @@ impl Engine {
             storage
                 .publication_end(c.op_id, state, &reason, now)
                 .await?;
-            return Ok(true);
+            return Ok(());
         }
 
         let change = storage.change(c.change_id).await?;
@@ -71,20 +87,20 @@ impl Engine {
             Err(e) if e.kind.retryable() => {
                 let at = now.as_second() + wait(&e);
                 storage.publication_retry(&c, &e.to_string(), at).await?;
-                return Ok(true);
+                return Ok(());
             }
             Err(e) => {
                 storage
                     .publication_end(c.op_id, "FAILED", &e.to_string(), now)
                     .await?;
-                return Ok(true);
+                return Ok(());
             }
         };
         if !pull.open {
             storage
                 .publication_end(c.op_id, "CANCELLED", "CLOSED", now)
                 .await?;
-            return Ok(true);
+            return Ok(());
         }
 
         let check = c.kind == "CHECK";
@@ -101,7 +117,7 @@ impl Engine {
             storage
                 .publication_end(c.op_id, "FAILED", &reason, now)
                 .await?;
-            return Ok(true);
+            return Ok(());
         }
 
         let complete = pull.changed_files <= MAX_PR_FILES as u64;
@@ -112,17 +128,17 @@ impl Engine {
                 .await?;
             claims.extend(siblings);
             self.publish_review(conn, &change, claims, &token).await?;
-            return Ok(true);
+            return Ok(());
         }
 
         let body = self.render(&c, &change.full_name, complete).await?;
         if storage.begin_publishing(&c, &body, now).await?.is_none() {
-            return Ok(true);
+            return Ok(());
         }
 
         let reply = self.send(conn, &change, &c, &body, &token).await;
         self.settle(conn, &change, &c, reply).await?;
-        Ok(true)
+        Ok(())
     }
 
     /// New inline comments of one revision as one review, so they read as one in the timeline.
