@@ -402,7 +402,7 @@ fn execute(
         parent: args.parent,
         language: effective.repository.config.review.language,
         fixture_paths: &effective.repository.config.review.fixture_paths,
-        scan: effective
+        security: effective
             .repository
             .config
             .review
@@ -484,8 +484,9 @@ struct Session<'a> {
     /// `review.language` of the trusted policy.
     language: sych_core::ReviewLanguage,
     fixture_paths: &'a [String],
-    /// The `security` profile: added lines are scanned for secrets and hidden text.
-    scan: bool,
+    /// The `security` profile: added lines are scanned for secrets and hidden text, and
+    /// discovery also hunts security defects.
+    security: bool,
     /// `review.block_on` of the trusted policy.
     block_on: &'a [String],
     now: Timestamp,

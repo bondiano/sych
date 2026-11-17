@@ -130,6 +130,7 @@ impl Session<'_> {
                 .map_or(1, |n| usize::try_from(n).unwrap_or(1)),
             language: self.language,
             fixture_paths: self.fixture_paths,
+            security: self.security,
         };
         let mut outcome = match self.replay {
             Some(frozen) => engine.replay(frozen.to_vec()).await,
@@ -232,7 +233,7 @@ impl Session<'_> {
         task_gaps.extend(context_gaps(packets));
         task_gaps.extend(self.ci_gaps.iter().cloned());
         // Deterministic, so they stand beside the verified findings without a model.
-        let findings: Vec<_> = if self.scan {
+        let findings: Vec<_> = if self.security {
             let found = scan(
                 &self.snap.manifest,
                 self.snap,
