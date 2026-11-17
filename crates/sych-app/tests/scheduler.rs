@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use serde_json::json;
 use sych_core::Coverage;
-use sych_core::schedule::retry_at;
+use sych_core::schedule::{MAX_RETRIES, retry_at};
 use sych_core::scm::ScmErrorKind;
 use sych_storage::Admitted;
 use tokio::time;
@@ -434,5 +434,37 @@ async fn a_repository_reconciliation_cannot_read_is_counted() {
         w.app.counters.reconcile_failed.load(Ordering::Relaxed),
         1,
         "a readable repository adds nothing"
+    );
+}
+
+/// A pull request GitHub keeps failing to return is read again with backoff, then given up on:
+/// the next event or reconciliation opens a fresh intent.
+#[tokio::test(flavor = "current_thread")]
+async fn a_pull_request_github_keeps_failing_to_return_is_given_up_after_its_retries() {
+    let w = world(None).await;
+    let head = w.branch("src/b.rs");
+    w.open_pull(&head, &w.base, false);
+    w.pr_event("d-1", "opened", &head).await;
+    for _ in 0..6 {
+        lock(&w.fake).fail_next.insert(
+            "GET /repos/o/r/pulls/7".into(),
+            (502, json!({"message": "Bad Gateway"})),
+        );
+        w.schedule(8).await;
+    }
+    let failed = w.events().await;
+    let failed = failed.iter().filter(|e| *e == "SCM_READ_FAILED").count();
+    assert_eq!(
+        failed,
+        1 + MAX_RETRIES as usize,
+        "the first read and its retries"
+    );
+    assert!(
+        w.app
+            .storage
+            .open_intents()
+            .await
+            .expect("intents")
+            .is_empty()
     );
 }

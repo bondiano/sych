@@ -221,6 +221,8 @@ pub struct Intent {
     pub events: i64,
     pub first_inbox_id: i64,
     pub last_inbox_id: i64,
+    /// Reads of the change that failed and postponed this intent.
+    pub failures: i64,
 }
 
 impl Storage {
@@ -228,7 +230,7 @@ impl Storage {
     pub async fn open_intents(&self) -> Result<Vec<Intent>, StorageError> {
         let rows = sqlx::query(
             "SELECT i.id, i.change_id, c.tenant_id, c.access_scope, c.change_key, i.kind,
-                 i.due_at, i.latest_at, i.events, i.first_inbox_id, i.last_inbox_id
+                 i.due_at, i.latest_at, i.events, i.first_inbox_id, i.last_inbox_id, i.failures
              FROM change_intents i JOIN changes c ON c.id = i.change_id
              WHERE i.consumed_at IS NULL ORDER BY i.due_at, i.id",
         )
@@ -250,6 +252,7 @@ impl Storage {
                 events: r.get(8),
                 first_inbox_id: r.get(9),
                 last_inbox_id: r.get(10),
+                failures: r.get(11),
             })
             .collect())
     }
@@ -331,11 +334,12 @@ impl Storage {
         Ok(serde_json::from_str(&text)?)
     }
 
-    /// Moves an intent whose handling must be retried; the bound moves with it.
+    /// Moves an intent whose read failed and must be retried, counting the failure; the bound
+    /// moves with it.
     pub async fn postpone_intent(&self, intent_id: i64, due_at: i64) -> Result<(), StorageError> {
         let mut tx = self.write().await?;
         sqlx::query(
-            "UPDATE change_intents SET due_at = $1, latest_at = CASE
+            "UPDATE change_intents SET due_at = $1, failures = failures + 1, latest_at = CASE
                  WHEN latest_at > $2 THEN latest_at ELSE $2 END
              WHERE id = $3 AND consumed_at IS NULL",
         )

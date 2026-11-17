@@ -114,7 +114,10 @@ impl Engine {
             .filter(|i| i.due_at <= now.as_second())
             .collect();
         for intent in &due {
-            self.handle(intent).await?;
+            // One intent that cannot be handled must not stop the ones after it.
+            if let Err(e) = self.handle(intent).await {
+                tracing::warn!(intent = intent.id, error = %format!("{e:#}"), "intent not handled");
+            }
         }
         Ok(due.len())
     }
@@ -149,15 +152,15 @@ impl Engine {
         let (pull, actor) = match read.await {
             Ok(read) => read,
             Err(e) => {
-                let attempt = u32::try_from(intent.events)
-                    .unwrap_or(u32::MAX)
-                    .min(MAX_RETRIES);
+                // Counted per failure, so a provider that keeps failing is given up on; the
+                // intent id spreads the retries of intents that failed together.
+                let attempt = u32::try_from(intent.failures + 1).unwrap_or(u32::MAX);
                 let at = now.as_second();
                 let retry = retry_at(
                     e.kind,
                     attempt,
                     e.retry_after_seconds,
-                    0,
+                    intent.id.unsigned_abs(),
                     at,
                     at + self.job_seconds(),
                 );

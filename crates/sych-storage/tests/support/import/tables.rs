@@ -316,6 +316,7 @@ pub const TABLES: &[Table] = &[
             I("last_inbox_id"),
             I("created_at"),
             I("consumed_at"),
+            I("failures"),
         ],
     },
     Table {
