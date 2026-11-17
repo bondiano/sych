@@ -2,7 +2,10 @@
 //! lost, updates by the stored id, reconciliation only of the bot's own comment, CREATE again only
 //! after a complete empty read, a lost close stops the write, and a late older write is repaired.
 
+use std::fs;
+
 use serde_json::json;
+use sych_storage::MAX_PUBLISH_ATTEMPTS;
 
 mod fake_github;
 mod world;
@@ -236,4 +239,29 @@ async fn a_lost_close_stops_the_write_and_a_late_old_update_is_repaired() {
         !lock(&w.fake).comments[&1].1.contains("revision 2"),
         "no write after close"
     );
+}
+
+/// A summary whose stored result is gone cannot be rendered: it is retried after a pause and
+/// then fails, instead of erroring and being claimed first on every tick.
+#[tokio::test(flavor = "current_thread")]
+async fn a_body_that_cannot_be_rendered_fails_after_its_attempts() {
+    let w = world(None).await;
+    reviewed(&w, "src/b.rs", "d-1").await;
+    // Artifacts live under `<32 hex partition>/`; the git mirrors next to them stay.
+    for entry in fs::read_dir(&w.app.artifacts).expect("artifacts").flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.len() == 32 && name.bytes().all(|b| b.is_ascii_hexdigit()) {
+            fs::remove_dir_all(entry.path()).expect("remove");
+        }
+    }
+    for _ in 0..MAX_PUBLISH_ATTEMPTS {
+        assert!(w.engine.publish_once().await.expect("not a loop error"));
+        assert!(
+            !w.engine.publish_once().await.expect("publish"),
+            "it waits before the next attempt"
+        );
+        advance(1_000);
+    }
+    assert_eq!(states(&w).await, ["FAILED"]);
+    assert_eq!(creates(&w), 0);
 }
