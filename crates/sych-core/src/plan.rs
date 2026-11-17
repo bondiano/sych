@@ -188,12 +188,6 @@ fn risk_hints(file: &FileChange) -> Vec<RiskHint> {
     hints
 }
 
-fn unit_title(path: &RepoPath) -> String {
-    path.as_str()
-        .rsplit_once('/')
-        .map_or_else(|| "(root)".to_owned(), |(dir, _)| dir.to_owned())
-}
-
 fn risk_of(severity: Option<RuleSeverity>) -> RiskLevel {
     match severity {
         Some(RuleSeverity::Critical) => RiskLevel::Critical,
@@ -456,7 +450,9 @@ pub fn plan(
     let mut unreviewed = Vec::new();
     let mut reviewable: u32 = 0;
     let max = policy.config.context.max_source_files;
-    let mut by_dir: BTreeMap<String, Vec<&FileChange>> = BTreeMap::new();
+    // One unit per file: the changed files of a directory shared one unit's code budget, so
+    // each showed only a slice. Discovery batching joins small units into one call again.
+    let mut by_file: BTreeMap<String, Vec<&FileChange>> = BTreeMap::new();
     for file in &manifest.files {
         let Some(side) = reporting_side(file) else {
             continue;
@@ -475,12 +471,15 @@ pub fn plan(
             reviewable += 1;
         }
 
-        by_dir.entry(unit_title(&side.path)).or_default().push(file);
+        by_file
+            .entry(side.path.as_str().to_owned())
+            .or_default()
+            .push(file);
     }
     let limit_reached = unreviewed
         .iter()
         .any(|g| g.reason == LIMIT_MAX_SOURCE_FILES);
-    let units: Vec<(ReviewUnit, Vec<&FileChange>)> = by_dir
+    let units: Vec<(ReviewUnit, Vec<&FileChange>)> = by_file
         .into_iter()
         .map(|(title, files)| {
             let unit = ReviewUnit {
