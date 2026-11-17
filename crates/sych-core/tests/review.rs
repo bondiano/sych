@@ -452,8 +452,8 @@ fn overflow_lists_unreviewed_files_and_is_never_complete() {
             .iter()
             .any(|g| g.reason == "LIMIT_MAX_SOURCE_FILES")
     );
-    // Mandatory scope is not narrowed to the reviewed part.
-    assert_eq!(plan.obligations[0].obligation.review_unit_ids.len(), 1);
+    // Mandatory scope is not narrowed to the reviewed part: both files' units stay in it.
+    assert_eq!(plan.obligations[0].obligation.review_unit_ids.len(), 2);
 }
 
 #[test]
