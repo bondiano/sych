@@ -1,5 +1,6 @@
-//! The `security` profile on the real CLI: a committed token, a credentials file and a bidi
-//! override in added lines are findings without a model, and the token is never quoted.
+//! The `security` profile on the real CLI: a committed token, a credentials file, a bidi
+//! override and an install script in added lines are findings without a model, and the token is
+//! never quoted.
 
 use std::fs;
 use std::path::Path;
@@ -32,7 +33,7 @@ fn sych(cwd: &Path, args: &[&str]) -> Output {
         .expect("run sych")
 }
 
-/// `target` has one file; HEAD adds a token, a bidi override and an env file.
+/// `target` has one file; HEAD adds a token, a bidi override, an env file and an install script.
 fn repo(policy: Option<&str>) -> TempDir {
     let dir = TempDir::new().expect("tempdir");
     let d = dir.path();
@@ -53,6 +54,8 @@ fn repo(policy: Option<&str>) -> TempDir {
     );
     fs::write(d.join("src/lib.rs"), lib).expect("write");
     fs::write(d.join(".env"), "DB_PASSWORD=hunter2hunter2\n").expect("write");
+    let manifest = "{\n  \"scripts\": {\n    \"postinstall\": \"node setup.js\"\n  }\n}\n";
+    fs::write(d.join("package.json"), manifest).expect("write");
     git(d, &["add", "-A"]);
     git(d, &["commit", "-q", "-m", "head"]);
     dir
@@ -102,6 +105,7 @@ fn added_secrets_and_hidden_text_are_findings_and_the_token_is_never_quoted() {
             ("SEC-HIDDEN-TEXT".into(), "src/lib.rs".into(), 1),
             ("SEC-SECRET".into(), ".env".into(), 0),
             ("SEC-SECRET".into(), "src/lib.rs".into(), 1),
+            ("SEC-SUPPLY-CHAIN".into(), "package.json".into(), 1),
         ]
     );
     assert!(!text.contains(TOKEN), "the token is quoted: {text}");

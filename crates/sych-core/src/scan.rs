@@ -1,6 +1,7 @@
 //! Deterministic checks of what a change adds, with no model: a committed secret
-//! (`SEC-SECRET`) and text that reads otherwise than it runs (`SEC-HIDDEN-TEXT`). A hit is a
-//! finding anchored on its lines, one per rule and file; the secret itself is never quoted.
+//! (`SEC-SECRET`), text that reads otherwise than it runs (`SEC-HIDDEN-TEXT`) and a manifest line
+//! that takes code from outside the package registry (`SEC-SUPPLY-CHAIN`). A hit is a finding
+//! anchored on its lines, one per rule and file; the secret itself is never quoted.
 
 use crate::publication::tr;
 use crate::{
@@ -11,6 +12,7 @@ use crate::{
 
 pub const SECRET: &str = "SEC-SECRET";
 pub const HIDDEN_TEXT: &str = "SEC-HIDDEN-TEXT";
+pub const SUPPLY_CHAIN: &str = "SEC-SUPPLY-CHAIN";
 /// Lines one finding cites; more hits in the file are the same finding.
 const MAX_ANCHORS: usize = 5;
 
@@ -21,6 +23,95 @@ pub fn is_hidden(c: char) -> bool {
         c,
         '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{200b}' | '\u{2060}' | '\u{feff}'
     )
+}
+
+/// Whether an added line of a dependency manifest takes code from outside the package registry
+/// (a git or URL dependency, an npm `file:`/`link:` one, another index, a `replace`) or runs it at
+/// install time: what a supply-chain attack needs. Comments and lockfiles are left out, and so are
+/// Cargo `path` dependencies, which every workspace has.
+pub fn outside_registry(path: &str, line: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path);
+    let line = line.trim();
+    let compact: String = line.chars().filter(|c| !c.is_whitespace()).collect();
+    if line.starts_with('#') {
+        return false;
+    }
+
+    match name {
+        "package.json" => npm(line),
+        "Cargo.toml" => git_dependency(&compact),
+        "go.mod" => line.contains("=>"),
+        "pyproject.toml" => {
+            git_dependency(&compact)
+                || ["git+", "@ http", "@ file:"]
+                    .iter()
+                    .any(|p| line.contains(p))
+        }
+        _ if name.starts_with("requirements")
+            && name
+                .rsplit_once('.')
+                .is_some_and(|(_, ext)| ext.eq_ignore_ascii_case("txt")) =>
+        {
+            line.contains("git+")
+                || line.contains(" @ ")
+                || line.starts_with("http://")
+                || line.starts_with("https://")
+                || [
+                    "--index-url",
+                    "--extra-index-url",
+                    "--trusted-host",
+                    "--find-links",
+                    "-i ",
+                    "-f ",
+                ]
+                .iter()
+                .any(|f| line.starts_with(f))
+        }
+        _ => false,
+    }
+}
+
+// Metadata keys whose value is a URL but installs nothing.
+const METADATA: &[&str] = &[
+    "$schema",
+    "author",
+    "bugs",
+    "email",
+    "funding",
+    "homepage",
+    "registry",
+    "repository",
+    "url",
+];
+const SOURCES: &[&str] = &[
+    "git+",
+    "git:",
+    "github:",
+    "gitlab:",
+    "bitbucket:",
+    "file:",
+    "link:",
+    "http:",
+    "https:",
+];
+
+/// `git = "…"` or `git = '…'` in TOML with the whitespace removed.
+fn git_dependency(compact: &str) -> bool {
+    compact.contains("git=\"") || compact.contains("git='")
+}
+
+/// An install lifecycle script, or a dependency whose spec is not a registry version.
+fn npm(line: &str) -> bool {
+    let Some((key, value)) = line.split_once(':') else {
+        return false;
+    };
+    let key = key.trim().trim_matches('"');
+    let value = value.trim().trim_start_matches('"');
+    // `install` is also a package name: a version range is a dependency, not a script.
+    let script = !value.starts_with(|c: char| c.is_ascii_digit() || "^~<>=*".contains(c))
+        && !value.starts_with("latest");
+    (matches!(key, "preinstall" | "install" | "postinstall") && script)
+        || (!METADATA.contains(&key) && SOURCES.iter().any(|p| value.starts_with(p)))
 }
 
 /// Findings in the HEAD lines `manifest` adds, outside generated files and `fixture_paths`.
@@ -48,7 +139,7 @@ pub fn scan(
             continue;
         }
 
-        let (mut secrets, mut hidden) = (Vec::new(), Vec::new());
+        let (mut secrets, mut hidden, mut supply) = (Vec::new(), Vec::new(), Vec::new());
         for hunk in file.hunks.iter().filter(|h| h.new_lines > 0) {
             let end = hunk.new_start + hunk.new_lines - 1;
             let Ok(span) = reader
@@ -62,6 +153,10 @@ pub fn scan(
                     secrets.push(line);
                 }
 
+                if outside_registry(path.as_str(), text) {
+                    supply.push(line);
+                }
+
                 // A byte order mark opens a file legitimately.
                 let text = if line == 1 {
                     text.trim_start_matches('\u{feff}')
@@ -73,7 +168,11 @@ pub fn scan(
                 }
             }
         }
-        for (rule, lines) in [(SECRET, secrets), (HIDDEN_TEXT, hidden)] {
+        for (rule, lines) in [
+            (SECRET, secrets),
+            (HIDDEN_TEXT, hidden),
+            (SUPPLY_CHAIN, supply),
+        ] {
             if lines.is_empty() {
                 continue;
             }
@@ -89,9 +188,13 @@ pub fn scan(
     out
 }
 
-fn finding(rule: &str, path: &RepoPath, anchors: Vec<CodeRef>, l: ReviewLanguage) -> Finding {
-    let file = anchors.is_empty();
-    let (title, explanation, consequence, action) = match rule {
+/// Title, explanation, consequence and action of `rule`; `file` when the whole file is the hit.
+fn texts(
+    rule: &str,
+    file: bool,
+    l: ReviewLanguage,
+) -> (&'static str, &'static str, &'static str, &'static str) {
+    match rule {
         SECRET if file => (
             tr(
                 l,
@@ -132,7 +235,7 @@ fn finding(rule: &str, path: &RepoPath, anchors: Vec<CodeRef>, l: ReviewLanguage
                 "Отзовите учётные данные у выпустившей стороны и загружайте их из окружения или хранилища секретов; удаление строки утечку не отменяет.",
             ),
         ),
-        _ => (
+        HIDDEN_TEXT => (
             tr(
                 l,
                 "Text that reads otherwise than it runs",
@@ -154,12 +257,43 @@ fn finding(rule: &str, path: &RepoPath, anchors: Vec<CodeRef>, l: ReviewLanguage
                 "Уберите эти символы или запишите их escape-последовательностями там, где они нужны строковому литералу.",
             ),
         ),
-    };
+        _ => (
+            tr(
+                l,
+                "Code from outside the package registry",
+                "Код не из реестра пакетов",
+            ),
+            tr(
+                l,
+                "An added manifest line installs code the registry does not vouch for (a git, URL or local-path dependency, another package index, a `replace`) or runs a script at install time.",
+                "Добавленная строка манифеста ставит код, за который реестр не ручается (зависимость из git, по URL или из локального пути, другой индекс пакетов, `replace`), или запускает скрипт при установке.",
+            ),
+            tr(
+                l,
+                "What gets installed is whatever that source serves at install time, and a compromised or look-alike source runs its code on every developer and CI machine.",
+                "Ставится то, что источник отдаст в момент установки, и скомпрометированный или поддельный источник выполнит свой код на каждой машине разработчика и в CI.",
+            ),
+            tr(
+                l,
+                "Prefer a registry release pinned by version and lockfile hash; if this source is intended, pin it to a commit and say why in the change.",
+                "Предпочтите релиз из реестра, закреплённый версией и хешем в lockfile; если этот источник нужен намеренно, закрепите его на коммите и объясните это в изменении.",
+            ),
+        ),
+    }
+}
+
+fn finding(rule: &str, path: &RepoPath, anchors: Vec<CodeRef>, l: ReviewLanguage) -> Finding {
+    let (title, explanation, consequence, action) = texts(rule, anchors.is_empty(), l);
     let key = path.as_str();
     Finding {
         id: FindingId(derived_uuid(&["finding", rule, key])),
         category: FindingCategory::Defect,
-        severity: Severity::High,
+        // A signal, not proof: an intended git dependency is common.
+        severity: if rule == SUPPLY_CHAIN {
+            Severity::Medium
+        } else {
+            Severity::High
+        },
         support: Support::StaticTrace,
         title: title.into(),
         explanation: explanation.into(),
@@ -170,11 +304,19 @@ fn finding(rule: &str, path: &RepoPath, anchors: Vec<CodeRef>, l: ReviewLanguage
         rule_id: Some(rule.into()),
         obligation_ids: Vec::new(),
         suggested_action: action.into(),
-        validation_expectation: tr(
-            l,
-            "The added lines hold no secret or hidden text.",
-            "В добавленных строках нет секретов и скрытого текста.",
-        )
+        validation_expectation: if rule == SUPPLY_CHAIN {
+            tr(
+                l,
+                "Each added dependency comes from the registry at a pinned version, or its source is pinned and explained.",
+                "Каждая добавленная зависимость взята из реестра с закреплённой версией, либо её источник закреплён и объяснён.",
+            )
+        } else {
+            tr(
+                l,
+                "The added lines hold no secret or hidden text.",
+                "В добавленных строках нет секретов и скрытого текста.",
+            )
+        }
         .into(),
         // The rule and the file: lineage follows the finding while lines move.
         fingerprint: sha256(format!("{rule}\0{key}").as_bytes()),
@@ -189,8 +331,68 @@ fn finding(rule: &str, path: &RepoPath, anchors: Vec<CodeRef>, l: ReviewLanguage
 
 #[cfg(test)]
 mod tests {
-    use super::is_hidden;
+    use super::{is_hidden, outside_registry};
     use crate::holds_secret;
+
+    #[test]
+    fn sources_outside_the_registry_and_install_scripts_are_flagged_and_metadata_is_not() {
+        for (path, line) in [
+            ("package.json", r#"    "postinstall": "node setup.js","#),
+            ("package.json", r#"    "preinstall": "./fetch.sh","#),
+            ("package.json", r#"    "install": "node-gyp rebuild","#),
+            (
+                "Cargo.toml",
+                "serde = { git = 'https://example.com/serde' }",
+            ),
+            (
+                "web/package.json",
+                r#"    "left-pad": "git+https://example.com/left-pad.git","#,
+            ),
+            ("package.json", r#"    "util": "file:../util","#),
+            (
+                "Cargo.toml",
+                r#"serde = { git = "https://example.com/serde" }"#,
+            ),
+            ("go.mod", "replace example.com/a => ../a"),
+            (
+                "requirements.txt",
+                "--extra-index-url https://pypi.example.com/simple",
+            ),
+            (
+                "requirements-dev.txt",
+                "-e git+https://example.com/pkg.git#egg=pkg",
+            ),
+            (
+                "pyproject.toml",
+                r#"pkg = { git = "https://example.com/pkg" }"#,
+            ),
+        ] {
+            assert!(outside_registry(path, line), "{path}: {line}");
+        }
+        for (path, line) in [
+            ("package.json", r#"  "homepage": "https://example.com","#),
+            (
+                "package.json",
+                r#"    "url": "git+https://example.com/repo.git""#,
+            ),
+            ("package.json", r#"    "lodash": "^4.17.21","#),
+            ("package.json", r#"    "install": "^0.13.0","#),
+            ("Cargo.toml", r#"sych-core = { path = "../sych-core" }"#),
+            ("package.json", r#"    "build": "tsc","#),
+            (
+                "Cargo.toml",
+                r#"serde = { version = "1", features = ["derive"] }"#,
+            ),
+            ("requirements.txt", "# --index-url https://pypi.example.com"),
+            ("requirements.txt", "requests==2.32.3"),
+            (
+                "package-lock.json",
+                r#"  "resolved": "https://registry.npmjs.org/a.tgz","#,
+            ),
+        ] {
+            assert!(!outside_registry(path, line), "{path}: {line}");
+        }
+    }
 
     #[test]
     fn keys_and_known_tokens_are_secrets_and_lookalikes_are_not() {
