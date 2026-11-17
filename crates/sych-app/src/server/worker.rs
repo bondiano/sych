@@ -72,6 +72,7 @@ impl Engine {
                 _ => None,
             },
             replay: None,
+            intent_file: None,
         }
     }
 

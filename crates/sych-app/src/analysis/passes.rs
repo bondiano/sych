@@ -3,8 +3,8 @@
 use sych_core::analysis::{
     AssessmentOutput, AssessmentRecord, CANDIDATE_OVERFLOW, Context, ContextAsk, Discovered,
     DiscoveryOutput, ReviewOutput, Verified, VerifyOutput, context_asks, drop_fixture_claims,
-    effect_asks, not_assessed, prompts, refuting_asks, unseen_violation, validate_assessment,
-    validate_discovery, validate_verdicts,
+    effect_asks, intent, not_assessed, prompts, refuting_asks, unseen_violation,
+    validate_assessment, validate_discovery, validate_verdicts,
 };
 use sych_core::broker::{Ops, REQUIRED_OVER_BUDGET, unseen_spans};
 use sych_core::config::Role;
@@ -109,7 +109,10 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         kept: u32,
         out: &mut Outcome,
     ) -> (Context, Option<Discovered>) {
-        let prompt = prompts::review(&context, linked, assessed, &self.title(batch));
+        let prompt = intent::with_intent(
+            prompts::review(&context, linked, assessed, &self.title(batch)),
+            self.intent,
+        );
         // A cut multi-unit review is split by the engine instead of asked again.
         let router = &self.router;
         let outcome = if batch.len() > 1 {

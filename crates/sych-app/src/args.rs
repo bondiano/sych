@@ -260,6 +260,9 @@ pub struct ReviewArguments {
     /// new search.
     #[arg(skip)]
     pub replay: Option<Vec<Discovered>>,
+    /// The author's description of the change, instead of its commit messages
+    #[arg(long, value_name = "PATH")]
+    pub intent_file: Option<PathBuf>,
 }
 
 #[derive(clap::Args)]
