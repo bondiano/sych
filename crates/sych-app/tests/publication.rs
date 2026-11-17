@@ -174,3 +174,34 @@ async fn committed_with_checks(w: &World) -> String {
     assert!(w.engine.work_once().await.expect("work"));
     head
 }
+
+/// `review.block_on` named a rule with an open finding: the check run fails instead of staying
+/// neutral, and the summary says it blocks.
+#[tokio::test(flavor = "current_thread")]
+async fn a_result_blocked_by_block_on_fails_the_check() {
+    let w = world(None).await;
+    let head = w.branch("src/b.rs");
+    w.open_pull(&head, &w.base, false);
+    let s = &w.app.storage;
+    w.pr_event("d-1", "opened", &head).await;
+    w.schedule(6).await;
+    let mut inputs = s.latest(1).await.expect("latest").expect("run").inputs;
+    (inputs.checks, inputs.publish) = (true, true);
+    s.generate(1, &inputs, now().as_second() + 600, 3, now())
+        .await
+        .expect("gen");
+    world::commit_claimed_with(&w, &head, 1, b"policy", |r| {
+        r.blocked_by = vec![r.findings[0].id];
+    })
+    .await;
+    drain(&w).await;
+    let runs = lock(&w.fake).check_runs.clone();
+    assert_eq!(runs[0]["conclusion"].as_str(), Some("failure"));
+    let comments = lock(&w.fake).comments.clone();
+    let summary = comments
+        .values()
+        .map(|(_, body)| body)
+        .find(|body| body.starts_with("<!-- sych:summary:"))
+        .expect("summary");
+    assert!(summary.contains("Blocking:"), "{summary}");
+}

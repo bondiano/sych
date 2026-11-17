@@ -100,7 +100,12 @@ fn anchored(path: &str) -> Evidence {
     }
 }
 
-fn violated(plan: &ReviewPlan, ev: &Evidence, findings: &[Finding]) -> Reduced {
+fn violated(
+    plan: &ReviewPlan,
+    ev: &Evidence,
+    findings: &[Finding],
+    block_on: &[String],
+) -> Reduced {
     let assessment = sych_core::Assessment {
         rule_id: "LIVE-01".into(),
         status: ObligationStatus::Violated,
@@ -118,6 +123,7 @@ fn violated(plan: &ReviewPlan, ev: &Evidence, findings: &[Finding]) -> Reduced {
         outcome: ExecutionOutcome::PlanExecuted,
         attention_threshold: DEFAULT_ATTENTION_THRESHOLD,
         now: at(),
+        block_on,
     })
 }
 
@@ -142,6 +148,7 @@ fn quota_failures_share_one_actionable_gap_but_keep_each_obligation_unknown() {
         outcome: ExecutionOutcome::LimitReached,
         attention_threshold: DEFAULT_ATTENTION_THRESHOLD,
         now: at(),
+        block_on: &[],
     });
     assert_eq!(r.unresolved_questions, [gap]);
     assert_eq!(r.coverage, sych_core::Coverage::Partial);
@@ -156,11 +163,11 @@ fn quota_failures_share_one_actionable_gap_but_keep_each_obligation_unknown() {
 fn a_linked_nit_does_not_hide_a_high_violation() {
     let plan = two_file_plan();
     let ev = anchored("src/live.go");
-    let mut nit = violated(&plan, &ev, &[]).findings.remove(0);
+    let mut nit = violated(&plan, &ev, &[], &[]).findings.remove(0);
     nit.id = FindingId(uuid::Uuid::from_u128(9));
     nit.category = FindingCategory::Nit;
     nit.severity = Severity::Low;
-    let r = violated(&plan, &ev, slice::from_ref(&nit));
+    let r = violated(&plan, &ev, slice::from_ref(&nit), &[]);
     assert_eq!(r.recommendation, Recommendation::AttentionRequired);
     assert!(
         r.findings
@@ -173,15 +180,8 @@ fn a_linked_nit_does_not_hide_a_high_violation() {
 fn a_waiver_for_one_file_does_not_lift_the_rule_for_another() {
     let waived = |anchor: &str| {
         let mut plan = two_file_plan();
-        plan.obligations[0].exceptions = vec![RuleException {
-            paths: vec!["src/legacy.go".into()],
-            reason: "legacy is retired next sprint".into(),
-            owner: "backend".into(),
-            author: "dev".into(),
-            expires_at: Some("2026-11-01T00:00:00Z".parse().expect("timestamp")),
-            until: None,
-        }];
-        violated(&plan, &anchored(anchor), &[])
+        plan.obligations[0].exceptions = vec![legacy_exception()];
+        violated(&plan, &anchored(anchor), &[], &[])
     };
     let live = waived("src/live.go");
     assert!(live.obligations[0].obligation.waivers.is_empty());
@@ -197,4 +197,39 @@ fn a_waiver_for_one_file_does_not_lift_the_rule_for_another() {
         legacy.recommendation,
         Recommendation::NoBlockingFindingsInScope
     );
+}
+
+fn legacy_exception() -> RuleException {
+    RuleException {
+        paths: vec!["src/legacy.go".into()],
+        reason: "legacy is retired next sprint".into(),
+        owner: "backend".into(),
+        author: "dev".into(),
+        expires_at: Some("2026-11-01T00:00:00Z".parse().expect("timestamp")),
+        until: None,
+    }
+}
+
+/// `review.block_on` names the rules whose open findings fail the check run; a waiver lifts
+/// them like it lifts the recommendation.
+#[test]
+fn block_on_names_the_violations_that_fail_the_check_and_a_waiver_lifts_them() {
+    let block = ["LIVE-*".to_owned()];
+    let plan = two_file_plan();
+    let live = violated(&plan, &anchored("src/live.go"), &[], &block);
+    assert_eq!(live.blocked_by, [live.findings[0].id]);
+    let advisory = violated(&plan, &anchored("src/live.go"), &[], &[]);
+    assert!(advisory.blocked_by.is_empty());
+
+    let mut plan = two_file_plan();
+    plan.obligations[0].exceptions = vec![legacy_exception()];
+    let waived = violated(&plan, &anchored("src/legacy.go"), &[], &block);
+    assert!(waived.blocked_by.is_empty(), "{:?}", waived.blocked_by);
+
+    // Below the attention threshold, a finding that blocks still needs attention.
+    let mut plan = two_file_plan();
+    plan.obligations[0].severity_on_violation = Some(Severity::Low);
+    let low = violated(&plan, &anchored("src/live.go"), &[], &block);
+    assert_eq!(low.blocked_by.len(), 1);
+    assert_eq!(low.recommendation, Recommendation::AttentionRequired);
 }

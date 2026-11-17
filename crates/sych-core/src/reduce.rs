@@ -8,10 +8,11 @@ use serde::{Deserialize, Serialize};
 use crate::model::MODEL_QUOTA_EXHAUSTED;
 use crate::{
     Applicability, Candidate, Completeness, Coverage, Evidence, EvidenceId, EvidenceManifest,
-    ExecutionOutcome, Finding, FindingCategory, FindingId, Lifecycle, ObligationStatus, PathGap,
-    PlannedObligation, PolicySnapshot, Provenance, Recommendation, RepoPath, ResultId, ReviewPlan,
-    ReviewResult, RunId, SchemaVersion, Severity, Support, Timestamp, TrustClass, UsageSummary,
-    Validity, VerificationStatus, Waiver, derived_uuid, glob_match, sha256,
+    ExecutionOutcome, Finding, FindingCategory, FindingId, Lifecycle, ObligationId,
+    ObligationStatus, PathGap, PlannedObligation, PolicySnapshot, Provenance, Recommendation,
+    RepoPath, ResultId, ReviewPlan, ReviewResult, RunId, SchemaVersion, Severity, Support,
+    Timestamp, TrustClass, UsageSummary, Validity, VerificationStatus, Waiver, derived_uuid,
+    glob_match, sha256,
 };
 
 /// A verifier's answer for one rule's obligation. Unknown fields are rejected.
@@ -103,6 +104,8 @@ pub struct ReduceInput<'a> {
     pub attention_threshold: Severity,
     /// Exceptions expiring at or before it are not in force.
     pub now: Timestamp,
+    /// `review.block_on`: rule id globs whose open findings fail the check run.
+    pub block_on: &'a [String],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,6 +118,7 @@ pub struct Reduced {
     pub excluded_or_unreviewed: Vec<PathGap>,
     pub rejected_candidates: Vec<Candidate>,
     pub unresolved_candidates: Vec<Candidate>,
+    pub blocked_by: Vec<FindingId>,
 }
 
 pub const INSUFFICIENT_EVIDENCE: &str = "INSUFFICIENT_EVIDENCE";
@@ -371,6 +375,31 @@ fn waive(
     }
 }
 
+/// Open, and not only about obligations that are all waived.
+fn in_force(f: &Finding, waived: &[ObligationId]) -> bool {
+    f.lifecycle == Lifecycle::Open
+        && (f.obligation_ids.is_empty() || !f.obligation_ids.iter().all(|id| waived.contains(id)))
+}
+
+/// Findings in force of the rules `block_on` names; a waived one blocks nothing, as it raises no
+/// recommendation.
+fn blocked_by(
+    findings: &[Finding],
+    block_on: &[String],
+    waived: &[ObligationId],
+) -> Vec<FindingId> {
+    findings
+        .iter()
+        .filter(|f| {
+            in_force(f, waived)
+                && f.rule_id
+                    .as_deref()
+                    .is_some_and(|r| block_on.iter().any(|g| glob_match(g, r)))
+        })
+        .map(|f| f.id)
+        .collect()
+}
+
 pub fn reduce(input: &ReduceInput<'_>) -> Reduced {
     let plan = input.plan;
     let evidence: BTreeMap<EvidenceId, &Evidence> =
@@ -444,13 +473,12 @@ pub fn reduce(input: &ReduceInput<'_>) -> Reduced {
             && o.obligation.waivers.is_empty()
             && matches!(o.obligation.status, ObligationStatus::Unknown { .. })
     });
-    let significant = findings.iter().any(|f| {
-        f.lifecycle == Lifecycle::Open
-            && f.severity >= input.attention_threshold
-            && (f.obligation_ids.is_empty()
-                || !f.obligation_ids.iter().all(|id| waived.contains(id)))
-    });
-    let recommendation = if significant {
+    let significant = findings
+        .iter()
+        .any(|f| f.severity >= input.attention_threshold && in_force(f, &waived));
+    let blocked_by = blocked_by(&findings, input.block_on, &waived);
+    // A finding that fails the check run needs attention, whatever its severity.
+    let recommendation = if significant || !blocked_by.is_empty() {
         Recommendation::AttentionRequired
     } else if blocking_unknown || coverage == Coverage::Unavailable {
         Recommendation::NeedsEvidence
@@ -475,6 +503,7 @@ pub fn reduce(input: &ReduceInput<'_>) -> Reduced {
             input.candidates,
             &[VerificationStatus::Pending, VerificationStatus::Unresolved],
         ),
+        blocked_by,
     }
 }
 
@@ -530,6 +559,7 @@ pub fn finalize(
         excluded_or_unreviewed: reduced.excluded_or_unreviewed,
         rejected_candidates: reduced.rejected_candidates,
         unresolved_candidates: reduced.unresolved_candidates,
+        blocked_by: reduced.blocked_by,
         usage_summary: run.usage,
         created_at: run.created_at,
         provenance: run.provenance,

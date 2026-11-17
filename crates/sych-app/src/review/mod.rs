@@ -408,6 +408,7 @@ fn execute(
             .review
             .profiles
             .contains(&ReviewProfile::Security),
+        block_on: &effective.repository.config.review.block_on,
         now,
     };
     let saved =
@@ -485,5 +486,7 @@ struct Session<'a> {
     fixture_paths: &'a [String],
     /// The `security` profile: added lines are scanned for secrets and hidden text.
     scan: bool,
+    /// `review.block_on` of the trusted policy.
+    block_on: &'a [String],
     now: Timestamp,
 }

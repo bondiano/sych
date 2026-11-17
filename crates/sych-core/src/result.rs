@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{BillingKind, Enforcement};
 use crate::{
-    Candidate, Coverage, EvidenceManifestId, ExecutionOutcome, Finding, MicroUsd, Obligation,
-    ObligationId, PolicySnapshotId, Recommendation, RepoPath, ResultId, ReviewUnitId, RiskLevel,
-    RunId, SchemaVersion, SourceSnapshotId, Timestamp,
+    Candidate, Coverage, EvidenceManifestId, ExecutionOutcome, Finding, FindingId, MicroUsd,
+    Obligation, ObligationId, PolicySnapshotId, Recommendation, RepoPath, ResultId, ReviewUnitId,
+    RiskLevel, RunId, SchemaVersion, SourceSnapshotId, Timestamp,
 };
 
 /// Related changes reviewed together around one contract or behavior.
@@ -156,6 +156,9 @@ pub struct ReviewResult {
     /// their anchors: the next revision tells a question it already asked by them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unresolved_candidates: Vec<Candidate>,
+    /// Open findings of the rules `review.block_on` names: the check run fails on them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocked_by: Vec<FindingId>,
     pub usage_summary: UsageSummary,
     pub created_at: Timestamp,
     pub provenance: Provenance,

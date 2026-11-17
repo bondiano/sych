@@ -199,6 +199,7 @@ fn run(
         outcome,
         attention_threshold: DEFAULT_ATTENTION_THRESHOLD,
         now: at(),
+        block_on: &[],
     })
 }
 
