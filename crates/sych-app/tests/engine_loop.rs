@@ -60,7 +60,12 @@ async fn a_publication_does_not_wait_for_an_analysis_in_progress() {
     LocalSet::new()
         .run_until(async {
             let running = task::spawn_local(Arc::clone(&w.engine).run(stopped));
+            let started = Instant::now();
             while !accepted.load(Ordering::Relaxed) {
+                assert!(
+                    started.elapsed() < Duration::from_secs(30),
+                    "the worker never reached the model"
+                );
                 time::sleep(Duration::from_millis(10)).await;
             }
 
@@ -77,7 +82,7 @@ async fn a_publication_does_not_wait_for_an_analysis_in_progress() {
             let started = Instant::now();
             let published = loop {
                 let ops = storage.operations(1).await.expect("ops");
-                if ops.iter().all(|o| o.state != "PENDING") {
+                if !ops.is_empty() && ops.iter().all(|o| o.state != "PENDING") {
                     break true;
                 }
 
