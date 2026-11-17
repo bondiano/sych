@@ -139,7 +139,8 @@ async fn access_token(
         let mut s = lock(&state);
         s.log
             .push(format!("POST /app/installations/{id}/access_tokens {body}"));
-        // As GitHub: a token may not ask for more than the installation was granted.
+        // As GitHub: a token may not ask for more than the installation was granted, nor for a
+        // level that is neither read nor write.
         let rank = |l: Option<&str>| match l {
             Some("read") => 1,
             Some("write") => 2,
@@ -147,9 +148,10 @@ async fn access_token(
         };
         let granted = &s.installation_permissions;
         let over = body["permissions"].as_object().is_some_and(|asked| {
-            asked
-                .iter()
-                .any(|(name, level)| rank(level.as_str()) > rank(granted[name].as_str()))
+            asked.iter().any(|(name, level)| {
+                let asked = rank(level.as_str());
+                asked == 0 || asked > rank(granted[name].as_str())
+            })
         });
         if over {
             let message = json!({"message": "The permissions requested are not granted to this installation."});
