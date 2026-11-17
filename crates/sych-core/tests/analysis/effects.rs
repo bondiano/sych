@@ -149,7 +149,7 @@ fn a_candidate_anchored_only_in_fixture_data_is_dropped_with_the_reason() {
         "an anchor outside the fixtures keeps it"
     );
     let dropped = drop_fixture_claims(found(), &["src/**".to_owned()]);
-    assert!(dropped.candidates.is_empty());
+    assert!(dropped.candidates.is_empty(), "{:?}", dropped.candidates);
     assert!(dropped.rejected.iter().any(|r| {
         r.problems
             .iter()

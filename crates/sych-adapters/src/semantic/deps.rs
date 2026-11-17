@@ -16,7 +16,7 @@ use super::Resolve;
 use crate::sandbox::{self, Job, Mount, SandboxError};
 use crate::tools::{self, ToolError};
 
-const INSTALL_TIMEOUT: Duration = Duration::from_secs(900);
+const INSTALL_TIMEOUT: Duration = Duration::from_mins(15);
 
 #[derive(Debug, Error)]
 pub enum DepsError {

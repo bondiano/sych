@@ -243,7 +243,7 @@ fn invalid_fixture_unmigrated_store_and_failed_save_keep_no_result() {
     let out = review(data.path(), repo.path(), &[]);
     assert_eq!(out.status.code(), Some(3));
     assert!(String::from_utf8_lossy(&out.stderr).contains("no result was saved"));
-    assert!(out.stdout.is_empty());
+    assert!(out.stdout.is_empty(), "{:?}", out.stdout);
 }
 
 #[cfg(unix)]

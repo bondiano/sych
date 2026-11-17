@@ -280,7 +280,7 @@ mod tests {
             on.command("go-test", &BTreeMap::new()),
             Err(ExecutionRefused::Missing("race".into()))
         );
-        assert!(on.problems().is_empty());
+        assert!(on.problems().is_empty(), "{:?}", on.problems());
     }
 
     #[test]

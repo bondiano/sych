@@ -232,7 +232,11 @@ mod tests {
     #[test]
     fn too_few_or_too_mixed_judgements_suggest_nothing_and_the_fingerprint_is_stable() {
         let few = judged(4, "src/a/x.rs", "FALSE_POSITIVE");
-        assert!(suggest(1, &rules(), &few, "dev", now()).is_empty());
+        assert!(
+            suggest(1, &rules(), &few, "dev", now()).is_empty(),
+            "{:?}",
+            suggest(1, &rules(), &few, "dev", now())
+        );
         let mut mixed = judged(5, "src/a/x.rs", "WONT_FIX");
         mixed.extend(judged(5, "src/a/y.rs", "USEFUL"));
         assert!(
@@ -265,7 +269,11 @@ mod tests {
             });
             suggest(1, &rules, &five, "dev", now())
         };
-        assert!(with("2027-01-01T00:00:00Z").is_empty());
+        assert!(
+            with("2027-01-01T00:00:00Z").is_empty(),
+            "{:?}",
+            with("2027-01-01T00:00:00Z")
+        );
         assert_eq!(with("2026-01-01T00:00:00Z").len(), 1);
     }
 

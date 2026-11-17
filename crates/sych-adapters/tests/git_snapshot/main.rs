@@ -322,8 +322,12 @@ fn no_op_change_has_an_explicit_empty_manifest() {
     write(dir.path(), "a.txt", b"a\n");
     commit(dir.path(), "one");
     let snap = capture(dir.path(), "main", "main", None).expect("snapshot");
-    assert!(snap.manifest.files.is_empty());
-    assert!(snap.manifest.omissions.is_empty());
+    assert!(snap.manifest.files.is_empty(), "{:?}", snap.manifest.files);
+    assert!(
+        snap.manifest.omissions.is_empty(),
+        "{:?}",
+        snap.manifest.omissions
+    );
 }
 
 #[test]

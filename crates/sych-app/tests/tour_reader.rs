@@ -262,12 +262,8 @@ fn a_stored_tour_is_read_privately_marked_stale_and_survives_pruned_source() {
         }
     }
     let gone = ok(&sych(d, &["tour", "show", "--run", &run, "--repo", r]));
-    assert!(
-        !gone["source_unavailable"]
-            .as_array()
-            .expect("list")
-            .is_empty()
-    );
+    let unavailable = gone["source_unavailable"].as_array();
+    assert!(unavailable.is_some_and(|a| !a.is_empty()), "{gone}");
     assert_eq!(gone["session"]["state"], "COMPLETED");
 }
 

@@ -327,7 +327,15 @@ fn head_policy_is_diffed_but_not_applied() {
             &trusted.server
         )
         .files
-        .is_empty()
+        .is_empty(),
+        "{:?}",
+        policy_diff(
+            &trusted.repository,
+            &trusted_files,
+            &trusted_files,
+            &trusted.server
+        )
+        .files
     );
 }
 
@@ -367,7 +375,11 @@ fn absent_repository_policy_uses_engine_defaults() {
     )
     .expect("defaults are valid");
     assert_eq!(config.server, ServerConfig::engine_default());
-    assert!(config.repository.rules.is_empty());
+    assert!(
+        config.repository.rules.is_empty(),
+        "{:?}",
+        config.repository.rules
+    );
     assert_eq!(config.provenance.len(), 1);
 }
 
@@ -386,7 +398,11 @@ fn dependency_install_needs_a_backend_and_a_pinned_docker_image() {
             .map(ToString::to_string)
             .collect()
     };
-    assert!(fields(&config("    backends: [bwrap]\n")).is_empty());
+    assert!(
+        fields(&config("    backends: [bwrap]\n")).is_empty(),
+        "{:?}",
+        fields(&config("    backends: [bwrap]\n"))
+    );
     let unpinned = fields(&config(
         "    backends: [docker]\n    docker_image: debian:bookworm-slim\n",
     ));
@@ -435,7 +451,8 @@ fn a_new_meaning_needs_a_new_rule_version() {
         diff(reworded.clone())
     );
     let bumped = reworded.replacen("    version: 1", "    version: 2", 1);
-    assert!(diff(bumped).is_empty());
+    let changes = diff(bumped);
+    assert!(changes.is_empty(), "{changes:?}");
     let retitled = rules.replace(
         "Preserve the required effects of an operation",
         "Required effects of an order",

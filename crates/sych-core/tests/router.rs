@@ -173,7 +173,7 @@ async fn all_exhausted_routes_keep_the_quota_cause_without_new_attempts() {
     assert_eq!(first.attempts.len(), 2);
     let next = review(&r).await;
     assert_eq!(next.value, first.value);
-    assert!(next.attempts.is_empty());
+    assert!(next.attempts.is_empty(), "{:?}", next.attempts);
     assert!(next.value.expect_err("quota").quota_exhausted());
 }
 
@@ -330,7 +330,7 @@ async fn an_unconfigured_trigger_and_unusable_routes_end_honestly() {
         panic!("expected no eligible route: {:?}", out.value);
     };
     assert_eq!(reasons.len(), 2);
-    assert!(out.attempts.is_empty());
+    assert!(out.attempts.is_empty(), "{:?}", out.attempts);
 }
 
 #[tokio::test(flavor = "current_thread")]

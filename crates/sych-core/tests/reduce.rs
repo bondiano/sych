@@ -184,7 +184,11 @@ fn a_waiver_for_one_file_does_not_lift_the_rule_for_another() {
         violated(&plan, &anchored(anchor), &[], &[])
     };
     let live = waived("src/live.go");
-    assert!(live.obligations[0].obligation.waivers.is_empty());
+    assert!(
+        live.obligations[0].obligation.waivers.is_empty(),
+        "{:?}",
+        live.obligations[0].obligation.waivers
+    );
     assert_eq!(live.recommendation, Recommendation::AttentionRequired);
 
     let legacy = waived("src/legacy.go");

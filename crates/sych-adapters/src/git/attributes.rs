@@ -62,7 +62,9 @@ pub(super) fn mark_generated(
 fn generated_paths(out: &[u8]) -> Vec<&str> {
     out.split(|b| *b == 0)
         .collect::<Vec<_>>()
-        .chunks_exact(3)
+        .as_chunks::<3>()
+        .0
+        .iter()
         .filter(|r| matches!(r[2], b"set" | b"true"))
         .filter_map(|r| str::from_utf8(r[0]).ok())
         .collect()

@@ -285,7 +285,7 @@ fn failed_or_hash_mismatched_expansion_preserves_the_exact_hit() {
             snapshot.read_span(reference).expect("valid hash").text,
             "needle\n"
         );
-        assert!(context.limitations.is_empty());
+        assert!(context.limitations.is_empty(), "{:?}", context.limitations);
     }
 }
 

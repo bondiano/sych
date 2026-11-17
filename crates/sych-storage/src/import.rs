@@ -125,7 +125,7 @@ impl Fingerprint {
             .rows
             .checked_add(1)
             .ok_or_else(|| StorageError::Corrupt("SQLite import row count overflow".into()))?;
-        self.hash.update([b'R']);
+        self.hash.update(b"R");
         Ok(())
     }
 

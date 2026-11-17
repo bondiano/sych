@@ -119,7 +119,7 @@ async fn verification_sees_a_guard_in_an_unchanged_helpers_body_only_when_it_exi
         git(dir.path(), &["add", "-A"]);
         git(dir.path(), &["commit", "-q", "-m", "use helper"]);
         let (outcome, _) = run_on(dir, helper_guard, Budgets::default(), 14_000, true).await;
-        assert!(!outcome.candidates.is_empty());
+        assert!(!outcome.candidates.is_empty(), "empty");
         let expected = if guarded {
             VerificationStatus::Rejected
         } else {

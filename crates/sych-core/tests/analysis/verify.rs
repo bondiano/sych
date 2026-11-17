@@ -132,7 +132,7 @@ fn verdicts_need_an_admissible_basis() {
         verified.candidates[0].verification_status,
         VerificationStatus::Unresolved
     );
-    assert!(verified.findings.is_empty());
+    assert!(verified.findings.is_empty(), "{:?}", verified.findings);
 }
 
 #[test]
@@ -160,7 +160,7 @@ fn invented_references_never_confirm() {
         &[],
         "unit",
     );
-    assert!(verified.findings.is_empty());
+    assert!(verified.findings.is_empty(), "{:?}", verified.findings);
     for c in &verified.candidates {
         assert_eq!(c.verification_status, VerificationStatus::Unresolved);
         assert!(c.limitations.iter().any(|l| l.contains("unknown")));

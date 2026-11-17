@@ -313,7 +313,11 @@ mod tests {
             .collect();
         assert_eq!(shown, [("execution:outcomes", "EXECUTION_REFUSED")]);
         assert!(gaps[0].detail.contains("fork"));
-        assert!(refused_for_fork(&Execution::default(), &[]).is_empty());
+        assert!(
+            refused_for_fork(&Execution::default(), &[]).is_empty(),
+            "{:?}",
+            refused_for_fork(&Execution::default(), &[])
+        );
     }
 
     #[test]
@@ -328,7 +332,7 @@ mod tests {
             params: BTreeMap::new(),
         };
         let (facts, gaps) = run_profiles(&snap, &off, &[asked]);
-        assert!(facts.is_empty());
+        assert!(facts.is_empty(), "{facts:?}");
         assert_eq!(
             (gaps[0].code.as_str(), gaps[0].detail.as_str()),
             ("EXECUTION_REFUSED", "execution is disabled on this server"),
@@ -340,7 +344,7 @@ mod tests {
             one_of: vec!["-x".into()],
         }]);
         let (facts, gaps) = run_profiles(&snap, &needs_param, &[]);
-        assert!(facts.is_empty());
+        assert!(facts.is_empty(), "{facts:?}");
         assert_eq!(gaps[0].code, "EXECUTION_REFUSED");
 
         // A requested value outside the choices and an unlisted profile are refused too.
@@ -353,7 +357,7 @@ mod tests {
             &needs_param,
             &[check("outcomes", "-x; id"), check("other", "-x")],
         );
-        assert!(facts.is_empty());
+        assert!(facts.is_empty(), "{facts:?}");
         let reports: Vec<&str> = gaps.iter().map(|g| g.report.as_str()).collect();
         assert_eq!(
             reports,

@@ -245,7 +245,9 @@ async fn unsigned_oversized_or_foreign_deliveries_store_nothing() {
             .open_intents()
             .await
             .expect("intents")
-            .is_empty()
+            .is_empty(),
+        "{:?}",
+        s.app.storage.open_intents().await.expect("intents")
     );
 }
 
@@ -290,7 +292,9 @@ async fn a_repository_outside_the_connection_is_a_receipt_without_work() {
             .open_intents()
             .await
             .expect("intents")
-            .is_empty()
+            .is_empty(),
+        "{:?}",
+        s.app.storage.open_intents().await.expect("intents")
     );
 }
 

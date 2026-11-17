@@ -114,7 +114,11 @@ async fn schema_changes_only_through_migrate() {
         .count();
     let all: Vec<i64> = (1..=i64::try_from(files).expect("few")).collect();
     assert_eq!(Storage::migrate(&cfg).await.expect("migrate"), all);
-    assert!(Storage::migrate(&cfg).await.expect("again").is_empty());
+    assert!(
+        Storage::migrate(&cfg).await.expect("again").is_empty(),
+        "{:?}",
+        Storage::migrate(&cfg).await.expect("again")
+    );
     Storage::open(&cfg).await.expect("open after migrate");
 }
 
@@ -296,7 +300,13 @@ async fn gc_keeps_pins_and_retention_and_removes_orphans_after_grace() {
             .await
             .expect("prune")
             .candidates
-            .is_empty()
+            .is_empty(),
+        "{:?}",
+        storage
+            .prune(at(365 * DAY), false)
+            .await
+            .expect("prune")
+            .candidates
     );
 }
 

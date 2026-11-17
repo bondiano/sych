@@ -62,7 +62,9 @@ async fn imported_nulls_large_integers_and_flags_reach_real_storage_consumers() 
         s.lineage_pending()
             .await
             .expect("imported applied flag")
-            .is_empty()
+            .is_empty(),
+        "{:?}",
+        s.lineage_pending().await.expect("imported applied flag")
     );
     let mut request = reservation(&source.run, 0);
     request.route.provider = "subscription".into();

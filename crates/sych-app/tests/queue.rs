@@ -37,7 +37,7 @@ async fn jobs_are_listed_for_a_writer_of_their_repository() {
     let (status, page) = get(&url, "writer", "/v1/jobs").await;
     assert_eq!(status, StatusCode::OK);
     let jobs = page["items"].as_array().cloned().unwrap_or_default();
-    assert!(!jobs.is_empty());
+    assert!(!jobs.is_empty(), "empty");
     let job = &jobs[0];
     assert_eq!(
         (

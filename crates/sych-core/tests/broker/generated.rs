@@ -72,7 +72,7 @@ fn context_requests_neither_read_nor_find_generated_files() {
         side: SourceSide::Head,
         limit: 10,
     });
-    assert!(!hits.refs.is_empty());
+    assert!(!hits.refs.is_empty(), "empty");
     assert!(hits.refs.iter().all(|r| r.path != path("src/store.rs")));
     assert!(
         hits.limitations
