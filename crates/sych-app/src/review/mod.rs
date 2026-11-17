@@ -458,7 +458,8 @@ struct Session<'a> {
     verify: bool,
     /// `context.expansion_rounds` of the trusted policy.
     expansion_rounds: u32,
-    /// `--intent-file`, else the change's commit messages: for discovery only.
+    /// `--intent-file`, else the change's commit messages: for the discovery, review and
+    /// expansion prompts.
     intent: Option<String>,
     /// `eval measure --replay`: these discoveries are verified again instead of a new search.
     replay: Option<&'a [Discovered]>,
