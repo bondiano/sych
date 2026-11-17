@@ -126,3 +126,19 @@ async fn generated_files_are_named_to_the_model_but_never_sent() {
     );
     assert!(!seen.contains(SCHEMA) && !seen.contains(HIDDEN), "{seen}");
 }
+
+/// The `security` profile, on by default, adds the security hunt to discovery; without it the
+/// prompt has none.
+#[tokio::test(flavor = "current_thread")]
+async fn discovery_hunts_security_defects_only_under_the_security_profile() {
+    let hunt = "Security: follow data";
+    run_on(repo(false), recording, Budgets::default(), 14_000, true).await;
+    let seen = SEEN.with(|s| s.take().join("\n"));
+    assert!(seen.contains(hunt), "{seen}");
+
+    let config = "schema_version: 1\nreview:\n  profiles: [correctness]\n";
+    let dir = repo_with(false, &[(".sych/config.yaml", config)]);
+    run_on(dir, recording, Budgets::default(), 14_000, true).await;
+    let seen = SEEN.with(|s| s.take().join("\n"));
+    assert!(!seen.is_empty() && !seen.contains(hunt), "{seen}");
+}

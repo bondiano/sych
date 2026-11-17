@@ -80,6 +80,15 @@ const DEFECT_RULES: [&str; 4] = [
      nit rules allow.",
 ];
 
+/// The `security` profile's hunt in discovery: one rule for every language, since the syntax
+/// facts mark SQL and network calls only in Go and Python.
+pub const SECURITY_RULE: &str = "Security: follow data the changed code takes from a request, a \
+    file, the environment or another process to where it is used. Data that reaches a SQL \
+    statement, a shell or process command, a file path, an outgoing URL, HTML or a deserializer \
+    without a bound parameter, an allowlist or validation is a DEFECT; so is a new or changed \
+    request handler that acts on a resource without checking that the caller may, and a secret \
+    written to a log, an error or a response. Name the input and the place it reaches.";
+
 /// An open question the shown code already answers is a miss, not an UNKNOWN (#95).
 const QUESTION_RULE: &str = "Before leaving an open question about what the code is meant to do, \
     look for the answer in the spans: removed BASE lines, doc comments, messages and names state \

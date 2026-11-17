@@ -16,7 +16,7 @@ use sych_core::analysis::{
 use sych_core::broker::{EvidencePacket, OpStatus};
 use sych_core::config::{BillingKind, Enforcement, ReasoningEffort, Role};
 use sych_core::model::{
-    AttemptRecord, HopRecord, Ledger, ModelProvider, RoutePlan, Router, TaskFailure,
+    AttemptRecord, HopRecord, Ledger, ModelProvider, Prompt, RoutePlan, Router, TaskFailure,
 };
 use sych_core::{
     Assessment, Candidate, CodeRef, Evidence, FeeShare, Finding, NOT_ASSESSED, ObligationId,
@@ -156,6 +156,8 @@ pub struct Engine<'a, P, L> {
     pub language: sych_core::ReviewLanguage,
     /// `review.fixture_paths`: a candidate anchored only there is dropped.
     pub fixture_paths: &'a [String],
+    /// The `security` profile: discovery also hunts security defects.
+    pub security: bool,
 }
 
 fn needs_assessment(planned: &PlannedObligation) -> bool {
@@ -379,13 +381,22 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         part
     }
 
+    /// `prompt` of a pass that searches for defects, with the security hunt when the profile is on.
+    fn hunting(&self, mut prompt: Prompt) -> Prompt {
+        if self.security {
+            prompt.rules.push(prompts::SECURITY_RULE.to_owned());
+        }
+
+        prompt
+    }
+
     /// Discovery of one batch, its context asks answered, and verification.
     async fn search(&self, batch: &[usize]) -> Outcome {
         let mut part = self.part();
         let (context, linked) = self.batch_view(batch);
         let ids: Vec<ObligationId> = linked.iter().map(|o| o.obligation.id).collect();
         let prompt = intent::with_intent(
-            prompts::discovery(&context, &linked, &self.title(batch)),
+            self.hunting(prompts::discovery(&context, &linked, &self.title(batch))),
             self.intent,
         );
         let found = self

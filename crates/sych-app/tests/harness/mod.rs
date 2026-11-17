@@ -13,8 +13,10 @@ use sych_adapters::openrouter::CAPABILITIES;
 use sych_adapters::syntax;
 use sych_app::analysis::{Engine, Outcome};
 use sych_core::analysis::{Discovered, packet_evidence};
-use sych_core::broker::{BrokerInput, Limits as BrokerLimits, build_packets};
-use sych_core::config::{BillingKind, Budgets, Enforcement, RepositoryPolicy, ServerConfig};
+use sych_core::broker::{BrokerInput, EvidencePacket, Limits as BrokerLimits, build_packets};
+use sych_core::config::{
+    BillingKind, Budgets, Enforcement, RepositoryPolicy, ReviewProfile, ServerConfig,
+};
 use sych_core::effects::EffectLedger;
 use sych_core::model::{
     Checkpoint, Denied, ErrorKind, Finish, Hop, Ledger, LedgerError, Limits, ModelProvider,
@@ -22,8 +24,8 @@ use sych_core::model::{
     Reservation, Route, RoutePlan, Router, Settlement, Speaker,
 };
 use sych_core::{
-    AttemptId, MicroUsd, ObligationStatus, PolicySnapshotId, Redactor, RunFacts, RunId,
-    Sha256Digest, SourceSide, Timestamp, plan, sha256,
+    AttemptId, Evidence, MicroUsd, ObligationStatus, PolicySnapshotId, Redactor, ReviewPlan,
+    RunFacts, RunId, Sha256Digest, SourceSide, Timestamp, plan, sha256,
 };
 use sych_storage::{Partition, Storage, TENANT_LOCAL};
 use tempfile::TempDir;
@@ -253,6 +255,40 @@ impl Ledger for Recorder<'_> {
     }
 }
 
+/// The broker's packets of `snap` with no semantic, CI or lint facts, and their evidence.
+fn packets(
+    snap: &LocalSnapshot,
+    policy: &RepositoryPolicy,
+    plan: &ReviewPlan,
+    run_id: RunId,
+    policy_id: &PolicySnapshotId,
+) -> (Vec<EvidencePacket>, Vec<Evidence>) {
+    let syntax = syntax::collect(snap, &policy.effects);
+    let packets = build_packets(
+        &BrokerInput {
+            run_id,
+            snapshot_id: &snap.snapshot.id,
+            policy_snapshot_id: policy_id,
+            access_scope: &snap.snapshot.repository,
+            plan,
+            manifest: &snap.manifest,
+            facts: &[],
+            syntax: &syntax,
+            ci: &[],
+            head_compiled: false,
+            ledger: &EffectLedger::default(),
+            lint: &[],
+            limits: BrokerLimits::from_settings(&policy.config.context),
+        },
+        snap,
+    );
+    let evidence = packets
+        .iter()
+        .map(|p| packet_evidence(p, &snap.snapshot, Timestamp::now()).expect("hash"))
+        .collect();
+    (packets, evidence)
+}
+
 /// [`run_on`] in a new run that may reuse `reuse`, or with `replay` the verifier alone over
 /// those discoveries; also returns the run's checkpoints.
 pub async fn run_reusing(
@@ -296,29 +332,7 @@ pub async fn run_reusing(
         )
         .await
         .expect("run");
-    let syntax = syntax::collect(&snap, &policy.effects);
-    let packets = build_packets(
-        &BrokerInput {
-            run_id: handle.id,
-            snapshot_id: &snap.snapshot.id,
-            policy_snapshot_id: &policy_id,
-            access_scope: &snap.snapshot.repository,
-            plan: &plan,
-            manifest: &snap.manifest,
-            facts: &[],
-            syntax: &syntax,
-            ci: &[],
-            head_compiled: false,
-            ledger: &EffectLedger::default(),
-            lint: &[],
-            limits: BrokerLimits::from_settings(&policy.config.context),
-        },
-        &snap,
-    );
-    let packet_evidence: Vec<_> = packets
-        .iter()
-        .map(|p| packet_evidence(p, &snap.snapshot, Timestamp::now()).expect("hash"))
-        .collect();
+    let (packets, packet_evidence) = packets(&snap, &policy, &plan, handle.id, &policy_id);
     let provider = Scripted {
         answer,
         calls: RefCell::new(Vec::new()),
@@ -329,6 +343,11 @@ pub async fn run_reusing(
     };
     let mut router = router(&provider, &ledger, handle.id, &budgets);
     router.reuse = reuse;
+    let security = policy
+        .config
+        .review
+        .profiles
+        .contains(&ReviewProfile::Security);
     let engine = Engine {
         router,
         snap: &snap,
@@ -350,6 +369,7 @@ pub async fn run_reusing(
             .map_or(1, |n| usize::try_from(n).unwrap_or(1)),
         language: policy.config.review.language,
         fixture_paths: &policy.config.review.fixture_paths,
+        security,
     };
     let outcome = match replay {
         Some(frozen) => engine.replay(frozen).await,

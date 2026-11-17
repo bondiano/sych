@@ -110,7 +110,12 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         out: &mut Outcome,
     ) -> (Context, Option<Discovered>) {
         let prompt = intent::with_intent(
-            prompts::review(&context, linked, assessed, &self.title(batch)),
+            self.hunting(prompts::review(
+                &context,
+                linked,
+                assessed,
+                &self.title(batch),
+            )),
             self.intent,
         );
         // A cut multi-unit review is split by the engine instead of asked again.
