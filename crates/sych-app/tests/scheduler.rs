@@ -508,9 +508,10 @@ async fn an_analysis_stuck_past_its_deadline_gives_up_its_job() {
             advance(30);
         }
     };
-    let worked = time::timeout(Duration::from_secs(60), async {
-        tokio::join!(w.engine.work_once(), clock).0
-    })
+    let worked = time::timeout(
+        Duration::from_secs(60),
+        Box::pin(async { tokio::join!(w.engine.work_once(), clock).0 }),
+    )
     .await
     .expect("the worker gives the job up instead of waiting for the model");
     assert!(worked.expect("work"));
