@@ -72,15 +72,35 @@ fn str_at<'a>(v: &'a Value, pointer: &str) -> Option<&'a str> {
     v.pointer(pointer)?.as_str()
 }
 
-/// A `/sych <command>` line; anything else in a comment is ignored.
-fn command(body: &str) -> Option<ScmCommand> {
-    body.lines()
-        .find_map(|line| match line.trim().strip_prefix("/sych")?.trim() {
-            "rerun" => Some(ScmCommand::Rerun),
-            "deep" => Some(ScmCommand::Deep),
-            "stop" => Some(ScmCommand::Stop),
-            _ => None,
+/// The comment's `/sych` command; anything else in it is ignored. Its `/sych dismiss N reason`
+/// lines are one dismiss, each `N reason` a line of the argument, and take precedence: an event
+/// carries one command, so `rerun`, `deep` and `stop` need a comment of their own. Otherwise
+/// the first `/sych rerun|deep|stop` line, which takes no argument.
+fn command(body: &str) -> Option<(ScmCommand, String)> {
+    // `(word, rest)` of each `/sych word rest` line; any whitespace separates them.
+    let lines: Vec<(&str, &str)> = body
+        .lines()
+        .filter_map(|line| {
+            let rest = line.trim().strip_prefix("/sych")?;
+            let rest = rest.strip_prefix(char::is_whitespace)?.trim();
+            Some(rest.split_once(char::is_whitespace).unwrap_or((rest, "")))
         })
+        .collect();
+    let dismissed: Vec<&str> = lines
+        .iter()
+        .filter(|(word, rest)| *word == "dismiss" && !rest.trim().is_empty())
+        .map(|(_, rest)| rest.trim())
+        .collect();
+    if !dismissed.is_empty() {
+        return Some((ScmCommand::Dismiss, dismissed.join("\n")));
+    }
+
+    lines.iter().find_map(|line| match *line {
+        ("rerun", "") => Some((ScmCommand::Rerun, String::new())),
+        ("deep", "") => Some((ScmCommand::Deep, String::new())),
+        ("stop", "") => Some((ScmCommand::Stop, String::new())),
+        _ => None,
+    })
 }
 
 fn pull_request(v: &Value, action: &str) -> Option<ChangeSignal> {
@@ -142,9 +162,11 @@ pub fn parse(event: &str, body: &[u8], bot_login: &str) -> Result<WebhookEvent, 
                 Some(login) if login.eq_ignore_ascii_case(bot_login) => {
                     Some(ChangeSignal::BotComment)
                 }
-                Some(actor) => {
-                    command(body).map(|command| ChangeSignal::Command { actor, command })
-                }
+                Some(actor) => command(body).map(|(command, argument)| ChangeSignal::Command {
+                    actor,
+                    command,
+                    argument,
+                }),
                 None => None,
             };
         }
@@ -253,9 +275,74 @@ mod tests {
             cmd.expect("ok").signal,
             Some(ChangeSignal::Command {
                 actor: "dev".into(),
-                command: ScmCommand::Rerun
+                command: ScmCommand::Rerun,
+                argument: String::new(),
             })
         );
+        // Every dismiss line of a comment is one command; a bare `dismiss` is not one.
+        let dismiss = parse(
+            "issue_comment",
+            comment(
+                "dev",
+                "Both wrong:\n/sych dismiss 2 the guard is in the caller\n /sych dismiss 1  stale\n",
+            )
+            .as_bytes(),
+            "sych[bot]",
+        );
+        assert_eq!(
+            dismiss.expect("ok").signal,
+            Some(ChangeSignal::Command {
+                actor: "dev".into(),
+                command: ScmCommand::Dismiss,
+                argument: "2 the guard is in the caller\n1  stale".into(),
+            })
+        );
+        // Any whitespace separates the words; `/sychrerun` is not a command.
+        for (body, command) in [
+            ("/sych\trerun", Some(ScmCommand::Rerun)),
+            ("/sychrerun", None),
+        ] {
+            let parsed = parse(
+                "issue_comment",
+                comment("dev", body).as_bytes(),
+                "sych[bot]",
+            );
+            let got = match parsed.expect("ok").signal {
+                Some(ChangeSignal::Command { command, .. }) => Some(command),
+                _ => None,
+            };
+            assert_eq!(got, command, "{body:?}");
+        }
+        let tabbed = parse(
+            "issue_comment",
+            comment("dev", "/sych\tdismiss\t2 stale").as_bytes(),
+            "sych[bot]",
+        );
+        assert!(matches!(
+            tabbed.expect("ok").signal,
+            Some(ChangeSignal::Command { command: ScmCommand::Dismiss, argument, .. }) if argument == "2 stale"
+        ));
+        // One command per event: the dismiss lines win over a rerun in the same comment.
+        let both = parse(
+            "issue_comment",
+            comment("dev", "/sych rerun\n/sych dismiss 1 stale").as_bytes(),
+            "sych[bot]",
+        );
+        assert!(matches!(
+            both.expect("ok").signal,
+            Some(ChangeSignal::Command {
+                command: ScmCommand::Dismiss,
+                ..
+            })
+        ));
+        for bare in ["/sych dismiss", "/sych dismiss   "] {
+            let bare = parse(
+                "issue_comment",
+                comment("dev", bare).as_bytes(),
+                "sych[bot]",
+            );
+            assert_eq!(bare.expect("ok").signal, None);
+        }
         let prose = parse(
             "issue_comment",
             comment("dev", "rerun it").as_bytes(),

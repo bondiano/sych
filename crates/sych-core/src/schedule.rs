@@ -88,6 +88,8 @@ pub enum IntentKind {
     Rerun,
     Deep,
     Stop,
+    /// Marks findings dismissed; never a run.
+    Dismiss,
 }
 
 impl IntentKind {
@@ -99,6 +101,8 @@ impl IntentKind {
             "COMMAND_RERUN" => Self::Rerun,
             "COMMAND_DEEP" => Self::Deep,
             "COMMAND_STOP" => Self::Stop,
+            // One intent per comment (`COMMAND_DISMISS:<inbox id>`), so none coalesce.
+            k if k.starts_with("COMMAND_DISMISS") => Self::Dismiss,
             _ => return None,
         })
     }
@@ -151,6 +155,7 @@ pub fn decide(
 
     match kind {
         IntentKind::Close => skip("REOPENED_BEFORE_CLOSE_WAS_HANDLED"),
+        IntentKind::Dismiss => skip("NOT_A_RUN"),
         IntentKind::Stop => match actor {
             Some(_) if latest.is_some_and(|l| l.active) => Decision::Cancel {
                 reason: "STOP_COMMAND".into(),

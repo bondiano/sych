@@ -3,10 +3,11 @@
 
 use sych_adapters::github::{CheckOutput, Comment, MAX_PR_FILES, Secret, TokenScope};
 use sych_core::publication::{
-    InlineAnchor, Placement, SummaryContext, gone_body, inline_body, plan, render_summary, revisit,
+    InlineAnchor, Placement, SummaryContext, dismiss, gone_body, inline_body, plan, render_summary,
+    revisit,
 };
 use sych_core::scm::{ScmError, ScmErrorKind};
-use sych_core::{Candidate, DiffManifest, ReviewResult, RunId, Timestamp};
+use sych_core::{Candidate, DiffManifest, Lifecycle, ReviewResult, RunId, Timestamp};
 use sych_storage::{ChangeRow, INVALID_ANCHOR, ObjectKind, PublishClaim};
 
 use super::engine::{Conn, Engine};
@@ -141,85 +142,6 @@ impl Engine {
         Ok(())
     }
 
-    /// New inline comments of one revision as one review, so they read as one in the timeline.
-    /// GitHub refuses the whole review for one invalid position, so then each is sent alone and
-    /// only that one moves to the summary.
-    async fn publish_review(
-        &self,
-        conn: &Conn,
-        change: &ChangeRow,
-        claims: Vec<PublishClaim>,
-        token: &Secret,
-    ) -> anyhow::Result<()> {
-        let storage = &self.app.storage;
-        let now = (self.now)();
-        let mut ready = Vec::with_capacity(claims.len());
-        for c in claims {
-            let Ok(anchor) =
-                serde_json::from_str::<InlineAnchor>(c.anchor.as_deref().unwrap_or(""))
-            else {
-                let reason = "inline object without an anchor";
-                storage
-                    .publication_end(c.op_id, "FAILED", reason, now)
-                    .await?;
-                continue;
-            };
-            let body = self.render(&c, &change.full_name, true).await?;
-            if storage.begin_publishing(&c, &body, now).await?.is_some() {
-                ready.push((c, anchor, body));
-            }
-        }
-
-        if let [(c, _, body)] = ready.as_slice() {
-            let reply = self.send(conn, change, c, body, token).await;
-            return self.settle(conn, change, c, reply).await;
-        }
-
-        if ready.is_empty() {
-            return Ok(());
-        }
-
-        let comments: Vec<_> = ready.iter().map(|(_, a, b)| (a, b.as_str())).collect();
-        match conn
-            .gh
-            .create_review(&change.full_name, change.number, &comments, token)
-            .await
-        {
-            Ok(created) => {
-                for (c, _, body) in &ready {
-                    let marker = format!("<!-- {} -->", c.marker);
-                    let reply = created
-                        .iter()
-                        .find(|x| x.body.contains(&marker))
-                        .map(|x| Written {
-                            id: x.id.to_string(),
-                            body: body.clone(),
-                        })
-                        .ok_or_else(|| {
-                            ScmError::new(
-                                ScmErrorKind::PublicationUnknown,
-                                "the review does not list this comment",
-                            )
-                        });
-                    self.settle(conn, change, c, reply).await?;
-                }
-            }
-            Err(e) if e.kind == ScmErrorKind::InvalidAnchor => {
-                tracing::warn!(error = %e, "review refused; inline comments sent one by one");
-                for (c, _, body) in &ready {
-                    let reply = self.send(conn, change, c, body, token).await;
-                    self.settle(conn, change, c, reply).await?;
-                }
-            }
-            Err(e) => {
-                for (c, ..) in &ready {
-                    self.settle(conn, change, c, Err(e.clone())).await?;
-                }
-            }
-        }
-        Ok(())
-    }
-
     /// What the previous revision left open; none when there is no parent or it cannot be read,
     /// which only lists every open question as new.
     async fn earlier(&self, tenant: &str, result: &ReviewResult) -> Vec<Candidate> {
@@ -243,10 +165,20 @@ impl Engine {
         }
     }
 
-    async fn load(&self, c: &PublishClaim) -> anyhow::Result<(ReviewResult, DiffManifest)> {
+    /// The result of `c`'s run, with what the change dismissed marked so, and its diff.
+    pub(super) async fn load(
+        &self,
+        c: &PublishClaim,
+    ) -> anyhow::Result<(ReviewResult, DiffManifest)> {
         let run = RunId(c.run_id.parse()?);
         let tenant = &c.partition.tenant_id;
-        let result = self.app.storage.load_result(tenant, run).await?;
+        let mut result = self.app.storage.load_result(tenant, run).await?;
+        let rows = self.app.storage.findings_of(c.change_id).await?;
+        let dismissed: Vec<String> = (rows.into_iter())
+            .filter(|r| r.state == "DISMISSED")
+            .map(|r| r.fingerprint)
+            .collect();
+        dismiss(&mut result, &dismissed);
         let manifest = self
             .app
             .storage
@@ -257,7 +189,12 @@ impl Engine {
 
     /// The body of the claimed operation, from the immutable result. The summary also queues the
     /// inline comments of its revision before it is sent.
-    async fn render(&self, c: &PublishClaim, repo: &str, complete: bool) -> anyhow::Result<String> {
+    pub(super) async fn render(
+        &self,
+        c: &PublishClaim,
+        repo: &str,
+        complete: bool,
+    ) -> anyhow::Result<String> {
         let storage = &self.app.storage;
         if c.kind == ObjectKind::Check && c.result_id.is_none() {
             let gate = if c.block_on == Some(true) {
@@ -273,13 +210,13 @@ impl Engine {
         let (result, manifest) = self.load(c).await?;
         if c.kind == ObjectKind::Inline {
             let fingerprint = c.fingerprint.as_deref().unwrap_or_default();
-            let finding = result
-                .findings
-                .iter()
-                .find(|f| f.fingerprint.to_string() == fingerprint);
+            let finding = result.findings.iter().find(|f| {
+                f.fingerprint.to_string() == fingerprint && f.lifecycle == Lifecycle::Open
+            });
             return match (finding, &c.remote_id) {
                 (Some(finding), _) => Ok(inline_body(finding, result.language)),
-                // A comment of an earlier revision whose finding this one no longer reports.
+                // An earlier revision's comment whose finding this one no longer reports or the
+                // change dismissed.
                 (None, Some(_)) => {
                     let original = storage.delivered_body(c.object_id).await?;
                     let head = manifest.head.hex();
@@ -340,7 +277,7 @@ impl Engine {
         Ok(render_summary(&result, &planned, &ctx))
     }
 
-    async fn send(
+    pub(super) async fn send(
         &self,
         conn: &Conn,
         change: &ChangeRow,
@@ -421,7 +358,7 @@ impl Engine {
         }
     }
 
-    async fn settle(
+    pub(super) async fn settle(
         &self,
         conn: &Conn,
         change: &ChangeRow,
@@ -472,7 +409,11 @@ impl Engine {
     }
 
     /// Re-renders a delivered summary in place, by its known id, after the plan changed.
-    async fn refresh_summary(&self, conn: &Conn, change: &ChangeRow) -> anyhow::Result<()> {
+    pub(super) async fn refresh_summary(
+        &self,
+        conn: &Conn,
+        change: &ChangeRow,
+    ) -> anyhow::Result<()> {
         let storage = &self.app.storage;
         let Some(c) = storage.delivered_summary(change.id).await? else {
             return Ok(());
