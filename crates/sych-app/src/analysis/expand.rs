@@ -36,6 +36,8 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         found: Option<Discovered>,
         out: &mut Outcome,
     ) {
+        // A span of the batch that could not be read back went unseen by the search.
+        out.gaps.extend(context.limitations.iter().cloned());
         let found = self.expand(batch, linked, &mut context, found, out).await;
         self.verify(batch, linked, context, found, out).await;
     }
