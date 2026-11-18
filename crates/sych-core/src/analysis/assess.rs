@@ -185,11 +185,8 @@ pub fn validate(
         .criterion_results
         .iter()
         .map(|r| r.criterion_id.as_str())
-        .filter(|id| {
-            id.strip_prefix("c-")
-                .and_then(|n| n.parse::<usize>().ok())
-                .is_none_or(|n| n == 0 || n > planned.criteria.len())
-        })
+        // Exactly a planned `c-{n}`: `c-01` parses in range but matches no lookup above.
+        .filter(|id| !(1..=planned.criteria.len()).any(|n| *id == format!("c-{n}")))
         .collect();
     if !unknown_ids.is_empty() {
         invalid.push(format!("unknown criterion ids {unknown_ids:?}"));

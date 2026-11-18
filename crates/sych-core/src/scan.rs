@@ -17,7 +17,8 @@ pub const SUPPLY_CHAIN: &str = "SEC-SUPPLY-CHAIN";
 const MAX_ANCHORS: usize = 5;
 
 /// Bidi overrides and isolates (Trojan Source, CVE-2021-42574) and invisible characters that
-/// can hide code. Joiners stay out: scripts and emoji need them.
+/// can hide code. The zero-width non-joiner and joiner (U+200C, U+200D) stay out: scripts and
+/// emoji need them.
 pub fn is_hidden(c: char) -> bool {
     matches!(
         c,
@@ -131,7 +132,7 @@ pub fn scan(
 
         // Its content is never read, so the file itself is the finding.
         if is_secret_path(path.as_str()) {
-            out.push(finding(SECRET, path, Vec::new(), language));
+            out.push(finding(SECRET, path, Vec::new(), true, language));
             continue;
         }
 
@@ -182,7 +183,7 @@ pub fn scan(
                 .take(MAX_ANCHORS)
                 .filter_map(|&l| reader.code_ref(SourceSide::Head, path, l, l).ok())
                 .collect();
-            out.push(finding(rule, path, anchors, language));
+            out.push(finding(rule, path, anchors, false, language));
         }
     }
     out
@@ -282,8 +283,15 @@ fn texts(
     }
 }
 
-fn finding(rule: &str, path: &RepoPath, anchors: Vec<CodeRef>, l: ReviewLanguage) -> Finding {
-    let (title, explanation, consequence, action) = texts(rule, anchors.is_empty(), l);
+/// `file` when the whole file is the hit; a line hit whose anchors did not resolve is still one.
+fn finding(
+    rule: &str,
+    path: &RepoPath,
+    anchors: Vec<CodeRef>,
+    file: bool,
+    l: ReviewLanguage,
+) -> Finding {
+    let (title, explanation, consequence, action) = texts(rule, file, l);
     let key = path.as_str();
     Finding {
         id: FindingId(derived_uuid(&["finding", rule, key])),
@@ -357,6 +365,10 @@ mod tests {
             (
                 "requirements.txt",
                 "--extra-index-url https://pypi.example.com/simple",
+            ),
+            (
+                "requirements.txt",
+                "--index-url https://pypi.example.com/simple",
             ),
             (
                 "requirements-dev.txt",
