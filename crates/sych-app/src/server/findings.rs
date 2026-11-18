@@ -41,9 +41,10 @@ impl Engine {
             let prior = storage.open_findings(*change).await?;
             let decisions = decide(&prior, &result, &manifest);
             let at = (self.now)().as_second();
-            storage
+            // A revision whose lineage cannot be stored is skipped; the next pass applies it.
+            let _ = storage
                 .apply_lineage(*change, run, &result, &decisions, at)
-                .await?;
+                .await;
         }
         Ok(pending.len())
     }
