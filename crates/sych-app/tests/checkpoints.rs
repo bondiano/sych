@@ -34,7 +34,11 @@ async fn a_successor_reuses_its_parents_answers_only_for_unchanged_inputs() {
     // Another run id, the same snapshot and policy: no run-specific value reaches a prompt.
     let (successor, calls, carried) = run(reusable(kept.clone())).await;
     assert!(calls.is_empty(), "no model call: {calls:?}");
-    assert!(successor.record.attempts.is_empty());
+    assert!(
+        successor.record.attempts.is_empty(),
+        "{:?}",
+        successor.record.attempts
+    );
     let origin = kept[0].run_id;
     assert!(
         successor

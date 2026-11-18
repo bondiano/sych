@@ -37,7 +37,11 @@ fn with(files: &[(&'static str, &'static str)]) -> Vec<(&'static str, &'static s
 
 #[test]
 fn easement_judges_changed_files_only_where_configured_with_pinned_indexers_alone() {
-    assert!(collect(&CRATE, &CHANGE).is_empty());
+    assert!(
+        collect(&CRATE, &CHANGE).is_empty(),
+        "{:?}",
+        collect(&CRATE, &CHANGE)
+    );
 
     let facts = collect(&with(&[("easement.yml", "version: 1\n")]), &CHANGE);
     let [easement] = facts.as_slice() else {

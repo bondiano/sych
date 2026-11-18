@@ -36,6 +36,10 @@ impl Scripted {
     }
 }
 
+#[expect(
+    clippy::unused_async_trait_impl,
+    reason = "a scripted fake answers at once, in the shape the async trait asks for"
+)]
 impl ModelProvider for Scripted {
     async fn complete(&self, request: &ModelRequest) -> Step {
         self.seen.borrow_mut().push(request.clone());
@@ -98,6 +102,10 @@ impl MemLedger {
     }
 }
 
+#[expect(
+    clippy::unused_async_trait_impl,
+    reason = "an in-memory fake answers at once, in the shape the async trait asks for"
+)]
 impl Ledger for MemLedger {
     async fn reserve(
         &self,

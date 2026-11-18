@@ -177,7 +177,7 @@ mod tests {
         // The first task finishes only after the third has started, which needs the slot
         // the second frees while the first still runs.
         let tasks = vec![
-            async move { wait.await.map(|()| 0).unwrap_or(9) }.boxed_local(),
+            async move { wait.await.map_or(9, |()| 0) }.boxed_local(),
             async { 1 }.boxed_local(),
             async move {
                 let _ = send.send(());

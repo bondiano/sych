@@ -124,7 +124,11 @@ mod tests {
         let source = "fn f(a: bool) {\n    if a {\n        g();\n    }\n    h();\n}\n";
         assert_eq!(check_source(source).expect("parses"), [4]);
         let fixed = fix_source(source, &[4]);
-        assert!(check_source(&fixed).expect("parses").is_empty());
+        assert!(
+            check_source(&fixed).expect("parses").is_empty(),
+            "{:?}",
+            check_source(&fixed).expect("parses")
+        );
         assert!(fixed.contains("    }\n\n    h();"));
     }
 

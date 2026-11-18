@@ -119,6 +119,10 @@ mod tests {
         let mut on = default_features(manifest);
         on.sort();
         assert_eq!(on, ["alloc", "std"]);
-        assert!(default_features("[package]\nname = \"a\"\n").is_empty());
+        assert!(
+            default_features("[package]\nname = \"a\"\n").is_empty(),
+            "{:?}",
+            default_features("[package]\nname = \"a\"\n")
+        );
     }
 }

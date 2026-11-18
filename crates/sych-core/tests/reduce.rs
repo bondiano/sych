@@ -184,7 +184,11 @@ fn a_waiver_for_one_file_does_not_lift_the_rule_for_another() {
         violated(&plan, &anchored(anchor), &[], &[])
     };
     let live = waived("src/live.go");
-    assert!(live.obligations[0].obligation.waivers.is_empty());
+    assert!(
+        live.obligations[0].obligation.waivers.is_empty(),
+        "{:?}",
+        live.obligations[0].obligation.waivers
+    );
     assert_eq!(live.recommendation, Recommendation::AttentionRequired);
 
     let legacy = waived("src/legacy.go");
@@ -219,7 +223,7 @@ fn block_on_names_the_violations_that_fail_the_check_and_a_waiver_lifts_them() {
     let live = violated(&plan, &anchored("src/live.go"), &[], &block);
     assert_eq!(live.blocked_by, [live.findings[0].id]);
     let advisory = violated(&plan, &anchored("src/live.go"), &[], &[]);
-    assert!(advisory.blocked_by.is_empty());
+    assert!(advisory.blocked_by.is_empty(), "{:?}", advisory.blocked_by);
 
     let mut plan = two_file_plan();
     plan.obligations[0].exceptions = vec![legacy_exception()];

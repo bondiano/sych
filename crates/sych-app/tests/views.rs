@@ -177,7 +177,9 @@ async fn a_revoked_waiver_stops_applying_and_lists_by_state() {
             .active_waivers(1, at)
             .await
             .expect("active")
-            .is_empty()
+            .is_empty(),
+        "{:?}",
+        w.app.storage.active_waivers(1, at).await.expect("active")
     );
     assert_eq!((listed("active").await, listed("revoked").await), (0, 1));
     let (_, again) = call(&url, "POST", &path, Some("lead"), Some("r1"), &Value::Null).await;

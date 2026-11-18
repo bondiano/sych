@@ -132,7 +132,11 @@ async fn bot_comments_and_unlisted_repositories_are_receipts_only() {
     for admitted in [bot, foreign] {
         assert!(matches!(admitted, Admitted::Stored { ref intents, .. } if intents.is_empty()));
     }
-    assert!(s.open_intents().await.expect("intents").is_empty());
+    assert!(
+        s.open_intents().await.expect("intents").is_empty(),
+        "{:?}",
+        s.open_intents().await.expect("intents")
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]

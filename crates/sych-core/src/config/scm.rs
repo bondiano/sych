@@ -290,7 +290,11 @@ mod tests {
 
     #[test]
     fn production_and_self_review_need_a_pinned_build() {
-        assert!(errors("      repositories: [your-org/your-repo]\n").is_empty());
+        assert!(
+            errors("      repositories: [your-org/your-repo]\n").is_empty(),
+            "{:?}",
+            errors("      repositories: [your-org/your-repo]\n")
+        );
         let prod = errors("      repositories: [bondiano/sych]\n");
         assert!(
             prod.iter().any(|e| e.contains("pinned trusted build")),

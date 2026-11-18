@@ -10,7 +10,7 @@ COPY web/ ./
 COPY schemas/openapi.json /src/schemas/openapi.json
 RUN pnpm gen:api && pnpm build
 
-FROM docker.io/library/rust:1.94.1-slim-trixie@sha256:cf09adf8c3ebaba10779e5c23ff7fe4df4cccdab8a91f199b0c142c53fef3e1a AS build
+FROM docker.io/library/rust:1.100.0-slim-trixie@sha256:e9d95b74296f7126a83ae3d041aeaba1ff4c478f13abc5cc034fcf7c131c3d4a AS build
 WORKDIR /src
 # `.git` is not in the context: the build names its commit, which a self-review server checks.
 ARG SYCH_BUILD_COMMIT
@@ -21,7 +21,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     SYCH_BUILD_COMMIT="$SYCH_BUILD_COMMIT" cargo build --release --locked -p sych-app --bin sych \
     && install -m 0755 target/release/sych /usr/local/bin/sych
 
-FROM docker.io/library/rust:1.94.1-slim-trixie@sha256:cf09adf8c3ebaba10779e5c23ff7fe4df4cccdab8a91f199b0c142c53fef3e1a
+FROM docker.io/library/rust:1.100.0-slim-trixie@sha256:e9d95b74296f7126a83ae3d041aeaba1ff4c478f13abc5cc034fcf7c131c3d4a
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/* \

@@ -204,14 +204,26 @@ fn base_and_head_are_separate_workspaces_with_exact_anchors() {
             .code_ref(SourceSide::Head, &use_head, 11, 13)
             .expect("Money")]
     );
-    assert!(base_price.type_definitions.refs.is_empty());
+    assert!(
+        base_price.type_definitions.refs.is_empty(),
+        "{:?}",
+        base_price.type_definitions.refs
+    );
     assert_eq!(base_price.callees.status, QueryStatus::Answered);
-    assert!(base_price.callees.refs.is_empty());
+    assert!(
+        base_price.callees.refs.is_empty(),
+        "{:?}",
+        base_price.callees.refs
+    );
 
     // An answered empty query is partial, never proof that nothing references `legacy`.
     let legacy = symbol(base, "legacy").expect("legacy");
     assert_eq!(legacy.references.status, QueryStatus::Answered);
-    assert!(legacy.references.refs.is_empty());
+    assert!(
+        legacy.references.refs.is_empty(),
+        "{:?}",
+        legacy.references.refs
+    );
     assert_eq!(legacy.references.completeness, Completeness::Partial);
     assert_eq!(legacy.implementations.status, QueryStatus::Answered);
 }
@@ -229,7 +241,11 @@ fn missing_capabilities_are_unsupported_not_empty_success() {
         .expect("price");
     assert_eq!(price.callers.status, QueryStatus::Unsupported);
     assert_eq!(price.callers.completeness, Completeness::Unknown);
-    assert!(price.calling_constructs.is_empty());
+    assert!(
+        price.calling_constructs.is_empty(),
+        "{:?}",
+        price.calling_constructs
+    );
     assert_eq!(price.callees.status, QueryStatus::Unsupported);
     assert_eq!(price.type_definitions.status, QueryStatus::Unsupported);
     assert_eq!(price.implementations.status, QueryStatus::Unsupported);
@@ -261,7 +277,7 @@ fn each_side_resolves_its_own_toolchain() {
     );
     let head = side(&facts, SourceSide::Head);
     assert_eq!(head.status, BackendStatus::Unsupported);
-    assert!(head.symbols.is_empty());
+    assert!(head.symbols.is_empty(), "{:?}", head.symbols);
     assert!(
         head.limitations
             .iter()

@@ -360,7 +360,7 @@ async fn gc_rechecks_a_pin_committed_after_its_candidate_listing_from_an_indepen
         report.deleted, 0,
         "a newly pinned artifact must not be unlinked"
     );
-    assert!(report.candidates.is_empty());
+    assert!(report.candidates.is_empty(), "{:?}", report.candidates);
     let reader = Storage::open(&pg.config).await.expect("consumer pool");
     assert_eq!(
         reader
@@ -375,7 +375,13 @@ async fn gc_rechecks_a_pin_committed_after_its_candidate_listing_from_an_indepen
             .await
             .expect("relist")
             .candidates
-            .is_empty()
+            .is_empty(),
+        "{:?}",
+        reader
+            .prune(at(7_200), true)
+            .await
+            .expect("relist")
+            .candidates
     );
     drop(reader);
     gate_pool.close().await;

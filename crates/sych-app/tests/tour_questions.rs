@@ -68,7 +68,9 @@ async fn questions_are_private_and_a_waiver_needs_a_maintainer() {
             .active_waivers(1, at)
             .await
             .expect("waivers")
-            .is_empty()
+            .is_empty(),
+        "{:?}",
+        w.app.storage.active_waivers(1, at).await.expect("waivers")
     );
     let (status, decided) = ask("lead", "r2", risk.clone()).await;
     assert_eq!(status, StatusCode::CREATED, "{decided}");

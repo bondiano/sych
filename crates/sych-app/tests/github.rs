@@ -36,7 +36,9 @@ async fn installation_token_is_scoped_cached_and_capabilities_recorded() {
     assert!(
         capabilities(&installation.permissions)
             .missing(false)
-            .is_empty()
+            .is_empty(),
+        "{:?}",
+        capabilities(&installation.permissions).missing(false)
     );
     let first = gh
         .token(installation.id, "o/r", TokenScope::Read, NOW)
@@ -160,7 +162,11 @@ async fn scm_smoke_writes_reads_finds_and_deletes_its_own_comment() {
             .collect::<Vec<_>>(),
         [1, 2]
     );
-    assert!(report.missing_capabilities.is_empty());
+    assert!(
+        report.missing_capabilities.is_empty(),
+        "{:?}",
+        report.missing_capabilities
+    );
     let s = lock(&fake);
     assert!(s.comments.is_empty(), "the smoke comment is removed");
     let writes: Vec<&String> = s

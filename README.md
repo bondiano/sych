@@ -119,7 +119,7 @@ The same pages live in [docs/](docs/README.md). Each crate has its own README wi
 ## Development
 
 You need [rustup](https://rustup.rs/), [just](https://just.systems/) and
-[cargo-machete](https://github.com/bnjbvr/cargo-machete) 0.9.2. The toolchain (Rust 1.94.1, rustfmt, Clippy) is
+[cargo-machete](https://github.com/bnjbvr/cargo-machete) 0.9.2. The toolchain (Rust 1.100.0, rustfmt, Clippy) is
 pinned in `rust-toolchain.toml`, dependencies in `Cargo.lock`, and every Cargo command runs with `--locked`.
 
 ```sh

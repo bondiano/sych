@@ -69,6 +69,10 @@ struct Script {
     shown: RefCell<Vec<Prompt>>,
 }
 
+#[expect(
+    clippy::unused_async_trait_impl,
+    reason = "a scripted fake answers at once, in the shape the async trait asks for"
+)]
 impl Model for Script {
     async fn followup(&self, prompt: &Prompt) -> Result<FollowupOutput, String> {
         self.shown.borrow_mut().push(prompt.clone());

@@ -29,7 +29,11 @@ async fn findings_become_one_comment_review_at_exact_positions_and_one_summary()
     let w = world(None).await;
     let head = world::commit_result(&w, 2).await;
     drain(&w).await;
-    assert!(writes(&w, "POST /repos/o/r/pulls/7/comments ").is_empty());
+    assert!(
+        writes(&w, "POST /repos/o/r/pulls/7/comments ").is_empty(),
+        "{:?}",
+        writes(&w, "POST /repos/o/r/pulls/7/comments ")
+    );
     let reviews = writes(&w, "POST /repos/o/r/pulls/7/reviews ");
     assert_eq!(reviews.len(), 1, "one review carries every new comment");
     assert_eq!(
@@ -113,7 +117,11 @@ async fn a_review_with_an_unknown_outcome_is_reconciled_never_resent() {
     );
     world::commit_result(&w, 2).await;
     drain(&w).await;
-    assert!(writes(&w, "POST /repos/o/r/pulls/7/comments ").is_empty());
+    assert!(
+        writes(&w, "POST /repos/o/r/pulls/7/comments ").is_empty(),
+        "{:?}",
+        writes(&w, "POST /repos/o/r/pulls/7/comments ")
+    );
     assert_eq!(inline_states(&w).await, ["UNCERTAIN", "UNCERTAIN"]);
 }
 

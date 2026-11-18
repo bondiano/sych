@@ -143,7 +143,7 @@ fn outbox_moved_to_a_goroutine_is_changed_but_not_declared_lost() {
     let notes = event.notes.join("\n");
     assert!(notes.contains("recovery path"), "{notes}");
     assert!(!notes.contains("lost"), "loss is not asserted: {notes}");
-    assert!(!event.contract_refs.is_empty());
+    assert!(!event.contract_refs.is_empty(), "empty");
 
     // The safe pair keeps the call in the transaction.
     let l = ledger(
@@ -176,7 +176,10 @@ fn changed_wrapper_implementation_is_not_trusted() {
     );
     let binding = &l.registry[0];
     assert_eq!(binding.status, BindingStatus::ImplementationChanged);
-    assert!(binding.implementation[0].base_oid != binding.implementation[0].head_oid);
+    assert_ne!(
+        binding.implementation[0].base_oid,
+        binding.implementation[0].head_oid
+    );
     let event = entry(&l, "example.internal/orders.Store.AppendEvent");
     assert_eq!(event.durable_with_transaction, None);
     assert!(event.notes.iter().any(|n| n.contains("not carried")));

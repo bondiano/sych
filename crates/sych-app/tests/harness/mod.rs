@@ -249,6 +249,10 @@ impl Ledger for Recorder<'_> {
         self.storage.settle(attempt, settlement, at).await
     }
 
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "kept in memory at once, in the shape the async trait asks for"
+    )]
     async fn checkpoint(&self, checkpoint: &Checkpoint) -> Result<(), LedgerError> {
         self.kept.borrow_mut().push(checkpoint.clone());
         Ok(())

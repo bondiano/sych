@@ -468,7 +468,9 @@ async fn a_pull_request_github_keeps_failing_to_return_is_given_up_after_its_ret
             .open_intents()
             .await
             .expect("intents")
-            .is_empty()
+            .is_empty(),
+        "{:?}",
+        w.app.storage.open_intents().await.expect("intents")
     );
 }
 

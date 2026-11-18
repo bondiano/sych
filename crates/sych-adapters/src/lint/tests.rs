@@ -48,6 +48,10 @@ fn actionlint_json_becomes_diagnostics() {
     assert_eq!(found[0].path, ".github/workflows/ci.yml");
     assert_eq!(found[0].line, 10);
     assert_eq!(found[0].code.as_deref(), Some("actionlint::expression"));
-    assert!(run::actionlint("").expect("no findings").0.is_empty());
+    assert!(
+        run::actionlint("").expect("no findings").0.is_empty(),
+        "{:?}",
+        run::actionlint("").expect("no findings").0
+    );
     assert!(run::actionlint("not json").is_err());
 }

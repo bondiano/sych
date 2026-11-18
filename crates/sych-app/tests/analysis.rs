@@ -102,7 +102,7 @@ async fn dispatched_timeout_keeps_an_unknown_charge() {
     let (outcome, _) = run(timeout, Budgets::default()).await;
     assert_eq!(reason(&outcome.assessments[0].status), "MODEL_FAILED");
     let attempts = &outcome.record.attempts;
-    assert!(!attempts.is_empty());
+    assert!(!attempts.is_empty(), "empty");
     assert!(
         attempts
             .iter()
@@ -140,7 +140,7 @@ async fn context_request_is_answered_through_the_broker_for_the_verifier() {
             .iter()
             .all(|c| c.verification_status == VerificationStatus::Rejected)
     );
-    assert!(outcome.findings.is_empty());
+    assert!(outcome.findings.is_empty(), "{:?}", outcome.findings);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -211,7 +211,7 @@ async fn without_the_verifier_candidates_stay_unverified() {
         ["review", "discovery", "discovery"],
         "an expansion round, no verification call"
     );
-    assert!(!outcome.candidates.is_empty());
+    assert!(!outcome.candidates.is_empty(), "empty");
     assert!(
         outcome
             .candidates

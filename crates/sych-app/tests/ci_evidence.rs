@@ -229,7 +229,7 @@ async fn a_late_ci_successor_derives_its_own_evidence_and_leaves_the_parent_froz
     let runs = w.run_ids().await;
     assert_eq!(runs.len(), 2, "one successor");
     let (successor, successor_inputs, _) = derived(&w, &runs[1]).await;
-    assert!(!successor.is_empty());
+    assert!(!successor.is_empty(), "empty");
     assert!(
         successor
             .iter()
@@ -239,7 +239,7 @@ async fn a_late_ci_successor_derives_its_own_evidence_and_leaves_the_parent_froz
         !successor_inputs.is_empty(),
         "the late report is an input of the successor only"
     );
-    assert!(parent_inputs.is_empty());
+    assert!(parent_inputs.is_empty(), "{parent_inputs:?}");
     assert_eq!(
         derived(&w, &parent).await.2,
         parent_manifest,

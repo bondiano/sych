@@ -227,7 +227,7 @@ fn plan_fixes_units_obligations_and_exclusions_before_discovery() {
     let plan = orders_plan();
     assert_eq!(plan.scope.units.len(), 2, "one unit per directory");
     assert_eq!(plan.scope.excluded[0].reason, "BINARY");
-    assert!(plan.unreviewed.is_empty());
+    assert!(plan.unreviewed.is_empty(), "{:?}", plan.unreviewed);
     let rules: Vec<_> = plan
         .obligations
         .iter()
@@ -261,7 +261,7 @@ fn safe_change_has_no_blocking_findings_and_complete_coverage() {
     ));
     assert_eq!(r.coverage, Coverage::CompleteForScope);
     assert_eq!(r.recommendation, Recommendation::NoBlockingFindingsInScope);
-    assert!(r.findings.is_empty());
+    assert!(r.findings.is_empty(), "{:?}", r.findings);
 }
 
 #[test]
@@ -307,7 +307,11 @@ fn a_waiver_keeps_the_violation_but_lowers_the_risk_decision() {
     assert_eq!(r.recommendation, Recommendation::NoBlockingFindingsInScope);
 
     let expired = waived("2026-10-01T00:00:00Z");
-    assert!(expired.obligations[0].obligation.waivers.is_empty());
+    assert!(
+        expired.obligations[0].obligation.waivers.is_empty(),
+        "{:?}",
+        expired.obligations[0].obligation.waivers
+    );
     assert!(
         expired.obligations[0]
             .obligation
@@ -327,7 +331,7 @@ fn empty_discovery_and_weak_evidence_leave_obligations_unknown() {
     ));
     assert_eq!(not_assessed.recommendation, Recommendation::NeedsEvidence);
     assert_eq!(not_assessed.coverage, Coverage::Partial);
-    assert!(!not_assessed.unresolved_questions.is_empty());
+    assert!(!not_assessed.unresolved_questions.is_empty(), "empty");
 
     let author = evidence(
         2,
@@ -381,7 +385,7 @@ fn not_applicable_is_not_reopened_by_an_assessment() {
         status_of(&r, "FRONT-01"),
         ObligationStatus::NotApplicable { .. }
     ));
-    assert!(r.findings.is_empty());
+    assert!(r.findings.is_empty(), "{:?}", r.findings);
 }
 
 #[test]

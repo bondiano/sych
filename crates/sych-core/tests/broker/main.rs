@@ -446,7 +446,7 @@ fn supporting_context_yields_to_the_budget_first() {
             .iter()
             .all(|e| e.reason == "BUDGET" && e.priority == Priority::Supporting)
     );
-    assert!(!discovery.excluded.is_empty());
+    assert!(!discovery.excluded.is_empty(), "empty");
 }
 
 #[test]

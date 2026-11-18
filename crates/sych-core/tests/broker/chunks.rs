@@ -131,7 +131,7 @@ fn merged_spans_stay_within_the_span_line_limit() {
     };
     let (_, packets) = run_on(&manifest(), short, &[facts(&reader)], &[], &none, &[]);
     let fragments: Vec<_> = packets.iter().flat_map(|p| &p.fragments).collect();
-    assert!(!fragments.is_empty());
+    assert!(!fragments.is_empty(), "empty");
     for f in fragments {
         let r = &f.code_ref;
         assert!(

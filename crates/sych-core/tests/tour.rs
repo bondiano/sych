@@ -151,7 +151,11 @@ fn a_valid_tour_renders_lines_from_the_blob() {
     let r = result();
     let reader = Reader(r.source_snapshot_id.clone());
     let t = tour(&r);
-    assert!(validate(&t, &r, &reader).is_empty());
+    assert!(
+        validate(&t, &r, &reader).is_empty(),
+        "{:?}",
+        validate(&t, &r, &reader)
+    );
     let shown = render(&t.steps[0], &reader);
     assert_eq!(
         shown[0].1.as_deref(),

@@ -90,7 +90,7 @@ fn linters_run_on_changed_files_in_an_empty_environment() {
     assert!(args.contains("--repro --cache false"), "{args}");
     assert!(args.contains("--config-dir /"), "{args}");
     assert!(args.ends_with("--lint src/core.clj]"), "{args}");
-    assert!(kondo.config.is_empty());
+    assert!(kondo.config.is_empty(), "{:?}", kondo.config);
     assert!(
         kondo
             .limitations
@@ -134,5 +134,5 @@ fn a_file_named_like_an_option_stays_a_file() {
 #[test]
 fn nothing_to_lint_runs_nothing() {
     let facts = collect(&[("docs/a.md", "a\n")], &[("docs/a.md", "b\n")]);
-    assert!(facts.is_empty());
+    assert!(facts.is_empty(), "{facts:?}");
 }

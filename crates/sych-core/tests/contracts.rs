@@ -121,7 +121,7 @@ fn every_openapi_reference_resolves() {
     let doc = api::openapi();
     let mut found = Vec::new();
     refs(&doc, &mut found);
-    assert!(!found.is_empty());
+    assert!(!found.is_empty(), "{found:?}");
     for r in found {
         let target = r.strip_prefix('#').and_then(|p| doc.pointer(p));
         assert!(target.is_some(), "{r} does not resolve");
