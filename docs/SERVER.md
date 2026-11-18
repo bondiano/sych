@@ -292,7 +292,7 @@ PENDING ──claim──▶ (gates) ──▶ PUBLISHING ──reply──▶ D
   that the operation stays `UNCERTAIN` with `RECONCILIATION_WINDOW_EXHAUSTED` and waits for the operator.
 - **Relevance** is separate from delivery: an object delivered for an older generation than the change's desired one is
   `STALE`, delivery of the current one — `CURRENT`. Closing the change cancels `PENDING`; `UNCERTAIN` stays for read-only reconciliation.
-- **Late old UPDATE**: every 10 minutes delivered objects are checked against the last sent body;
+- **Late old UPDATE**: every 10 minutes delivered summaries are checked against the last sent body;
   a divergence in the bot's comment is repaired and written to `change_events` as `PUBLICATION_REPAIRED`.
 
 ### Operator runbook
@@ -347,7 +347,7 @@ then each comment is sent alone and only the refused one moves to the summary. A
 `[P0]`…`[P4]` (Critical…Info) and the title, one paragraph of explanation and consequence, the suggested action and
 code, and a collapsed prompt for coding agents.
 
-A comment outlives its revision. When a later summary is rendered, every delivered comment whose finding lineage
+A comment outlives its revision. When a later summary is rendered, every delivered comment whose finding lineage has
 recorded is decided again (`publication::revisit` over `lineage::decide`): one whose finding the new result no longer
 has and lineage closes (`RESOLVED`, `OBSOLETE`, `CONTINUED`) is edited in place to "Sych no longer reports this finding
 at `<head>`" with `<!-- sych:resolved -->`, its earlier text folded below; one whose finding comes back gets its text

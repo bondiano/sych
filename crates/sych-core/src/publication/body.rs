@@ -242,17 +242,26 @@ pub fn gone_body(fingerprint: &str, head: &str, original: &str, l: ReviewLanguag
         .lines()
         .filter(|line| !line.starts_with("<!-- sych:"))
         .collect();
-    format!(
-        "<!-- sych:inline:{fingerprint} -->\n{GONE_MARKER}\n{} `{}`.\n\n<details><summary>{}</summary>\n\n{}\n\n</details>\n",
+    let mut out = format!(
+        "<!-- sych:inline:{fingerprint} -->\n{GONE_MARKER}\n{} `{}`.\n",
         tr(
             l,
             "Sych no longer reports this finding at",
             "Sych больше не сообщает об этом замечании на",
         ),
         head.get(..12).unwrap_or(head),
-        tr(l, "Original comment", "Исходный комментарий"),
-        original.join("\n").trim(),
-    )
+    );
+    let original = original.join("\n");
+    if !original.trim().is_empty() {
+        let _ = write!(
+            out,
+            "\n<details><summary>{}</summary>\n\n{}\n\n</details>\n",
+            tr(l, "Original comment", "Исходный комментарий"),
+            original.trim(),
+        );
+    }
+
+    out
 }
 
 /// The body of an inline comment in `language`, a reviewer's note: priority and title, one

@@ -230,4 +230,6 @@ fn an_inline_comment_is_rewritten_only_when_lineage_decides() {
         body.contains("<summary>Original comment</summary>\n\n**[P1] Lost event**"),
         "{body}"
     );
+    let bare = gone_body("sha256:ab", "0123456789abcdef", "", ReviewLanguage::En);
+    assert!(!bare.contains("<details>"), "nothing to fold: {bare}");
 }
