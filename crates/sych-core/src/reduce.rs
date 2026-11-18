@@ -3,8 +3,6 @@
 
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
-
 use crate::model::MODEL_QUOTA_EXHAUSTED;
 use crate::{
     Applicability, Candidate, Completeness, Coverage, Evidence, EvidenceId, EvidenceManifest,
@@ -15,77 +13,8 @@ use crate::{
     glob_match, sha256,
 };
 
-/// A verifier's answer for one rule's obligation. Unknown fields are rejected.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(try_from = "RawAssessment")]
-pub struct Assessment {
-    pub rule_id: String,
-    #[serde(flatten)]
-    pub status: ObligationStatus,
-    #[serde(default)]
-    pub evidence_ids: Vec<EvidenceId>,
-    #[serde(default)]
-    pub limitations: Vec<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-enum StatusTag {
-    Supported,
-    Violated,
-    Unknown,
-    NotApplicable,
-}
-
-/// Flat wire form; serde cannot deny unknown fields through `flatten`.
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawAssessment {
-    rule_id: String,
-    status: StatusTag,
-    reason_code: Option<String>,
-    next_evidence_needed: Option<String>,
-    basis: Option<String>,
-    #[serde(default)]
-    evidence_ids: Vec<EvidenceId>,
-    #[serde(default)]
-    limitations: Vec<String>,
-}
-
-impl TryFrom<RawAssessment> for Assessment {
-    type Error = &'static str;
-
-    fn try_from(raw: RawAssessment) -> Result<Self, Self::Error> {
-        let status = match (
-            raw.status,
-            raw.reason_code,
-            raw.next_evidence_needed,
-            raw.basis,
-        ) {
-            (StatusTag::Supported, None, None, None) => ObligationStatus::Supported,
-            (StatusTag::Violated, None, None, None) => ObligationStatus::Violated,
-            (StatusTag::Unknown, Some(reason_code), Some(next_evidence_needed), None) => {
-                ObligationStatus::Unknown {
-                    reason_code,
-                    next_evidence_needed,
-                }
-            }
-            (StatusTag::NotApplicable, None, None, Some(basis)) if !basis.trim().is_empty() => {
-                ObligationStatus::NotApplicable { basis }
-            }
-            _ => {
-                return Err("UNKNOWN needs reason_code and next_evidence_needed, \
-                            NOT_APPLICABLE needs basis, other statuses take neither");
-            }
-        };
-        Ok(Self {
-            rule_id: raw.rule_id,
-            status,
-            evidence_ids: raw.evidence_ids,
-            limitations: raw.limitations,
-        })
-    }
-}
+mod assessment;
+pub use assessment::Assessment;
 
 pub struct ReduceInput<'a> {
     pub plan: &'a ReviewPlan,
@@ -209,12 +138,19 @@ fn violation_severity(planned: &PlannedObligation) -> Severity {
         .unwrap_or(DEFAULT_VIOLATION_SEVERITY)
 }
 
-/// A checked violation is never lost for want of a finding.
+/// A checked violation is never lost for want of a finding. Its "when" is the case the violating assessment named.
 fn rule_violation(
     planned: &PlannedObligation,
     evidence: &BTreeMap<EvidenceId, &Evidence>,
+    assessments: &[Assessment],
 ) -> Finding {
     let ob = &planned.obligation;
+    let triggering_conditions = assessments
+        .iter()
+        .rev()
+        .find(|a| a.rule_id == ob.rule_id && a.status == ObligationStatus::Violated)
+        .map(|a| a.triggering_conditions.clone())
+        .unwrap_or_default();
     let key = ob.id.to_string();
     let anchors = ob
         .evidence_ids
@@ -229,7 +165,7 @@ fn rule_violation(
         support: Support::ExplicitRule,
         title: format!("{} violated: {}", ob.rule_id, planned.rule_title),
         explanation: ob.question.clone(),
-        triggering_conditions: Vec::new(),
+        triggering_conditions,
         consequence: format!("acceptance criterion not met: {}", ob.acceptance_criterion),
         anchors,
         evidence_ids: ob.evidence_ids.clone(),
@@ -434,7 +370,7 @@ pub fn reduce(input: &ReduceInput<'_>) -> Reduced {
                 .iter()
                 .any(|f| f.obligation_ids.contains(&id) && f.severity >= violation_severity(o))
         {
-            findings.push(rule_violation(o, &evidence));
+            findings.push(rule_violation(o, &evidence, input.assessments));
         }
     }
 

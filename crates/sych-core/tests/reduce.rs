@@ -108,6 +108,7 @@ fn violated(
 ) -> Reduced {
     let assessment = sych_core::Assessment {
         rule_id: "LIVE-01".into(),
+        triggering_conditions: vec!["a lease that expires mid-run".into()],
         status: ObligationStatus::Violated,
         evidence_ids: vec![ev.id],
         limitations: Vec::new(),
@@ -157,6 +158,16 @@ fn quota_failures_share_one_actionable_gap_but_keep_each_obligation_unknown() {
             .iter()
             .all(|o| matches!(o.obligation.status, ObligationStatus::Unknown { .. }))
     );
+}
+
+/// The reducer's rule violation finding says when the rule breaks, as its assessment named it.
+#[test]
+fn a_rule_violation_finding_carries_its_violating_case() {
+    let plan = two_file_plan();
+    let r = violated(&plan, &anchored("src/live.go"), &[], &[]);
+    let f = &r.findings[0];
+    assert_eq!(f.category, FindingCategory::RuleViolation);
+    assert_eq!(f.triggering_conditions, ["a lease that expires mid-run"]);
 }
 
 #[test]

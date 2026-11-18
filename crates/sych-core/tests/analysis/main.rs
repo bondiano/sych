@@ -313,6 +313,8 @@ fn assessment(status: ProposedStatus, results: Vec<CriterionResult>) -> Assessme
         limitations: Vec::new(),
         missing_inputs: Vec::new(),
         not_applicable_basis: None,
+        violating_case: (status == ProposedStatus::Violated)
+            .then(|| "a failed publish leaves the order saved".into()),
     }
 }
 
@@ -358,6 +360,35 @@ fn a_repeated_criterion_id_is_not_settled_by_its_first_answer() {
         "{:?}",
         record.problems
     );
+}
+
+/// A violation names the input, state or event that breaks the criterion; restating the rule
+/// is not one, so a blank case leaves the obligation unknown.
+#[test]
+fn a_violation_names_its_case() {
+    let reader = Reader::new();
+    let (context, _) = context(&reader);
+    let planned = obligation(&["returns 0 when items is undefined", "never throws"]);
+    let check = |output: AssessmentOutput| {
+        validate_assessment(output, &planned, "ob-1", &context, &reader).assessment
+    };
+    let met = |id| criterion(id, CriterionStatus::Met, vec![anchor("ref-1", 2, 4)]);
+    let violated = || {
+        assessment(
+            ProposedStatus::Violated,
+            vec![
+                met("c-1"),
+                criterion("c-2", CriterionStatus::NotMet, vec![anchor("ref-2", 2, 2)]),
+            ],
+        )
+    };
+    assert_eq!(
+        check(violated()).triggering_conditions,
+        ["a failed publish leaves the order saved"]
+    );
+    let mut caseless = violated();
+    caseless.violating_case = Some("  ".into());
+    assert_eq!(reason(&check(caseless).status), "VIOLATION_WITHOUT_CASE");
 }
 
 #[test]

@@ -138,6 +138,7 @@ fn an_unexpanded_macro_in_the_change_keeps_the_obligation_unknown() {
     );
     let assessment = |status| Assessment {
         rule_id: "EFFECT-01".into(),
+        triggering_conditions: Vec::new(),
         status,
         evidence_ids: Vec::new(),
         limitations: Vec::new(),

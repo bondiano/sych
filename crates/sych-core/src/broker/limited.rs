@@ -47,11 +47,17 @@ fn combine(into: &mut Assessment, a: Assessment) {
         Ordering::Greater => {
             into.status = a.status;
             into.evidence_ids = a.evidence_ids;
+            into.triggering_conditions = a.triggering_conditions;
         }
         Ordering::Equal => {
             for id in a.evidence_ids {
                 if !into.evidence_ids.contains(&id) {
                     into.evidence_ids.push(id);
+                }
+            }
+            for case in a.triggering_conditions {
+                if !into.triggering_conditions.contains(&case) {
+                    into.triggering_conditions.push(case);
                 }
             }
         }
@@ -100,6 +106,7 @@ pub fn context_limited(
                 limitations: vec![format!(
                     "required context exceeded the packet budget ({REQUIRED_OVER_BUDGET})"
                 )],
+                triggering_conditions: Vec::new(),
             }),
     );
     out

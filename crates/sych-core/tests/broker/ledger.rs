@@ -70,6 +70,7 @@ fn supported_becomes(ledger: &EffectLedger) -> ObligationStatus {
     let (plan, packets) = run_full(limits(), &[], &[], ledger, &[]);
     let assessment = Assessment {
         rule_id: "EFFECT-01".into(),
+        triggering_conditions: Vec::new(),
         status: ObligationStatus::Supported,
         evidence_ids: Vec::new(),
         limitations: Vec::new(),

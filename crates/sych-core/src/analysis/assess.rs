@@ -57,6 +57,10 @@ pub struct AssessmentOutput {
     /// Strict structured outputs need it listed as required; serde still reads a missing one.
     #[schemars(required, extend("type" = ["string", "null"]))]
     pub not_applicable_basis: Option<String>,
+    /// The concrete input, state or event under which the change breaks a `NOT_MET` criterion,
+    /// naming the error, task or resource; only with `VIOLATED`.
+    #[schemars(required, extend("type" = ["string", "null"]))]
+    pub violating_case: Option<String>,
 }
 
 /// One criterion as the engine accepted it.
@@ -92,6 +96,7 @@ pub fn unknown(planned: &PlannedObligation, reason_code: &str, next: &str) -> As
         },
         evidence_ids: Vec::new(),
         limitations: Vec::new(),
+        triggering_conditions: Vec::new(),
     }
 }
 
@@ -130,6 +135,7 @@ pub fn validate(
     let output = AssessmentOutput {
         limitations: super::texts(output.limitations),
         missing_inputs: super::texts(output.missing_inputs),
+        violating_case: case(output.violating_case),
         ..output
     };
     // Identity and reference errors break the answer's contract, unlike incomplete criteria.
@@ -223,6 +229,7 @@ pub fn validate(
         problems,
         assessment: Assessment {
             rule_id: planned.obligation.rule_id.clone(),
+            triggering_conditions: output.violating_case.into_iter().collect(),
             status,
             evidence_ids,
             limitations,
@@ -301,7 +308,14 @@ fn decide(
             unknown("TEST_ORACLE_ONLY")
         }
         ProposedStatus::Supported => ObligationStatus::Supported,
-        ProposedStatus::Violated if any_not_met => ObligationStatus::Violated,
+        // A rule violation names what breaks; "the rule is not met" alone is not a finding.
+        ProposedStatus::Violated if any_not_met && output.violating_case.is_some() => {
+            ObligationStatus::Violated
+        }
+        ProposedStatus::Violated if any_not_met => {
+            problems.push("VIOLATED without a violating_case".into());
+            unknown("VIOLATION_WITHOUT_CASE")
+        }
         ProposedStatus::Violated => {
             problems.push("VIOLATED without a NOT_MET criterion".into());
             unknown("CONTRADICTORY_ASSESSMENT")
@@ -321,6 +335,11 @@ fn decide(
             "MODEL_UNKNOWN"
         }),
     }
+}
+
+/// The trimmed `violating_case`, when the answer names one.
+fn case(case: Option<String>) -> Option<String> {
+    case.map(|c| c.trim().to_owned()).filter(|c| !c.is_empty())
 }
 
 fn test_oracle_only(criteria: &[CriterionRecord]) -> bool {
