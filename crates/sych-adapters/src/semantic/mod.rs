@@ -31,6 +31,7 @@ use sych_core::{
 };
 
 use crate::git::{LocalSnapshot, Materialized, SnapshotError};
+use crate::sandbox::{self, NOT_ISOLATED};
 use sych_core::config::Tooling;
 
 use crate::tools::{PinnedTool, ToolError, host_target};
@@ -231,6 +232,10 @@ impl Workspace<'_> {
             .build_configuration
             .clone_from(&profile.build_configuration);
         facts.limitations.clone_from(&profile.limitations);
+        if !sandbox::isolated() {
+            facts.limitations.push(NOT_ISOLATED.into());
+        }
+
         if let Err(err) = self.run(&profile, &binary, files, &mut facts) {
             facts.status = BackendStatus::Failed;
             facts.limitations.push(err.to_string());
