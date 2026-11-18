@@ -361,6 +361,28 @@ fn a_repeated_criterion_id_is_not_settled_by_its_first_answer() {
 }
 
 #[test]
+fn a_zero_padded_criterion_id_is_an_invalid_reference() {
+    let reader = Reader::new();
+    let (context, _) = context(&reader);
+    let planned = obligation(&["returns 0 when items is undefined"]);
+    let output = assessment(
+        ProposedStatus::Supported,
+        vec![criterion(
+            "c-01",
+            CriterionStatus::Met,
+            vec![anchor("ref-1", 2, 4)],
+        )],
+    );
+    let record = validate_assessment(output, &planned, "ob-1", &context, &reader);
+    assert_eq!(reason(&record.assessment.status), "INVALID_REFERENCE");
+    assert!(
+        record.problems.iter().any(|p| p.contains("c-01")),
+        "{:?}",
+        record.problems
+    );
+}
+
+#[test]
 fn assessment_statuses_follow_the_criteria() {
     let reader = Reader::new();
     let (context, source) = context(&reader);
