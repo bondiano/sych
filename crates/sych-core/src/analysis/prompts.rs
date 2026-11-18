@@ -9,9 +9,9 @@ use crate::{Candidate, PlannedObligation};
 
 pub const DISCOVERY: &str = "discovery@10";
 pub const RISK_AUDIT: &str = "risk_audit@8";
-pub const ASSESSMENT: &str = "assessment@4";
+pub const ASSESSMENT: &str = "assessment@5";
 pub const VERIFY: &str = "verify@6";
-pub const REVIEW: &str = "review@9";
+pub const REVIEW: &str = "review@10";
 
 /// The fields of one assessment; `ob` names the obligation id the answer must carry.
 fn assessment_fields(ob: &str) -> String {
@@ -19,14 +19,18 @@ fn assessment_fields(ob: &str) -> String {
         "obligation_id ({ob}), applicability (APPLIES, DOES_NOT_APPLY, UNKNOWN), \
          proposed_status (SUPPORTED, VIOLATED, UNKNOWN, NOT_APPLICABLE), criterion_results \
          (one per c-N: criterion_id, status MET, NOT_MET or UNKNOWN, anchors, evidence_ids), \
-         evidence_ids, rationale, limitations, missing_inputs and not_applicable_basis (a \
-         checkable basis, only with NOT_APPLICABLE, otherwise null)"
+         evidence_ids, rationale, limitations, missing_inputs, not_applicable_basis (a \
+         checkable basis, only with NOT_APPLICABLE, otherwise null) and violating_case (only \
+         with VIOLATED, otherwise null)"
     )
 }
 
-const ASSESSMENT_RULES: [&str; 3] = [
+const ASSESSMENT_RULES: [&str; 4] = [
     "SUPPORTED needs every criterion MET with an anchor; VIOLATED needs a NOT_MET criterion \
      with an anchor. Otherwise answer UNKNOWN and list missing_inputs.",
+    "VIOLATED also needs violating_case: one sentence naming the concrete input, state or event \
+     under which the changed code breaks the criterion, and the error, task or resource that \
+     then behaves differently. Restating the criterion is not a case; without one answer UNKNOWN.",
     "A test written in the same change is not the accepted requirement; it can support a \
      criterion only together with the production code it checks.",
     "Not finding a defect is not evidence that a criterion is met.",

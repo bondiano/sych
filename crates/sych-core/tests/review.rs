@@ -176,6 +176,7 @@ fn source_evidence() -> Evidence {
 fn assess(status: ObligationStatus, evidence: &[&Evidence]) -> Assessment {
     Assessment {
         rule_id: "EFFECT-01".into(),
+        triggering_conditions: Vec::new(),
         status,
         evidence_ids: evidence.iter().map(|e| e.id).collect(),
         limitations: Vec::new(),

@@ -26,11 +26,11 @@ sending, and the `budgets.analysis` budgets (attempts, tokens, $, deadline) are 
    verifier's attempt, so a PR with many required rules is still searched. If a discovery batch (item 3) shows an obligation's verification packet
    in full (each of its spans lies within the batch spans, nothing required is excluded), the assessment
    runs in the same call as discovery: `review@7` returns `assessments` and hypotheses. For a small PR this is
-   one call instead of assessment + discovery. The remaining obligations each get a separate `assessment@4`.
+   one call instead of assessment + discovery. The remaining obligations each get a separate `assessment@5`.
    Combined and separate calls share one queue in that obligation order (a combined call ranks by its most
    important obligation). An obligation without exactly one assessment in the `review@7` reply is
    `UNKNOWN/MODEL_FAILED` ("ob-N has no single assessment"); a criterion without exactly one result is `UNKNOWN`. An obligation whose verification packet was split into chunks gets one
-   `assessment@4` per chunk; `context_limited` merges them per rule: a violation in any chunk stands, then an
+   `assessment@5` per chunk; `context_limited` merges them per rule: a violation in any chunk stands, then an
    unknown, then support. The packet holding a required span that fits no chunk (`REQUIRED_OVER_BUDGET`) gets
    no call, and the obligation stays `UNKNOWN/CONTEXT_LIMIT` unless another chunk shows a violation.
 2. **Risk audit** (`risk_audit@7`) — for HIGH/CRITICAL risk obligations, a separate search over each chunk of the
@@ -189,7 +189,10 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
   conditions, consequence, anchors), named in the same comment under "Also on these lines" and in its prompt for AI
   agents, and their rules stay linked to it. The fingerprint and id are the kept finding's, so lineage and the
   publication plan see one finding per location.
-  A `VIOLATED` obligation without a linked finding yields a rule violation finding from the reducer.
+  A `VIOLATED` obligation without a linked finding yields a rule violation finding from the reducer; its "when" is the
+  assessment's `violating_case`. An assessment answers `VIOLATED` only with a non-blank `violating_case` naming the
+  concrete input, state or event that breaks a `NOT_MET` criterion; without one it is `UNKNOWN/VIOLATION_WITHOUT_CASE`,
+  so a rule is never reported broken by restating it.
 - **Basis and baseline.** Basis kinds: `STATIC_TRACE` (a chain of anchors from the change to the consequence),
   `SEMANTIC_ARGUMENT` (reasoning over the shown spans), `EXPLICIT_RULE` (accepted rule), `PREFERENCE` (only
   nit/improvement); `EXECUTED_COUNTEREXAMPLE` is never accepted from the model, which executes nothing. Novelty and

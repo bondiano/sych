@@ -45,6 +45,7 @@ fn required_spans_that_fit_one_by_one_are_split_into_chunks() {
 
     let assessment = |status| Assessment {
         rule_id: "EFFECT-01".into(),
+        triggering_conditions: Vec::new(),
         status,
         evidence_ids: Vec::new(),
         limitations: Vec::new(),
@@ -99,6 +100,7 @@ fn a_violation_shown_in_a_chunk_stands_beside_an_over_budget_span() {
     );
     let assessment = |status| Assessment {
         rule_id: "EFFECT-01".into(),
+        triggering_conditions: Vec::new(),
         status,
         evidence_ids: Vec::new(),
         limitations: Vec::new(),

@@ -468,6 +468,7 @@ fn required_guard_over_budget_makes_the_obligation_unknown() {
     assert_eq!(verification.resolution, PacketResolution::Unavailable);
     let supported = Assessment {
         rule_id: "EFFECT-01".into(),
+        triggering_conditions: Vec::new(),
         status: ObligationStatus::Supported,
         evidence_ids: Vec::new(),
         limitations: Vec::new(),
