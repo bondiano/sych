@@ -6,7 +6,10 @@ use std::collections::BTreeSet;
 
 use super::{EvidencePacket, REQUIRED_OVER_BUDGET, UNSEEN_GAPS};
 use crate::effects::LEDGER_GAPS;
-use crate::{Assessment, ObligationStatus, ReviewPlan};
+use crate::{Assessment, ContentKind, DiffManifest, ObligationStatus, ReviewPlan, SourceSide};
+
+/// The gap of changed lines no discovery packet shows.
+pub const UNSHOWN_CHANGE: &str = "UNSHOWN_CHANGE";
 
 fn unseen(gap: &str) -> bool {
     UNSEEN_GAPS
@@ -159,6 +162,52 @@ pub fn context_gaps(packets: &[EvidencePacket]) -> Vec<String> {
     {
         if !out.contains(gap) {
             out.push(gap.clone());
+        }
+    }
+    out
+}
+
+/// Added lines of a reviewed file that no discovery packet shows, as
+/// `UNSHOWN_CHANGE: path:a-b`, one run per hunk: coverage cannot be complete over changed code no
+/// call saw. Files the plan already reports (generated, unreviewed, excluded) are left to it.
+// shortcut: HEAD side only; a removed span that failed to read is not counted.
+pub fn unshown_changes(
+    manifest: &DiffManifest,
+    plan: &ReviewPlan,
+    packets: &[EvidencePacket],
+) -> Vec<String> {
+    let reported = |path: &str| {
+        plan.unreviewed
+            .iter()
+            .chain(&plan.scope.excluded)
+            .any(|g| g.path.as_str() == path)
+    };
+    let shown: Vec<_> = packets
+        .iter()
+        .filter(|p| p.request.obligation_id.is_none())
+        .flat_map(|p| &p.fragments)
+        .map(|f| &f.code_ref)
+        .filter(|r| r.side == SourceSide::Head)
+        .collect();
+    let mut out = Vec::new();
+    for file in manifest.files.iter().filter(|f| !f.generated) {
+        let Some(new) = (file.new.as_ref())
+            .filter(|n| n.content == ContentKind::Text && !reported(n.path.as_str()))
+        else {
+            continue;
+        };
+        for hunk in file.hunks.iter().filter(|h| h.new_lines > 0) {
+            let lines = hunk.new_start..hunk.new_start + hunk.new_lines;
+            let unshown: Vec<u32> = lines
+                .filter(|&l| {
+                    !shown
+                        .iter()
+                        .any(|r| r.path == new.path && r.start_line <= l && l <= r.end_line)
+                })
+                .collect();
+            if let (Some(first), Some(last)) = (unshown.first(), unshown.last()) {
+                out.push(format!("{UNSHOWN_CHANGE}: {}:{first}-{last}", new.path));
+            }
         }
     }
     out

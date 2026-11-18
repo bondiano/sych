@@ -24,6 +24,7 @@ mod generated;
 mod ledger;
 mod lint;
 mod syntax;
+mod unshown;
 
 const STORE: &str = "pub struct Store;\n\nimpl Store {\n    pub fn save(&self) -> Result<(), Error> {\n        self.tx(|tx| {\n            tx.insert()?;\n            tx.append_event()\n        })\n    }\n}\n";
 const API: &str = "fn handle(store: &Store) {\n    store.save().unwrap();\n}\n";

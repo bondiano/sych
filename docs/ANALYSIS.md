@@ -85,6 +85,12 @@ A pass that did not complete (budget, deadline, truncation, provider error, sche
 (`LIMIT_REACHED` for the budget and output cap, `RETRIES_EXHAUSTED` for the rest: the router has already gone through all eligible
 routes of the chain).
 
+Coverage also counts what the calls were shown. After a run with models, every added line of a reviewed file must lie in
+a HEAD fragment of some discovery packet; each hunk with lines no packet shows is a gap
+`UNSHOWN_CHANGE: path:a-b` (`broker::unshown_changes`), and coverage is `PARTIAL`. Generated, unreviewed and excluded
+files are left to the plan, which already reports them. A span of a search's batch that could not be read back when
+its prompt was built (`path:a-b not shown: …`) is a gap too.
+
 ## Nits
 
 The discovery rules for minor remarks: a nit is no higher than `LOW`, does not change behavior, and names the location, the error it prevents and the fix; the strongest ones are about consistency

@@ -7,6 +7,7 @@ use anyhow::Context as _;
 use sych_core::analysis::packet_evidence;
 use sych_core::broker::{
     BrokerInput, EvidencePacket, PacketResolution, build_packets, context_gaps, context_limited,
+    unshown_changes,
 };
 use sych_core::config::{BillingKind, Role};
 use sych_core::model::{ChargeState, Limits as ModelLimits, Purpose};
@@ -231,6 +232,11 @@ impl Session<'_> {
         let assessments = context_limited(plan, packets, assessments);
         let mut task_gaps = analysis.map_or_else(Vec::new, |a| a.outcome.gaps.clone());
         task_gaps.extend(context_gaps(packets));
+        // Only a run whose models searched the packets can have missed a changed line.
+        if analysis.is_some() {
+            task_gaps.extend(unshown_changes(&self.snap.manifest, plan, packets));
+        }
+
         task_gaps.extend(self.ci_gaps.iter().cloned());
         // Deterministic, so they stand beside the verified findings without a model.
         let findings: Vec<_> = if self.security {

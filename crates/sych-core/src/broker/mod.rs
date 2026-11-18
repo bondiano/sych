@@ -15,7 +15,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use build::{BrokerInput, Limits, build_packets};
-pub use limited::{context_gaps, context_limited};
+pub use limited::{UNSHOWN_CHANGE, context_gaps, context_limited, unshown_changes};
 pub use observations::{UNRESOLVED_IMPORT, unseen_spans};
 pub use ops::{OpResult, OpStatus, Operation, Ops, SymbolRef};
 
