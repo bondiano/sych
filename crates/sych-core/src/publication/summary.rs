@@ -10,7 +10,7 @@ use super::{Placement, Planned, reason_text, tr};
 use crate::model::MODEL_QUOTA_EXHAUSTED;
 use crate::{
     Candidate, CodeRef, Coverage, ExecutionOutcome, Finding, FindingCategory, GENERATED_IN_CHANGE,
-    ObligationStatus, ReviewResult, Severity, SourceSide,
+    Lifecycle, ObligationStatus, ReviewResult, Severity, SourceSide,
 };
 
 /// What the summary needs besides the result.
@@ -62,22 +62,18 @@ pub fn render_summary(result: &ReviewResult, plan: &[Planned], ctx: &SummaryCont
     render(result, plan, ctx, Detail::Brief)
 }
 
-fn render(
-    result: &ReviewResult,
-    plan: &[Planned],
-    ctx: &SummaryContext<'_>,
-    detail: Detail,
-) -> String {
-    let l = result.language;
-    // The plan's order: severity, then fingerprint, so the ones over the inline limit come last.
+/// The open defects and rule violations as the summary numbers them, from 1: the plan's order,
+/// severity then fingerprint, so the ones over the inline limit come last.
+pub fn problems(result: &ReviewResult) -> Vec<&Finding> {
     let mut problems: Vec<&Finding> = result
         .findings
         .iter()
         .filter(|f| {
-            matches!(
-                f.category,
-                FindingCategory::Defect | FindingCategory::RuleViolation
-            )
+            f.lifecycle == Lifecycle::Open
+                && matches!(
+                    f.category,
+                    FindingCategory::Defect | FindingCategory::RuleViolation
+                )
         })
         .collect();
     problems.sort_by(|a, b| {
@@ -85,6 +81,17 @@ fn render(
             .cmp(&a.severity)
             .then_with(|| a.fingerprint.cmp(&b.fingerprint))
     });
+    problems
+}
+
+fn render(
+    result: &ReviewResult,
+    plan: &[Planned],
+    ctx: &SummaryContext<'_>,
+    detail: Detail,
+) -> String {
+    let l = result.language;
+    let problems = problems(result);
     let mut out = String::new();
     header(&mut out, result, ctx, &problems);
     for (i, f) in problems.iter().enumerate() {

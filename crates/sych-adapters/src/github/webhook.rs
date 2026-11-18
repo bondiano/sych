@@ -72,15 +72,28 @@ fn str_at<'a>(v: &'a Value, pointer: &str) -> Option<&'a str> {
     v.pointer(pointer)?.as_str()
 }
 
-/// A `/sych <command>` line; anything else in a comment is ignored.
-fn command(body: &str) -> Option<ScmCommand> {
-    body.lines()
-        .find_map(|line| match line.trim().strip_prefix("/sych")?.trim() {
-            "rerun" => Some(ScmCommand::Rerun),
-            "deep" => Some(ScmCommand::Deep),
-            "stop" => Some(ScmCommand::Stop),
-            _ => None,
-        })
+/// A `/sych <command>` line and its argument; anything else in a comment is ignored. Every
+/// `/sych dismiss N reason` line of the comment is one dismiss, its `N reason` a line of the
+/// argument.
+fn command(body: &str) -> Option<(ScmCommand, String)> {
+    let lines: Vec<&str> = body
+        .lines()
+        .filter_map(|line| Some(line.trim().strip_prefix("/sych ")?.trim()))
+        .collect();
+    let dismissed: Vec<&str> = lines
+        .iter()
+        .filter_map(|line| Some(line.strip_prefix("dismiss ")?.trim()))
+        .collect();
+    if !dismissed.is_empty() {
+        return Some((ScmCommand::Dismiss, dismissed.join("\n")));
+    }
+
+    lines.iter().find_map(|line| match *line {
+        "rerun" => Some((ScmCommand::Rerun, String::new())),
+        "deep" => Some((ScmCommand::Deep, String::new())),
+        "stop" => Some((ScmCommand::Stop, String::new())),
+        _ => None,
+    })
 }
 
 fn pull_request(v: &Value, action: &str) -> Option<ChangeSignal> {
@@ -142,9 +155,11 @@ pub fn parse(event: &str, body: &[u8], bot_login: &str) -> Result<WebhookEvent, 
                 Some(login) if login.eq_ignore_ascii_case(bot_login) => {
                     Some(ChangeSignal::BotComment)
                 }
-                Some(actor) => {
-                    command(body).map(|command| ChangeSignal::Command { actor, command })
-                }
+                Some(actor) => command(body).map(|(command, argument)| ChangeSignal::Command {
+                    actor,
+                    command,
+                    argument,
+                }),
                 None => None,
             };
         }
@@ -253,9 +268,34 @@ mod tests {
             cmd.expect("ok").signal,
             Some(ChangeSignal::Command {
                 actor: "dev".into(),
-                command: ScmCommand::Rerun
+                command: ScmCommand::Rerun,
+                argument: String::new(),
             })
         );
+        // Every dismiss line of a comment is one command; a bare `dismiss` is not one.
+        let dismiss = parse(
+            "issue_comment",
+            comment(
+                "dev",
+                "Both wrong:\n/sych dismiss 2 the guard is in the caller\n /sych dismiss 1  stale\n",
+            )
+            .as_bytes(),
+            "sych[bot]",
+        );
+        assert_eq!(
+            dismiss.expect("ok").signal,
+            Some(ChangeSignal::Command {
+                actor: "dev".into(),
+                command: ScmCommand::Dismiss,
+                argument: "2 the guard is in the caller\n1  stale".into(),
+            })
+        );
+        let bare = parse(
+            "issue_comment",
+            comment("dev", "/sych dismiss").as_bytes(),
+            "sych[bot]",
+        );
+        assert_eq!(bare.expect("ok").signal, None);
         let prose = parse(
             "issue_comment",
             comment("dev", "rerun it").as_bytes(),

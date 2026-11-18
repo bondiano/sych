@@ -14,6 +14,7 @@ mod error;
 pub mod findings;
 mod handoff;
 mod hooks;
+mod inline_review;
 pub mod metrics;
 pub mod mirrors;
 mod playground;

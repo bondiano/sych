@@ -18,8 +18,9 @@ Sych reviews its own pull requests: every agent PR is a test of Sych itself. The
 5. Go through every finding and UNKNOWN in the summary:
    - a real problem — fix it, push, run `scripts/wait-sych` again;
    - a false positive or noise — do not bend the code to the reviewer; reply in the PR with a short comment
-     explaining why, and describe the case in your report to the user: it is a Sych defect, which is exactly
-     what self-review is for;
+     explaining why, and for a numbered problem of the summary add `/sych dismiss N <the reason>` on a line of
+     its own, so later reviews do not raise it again; describe the case in your report to the user: it is a
+     Sych defect, which is exactly what self-review is for;
    - `coverage: partial` or gaps — list them in your report, never present them as "no problems".
 6. If no review arrives (exit 1), do not work around it: tell the user, with the PR and the head SHA.
 

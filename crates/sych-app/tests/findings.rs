@@ -115,3 +115,51 @@ async fn only_a_maintainer_waives_and_the_waiver_is_scoped_and_dated() {
         .expect("active");
     assert!(expired.is_empty(), "an expired waiver is not in force");
 }
+
+/// `/sych dismiss N reason` dismisses the summary's problem N as a false positive: the summary is
+/// rendered again without it, and a later revision that finds it again does not publish it. A
+/// line naming no problem is refused and logged.
+#[tokio::test(flavor = "current_thread")]
+async fn a_dismiss_command_hides_the_problem_from_this_and_later_summaries() {
+    let w = world(None).await;
+    let head = commit_result(&w, 2).await;
+    while w.engine.publish_once().await.expect("publish") {}
+    let titles = |w: &world::World| {
+        let summary = lock(&w.fake).comments[&1].1.clone();
+        ["Defect 0", "Defect 1"].map(|t| summary.contains(&format!(": {t}\n")))
+    };
+    assert_eq!(titles(&w), [true, true]);
+
+    lock(&w.fake)
+        .permissions
+        .insert("dev".into(), "write".into());
+    w.comment(
+        "d-8",
+        "dev",
+        "/sych dismiss 1 the guard is in the caller\n/sych dismiss 9 no such",
+    )
+    .await;
+    w.schedule(1).await;
+    let rows = w.app.storage.findings_of(1).await.expect("findings");
+    let dismissed: Vec<_> = rows.iter().filter(|r| r.state == "DISMISSED").collect();
+    assert_eq!(dismissed.len(), 1, "{rows:?}");
+    let shown = titles(&w);
+    assert_eq!(shown.iter().filter(|s| **s).count(), 1, "{shown:?}");
+    let events = w.events().await;
+    assert_eq!(
+        events.iter().filter(|e| *e == "DISMISS_REFUSED").count(),
+        1,
+        "{events:?}"
+    );
+    assert!(
+        events.contains(&"SUMMARY_REFRESHED".to_owned()),
+        "{events:?}"
+    );
+
+    // A rerun finds both again; the dismissed one stays out of the new summary.
+    w.comment("d-9", "dev", "/sych rerun").await;
+    w.schedule(1).await;
+    world::commit_claimed(&w, &head, 2).await;
+    while w.engine.publish_once().await.expect("publish") {}
+    assert_eq!(titles(&w), shown);
+}

@@ -7,8 +7,11 @@ use sych_adapters::github::TokenScope;
 use sych_core::RunId;
 use sych_core::config::RuleException;
 use sych_core::lineage::decide;
+use sych_core::publication::problems;
+use sych_core::scm::{ChangeSignal, WebhookEvent};
+use sych_storage::{ChangeRow, Intent};
 
-use super::engine::Engine;
+use super::engine::{Conn, Engine};
 
 /// Repository permission an actor needs for feedback and for waivers.
 pub const FEEDBACK_PERMISSIONS: &[&str] = &["admin", "maintain", "write", "triage"];
@@ -128,6 +131,76 @@ impl Engine {
             .record_feedback(&tenant, finding, actor, judgement, scope, rationale, at)
             .await
             .map_err(|e| Refused::Unavailable(e.to_string()))
+    }
+
+    /// The `/sych dismiss N reason` lines of `intent`'s comment by `actor`, who has write access
+    /// as for every command: each problem N of the latest summary, as numbered there, is
+    /// dismissed as a false positive with its reason, then the summary is rendered again
+    /// without them. A line that names no problem, or gives no reason, is logged and skipped.
+    pub(super) async fn dismiss(
+        &self,
+        conn: &Conn,
+        change: &ChangeRow,
+        intent: &Intent,
+        actor: Option<&str>,
+    ) -> anyhow::Result<()> {
+        let storage = &self.app.storage;
+        let now = (self.now)();
+        let refused = async |why: String| {
+            storage
+                .log_event(change.id, None, "DISMISS_REFUSED", &why, now)
+                .await
+        };
+        let Some(actor) = actor else {
+            return Ok(refused("UNAUTHORIZED_COMMAND".into()).await?);
+        };
+        let Ok(WebhookEvent {
+            signal: Some(ChangeSignal::Command { argument, .. }),
+            ..
+        }) = storage.inbox_event(intent.last_inbox_id).await
+        else {
+            return Ok(());
+        };
+        let Some(summary) = storage.delivered_summary(change.id).await? else {
+            return Ok(refused("no summary to dismiss from".into()).await?);
+        };
+        // The latest revision's findings get their rows before one is dismissed.
+        self.lineage_once().await?;
+        let (result, _) = self.load(&summary).await?;
+        let shown = problems(&result);
+        let rows = storage.findings_of(change.id).await?;
+        for line in argument.lines() {
+            let (n, reason) = line.split_once(' ').unwrap_or((line, ""));
+            let row = (n.parse::<usize>().ok())
+                .and_then(|n| shown.get(n.checked_sub(1)?))
+                .and_then(|f| {
+                    rows.iter()
+                        .find(|r| r.fingerprint == f.fingerprint.to_string())
+                });
+            let done = match row {
+                None => Err(format!("`{n}`: no such problem in the summary")),
+                Some(_) if reason.trim().is_empty() => Err(format!("`{n}`: no reason given")),
+                Some(row) => self
+                    .feedback(
+                        change.id,
+                        row.id,
+                        actor,
+                        "FALSE_POSITIVE",
+                        "finding",
+                        reason.trim(),
+                    )
+                    .await
+                    .map_err(|e| format!("`{n}`: {e}")),
+            };
+            if let Err(why) = done {
+                refused(why).await?;
+            }
+        }
+        if let Err(e) = self.refresh_summary(conn, change).await {
+            tracing::warn!(change = change.id, error = %format!("{e:#}"), "summary not refreshed after a dismiss");
+        }
+
+        Ok(())
     }
 
     /// A scoped waiver of `rule` by a maintainer; it lowers the risk decision of later runs.

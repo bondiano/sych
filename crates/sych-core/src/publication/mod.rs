@@ -10,11 +10,14 @@ mod summary;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{DiffManifest, Finding, FindingCategory, ReviewLanguage, ReviewResult, SourceSide};
+use crate::{
+    DiffManifest, Finding, FindingCategory, FindingId, Lifecycle, ReviewLanguage, ReviewResult,
+    SourceSide,
+};
 
 pub use body::{GONE_MARKER, gone_body, inline_body};
 pub use revisit::{Posted, revisit};
-pub use summary::{SummaryContext, render_summary};
+pub use summary::{SummaryContext, problems, render_summary};
 
 /// New inline comments one revision may add.
 pub const MAX_INLINE: usize = 8;
@@ -119,6 +122,23 @@ pub struct Planned {
     pub already_inline: bool,
 }
 
+/// Marks the findings whose fingerprint was `dismissed` in the change: they are published no
+/// more and block nothing, in whichever revision they come back.
+// shortcut: by exact fingerprint; a claim on edited lines comes back as new, match by path and
+// content if that shows up.
+pub fn dismiss(result: &mut ReviewResult, dismissed: &[String]) {
+    for f in &mut result.findings {
+        if dismissed.contains(&f.fingerprint.to_string()) {
+            f.lifecycle = Lifecycle::Dismissed;
+        }
+    }
+    let open: Vec<FindingId> = (result.findings.iter())
+        .filter(|f| f.lifecycle == Lifecycle::Open)
+        .map(|f| f.id)
+        .collect();
+    result.blocked_by.retain(|id| open.contains(id));
+}
+
 /// Defects and rule violations go inline by severity, at most [`MAX_INLINE`] new ones; nits and
 /// improvements stay in the summary; an incomplete provider diff keeps everything there, and a
 /// position the provider `rejected` is shown in the summary with that reason.
@@ -129,7 +149,10 @@ pub fn plan(
     rejected: &[String],
     provider_diff_complete: bool,
 ) -> Vec<Planned> {
-    let mut findings: Vec<&Finding> = result.findings.iter().collect();
+    // A dismissed finding is not published again.
+    let mut findings: Vec<&Finding> = (result.findings.iter())
+        .filter(|f| f.lifecycle == Lifecycle::Open)
+        .collect();
     findings.sort_by(|a, b| {
         b.severity
             .cmp(&a.severity)

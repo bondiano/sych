@@ -86,10 +86,18 @@ intent. The raw payload is not stored: PR text is untrusted and is re-read from 
 | `pull_request` closed | `CLOSED {merged}` | `CLOSE`, immediately |
 | `workflow_run`/`check_suite` completed | `CI_COMPLETED` | `CI`, 10 s |
 | `issue_comment` `/sych rerun|deep|stop` | `COMMAND` | `COMMAND_*`, immediately; the scheduler checks permissions |
+| `issue_comment` `/sych dismiss N reason` lines | `COMMAND` (`argument`: the lines) | `COMMAND_DISMISS:<inbox id>`, one per comment, immediately |
 | comment from `bot_login` | `BOT_COMMENT` | none |
 
 Debounce: one open intent per change and kind; each new event moves the deadline, but no further than
 `first event + 6 × debounce` (30 s for PRs, 60 s for CI) — a continuous stream does not postpone work indefinitely.
+
+In a pull request, `/sych dismiss N reason` (one line per problem, several in one comment) dismisses problem `N` of the
+latest summary, as numbered there, as a false positive with that reason: the same feedback as the UI's, by the
+comment's author. No run starts. The summary is rendered again without it, and the publication of every later revision
+of the change leaves it out (summary, inline plan, `blocked_by` of the check run) while its fingerprint is found again.
+A line naming no problem or giving no reason is logged as `DISMISS_REFUSED`.
+
 A repository outside `repositories` gets a `REPOSITORY_NOT_ALLOWED` receipt without
 work. A fork (`head.repo` ≠ base, or deleted) is flagged and analyzed read-only: its code never runs, so each
 execution profile the review would run is an `EXECUTION_REFUSED` gap instead.
@@ -402,6 +410,7 @@ binding; the worker passes the active ones into the review as rule exceptions: t
 | Action | Who | Check |
 |---|---|---|
 | `/sych rerun`, `/sych deep`, `/sych stop` in a PR | `write`, `maintain`, `admin` | permission API at scheduler time; otherwise `SKIPPED:UNAUTHORIZED_COMMAND`, no reply |
+| `/sych dismiss N reason` in a PR | `write`, `maintain`, `admin` | as above, then feedback's own check; a refusal is `DISMISS_REFUSED`, no reply |
 | the bot's own comment | nobody | `BOT_COMMENT`, no work |
 | feedback on a finding | `triage` and above | permission API (a person in the UI as well); otherwise a `Permission` refusal |
 | waiver | `maintain`, `admin` | permission API; otherwise a `Permission` refusal |

@@ -53,6 +53,7 @@ fn intent(signal: Option<&ChangeSignal>) -> Result<(String, i64), &'static str> 
                 ScmCommand::Rerun => "COMMAND_RERUN",
                 ScmCommand::Deep => "COMMAND_DEEP",
                 ScmCommand::Stop => "COMMAND_STOP",
+                ScmCommand::Dismiss => "COMMAND_DISMISS",
             };
             Ok((name.into(), 0))
         }
@@ -116,7 +117,12 @@ impl Storage {
         };
         let inbox_id: i64 = row.get(0);
         let mut intents = Vec::new();
-        if let (Some(repo), true, Ok((kind, debounce))) = (&event.repository, allowed, wanted) {
+        if let (Some(repo), true, Ok((mut kind, debounce))) = (&event.repository, allowed, wanted) {
+            // Each dismiss is its own intent: coalesced, an earlier comment's lines would be lost.
+            if kind == "COMMAND_DISMISS" {
+                kind = format!("{kind}:{inbox_id}");
+            }
+
             let repository_id: i64 = sqlx::query(
                 "INSERT INTO repositories (tenant_id, connection_id, provider_instance,
                      external_id, full_name, installation_id)

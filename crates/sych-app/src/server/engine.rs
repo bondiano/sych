@@ -149,7 +149,7 @@ impl Engine {
                 .pull(&change.full_name, change.number, &token)
                 .await?;
             let actor = match kind {
-                IntentKind::Rerun | IntentKind::Deep | IntentKind::Stop => {
+                IntentKind::Rerun | IntentKind::Deep | IntentKind::Stop | IntentKind::Dismiss => {
                     self.authorized_actor(conn, &change, intent, &token).await?
                 }
                 _ => None,
@@ -181,6 +181,12 @@ impl Engine {
                 return Ok(());
             }
         };
+        if kind == IntentKind::Dismiss {
+            self.dismiss(conn, &change, intent, actor.as_deref())
+                .await?;
+            return Ok(storage.consume_intent(intent.id, now).await?);
+        }
+
         let state = scm_state(&pull, &change.full_name);
         storage.sync_change(change.id, &state, now).await?;
         let latest = storage.latest(change.id).await?;

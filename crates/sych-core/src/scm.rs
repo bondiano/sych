@@ -121,6 +121,8 @@ pub enum ScmCommand {
     Rerun,
     Deep,
     Stop,
+    /// `/sych dismiss N reason`: the summary's problem N is a false positive.
+    Dismiss,
 }
 
 /// The normalized meaning of one webhook event.
@@ -130,25 +132,21 @@ pub enum ChangeSignal {
     /// Opened, reopened or marked ready: plan a review of the current state.
     Opened,
     /// New source commits: supersede the active run.
-    SourcePush {
-        head_sha: String,
-    },
+    SourcePush { head_sha: String },
     /// The target branch or its base moved: refresh the integration context.
     TargetChanged,
     /// Converted to draft: no expensive analysis by default.
     Draft,
     /// Closed or merged: stop new analysis and unsent publication.
-    Closed {
-        merged: bool,
-    },
+    Closed { merged: bool },
     /// A CI run finished for `head_sha`; its binding and significance are checked later.
-    CiCompleted {
-        run_id: u64,
-        head_sha: String,
-    },
+    CiCompleted { run_id: u64, head_sha: String },
     Command {
         actor: String,
         command: ScmCommand,
+        /// What follows the command: each `/sych dismiss` line's `N reason`, one per line.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        argument: String,
     },
     /// A comment by the bot itself; never schedules work.
     BotComment,
