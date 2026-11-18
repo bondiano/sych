@@ -96,7 +96,9 @@ In a pull request, `/sych dismiss N reason` (one line per problem, several in on
 latest summary, as numbered there, as a false positive with that reason: the same feedback as the UI's, by the
 comment's author. No run starts. The summary is rendered again without it, and the publication of every later revision
 of the change leaves it out (summary, inline plan, `blocked_by` of the check run) while its fingerprint is found again.
-A line naming no problem or giving no reason is logged as `DISMISS_REFUSED`.
+A line naming no problem, giving no reason or refused by feedback is logged as `DISMISS_REFUSED` with the line's `N`;
+an author without write access gets `SKIPPED:UNAUTHORIZED_COMMAND`, as for every command. A comment carries one
+command, and its dismiss lines take precedence: `/sych rerun|deep|stop` goes in a comment of its own.
 
 A repository outside `repositories` gets a `REPOSITORY_NOT_ALLOWED` receipt without
 work. A fork (`head.repo` ≠ base, or deleted) is flagged and analyzed read-only: its code never runs, so each
@@ -410,7 +412,7 @@ binding; the worker passes the active ones into the review as rule exceptions: t
 | Action | Who | Check |
 |---|---|---|
 | `/sych rerun`, `/sych deep`, `/sych stop` in a PR | `write`, `maintain`, `admin` | permission API at scheduler time; otherwise `SKIPPED:UNAUTHORIZED_COMMAND`, no reply |
-| `/sych dismiss N reason` in a PR | `write`, `maintain`, `admin` | as above, then feedback's own check; a refusal is `DISMISS_REFUSED`, no reply |
+| `/sych dismiss N reason` in a PR | `write`, `maintain`, `admin` | as above (`SKIPPED:UNAUTHORIZED_COMMAND`), then feedback's own check per line; a line refused there is `DISMISS_REFUSED`, no reply |
 | the bot's own comment | nobody | `BOT_COMMENT`, no work |
 | feedback on a finding | `triage` and above | permission API (a person in the UI as well); otherwise a `Permission` refusal |
 | waiver | `maintain`, `admin` | permission API; otherwise a `Permission` refusal |

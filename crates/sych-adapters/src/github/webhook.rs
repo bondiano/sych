@@ -72,9 +72,10 @@ fn str_at<'a>(v: &'a Value, pointer: &str) -> Option<&'a str> {
     v.pointer(pointer)?.as_str()
 }
 
-/// A `/sych <command>` line and its argument; anything else in a comment is ignored. Every
-/// `/sych dismiss N reason` line of the comment is one dismiss, its `N reason` a line of the
-/// argument.
+/// The comment's `/sych` command; anything else in it is ignored. Its `/sych dismiss N reason`
+/// lines are one dismiss, each `N reason` a line of the argument, and take precedence: an event
+/// carries one command, so `rerun`, `deep` and `stop` need a comment of their own. Otherwise
+/// the first `/sych rerun|deep|stop` line, which takes no argument.
 fn command(body: &str) -> Option<(ScmCommand, String)> {
     let lines: Vec<&str> = body
         .lines()
@@ -83,6 +84,7 @@ fn command(body: &str) -> Option<(ScmCommand, String)> {
     let dismissed: Vec<&str> = lines
         .iter()
         .filter_map(|line| Some(line.strip_prefix("dismiss ")?.trim()))
+        .filter(|argument| !argument.is_empty())
         .collect();
     if !dismissed.is_empty() {
         return Some((ScmCommand::Dismiss, dismissed.join("\n")));
@@ -290,12 +292,27 @@ mod tests {
                 argument: "2 the guard is in the caller\n1  stale".into(),
             })
         );
-        let bare = parse(
+        // One command per event: the dismiss lines win over a rerun in the same comment.
+        let both = parse(
             "issue_comment",
-            comment("dev", "/sych dismiss").as_bytes(),
+            comment("dev", "/sych rerun\n/sych dismiss 1 stale").as_bytes(),
             "sych[bot]",
         );
-        assert_eq!(bare.expect("ok").signal, None);
+        assert!(matches!(
+            both.expect("ok").signal,
+            Some(ChangeSignal::Command {
+                command: ScmCommand::Dismiss,
+                ..
+            })
+        ));
+        for bare in ["/sych dismiss", "/sych dismiss   "] {
+            let bare = parse(
+                "issue_comment",
+                comment("dev", bare).as_bytes(),
+                "sych[bot]",
+            );
+            assert_eq!(bare.expect("ok").signal, None);
+        }
         let prose = parse(
             "issue_comment",
             comment("dev", "rerun it").as_bytes(),

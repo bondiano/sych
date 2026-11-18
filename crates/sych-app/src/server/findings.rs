@@ -152,7 +152,10 @@ impl Engine {
                 .await
         };
         let Some(actor) = actor else {
-            return Ok(refused("UNAUTHORIZED_COMMAND".into()).await?);
+            let skipped = "UNAUTHORIZED_COMMAND";
+            return Ok(storage
+                .log_event(change.id, None, "SKIPPED", skipped, now)
+                .await?);
         };
         let Ok(WebhookEvent {
             signal: Some(ChangeSignal::Command { argument, .. }),

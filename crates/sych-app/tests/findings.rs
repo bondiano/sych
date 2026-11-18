@@ -145,6 +145,10 @@ async fn a_dismiss_command_hides_the_problem_from_this_and_later_summaries() {
     assert_eq!(dismissed.len(), 1, "{rows:?}");
     let shown = titles(&w);
     assert_eq!(shown.iter().filter(|s| **s).count(), 1, "{shown:?}");
+    // The hidden title is the dismissed finding's: `Defect i` has the fingerprint of `f{i}`.
+    let hidden = shown.iter().position(|s| !s).expect("one hidden");
+    let fingerprint = sych_core::sha256(format!("f{hidden}").as_bytes()).to_string();
+    assert_eq!(dismissed[0].fingerprint, fingerprint);
     let events = w.events().await;
     assert_eq!(
         events.iter().filter(|e| *e == "DISMISS_REFUSED").count(),
