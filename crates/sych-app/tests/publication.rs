@@ -262,6 +262,13 @@ async fn a_failed_run_fails_its_check_when_the_policy_has_block_on() {
         };
         fail(recorded).await;
         fail(None).await;
+        // The later run's check was sent too, not only the first one's.
+        let ops = s.operations(1).await.expect("operations");
+        let checks: Vec<&str> = (ops.iter())
+            .filter(|o| o.slot == "check")
+            .map(|o| o.state.as_str())
+            .collect();
+        assert_eq!(checks, ["DELIVERED", "DELIVERED"], "{recorded:?}");
         let runs = lock(&w.fake).check_runs.clone();
         let last = runs.last().expect("a check run");
         assert_eq!(
