@@ -199,3 +199,28 @@ async fn a_smoke_test_that_cannot_delete_its_comment_says_so_beside_its_failure(
     );
     assert_eq!(lock(&fake).comments.len(), 1, "the comment is still there");
 }
+
+/// A smoke test whose only failure is the delete names the comment it left behind.
+#[tokio::test(flavor = "current_thread")]
+async fn a_smoke_test_that_cannot_delete_its_comment_names_it() {
+    let (url, fake) = start().await;
+    lock(&fake).fail_next.insert(
+        "DELETE /repos/o/r/issues/comments/".into(),
+        (422, json!({"message": "refused"})),
+    );
+    let gh = Github::new(&url, app_key()).expect("client");
+    let err = smoke(&gh, "o/r", 7, "sych[bot]", "n1", NOW)
+        .await
+        .expect_err("the delete failed");
+    let id = lock(&fake)
+        .comments
+        .keys()
+        .next()
+        .copied()
+        .expect("the comment is still there");
+    assert!(
+        err.to_string()
+            .contains(&format!("deleting comment {id} failed")),
+        "{err}"
+    );
+}

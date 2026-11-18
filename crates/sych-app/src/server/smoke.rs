@@ -75,7 +75,11 @@ pub async fn smoke(
     let deleted = gh.delete_comment(repo, created.id, &token).await;
     let (revisions, found_by_marker) = match (checked, deleted) {
         (Ok(found), Ok(())) => found,
-        (Err(e), Ok(())) | (Ok(_), Err(e)) => return Err(e),
+        (Err(e), Ok(())) => return Err(e),
+        (Ok(_), Err(delete)) => {
+            let left = format!("deleting comment {} failed: {delete}", created.id);
+            return Err(ScmError::new(delete.kind, left));
+        }
         (Err(check), Err(delete)) => {
             // A delete that failed in transport may still have happened: say what is known.
             let left = format!("{check}; deleting comment {} failed: {delete}", created.id);
