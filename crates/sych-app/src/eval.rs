@@ -6,17 +6,16 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
-use sych_core::config::RunMode;
 
 use serde::{Deserialize, Serialize};
 use sych_core::{Coverage, ObligationStatus, Recommendation, RepoPath, SchemaVersion};
 use sych_storage::{Database, Storage, StoreConfig};
 use tempfile::TempDir;
 
-use crate::args::{Comparison, ExitPolicy, ModelSelection, ReportOutput, ReviewArguments, Switch};
+use crate::args::{Comparison, ModelSelection, Switch};
 use crate::errors::{EXIT_EVAL_FAILED, Failure};
 use crate::output::emit_json;
-use crate::render::{self, ReportFormat};
+use crate::render;
 use crate::{review, storage};
 
 #[derive(Deserialize)]
@@ -217,40 +216,18 @@ fn run_case(case: &Case, suite_dir: &Path) -> Result<Actual, String> {
     storage::block_on(Storage::migrate(&store()))
         .map_err(|e| format!("{e:#}"))?
         .map_err(|e| e.to_string())?;
-    let args = ReviewArguments {
-        change: None,
-        comparison: Comparison {
-            repo: repo.path().to_path_buf(),
-            base: "target".into(),
-            head: "HEAD".into(),
-            diff_base: None,
-            fork: false,
-        },
-        config: None,
-        models: ModelSelection::Fake,
-        policy_ref: None,
+    let comparison = Comparison {
+        repo: repo.path().to_path_buf(),
+        base: "target".into(),
+        head: "HEAD".into(),
+        diff_base: None,
+        fork: false,
+    };
+    let args = review::Request {
         fake_responses: case.fake_responses.as_ref().map(|p| suite_dir.join(p)),
         // Harness evaluation stays deterministic and offline.
         semantic: Switch::Off,
-        ci_facts: Vec::new(),
-        ci_manifest: None,
-        exit_policy: ExitPolicy::Operational,
-        out: ReportOutput {
-            format: ReportFormat::Json,
-            output: None,
-        },
-        verify: true,
-        ci_imported: Vec::new(),
-        ci_gaps: Vec::new(),
-        checks: Vec::new(),
-        execution: None,
-        waivers: Vec::new(),
-        run_mode: RunMode::PersonalLocal,
-        deep: false,
-        parent: None,
-        replay: None,
-        intent_file: None,
-        risk_audit: true,
+        ..review::Request::new(comparison, ModelSelection::Fake)
     };
     let report =
         review::run(&args, Some(store())).map_err(|e| format!("review saved no result: {e:#}"))?;

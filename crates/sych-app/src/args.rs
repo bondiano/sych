@@ -3,8 +3,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use sych_core::analysis::Discovered;
-use sych_core::config::{CheckRequest, Execution, RuleException, RunMode};
+use sych_core::config::CheckRequest;
 
 use crate::render::{Format, ReportFormat};
 
@@ -225,44 +224,11 @@ pub struct ReviewArguments {
     /// allowed one (repeatable); each value must be one of the profile's choices
     #[arg(long = "check", value_name = "PROFILE[:PARAM=VALUE,...]", value_parser = CheckRequest::parse)]
     pub checks: Vec<CheckRequest>,
-    /// Execution profiles of one eval case instead of the server's.
-    #[arg(skip)]
-    pub execution: Option<Execution>,
     /// `strict` exits 10 on a significant violation, else 11 on incomplete coverage
     #[arg(long, value_enum, default_value = "operational")]
     pub exit_policy: ExitPolicy,
     #[command(flatten)]
     pub out: ReportOutput,
-    /// The extra high-risk search; only `eval measure` turns it off, for baseline B
-    #[arg(skip = true)]
-    pub risk_audit: bool,
-    /// Candidate verification; only `eval measure` turns it off, for baseline A
-    #[arg(skip = true)]
-    pub verify: bool,
-    /// Reports a server run fetched from authenticated CI, already normalized.
-    #[arg(skip)]
-    pub ci_imported: Vec<sych_core::CiFacts>,
-    /// Expected reports that are not evidence, as `CiGap` text; each keeps coverage partial.
-    #[arg(skip)]
-    pub ci_gaps: Vec<String>,
-    /// Scoped waivers recorded on the server, as `(rule id, exception)`; they lower the risk
-    /// decision and never rewrite a status.
-    #[arg(skip)]
-    pub waivers: Vec<(String, RuleException)>,
-    /// Where the review runs: a server run never uses a provider allowed only locally (such as
-    /// a personal subscription sign-in).
-    #[arg(skip = RunMode::PersonalLocal)]
-    pub run_mode: RunMode,
-    /// A `deep` manual server run: roles start at `models.deep_roles`.
-    #[arg(skip)]
-    pub deep: bool,
-    /// The parent of a successor server run, whose checkpoints may be reused.
-    #[arg(skip)]
-    pub parent: Option<sych_core::RunId>,
-    /// `eval measure --replay`: discoveries of an earlier run to verify again, instead of a
-    /// new search.
-    #[arg(skip)]
-    pub replay: Option<Vec<Discovered>>,
     /// The author's description of the change, instead of its commit messages
     #[arg(long, value_name = "PATH")]
     pub intent_file: Option<PathBuf>,
