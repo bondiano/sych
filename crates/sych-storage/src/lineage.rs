@@ -5,6 +5,7 @@ use serde_json::json;
 use sqlx::{Any, Row, Transaction};
 use sych_core::config::RuleException;
 use sych_core::lineage::{Decision, Prior};
+use sych_core::publication::{GONE_MARKER, Posted};
 use sych_core::{FindingCategory, ReviewResult, Severity, Timestamp};
 
 use crate::audit::Audit;
@@ -93,6 +94,39 @@ impl Storage {
                 category: category(&r.get::<String, _>(1)),
                 rule_id: r.get(2),
                 path: r.get(3),
+            })
+            .collect())
+    }
+
+    /// The change's delivered inline comments with the finding each was posted for, whatever
+    /// its state now, and whether the body last delivered carries the "no longer reported" note.
+    /// A comment whose finding lineage has not recorded yet is left for a later revision.
+    pub async fn posted_inline(&self, change_id: i64) -> Result<Vec<Posted>, StorageError> {
+        let rows = sqlx::query(
+            "SELECT p.id, f.fingerprint, f.category, f.rule_id, f.path,
+                 CAST(CASE WHEN o.body LIKE '%' || $2 || '%' THEN 1 ELSE 0 END AS BIGINT)
+             FROM publication_objects p
+             JOIN findings f ON f.change_id = p.change_id AND f.fingerprint = p.fingerprint
+             JOIN publication_operations o ON o.id = (SELECT max(id) FROM publication_operations
+                 WHERE object_id = p.id AND state = 'DELIVERED')
+             WHERE p.change_id = $1 AND p.kind = 'INLINE' AND p.remote_id IS NOT NULL
+             ORDER BY p.id",
+        )
+        .bind(change_id)
+        .bind(GONE_MARKER)
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows
+            .iter()
+            .map(|r| Posted {
+                object_id: r.get(0),
+                prior: Prior {
+                    fingerprint: r.get(1),
+                    category: category(&r.get::<String, _>(2)),
+                    rule_id: r.get(3),
+                    path: r.get(4),
+                },
+                noted: r.get::<i64, _>(5) != 0,
             })
             .collect())
     }

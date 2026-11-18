@@ -33,11 +33,16 @@ impl Engine {
             match self.find_own(conn, &change, &u, &token).await {
                 Ok(Some(found)) => {
                     let differs = sha256(found.body.as_bytes()) != sha256(u.body.as_bytes());
-                    if u.kind == "SUMMARY" && differs {
-                        // Ours, with another revision: restore the desired body by its known id.
+                    // Ours, with another revision: restore the desired body by its known id; an
+                    // inline comment may hold its earlier text when an edit did not land.
+                    let repo = &change.full_name;
+                    if differs && u.kind == "SUMMARY" {
+                        let id = found.id.parse()?;
+                        conn.gh.update_comment(repo, id, &u.body, &token).await?;
+                    } else if differs && u.kind == "INLINE" {
                         let id = found.id.parse()?;
                         conn.gh
-                            .update_comment(&change.full_name, id, &u.body, &token)
+                            .update_review_comment(repo, id, &u.body, &token)
                             .await?;
                     }
 

@@ -235,6 +235,47 @@ impl crate::Storage {
         Ok(ops)
     }
 
+    /// Queues a rewrite of delivered inline comments for a revision, rendered from its result;
+    /// once per object and generation, so rendering the summary again queues nothing new.
+    pub async fn enqueue_inline_edits(
+        &self,
+        objects: &[i64],
+        run_id: &str,
+        result_id: &str,
+        generation: i64,
+        at: i64,
+    ) -> Result<(), StorageError> {
+        let mut tx = self.write().await?;
+        for object in objects {
+            sqlx::query(
+                "UPDATE publication_objects SET desired_generation = $1, desired_result_id = $2,
+                     updated_at = $3 WHERE id = $4",
+            )
+            .bind(generation)
+            .bind(result_id)
+            .bind(at)
+            .bind(object)
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query(
+                "INSERT INTO publication_operations (object_id, run_id, result_id, generation,
+                     state, next_action_at, created_at)
+                 VALUES ($1, $2, $3, $4, 'PENDING', $5, $6)
+                 ON CONFLICT (object_id, generation) DO NOTHING",
+            )
+            .bind(object)
+            .bind(run_id)
+            .bind(result_id)
+            .bind(generation)
+            .bind(at)
+            .bind(at)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(())
+    }
+
     /// `(fingerprint, rejected)` of the change's inline objects; `rejected` when the provider
     /// refused the position and nothing was delivered.
     pub async fn inline_objects(

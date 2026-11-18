@@ -290,8 +290,8 @@ PENDING ──claim──▶ (gates) ──▶ PUBLISHING ──reply──▶ D
   with an `audit_events` row `PUBLICATION_RECREATE_AUTOMATIC`, within the same 5 attempts. A failed or truncated read,
   a check run (one page, no completeness) or a known id never permit CREATE. The reconciliation window is 1 hour; after
   that the operation stays `UNCERTAIN` with `RECONCILIATION_WINDOW_EXHAUSTED` and waits for the operator.
-- **Relevance** is separate from delivery: a new generation marks the change's objects `STALE`; delivery of the current one —
-  `CURRENT`. Closing the change cancels `PENDING`; `UNCERTAIN` stays for read-only reconciliation.
+- **Relevance** is separate from delivery: an object delivered for an older generation than the change's desired one is
+  `STALE`, delivery of the current one — `CURRENT`. Closing the change cancels `PENDING`; `UNCERTAIN` stays for read-only reconciliation.
 - **Late old UPDATE**: every 10 minutes delivered objects are checked against the last sent body;
   a divergence in the bot's comment is repaired and written to `change_events` as `PUBLICATION_REPAIRED`.
 
@@ -346,6 +346,14 @@ is then read from that review by its marker. GitHub refuses the whole review whe
 then each comment is sent alone and only the refused one moves to the summary. A comment reads as a reviewer's note:
 `[P0]`…`[P4]` (Critical…Info) and the title, one paragraph of explanation and consequence, the suggested action and
 code, and a collapsed prompt for coding agents.
+
+A comment outlives its revision. When a later summary is rendered, every delivered comment whose finding lineage
+recorded is decided again (`publication::revisit` over `lineage::decide`): one whose finding the new result no longer
+has and lineage closes (`RESOLVED`, `OBSOLETE`, `CONTINUED`) is edited in place to "Sych no longer reports this finding
+at `<head>`" with `<!-- sych:resolved -->`, its earlier text folded below; one whose finding comes back gets its text
+again. A finding still `OPEN` (a partial review, a file not reviewed again) leaves its comment as it is. The edit is
+an operation of the summary's generation on the same object, so a newer push supersedes it with the summary. GitHub
+still lists the conversation as unresolved: resolving it needs the GraphQL API, which the adapter does not use.
 
 **Check run** — off by default; `checks: true` (together with `publish: true`) requires Checks write. One check
 `Sych (advisory)` per change, pinned to the head SHA, `external_id` = marker; the conclusion is `neutral` —

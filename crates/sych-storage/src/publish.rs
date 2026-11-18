@@ -357,6 +357,18 @@ impl Storage {
         Ok(())
     }
 
+    /// The body last delivered for `object_id`.
+    pub async fn delivered_body(&self, object_id: i64) -> Result<Option<String>, StorageError> {
+        Ok(sqlx::query_scalar(
+            "SELECT body FROM publication_operations WHERE object_id = $1 AND state = 'DELIVERED'
+             ORDER BY id DESC LIMIT 1",
+        )
+        .bind(object_id)
+        .fetch_optional(self.pool())
+        .await?
+        .flatten())
+    }
+
     /// Delivered comments with the body last sent, for detecting a late older write.
     pub async fn delivered_objects(&self) -> Result<Vec<(i64, i64, String, String)>, StorageError> {
         let rows = sqlx::query(
