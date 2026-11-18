@@ -4,6 +4,7 @@
 //! `PENDING` — and only reconciliation or an audited operator decision moves it on.
 
 use sqlx::Row;
+use sqlx::any::AnyRow;
 use sych_core::{Timestamp, sha256};
 use uuid::Uuid;
 
@@ -12,13 +13,42 @@ use crate::{Partition, Storage, StorageError};
 /// Attempts of one revision whose refusal was definite (rate limit, gate retry).
 pub const MAX_PUBLISH_ATTEMPTS: i64 = 5;
 
+/// What a publication object is on the provider.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObjectKind {
+    Summary,
+    Inline,
+    Check,
+}
+
+impl ObjectKind {
+    /// The stored name, as logs and the outbox tables spell it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Summary => "SUMMARY",
+            Self::Inline => "INLINE",
+            Self::Check => "CHECK",
+        }
+    }
+
+    fn stored(kind: &str) -> Result<Self, StorageError> {
+        match kind {
+            "SUMMARY" => Ok(Self::Summary),
+            "INLINE" => Ok(Self::Inline),
+            "CHECK" => Ok(Self::Check),
+            other => Err(StorageError::Corrupt(format!(
+                "publication object kind `{other}`"
+            ))),
+        }
+    }
+}
+
 /// A claimed operation with what the publisher needs to render and send it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublishClaim {
     pub op_id: i64,
     pub object_id: i64,
-    /// `SUMMARY`, `INLINE` or `CHECK`.
-    pub kind: String,
+    pub kind: ObjectKind,
     pub fingerprint: Option<String>,
     /// The planned provider anchor of an inline comment, as JSON.
     pub anchor: Option<String>,
@@ -28,7 +58,8 @@ pub struct PublishClaim {
     pub marker: String,
     pub remote_id: Option<String>,
     pub run_id: String,
-    pub result_id: String,
+    /// `None` for the check of a run that failed before it had a result.
+    pub result_id: Option<String>,
     pub generation: i64,
     pub attempts: i64,
     pub owner: String,
@@ -349,6 +380,33 @@ impl Storage {
     }
 }
 
+/// A claim from the columns `claimed` and `delivered_summary` select, in their order. The
+/// outbox stores an empty result id for the check of a failed run.
+fn claim_row(r: &AnyRow) -> Result<PublishClaim, StorageError> {
+    let result_id: String = r.get(9);
+    Ok(PublishClaim {
+        op_id: r.get(0),
+        object_id: r.get(1),
+        kind: ObjectKind::stored(r.get(14))?,
+        fingerprint: r.get(15),
+        anchor: r.get(16),
+        change_id: r.get(2),
+        partition: Partition {
+            tenant_id: r.get(3),
+            access_scope: r.get(4),
+        },
+        slot: r.get(5),
+        marker: r.get(6),
+        remote_id: r.get(7),
+        run_id: r.get(8),
+        result_id: (!result_id.is_empty()).then_some(result_id),
+        generation: r.get(10),
+        attempts: r.get(11),
+        owner: r.get(12),
+        epoch: r.get(13),
+    })
+}
+
 /// The claim of operation `id` as the publisher needs it.
 async fn claimed(
     tx: &mut sqlx::Transaction<'_, sqlx::Any>,
@@ -364,27 +422,7 @@ async fn claimed(
     .bind(id)
     .fetch_one(&mut **tx)
     .await?;
-    Ok(PublishClaim {
-        op_id: r.get(0),
-        object_id: r.get(1),
-        kind: r.get(14),
-        fingerprint: r.get(15),
-        anchor: r.get(16),
-        change_id: r.get(2),
-        partition: Partition {
-            tenant_id: r.get(3),
-            access_scope: r.get(4),
-        },
-        slot: r.get(5),
-        marker: r.get(6),
-        remote_id: r.get(7),
-        run_id: r.get(8),
-        result_id: r.get(9),
-        generation: r.get(10),
-        attempts: r.get(11),
-        owner: r.get(12),
-        epoch: r.get(13),
-    })
+    claim_row(&r)
 }
 
 pub(crate) async fn observe(
@@ -431,27 +469,7 @@ impl Storage {
         .bind(change_id)
         .fetch_optional(self.pool())
         .await?;
-        Ok(r.map(|r| PublishClaim {
-            op_id: r.get(0),
-            object_id: r.get(1),
-            kind: r.get(14),
-            fingerprint: r.get(15),
-            anchor: r.get(16),
-            change_id: r.get(2),
-            partition: Partition {
-                tenant_id: r.get(3),
-                access_scope: r.get(4),
-            },
-            slot: r.get(5),
-            marker: r.get(6),
-            remote_id: r.get(7),
-            run_id: r.get(8),
-            result_id: r.get(9),
-            generation: r.get(10),
-            attempts: r.get(11),
-            owner: r.get(12),
-            epoch: r.get(13),
-        }))
+        r.map(|r| claim_row(&r)).transpose()
     }
 
     /// Records the body a delivered operation now carries remotely, so verification compares
@@ -467,5 +485,21 @@ impl Storage {
         .await?;
         tx.commit().await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_kind_reads_back_as_stored_and_an_unknown_one_is_corrupt() {
+        for kind in [ObjectKind::Summary, ObjectKind::Inline, ObjectKind::Check] {
+            assert_eq!(ObjectKind::stored(kind.as_str()).ok(), Some(kind));
+        }
+        assert!(matches!(
+            ObjectKind::stored("REVIEW"),
+            Err(StorageError::Corrupt(_))
+        ));
     }
 }

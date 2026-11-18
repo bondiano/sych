@@ -57,7 +57,7 @@ pub use gc::{PruneCandidate, PruneReason, PruneReport};
 pub use jobs::{Claim, Fence};
 pub use lineage::{FindingRow, WaiverRecord};
 pub use outbox::{INVALID_ANCHOR, Operation};
-pub use publish::{MAX_PUBLISH_ATTEMPTS, PublishClaim};
+pub use publish::{MAX_PUBLISH_ATTEMPTS, ObjectKind, PublishClaim};
 pub use queue::JobFilter;
 pub use retention::RecordPrune;
 pub use scheduler::ChangeRow;
