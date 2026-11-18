@@ -7,7 +7,7 @@ use sych_core::publication::{
 };
 use sych_core::scm::{ScmError, ScmErrorKind};
 use sych_core::{Candidate, DiffManifest, ReviewResult, RunId, Timestamp};
-use sych_storage::{ChangeRow, INVALID_ANCHOR, PublishClaim};
+use sych_storage::{ChangeRow, INVALID_ANCHOR, ObjectKind, PublishClaim};
 
 use super::engine::{Conn, Engine};
 
@@ -103,7 +103,7 @@ impl Engine {
             return Ok(());
         }
 
-        let check = c.kind == "CHECK";
+        let check = c.kind == ObjectKind::Check;
         let caps = storage
             .repository_capabilities(&conn.binding, &change.repository_external_id)
             .await?;
@@ -121,7 +121,7 @@ impl Engine {
         }
 
         let complete = pull.changed_files <= MAX_PR_FILES as u64;
-        if c.kind == "INLINE" && c.remote_id.is_none() {
+        if c.kind == ObjectKind::Inline && c.remote_id.is_none() {
             let mut claims = vec![c];
             let siblings = storage
                 .claim_inline_siblings(&claims[0], self.lease_seconds, now)
@@ -259,14 +259,14 @@ impl Engine {
     /// inline comments of its revision before it is sent.
     async fn render(&self, c: &PublishClaim, repo: &str, complete: bool) -> anyhow::Result<String> {
         let storage = &self.app.storage;
-        if c.kind == "CHECK" && c.result_id.is_empty() {
+        if c.kind == ObjectKind::Check && c.result_id.is_none() {
             return Ok(
                 "Sych could not complete this review; the run failed before a result.".into(),
             );
         }
 
         let (result, manifest) = self.load(c).await?;
-        if c.kind == "INLINE" {
+        if c.kind == ObjectKind::Inline {
             let finding = result
                 .findings
                 .iter()
@@ -286,7 +286,7 @@ impl Engine {
                 .collect()
         };
         let planned = plan(&result, &manifest, &pick(false), &pick(true), complete);
-        if c.kind == "SUMMARY" {
+        if c.kind == ObjectKind::Summary {
             let items: Vec<(String, String)> = planned
                 .iter()
                 .filter(|p| !p.already_inline)
@@ -298,15 +298,11 @@ impl Engine {
                 })
                 .collect();
             let at = (self.now)().as_second();
+            let Some(result_id) = c.result_id.as_deref() else {
+                anyhow::bail!("summary operation {} has no result", c.op_id);
+            };
             storage
-                .enqueue_inline(
-                    c.change_id,
-                    &c.run_id,
-                    &c.result_id,
-                    c.generation,
-                    &items,
-                    at,
-                )
+                .enqueue_inline(c.change_id, &c.run_id, result_id, c.generation, &items, at)
                 .await?;
         }
 
@@ -344,20 +340,20 @@ impl Engine {
             body: body.to_owned(),
         };
         let comment = |c: Comment| written(c.id);
-        match (c.kind.as_str(), &c.remote_id) {
-            ("SUMMARY", Some(r)) => gh
+        match (c.kind, &c.remote_id) {
+            (ObjectKind::Summary, Some(r)) => gh
                 .update_comment(repo, id(r)?, body, token)
                 .await
                 .map(comment),
-            ("SUMMARY", None) => gh
+            (ObjectKind::Summary, None) => gh
                 .create_comment(repo, change.number, body, token)
                 .await
                 .map(comment),
-            ("INLINE", Some(r)) => gh
+            (ObjectKind::Inline, Some(r)) => gh
                 .update_review_comment(repo, id(r)?, body, token)
                 .await
                 .map(comment),
-            ("INLINE", None) => {
+            (ObjectKind::Inline, None) => {
                 let anchor: InlineAnchor =
                     serde_json::from_str(c.anchor.as_deref().unwrap_or_default())
                         .map_err(|_| bad("inline object without an anchor"))?;
@@ -365,8 +361,8 @@ impl Engine {
                     .await
                     .map(comment)
             }
-            ("CHECK", remote) => {
-                let failed = c.result_id.is_empty();
+            (ObjectKind::Check, remote) => {
+                let failed = c.result_id.is_none();
                 // Advisory unless `review.block_on` named a rule with an open finding: never
                 // success, so no one reads a neutral run as a pass.
                 // A result that cannot be read now is retried, like any transient failure.
@@ -400,7 +396,6 @@ impl Engine {
                 };
                 run.map(|r| written(r.id))
             }
-            (kind, _) => Err(bad(format!("unknown publication kind {kind}"))),
         }
     }
 
@@ -418,7 +413,7 @@ impl Engine {
                 storage
                     .publication_delivered(c, &w.id, &w.body, now)
                     .await?;
-                tracing::info!(op = c.op_id, kind = %c.kind, remote = %w.id, "publication delivered");
+                tracing::info!(op = c.op_id, kind = c.kind.as_str(), remote = %w.id, "publication delivered");
             }
             Err(e) if e.kind == ScmErrorKind::PublicationUnknown => {
                 tracing::warn!(op = c.op_id, error = %e, "publication outcome unknown");
