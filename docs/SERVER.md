@@ -97,8 +97,8 @@ latest summary, as numbered there, as a false positive with that reason: the sam
 comment's author. No run starts. The summary is rendered again without it, and the publication of every later revision
 of the change leaves it out (summary, inline plan, `blocked_by` of the check run) while its fingerprint is found again;
 from the next revision on its inline comment carries the "no longer reported" note.
-A line naming no problem, giving no reason or refused by feedback is logged as `DISMISS_REFUSED` with the line's `N`;
-an author without write access gets `SKIPPED:UNAUTHORIZED_COMMAND`, as for every command. A comment carries one
+A line naming no problem, giving no reason or refused by feedback is logged as `DISMISS_REFUSED` with the line's first
+word; an author without write access gets `SKIPPED:UNAUTHORIZED_COMMAND`, as for every command. A comment carries one
 command, and its dismiss lines take precedence: `/sych rerun|deep|stop` goes in a comment of its own.
 
 A repository outside `repositories` gets a `REPOSITORY_NOT_ALLOWED` receipt without

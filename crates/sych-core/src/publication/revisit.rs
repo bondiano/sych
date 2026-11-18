@@ -30,7 +30,7 @@ pub fn revisit(posted: &[Posted], result: &ReviewResult, manifest: &DiffManifest
 /// Whether `p`'s finding is gone from `result`; `None` while lineage keeps it open.
 fn gone(p: &Posted, result: &ReviewResult, manifest: &DiffManifest) -> Option<bool> {
     let dismissed = (result.findings.iter()).any(|f| {
-        f.fingerprint.to_string() == p.prior.fingerprint && f.lifecycle != Lifecycle::Open
+        f.fingerprint.to_string() == p.prior.fingerprint && f.lifecycle == Lifecycle::Dismissed
     });
     if dismissed {
         return Some(true);
