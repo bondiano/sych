@@ -223,7 +223,7 @@ fn block_on_names_the_violations_that_fail_the_check_and_a_waiver_lifts_them() {
     let live = violated(&plan, &anchored("src/live.go"), &[], &block);
     assert_eq!(live.blocked_by, [live.findings[0].id]);
     let advisory = violated(&plan, &anchored("src/live.go"), &[], &[]);
-    assert!(advisory.blocked_by.is_empty());
+    assert!(advisory.blocked_by.is_empty(), "{:?}", advisory.blocked_by);
 
     let mut plan = two_file_plan();
     plan.obligations[0].exceptions = vec![legacy_exception()];

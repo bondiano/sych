@@ -270,14 +270,8 @@ async fn a_signed_event_the_server_does_not_use_is_acknowledged_and_not_stored()
     .await;
     assert_eq!(status, StatusCode::ACCEPTED, "{reply}");
     assert!(reply["ignored"].is_string(), "{reply}");
-    assert!(
-        s.app
-            .storage
-            .open_intents()
-            .await
-            .expect("intents")
-            .is_empty()
-    );
+    let intents = s.app.storage.open_intents().await.expect("intents");
+    assert!(intents.is_empty(), "{intents:?}");
 }
 
 #[tokio::test(flavor = "current_thread")]
