@@ -296,7 +296,7 @@ fn unresolved_questions(
                     VerificationStatus::Pending | VerificationStatus::Unresolved
                 )
             })
-            .map(|c| format!("unverified candidate: {}", c.claim)),
+            .map(Candidate::open_question),
     );
 }
 

@@ -6,10 +6,10 @@ use std::sync::Mutex;
 
 use sych_core::config::PolicyFiles;
 use sych_core::{
-    ChangeStatus, CodeRef, ComparisonMode, ContentKind, DiffManifest, FileChange, FileSide,
-    GitHashAlgorithm, GitObjectId, Hunk, ReadError, RepoPath, SchemaVersion, SnapshotTrees,
-    SourceSide, SourceSnapshot, SourceSnapshotId, Timestamp, canonical_sha256, count_lines,
-    is_secret_path, line_range, sha256,
+    BLOB_TOO_LARGE, ChangeStatus, CodeRef, ComparisonMode, ContentKind, DiffManifest, FileChange,
+    FileSide, GitHashAlgorithm, GitObjectId, Hunk, ReadError, RepoPath, SchemaVersion,
+    SnapshotTrees, SourceSide, SourceSnapshot, SourceSnapshotId, Timestamp, canonical_sha256,
+    count_lines, is_secret_path, line_range, sha256,
 };
 
 use super::attributes::mark_generated;
@@ -426,7 +426,7 @@ fn read_side(
         .parse()
         .map_err(|_| SnapshotError::Git(format!("cannot read size of {oid_hex}")))?;
     if size > max_blob_bytes {
-        limitations.push(format!("BLOB_TOO_LARGE: {size} bytes > {max_blob_bytes}"));
+        limitations.push(format!("{BLOB_TOO_LARGE}: {size} bytes > {max_blob_bytes}"));
         return Ok(Some(SideContent {
             side: make_side(ContentKind::NotRead, None),
             generated: false,

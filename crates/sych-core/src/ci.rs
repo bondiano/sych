@@ -162,6 +162,11 @@ pub struct CiTest {
     pub message: Option<String>,
 }
 
+/// The limitation code of a CI report that tested another commit or an unproven checkout.
+pub const STALE: &str = "STALE";
+/// The limitation code of a CI report whose tested commit and toolchain are unknown.
+pub const UNBOUND: &str = "UNBOUND";
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CiFacts {
     pub schema_version: SchemaVersion,
@@ -243,12 +248,12 @@ impl CiFacts {
     }
 
     /// Import marks a report that tested another commit, or whose commit is unknown, with a
-    /// `STALE`/`UNBOUND` limitation; the planner has only these facts, not the snapshot.
+    /// [`STALE`]/[`UNBOUND`] limitation; the planner has only these facts, not the snapshot.
     pub fn head_bound(&self) -> bool {
         !self
             .limitations
             .iter()
-            .any(|l| l.starts_with("STALE:") || l.starts_with("UNBOUND:"))
+            .any(|l| l.starts_with(STALE) || l.starts_with(UNBOUND))
     }
 
     /// The build of the reviewed head itself succeeded, per a report bound to that head.

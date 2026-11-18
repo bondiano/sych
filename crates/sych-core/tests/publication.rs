@@ -422,10 +422,7 @@ fn a_question_asked_by_the_previous_revision_is_listed_apart() {
     fresh.claim = "the cache key ignores the tenant".into();
     fresh.anchors[0].path = "backend/cache/key.go".parse().expect("path");
     r.unresolved_candidates = vec![candidate.clone(), fresh.clone()];
-    r.unresolved_questions = vec![
-        format!("unverified candidate: {}", candidate.claim),
-        format!("unverified candidate: {}", fresh.claim),
-    ];
+    r.unresolved_questions = vec![candidate.open_question(), fresh.open_question()];
     let planned = plan(&r, &manifest(), &[], &[], true);
     // The same claim in other words, on lines that moved down by one.
     candidate.claim = "a second charge is possible on retry".into();

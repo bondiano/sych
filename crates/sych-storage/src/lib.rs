@@ -56,7 +56,7 @@ pub use digest::{DIGEST_RETRY_SECONDS, MAX_DIGEST_ATTEMPTS};
 pub use gc::{PruneCandidate, PruneReason, PruneReport};
 pub use jobs::{Claim, Fence};
 pub use lineage::{FindingRow, WaiverRecord};
-pub use outbox::Operation;
+pub use outbox::{INVALID_ANCHOR, Operation};
 pub use publish::{MAX_PUBLISH_ATTEMPTS, PublishClaim};
 pub use queue::JobFilter;
 pub use retention::RecordPrune;

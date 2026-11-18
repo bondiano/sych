@@ -7,7 +7,7 @@ use sych_core::publication::{
 };
 use sych_core::scm::{ScmError, ScmErrorKind};
 use sych_core::{Candidate, DiffManifest, ReviewResult, RunId, Timestamp};
-use sych_storage::{ChangeRow, PublishClaim};
+use sych_storage::{ChangeRow, INVALID_ANCHOR, PublishClaim};
 
 use super::engine::{Conn, Engine};
 
@@ -428,7 +428,7 @@ impl Engine {
             }
             // The provider refused the position: the finding moves to the summary instead.
             Err(e) if e.kind == ScmErrorKind::InvalidAnchor => {
-                let reason = format!("INVALID_ANCHOR: {e}");
+                let reason = format!("{INVALID_ANCHOR}: {e}");
                 storage
                     .publication_end(c.op_id, "FAILED", &reason, now)
                     .await?;

@@ -47,6 +47,14 @@ pub struct Candidate {
     pub verdicts: Vec<VerdictRecord>,
 }
 
+impl Candidate {
+    /// The open question a candidate the verifier left open puts in the result; the summary
+    /// finds it again by this text, so both build it here.
+    pub fn open_question(&self) -> String {
+        format!("unverified candidate: {}", self.claim)
+    }
+}
+
 /// One verifier answer about a candidate and what the engine made of it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct VerdictRecord {

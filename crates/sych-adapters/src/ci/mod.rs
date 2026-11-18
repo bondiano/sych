@@ -16,7 +16,9 @@ mod terraform;
 use std::fmt::Display;
 use std::path::Path;
 
-use sych_core::{CiFacts, CiFormat, CiManifest, CiOrigin, RepoPath, SourceSide, TestStatus};
+use sych_core::{
+    CiFacts, CiFormat, CiManifest, CiOrigin, RepoPath, STALE, SourceSide, TestStatus, UNBOUND,
+};
 use thiserror::Error;
 
 use crate::git::LocalSnapshot;
@@ -143,10 +145,9 @@ pub fn import_as(
     }
     facts.origin = origin;
     if facts.manifest.is_none() && facts.origin.is_none() {
-        facts.limitations.push(
-            "UNBOUND: no CI manifest, so toolchain, features, target and tested commit are unknown"
-                .into(),
-        );
+        facts.limitations.push(format!(
+            "{UNBOUND}: no CI manifest, so toolchain, features, target and tested commit are unknown"
+        ));
     }
 
     tracing::info!(report = %facts.report, format = ?format, bound = facts.bound_to(&snapshot.snapshot), diagnostics = facts.diagnostics.len(), tests = facts.tests.len(), "CI report imported");
@@ -156,11 +157,10 @@ pub fn import_as(
                 .find_map(|p| snapshot.code_ref(SourceSide::Head, &p, d.line, d.line).ok());
         }
     } else if facts.manifest.is_some() || facts.origin.is_some() {
-        facts.limitations.push(
-            "STALE: the report tested another commit or an unproven checkout; its locations are \
-             not mapped onto the head"
-                .into(),
-        );
+        facts.limitations.push(format!(
+            "{STALE}: the report tested another commit or an unproven checkout; its locations \
+             are not mapped onto the head"
+        ));
     }
 
     // A test changed in the reviewed diff is not an independent oracle for that diff.

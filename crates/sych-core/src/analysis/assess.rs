@@ -10,6 +10,9 @@ use crate::{
     PlannedObligation, SnapshotReader, SourceSide, classify,
 };
 
+/// The problem code of an assessment that does not answer every criterion once.
+const CRITERIA_INCOMPLETE: &str = "CRITERIA_INCOMPLETE";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ProposedStatus {
@@ -149,7 +152,7 @@ pub fn validate(
             .iter()
             .filter(|r| r.criterion_id == id);
         let (Some(result), None) = (found.next(), found.next()) else {
-            problems.push(format!("CRITERIA_INCOMPLETE: no single result for {id}"));
+            problems.push(format!("{CRITERIA_INCOMPLETE}: no single result for {id}"));
             criteria.push(CriterionRecord {
                 criterion: criterion.clone(),
                 status: CriterionStatus::Unknown,
@@ -287,9 +290,7 @@ fn decide(
     };
     let all_met = criteria.iter().all(|c| c.status == CriterionStatus::Met);
     let any_not_met = criteria.iter().any(|c| c.status == CriterionStatus::NotMet);
-    let incomplete = problems
-        .iter()
-        .any(|p| p.starts_with("CRITERIA_INCOMPLETE"));
+    let incomplete = problems.iter().any(|p| p.starts_with(CRITERIA_INCOMPLETE));
     match output.proposed_status {
         ProposedStatus::Supported if any_not_met => {
             problems.push("SUPPORTED with a NOT_MET criterion".into());
