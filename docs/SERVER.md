@@ -95,7 +95,8 @@ Debounce: one open intent per change and kind; each new event moves the deadline
 In a pull request, `/sych dismiss N reason` (one line per problem, several in one comment) dismisses problem `N` of the
 latest summary, as numbered there, as a false positive with that reason: the same feedback as the UI's, by the
 comment's author. No run starts. The summary is rendered again without it, and the publication of every later revision
-of the change leaves it out (summary, inline plan, `blocked_by` of the check run) while its fingerprint is found again.
+of the change leaves it out (summary, inline plan, `blocked_by` of the check run) while its fingerprint is found again;
+from the next revision on its inline comment carries the "no longer reported" note.
 A line naming no problem, giving no reason or refused by feedback is logged as `DISMISS_REFUSED` with the line's `N`;
 an author without write access gets `SKIPPED:UNAUTHORIZED_COMMAND`, as for every command. A comment carries one
 command, and its dismiss lines take precedence: `/sych rerun|deep|stop` goes in a comment of its own.

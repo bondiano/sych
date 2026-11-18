@@ -166,4 +166,13 @@ async fn a_dismiss_command_hides_the_problem_from_this_and_later_summaries() {
     world::commit_claimed(&w, &head, 2).await;
     while w.engine.publish_once().await.expect("publish") {}
     assert_eq!(titles(&w), shown);
+    // From that revision on, its inline comment says it is no longer reported; the other stays.
+    let notes = (lock(&w.fake).review_comments.values())
+        .filter(|c| {
+            c["body"]
+                .as_str()
+                .is_some_and(|b| b.contains("<!-- sych:resolved -->"))
+        })
+        .count();
+    assert_eq!(notes, 1);
 }

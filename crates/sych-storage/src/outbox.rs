@@ -237,6 +237,9 @@ impl crate::Storage {
 
     /// Queues a rewrite of delivered inline comments for a revision, rendered from its result;
     /// once per object and generation, so rendering the summary again queues nothing new.
+    // shortcut: a comment created in this generation is not rewritten until the next one (the
+    // operation key is the generation), so a dismiss shows on its comment from the next
+    // revision; key the rewrite separately if that delay matters.
     pub async fn enqueue_inline_edits(
         &self,
         objects: &[i64],

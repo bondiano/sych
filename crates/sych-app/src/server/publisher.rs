@@ -7,7 +7,7 @@ use sych_core::publication::{
     revisit,
 };
 use sych_core::scm::{ScmError, ScmErrorKind};
-use sych_core::{Candidate, DiffManifest, ReviewResult, RunId, Timestamp};
+use sych_core::{Candidate, DiffManifest, Lifecycle, ReviewResult, RunId, Timestamp};
 use sych_storage::{ChangeRow, INVALID_ANCHOR, ObjectKind, PublishClaim};
 
 use super::engine::{Conn, Engine};
@@ -210,13 +210,13 @@ impl Engine {
         let (result, manifest) = self.load(c).await?;
         if c.kind == ObjectKind::Inline {
             let fingerprint = c.fingerprint.as_deref().unwrap_or_default();
-            let finding = result
-                .findings
-                .iter()
-                .find(|f| f.fingerprint.to_string() == fingerprint);
+            let finding = result.findings.iter().find(|f| {
+                f.fingerprint.to_string() == fingerprint && f.lifecycle == Lifecycle::Open
+            });
             return match (finding, &c.remote_id) {
                 (Some(finding), _) => Ok(inline_body(finding, result.language)),
-                // A comment of an earlier revision whose finding this one no longer reports.
+                // An earlier revision's comment whose finding this one no longer reports or the
+                // change dismissed.
                 (None, Some(_)) => {
                     let original = storage.delivered_body(c.object_id).await?;
                     let head = manifest.head.hex();

@@ -211,6 +211,12 @@ fn an_inline_comment_is_rewritten_only_when_lineage_decides() {
         [1]
     );
 
+    // A finding the change dismissed is gone too, though the result still has it.
+    let mut dismissed = back.clone();
+    dismissed.findings[0].lifecycle = sych_core::Lifecycle::Dismissed;
+    assert_eq!(revisit(&[posted(1, false)], &dismissed, &manifest()), [1]);
+    assert_eq!(revisit(&[posted(1, true)], &dismissed, &manifest()), none);
+
     let body = gone_body(
         "sha256:ab",
         "0123456789abcdef",
