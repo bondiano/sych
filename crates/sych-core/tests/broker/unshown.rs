@@ -47,9 +47,13 @@ fn every_added_line_a_discovery_packet_misses_is_a_gap() {
     let mut generated = change.clone();
     generated.files[0].generated = true;
     assert_eq!(unshown_changes(&generated, &plan, &packets), none);
-    plan.unreviewed.push(PathGap {
+    let gap = PathGap {
         path: path("src/store.rs"),
         reason: "LIMIT_MAX_SOURCE_FILES".into(),
-    });
+    };
+    let mut excluded = plan.clone();
+    excluded.scope.excluded.push(gap.clone());
+    assert_eq!(unshown_changes(&change, &excluded, &packets), none);
+    plan.unreviewed.push(gap);
     assert_eq!(unshown_changes(&change, &plan, &packets), none);
 }
