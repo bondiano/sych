@@ -2,6 +2,7 @@
 //! the provider, the request becomes an explicit manual generation, and nothing is published
 //! unless both the request and the connection allow it.
 
+use sych_adapters::github::TokenScope;
 use sych_core::config::CheckRequest;
 use sych_core::schedule::{MAX_RETRIES, RunInputs, Trigger};
 use sych_core::scm::{ScmError, ScmErrorKind};
@@ -49,7 +50,12 @@ impl Engine {
         let installation = conn.gh.installation(full_name, now.as_second()).await?;
         let token = conn
             .gh
-            .token(installation.id, full_name, now.as_second())
+            .token(
+                installation.id,
+                full_name,
+                TokenScope::Read,
+                now.as_second(),
+            )
             .await?;
         let repo = conn.gh.repository(full_name, &token).await?;
         let change = self
@@ -99,7 +105,7 @@ impl Engine {
             .conns
             .get(&change.connection_id)
             .ok_or_else(|| RequestError::NotFound("connection is not configured".into()))?;
-        let token = self.token(conn, &change).await?;
+        let token = self.token(conn, &change, TokenScope::Read).await?;
         let pull = conn
             .gh
             .pull(&change.full_name, change.number, &token)

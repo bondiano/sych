@@ -45,8 +45,12 @@ stops startup and is not substituted.
 
 `ProviderCapabilities` is computed from the installation `permissions` (`GET /repos/{r}/installation`) and
 stored in the binding; a missing capability yields a limitation, not a guess. The installation token is requested
-for a single repository (`POST /app/installations/{id}/access_tokens` with `repositories: [name]`), lives in memory and
-is refreshed 5 minutes before expiry — independently of the run. The App JWT (RS256) is signed with the key from the PEM (PKCS#1, as
+for a single repository (`POST /app/installations/{id}/access_tokens` with `repositories: [name]`) and one scope, with
+`permissions` capped by what the installation was granted (`GET /app/installations/{id}`): **read** (contents, pull
+requests, actions, checks, issues, metadata; all read) for fetching, reading the change and its CI and reconciliation
+of changes, **publish** (pull requests, checks, issues: write; metadata: read) only for the publisher and its
+reconciliation. The token that fetches untrusted code therefore cannot write. Tokens live in memory per repository and
+scope and are refreshed 5 minutes before expiry — independently of the run. The App JWT (RS256) is signed with the key from the PEM (PKCS#1, as
 GitHub issues it, or PKCS#8) and is valid for 9 minutes.
 
 ### Admission

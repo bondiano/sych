@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sych_core::scm::{ScmCall, ScmError, ScmErrorKind, map_status};
 
-use super::app::{AppKey, InstallationToken, Secret, TokenCache};
+use super::app::{AppKey, InstallationToken, Secret, TokenCache, TokenScope};
 
 const TIMEOUT: Duration = Duration::from_secs(30);
 const API_VERSION: &str = "2022-11-28";
@@ -130,19 +130,32 @@ impl Github {
         })
     }
 
-    /// An installation token limited to the one repository it is used for.
+    /// An installation token limited to the one repository it is used for and to what `scope`
+    /// needs of the permissions the installation was granted.
     pub async fn token(
         &self,
         installation: u64,
         full_name: &str,
+        scope: TokenScope,
         now: i64,
     ) -> Result<Secret, ScmError> {
-        if let Some(token) = self.tokens.fresh(installation, full_name, now) {
+        if let Some(token) = self.tokens.fresh(installation, full_name, scope, now) {
             return Ok(token);
         }
 
         let name = full_name.rsplit('/').next().unwrap_or(full_name);
         let jwt = self.key.jwt(now)?;
+        let granted: Value = self
+            .send(
+                self.request(
+                    Method::GET,
+                    &format!("/app/installations/{installation}"),
+                    &jwt,
+                ),
+                ScmCall::Read,
+            )
+            .await?;
+        let permissions = scope.permissions(&granted["permissions"]);
         let reply: TokenReply = self
             .send(
                 self.request(
@@ -150,7 +163,7 @@ impl Github {
                     &format!("/app/installations/{installation}/access_tokens"),
                     &jwt,
                 )
-                .json(&serde_json::json!({ "repositories": [name] })),
+                .json(&serde_json::json!({ "repositories": [name], "permissions": permissions })),
                 ScmCall::Read,
             )
             .await?;
@@ -158,6 +171,7 @@ impl Github {
         self.tokens.put(
             installation,
             full_name,
+            scope,
             InstallationToken {
                 token: token.clone(),
                 expires_at: reply.expires_at.as_second(),

@@ -13,7 +13,7 @@ use serde_json::Value;
 use sych_core::scm::{ProviderCapabilities, RepositoryRef, ScmError, ScmErrorKind};
 
 pub use actions::{Artifact, Job, WorkflowRun, host_allowed};
-pub use app::{AppKey, InstallationToken, Secret, TokenCache};
+pub use app::{AppKey, InstallationToken, Secret, TokenCache, TokenScope};
 pub use client::{Github, Installation};
 pub use comments::{Comment, MAX_COMMENTS, own_comment};
 pub use reviews::{CheckOutput, CheckRun};

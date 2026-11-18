@@ -1,7 +1,7 @@
 //! The publisher. A write happens only after the operation is durably `PUBLISHING` and both
 //! gates pass; an unknown outcome is left to the reconciler.
 
-use sych_adapters::github::{CheckOutput, Comment, MAX_PR_FILES, Secret};
+use sych_adapters::github::{CheckOutput, Comment, MAX_PR_FILES, Secret, TokenScope};
 use sych_core::publication::{
     InlineAnchor, Placement, SummaryContext, inline_body, plan, render_summary,
 };
@@ -75,7 +75,7 @@ impl Engine {
         })?;
         // The API gate: the change is open now, not only in the last webhook (a lost close).
         let gate = async {
-            let token = self.token(conn, &change).await?;
+            let token = self.token(conn, &change, TokenScope::Publish).await?;
             let pull = conn
                 .gh
                 .pull(&change.full_name, change.number, &token)
@@ -464,7 +464,7 @@ impl Engine {
             return Ok(());
         };
         let body = self.render(&c, &change.full_name, true).await?;
-        let token = self.token(conn, change).await?;
+        let token = self.token(conn, change, TokenScope::Publish).await?;
         conn.gh
             .update_comment(&change.full_name, remote.parse()?, &body, &token)
             .await?;

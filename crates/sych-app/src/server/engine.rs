@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use sych_adapters::github::{Github, PullState, Secret, capabilities};
+use sych_adapters::github::{Github, PullState, Secret, TokenScope, capabilities};
 use sych_core::Timestamp;
 use sych_core::config::{GithubConnection, Retention, RunMode};
 use sych_core::schedule::{
@@ -93,13 +93,20 @@ impl Engine {
         i64::from(CI_WAIT_SECONDS) + self.after_evidence_seconds
     }
 
-    pub(super) async fn token(&self, conn: &Conn, change: &ChangeRow) -> Result<Secret, ScmError> {
+    pub(super) async fn token(
+        &self,
+        conn: &Conn,
+        change: &ChangeRow,
+        scope: TokenScope,
+    ) -> Result<Secret, ScmError> {
         let now = (self.now)().as_second();
         let installation = match change.installation_id {
             Some(id) => id,
             None => conn.gh.installation(&change.full_name, now).await?.id,
         };
-        conn.gh.token(installation, &change.full_name, now).await
+        conn.gh
+            .token(installation, &change.full_name, scope, now)
+            .await
     }
 
     /// Handles every due intent once; returns how many it handled.
@@ -136,7 +143,7 @@ impl Engine {
             return Ok(storage.consume_intent(intent.id, now).await?);
         };
         let read = async {
-            let token = self.token(conn, &change).await?;
+            let token = self.token(conn, &change, TokenScope::Read).await?;
             let pull = conn
                 .gh
                 .pull(&change.full_name, change.number, &token)
@@ -243,7 +250,12 @@ impl Engine {
                     let installation = conn.gh.installation(full_name, now.as_second()).await?;
                     let token = conn
                         .gh
-                        .token(installation.id, full_name, now.as_second())
+                        .token(
+                            installation.id,
+                            full_name,
+                            TokenScope::Read,
+                            now.as_second(),
+                        )
                         .await?;
                     let repo = conn.gh.repository(full_name, &token).await?;
                     let pulls = conn.gh.open_pulls(full_name, &token).await?;

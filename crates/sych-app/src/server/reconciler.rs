@@ -2,7 +2,7 @@
 //! marker of an object the App itself wrote; CREATE again only once a complete read after a
 //! grace shows the object absent. Delivered summaries are verified against a late older write.
 
-use sych_adapters::github::{Comment, Secret, own_comment};
+use sych_adapters::github::{Comment, Secret, TokenScope, own_comment};
 use sych_core::scm::ScmError;
 use sych_core::sha256;
 use sych_storage::{ChangeRow, Uncertain};
@@ -26,7 +26,7 @@ impl Engine {
             let Some(conn) = self.conns.get(&change.connection_id) else {
                 continue;
             };
-            let Ok(token) = self.token(conn, &change).await else {
+            let Ok(token) = self.token(conn, &change, TokenScope::Publish).await else {
                 storage.uncertain_unresolved(&u, later, now).await?;
                 continue;
             };
@@ -118,7 +118,7 @@ impl Engine {
             let Some(conn) = self.conns.get(&change.connection_id) else {
                 continue;
             };
-            let Ok(token) = self.token(conn, &change).await else {
+            let Ok(token) = self.token(conn, &change, TokenScope::Publish).await else {
                 continue;
             };
             // A row that cannot name its comment is skipped, so it never blocks the rest.
