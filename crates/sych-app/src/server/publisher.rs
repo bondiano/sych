@@ -3,7 +3,7 @@
 
 use sych_adapters::github::{CheckOutput, Comment, MAX_PR_FILES, Secret, TokenScope};
 use sych_core::publication::{
-    InlineAnchor, Placement, SummaryContext, inline_body, plan, render_summary,
+    InlineAnchor, Placement, SummaryContext, gone_body, inline_body, plan, render_summary, revisit,
 };
 use sych_core::scm::{ScmError, ScmErrorKind};
 use sych_core::{Candidate, DiffManifest, ReviewResult, RunId, Timestamp};
@@ -272,14 +272,22 @@ impl Engine {
 
         let (result, manifest) = self.load(c).await?;
         if c.kind == ObjectKind::Inline {
+            let fingerprint = c.fingerprint.as_deref().unwrap_or_default();
             let finding = result
                 .findings
                 .iter()
-                .find(|f| Some(f.fingerprint.to_string()) == c.fingerprint)
-                .ok_or_else(|| {
-                    anyhow::anyhow!("finding {:?} is not in the result", c.fingerprint)
-                })?;
-            return Ok(inline_body(finding, result.language));
+                .find(|f| f.fingerprint.to_string() == fingerprint);
+            return match (finding, &c.remote_id) {
+                (Some(finding), _) => Ok(inline_body(finding, result.language)),
+                // A comment of an earlier revision whose finding this one no longer reports.
+                (None, Some(_)) => {
+                    let original = storage.delivered_body(c.object_id).await?;
+                    let head = manifest.head.hex();
+                    let original = original.unwrap_or_default();
+                    Ok(gone_body(fingerprint, head, &original, result.language))
+                }
+                (None, None) => anyhow::bail!("finding {fingerprint:?} is not in the result"),
+            };
         }
 
         let objects = storage.inline_objects(c.change_id).await?;
@@ -308,6 +316,11 @@ impl Engine {
             };
             storage
                 .enqueue_inline(c.change_id, &c.run_id, result_id, c.generation, &items, at)
+                .await?;
+            let posted = storage.posted_inline(c.change_id).await?;
+            let edits = revisit(&posted, &result, &manifest);
+            storage
+                .enqueue_inline_edits(&edits, &c.run_id, result_id, c.generation, at)
                 .await?;
         }
 

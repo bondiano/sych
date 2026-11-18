@@ -174,3 +174,62 @@ fn a_model_finding_needs_changed_code_and_no_finding_of_its_kind_there() {
     matched.findings = vec![finding_at("backend/orders/create.go", &same.fingerprint)];
     assert_eq!(one(&same, &matched), Decision::Matched);
 }
+
+/// An earlier revision's inline comment says its finding is gone only when lineage closes it,
+/// and gets its text back when the finding returns; a partial review touches nothing.
+#[test]
+fn an_inline_comment_is_rewritten_only_when_lineage_decides() {
+    use sych_core::ReviewLanguage;
+    use sych_core::publication::{GONE_MARKER, Posted, gone_body, revisit};
+
+    let posted = |object_id, noted| Posted {
+        object_id,
+        prior: prior(Some("EFFECT-01"), "backend/orders/create.go"),
+        noted,
+    };
+    let resolved = revision();
+    assert_eq!(revisit(&[posted(1, false)], &resolved, &manifest()), [1]);
+    let none: [i64; 0] = [];
+    assert_eq!(revisit(&[posted(1, true)], &resolved, &manifest()), none);
+
+    let mut partial = revision();
+    partial.coverage = Coverage::Partial;
+    assert_eq!(
+        revisit(&[posted(1, false), posted(2, true)], &partial, &manifest()),
+        none
+    );
+
+    let mut back = revision();
+    let mut again = finding_at(
+        "backend/orders/create.go",
+        &posted(1, true).prior.fingerprint,
+    );
+    again.rule_id = Some("EFFECT-01".into());
+    back.findings = vec![again];
+    assert_eq!(
+        revisit(&[posted(1, true), posted(2, false)], &back, &manifest()),
+        [1]
+    );
+
+    let body = gone_body(
+        "sha256:ab",
+        "0123456789abcdef",
+        "<!-- sych:inline:sha256:ab -->\n**[P1] Lost event**\n\nDetails.",
+        ReviewLanguage::En,
+    );
+    assert!(
+        body.starts_with("<!-- sych:inline:sha256:ab -->\n"),
+        "{body}"
+    );
+    assert!(
+        body.contains(GONE_MARKER) && body.contains("`0123456789ab`"),
+        "{body}"
+    );
+    assert_eq!(body.matches("<!-- sych:inline:").count(), 1, "{body}");
+    assert!(
+        body.contains("<summary>Original comment</summary>\n\n**[P1] Lost event**"),
+        "{body}"
+    );
+    let bare = gone_body("sha256:ab", "0123456789abcdef", "", ReviewLanguage::En);
+    assert!(!bare.contains("<details>"), "nothing to fold: {bare}");
+}

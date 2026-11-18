@@ -4,6 +4,7 @@
 
 mod body;
 mod prose;
+mod revisit;
 mod summary;
 
 use schemars::JsonSchema;
@@ -11,7 +12,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{DiffManifest, Finding, FindingCategory, ReviewLanguage, ReviewResult, SourceSide};
 
-pub use body::inline_body;
+pub use body::{GONE_MARKER, gone_body, inline_body};
+pub use revisit::{Posted, revisit};
 pub use summary::{SummaryContext, render_summary};
 
 /// New inline comments one revision may add.

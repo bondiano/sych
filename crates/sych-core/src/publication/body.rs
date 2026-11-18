@@ -232,6 +232,38 @@ pub(crate) fn agent_prompt(out: &mut String, summary: &str, tasks: &str, languag
     );
 }
 
+/// The marker of an inline comment whose finding a later revision no longer reports.
+pub const GONE_MARKER: &str = "<!-- sych:resolved -->";
+
+/// The body of an inline comment whose finding the review of `head` no longer reports, its
+/// `original` text folded below; the comment's marker stays, so it is found again.
+pub fn gone_body(fingerprint: &str, head: &str, original: &str, l: ReviewLanguage) -> String {
+    let original: Vec<&str> = original
+        .lines()
+        .filter(|line| !line.starts_with("<!-- sych:"))
+        .collect();
+    let mut out = format!(
+        "<!-- sych:inline:{fingerprint} -->\n{GONE_MARKER}\n{} `{}`.\n",
+        tr(
+            l,
+            "Sych no longer reports this finding at",
+            "Sych больше не сообщает об этом замечании на",
+        ),
+        head.get(..12).unwrap_or(head),
+    );
+    let original = original.join("\n");
+    if !original.trim().is_empty() {
+        let _ = write!(
+            out,
+            "\n<details><summary>{}</summary>\n\n{}\n\n</details>\n",
+            tr(l, "Original comment", "Исходный комментарий"),
+            original.trim(),
+        );
+    }
+
+    out
+}
+
 /// The body of an inline comment in `language`, a reviewer's note: priority and title, one
 /// paragraph, the action, then the collapsed agent prompt; the marker finds it again.
 pub fn inline_body(finding: &Finding, language: ReviewLanguage) -> String {
