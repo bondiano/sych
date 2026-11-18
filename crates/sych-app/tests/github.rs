@@ -190,6 +190,12 @@ async fn a_smoke_test_that_cannot_delete_its_comment_says_so_beside_its_failure(
     let err = smoke(&gh, "o/r", 7, "sych[bot]", "n1", NOW)
         .await
         .expect_err("both failed");
-    assert!(err.to_string().contains("deleting comment"), "{err}");
+    // Both halves: the update that failed, then the delete that left the comment behind.
+    let text = err.to_string();
+    let (check, delete) = text.split_once("; deleting comment").expect("delete named");
+    assert!(
+        check.contains("refused") && delete.contains("refused"),
+        "{err}"
+    );
     assert_eq!(lock(&fake).comments.len(), 1, "the comment is still there");
 }
