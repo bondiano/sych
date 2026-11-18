@@ -1,6 +1,7 @@
 //! Passes done again: a search denied its input tokens runs alone once more, a wide review or
-//! discovery cut short is redone over smaller batches, and one the provider turned away is
-//! asked once more after the cooldown, instead of leaving a gap.
+//! discovery cut short is redone over smaller batches, and a review, discovery, assessment or
+//! verification the provider turned away is asked once more after the cooldown, instead of
+//! leaving a gap.
 
 use std::time::Duration;
 
@@ -28,22 +29,30 @@ pub(super) fn discovery_out_of_tokens(part: &Outcome) -> bool {
     })
 }
 
-/// A review or discovery the provider turned away this time: rate limited, a transient error,
-/// or every route of the chain cooling down. The same call may succeed a little later.
-pub(super) fn refused(part: &Outcome) -> bool {
+/// The provider turned the call away this time: rate limited, a transient error, or every
+/// route of the chain cooling down. The same call may succeed a little later.
+pub(super) fn turned_away(failure: &TaskFailure) -> bool {
+    matches!(
+        failure,
+        TaskFailure::NoEligibleRoute { .. }
+            | TaskFailure::Provider {
+                kind: ErrorKind::RateLimited | ErrorKind::Transient,
+                ..
+            }
+    )
+}
+
+/// A pass of `part` with one of `templates` that the provider turned away.
+pub(super) fn turned_away_pass(part: &Outcome, templates: &[&str]) -> bool {
     part.record.passes.iter().any(|p| {
-        (p.template == prompts::REVIEW || p.template == prompts::DISCOVERY)
-            && matches!(
-                &p.status,
-                PassStatus::Failed {
-                    failure: TaskFailure::NoEligibleRoute { .. }
-                        | TaskFailure::Provider {
-                            kind: ErrorKind::RateLimited | ErrorKind::Transient,
-                            ..
-                        }
-                }
-            )
+        templates.contains(&p.template.as_str())
+            && matches!(&p.status, PassStatus::Failed { failure } if turned_away(failure))
     })
+}
+
+/// A review or discovery the provider turned away this time.
+pub(super) fn refused(part: &Outcome) -> bool {
+    turned_away_pass(part, &[prompts::REVIEW, prompts::DISCOVERY])
 }
 
 /// A multi-unit review or discovery whose reply was cut or timed out: smaller batches may fit.
@@ -158,7 +167,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
 
     /// Waits until the route that rests the shortest may take tasks again; false when the run's
     /// deadline has passed or comes first, so the refusal stays the gap it is.
-    async fn rested(&self) -> bool {
+    pub(super) async fn rested(&self) -> bool {
         let router = &self.router;
         let now = (router.now)();
         if router.deadline.is_some_and(|d| now >= d) {

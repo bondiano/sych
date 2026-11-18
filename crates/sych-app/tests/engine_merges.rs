@@ -1,10 +1,12 @@
 //! Merges through the engine over a real snapshot with a scripted provider: what several
 //! passes, chunks or answers say about one place or one criterion reaches the outcome once.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use serde_json::{Value, json};
 use sych_core::Severity;
 use sych_core::config::Budgets;
-use sych_core::model::{ModelReply, ModelRequest, ProviderError};
+use sych_core::model::{ErrorKind, ModelReply, ModelRequest, ProviderError};
 
 mod harness;
 
@@ -165,4 +167,36 @@ async fn a_repeated_criterion_is_not_settled_by_its_first_answer() {
             outcome.record.assessments[0].problems
         );
     }
+}
+
+static FIRST_VERDICTS: AtomicBool = AtomicBool::new(false);
+
+/// One candidate from discovery; the first verifier call is rate limited, the next confirms it.
+fn first_verdicts_rate_limited(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
+    if request.schema_name == "candidate_verdicts" && !FIRST_VERDICTS.swap(true, Ordering::SeqCst) {
+        return Err(ProviderError {
+            kind: ErrorKind::RateLimited,
+            dispatched: false,
+            message: "rate limited".into(),
+            retry_after_seconds: None,
+        });
+    }
+
+    overlapping(request, true)
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_verification_the_provider_turned_away_is_asked_again() {
+    let (outcome, calls) = run(first_verdicts_rate_limited, Budgets::default()).await;
+    let asked = calls.iter().filter(|c| *c == "candidate_verdicts");
+    assert!(asked.count() >= 2, "{calls:?}");
+    assert_eq!(outcome.findings.len(), 1, "{:?}", outcome.candidates);
+    let unverified = outcome.candidates.iter().flat_map(|c| &c.limitations);
+    assert!(
+        !unverified
+            .into_iter()
+            .any(|l| l.starts_with("verification failed")),
+        "{:?}",
+        outcome.candidates
+    );
 }
