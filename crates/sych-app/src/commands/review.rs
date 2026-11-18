@@ -26,12 +26,27 @@ pub fn run(args: &ReviewArguments) -> anyhow::Result<ExitCode> {
         );
     }
 
-    let report = review::run(args, None)?;
+    let report = review::run(&request(args), None)?;
     // The result is saved before it is written; `sych show` can still print it.
     emit_report(&report, &args.out)?;
     let r = &report.review_result;
     tracing::info!(run = %r.run_id, recommendation = ?r.recommendation, coverage = ?r.coverage, "review saved");
     Ok(review::exit_code(args.exit_policy, r))
+}
+
+/// What a local `sych review` asks of the pipeline: its flags, the rest at their defaults.
+fn request(args: &ReviewArguments) -> review::Request {
+    review::Request {
+        config: args.config.clone(),
+        fake_responses: args.fake_responses.clone(),
+        policy_ref: args.policy_ref.clone(),
+        semantic: args.semantic,
+        ci_facts: args.ci_facts.clone(),
+        ci_manifest: args.ci_manifest.clone(),
+        checks: args.checks.clone(),
+        intent_file: args.intent_file.clone(),
+        ..review::Request::new(args.comparison.clone(), args.models.clone())
+    }
 }
 
 /// `github:CONNECTION:OWNER/REPO:NUMBER` → its parts.

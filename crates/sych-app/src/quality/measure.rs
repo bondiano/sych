@@ -9,7 +9,6 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use sych_core::config::RunMode;
 
 use serde::Serialize;
 use sych_core::analysis::Discovered;
@@ -21,10 +20,9 @@ use super::replay::frozen;
 use super::score::{RunReport, Totals, candidate_remarks, remarks, score};
 use super::stages::{Shown, Spread};
 use super::{QualityCase, materialize, not_given, read_cases, repo_paths};
-use crate::args::{ExitPolicy, ModelSelection, ReportOutput, ReviewArguments, Switch};
+use crate::args::{ModelSelection, Switch};
 use crate::errors::Failure;
 use crate::output::emit_json;
-use crate::render::ReportFormat;
 use crate::review;
 
 pub struct MeasureArguments<'a> {
@@ -80,36 +78,20 @@ fn review_case(
         return Ok(None);
     };
     let ci = super::ci::write(case.ci.as_ref(), &comparison)?;
-    let review = ReviewArguments {
-        comparison,
-        change: None,
+    let review = review::Request {
         config: Some(args.config.to_path_buf()),
-        models: args.models.clone(),
-        policy_ref: None,
-        fake_responses: None,
         semantic: args.semantic,
         ci_facts: ci.reports.clone(),
         ci_manifest: ci.manifest.clone(),
-        exit_policy: ExitPolicy::Operational,
-        out: ReportOutput {
-            format: ReportFormat::Json,
-            output: None,
-        },
         verify: args.verify,
-        ci_imported: Vec::new(),
-        ci_gaps: Vec::new(),
         checks: case
             .execution
             .as_ref()
             .map_or_else(Vec::new, |x| x.checks.clone()),
         execution: case.execution.as_ref().map(super::CaseExecution::config),
-        waivers: Vec::new(),
-        run_mode: RunMode::PersonalLocal,
-        deep: false,
-        parent: None,
         replay,
-        intent_file: None,
         risk_audit: args.risk_audit,
+        ..review::Request::new(comparison, args.models.clone())
     };
     // The configured store: its ledger keeps the money caps across the whole suite.
     review::run_with_candidates(&review, None)

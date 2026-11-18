@@ -24,7 +24,7 @@ use sych_core::{deploy, effects};
 use sych_storage::{RunHandle, StoreConfig};
 use tokio::sync::watch;
 
-use crate::args::{ExitPolicy, ModelSelection, ReviewArguments, Switch};
+use crate::args::{ExitPolicy, ModelSelection, Switch};
 use crate::backend::{self, ResolveError, Routing};
 use crate::errors::{EXIT_INCOMPLETE, EXIT_VIOLATION, Failure};
 use crate::fake::{FakeResponses, Scripted};
@@ -33,8 +33,11 @@ use crate::{ci, config, semantic, snapshot, storage};
 
 mod checkpoints;
 mod outcome;
+mod request;
 mod schema;
 mod session;
+
+pub use request::Request;
 
 /// Strict mode: a significant violation (10) outranks incomplete scope (11).
 pub fn exit_code(policy: ExitPolicy, result: &ReviewResult) -> ExitCode {
@@ -52,7 +55,7 @@ pub fn exit_code(policy: ExitPolicy, result: &ReviewResult) -> ExitCode {
 /// Effective config from the server config and the policy at the target tip, or at
 /// `--policy-ref` for an explicit run; the head's policy files are returned only for the diff.
 fn trusted_config(
-    args: &ReviewArguments,
+    args: &Request,
     snap: &LocalSnapshot,
 ) -> anyhow::Result<(EffectiveConfig, PolicyFiles, PolicyFiles, PolicySource)> {
     let server = config::read_server(args.config.as_deref())?;
@@ -105,7 +108,7 @@ type Collected = (RunFacts, Vec<Evidence>, Vec<Evidence>, Vec<String>);
 /// Semantic (optional) and syntax facts of the snapshot with the evidence derived from them.
 /// Imported CI reports come back as external evidence.
 fn derived_facts(
-    args: &ReviewArguments,
+    args: &Request,
     snap: &LocalSnapshot,
     effective: &EffectiveConfig,
     now: Timestamp,
@@ -181,7 +184,7 @@ fn derived_facts(
 
 /// The routing of `--models`, resolved with its credentials; `None` for `fake`.
 fn model_profile(
-    args: &ReviewArguments,
+    args: &Request,
     fake_responses: bool,
     server: &ServerConfig,
 ) -> anyhow::Result<Option<Routing>> {
@@ -243,7 +246,7 @@ const MAX_INTENT_FILE_BYTES: u64 = 1 << 20;
 
 /// `--intent-file`, else the commit messages of the change. History that cannot be read leaves
 /// no intent rather than failing the review: intent is optional context.
-fn intent(args: &ReviewArguments, snap: &LocalSnapshot) -> anyhow::Result<Option<String>> {
+fn intent(args: &Request, snap: &LocalSnapshot) -> anyhow::Result<Option<String>> {
     let Some(path) = &args.intent_file else {
         return Ok(snap
             .commit_messages(MAX_INTENT_COMMITS)
@@ -263,7 +266,7 @@ fn intent(args: &ReviewArguments, snap: &LocalSnapshot) -> anyhow::Result<Option
 }
 
 /// Pins the comparison and reads the trusted policy at its target tip.
-pub fn pin(args: &ReviewArguments) -> anyhow::Result<Pinned> {
+pub fn pin(args: &Request) -> anyhow::Result<Pinned> {
     let snap = snapshot::capture(&args.comparison).context("cannot pin the comparison")?;
     let (effective, trusted, head, source) = trusted_config(args, &snap)?;
     Ok(Pinned {
@@ -290,14 +293,14 @@ fn waive(effective: &mut EffectiveConfig, waivers: &[(String, RuleException)]) {
 }
 
 /// Runs and saves one review. `store` overrides the configured storage (eval runs).
-pub fn run(args: &ReviewArguments, store: Option<StoreConfig>) -> anyhow::Result<Report> {
+pub fn run(args: &Request, store: Option<StoreConfig>) -> anyhow::Result<Report> {
     run_with_candidates(args, store).map(|(report, ..)| report)
 }
 
 /// [`run`], also returning every model candidate, verified or not, and the packets a finished
 /// discovery searched (evaluation).
 pub fn run_with_candidates(
-    args: &ReviewArguments,
+    args: &Request,
     store: Option<StoreConfig>,
 ) -> anyhow::Result<(Report, Vec<Candidate>, Vec<usize>)> {
     let change_key = format!("{}...{}", args.comparison.base, args.comparison.head);
@@ -306,7 +309,7 @@ pub fn run_with_candidates(
 
 /// Reviews into an existing server run under its lease.
 pub fn run_claimed(
-    args: &ReviewArguments,
+    args: &Request,
     store: StoreConfig,
     run: RunHandle,
     cancel: watch::Receiver<bool>,
@@ -317,7 +320,7 @@ pub fn run_claimed(
 #[tracing::instrument(name = "review", skip_all, fields(base = %args.comparison.base, head = %args.comparison.head))]
 #[allow(clippy::too_many_lines)] // one review in order: pin, facts, plan, analysis, save
 fn execute(
-    args: &ReviewArguments,
+    args: &Request,
     store: Option<StoreConfig>,
     target: Target,
 ) -> anyhow::Result<(Report, Vec<Candidate>, Vec<usize>)> {

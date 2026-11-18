@@ -20,9 +20,8 @@ use tokio::time;
 use super::ci::{Collected, Head};
 use super::engine::Engine;
 use super::mirrors;
-use crate::args::{Comparison, ExitPolicy, ReportOutput, ReviewArguments};
-use crate::render::ReportFormat;
-use crate::review;
+use crate::args::Comparison;
+use crate::review::{self, Request};
 
 const FETCH_TIMEOUT: Duration = Duration::from_secs(120);
 
@@ -37,43 +36,25 @@ impl Engine {
         mirrors::path(&self.store.artifacts, connection, repo)
     }
 
-    fn arguments(&self, mirror: PathBuf, claim: &Claim) -> ReviewArguments {
-        ReviewArguments {
-            change: None,
-            comparison: Comparison {
-                repo: mirror,
-                base: claim.inputs.base_sha.clone(),
-                head: claim.inputs.head_sha.clone(),
-                diff_base: None,
-                fork: claim.inputs.fork,
-            },
+    fn review_request(&self, mirror: PathBuf, claim: &Claim) -> Request {
+        let comparison = Comparison {
+            repo: mirror,
+            base: claim.inputs.base_sha.clone(),
+            head: claim.inputs.head_sha.clone(),
+            diff_base: None,
+            fork: claim.inputs.fork,
+        };
+        Request {
             config: Some(self.review.config.clone()),
-            models: self.review.models.clone(),
-            policy_ref: None,
-            fake_responses: None,
             semantic: self.review.semantic,
-            ci_facts: Vec::new(),
-            ci_manifest: None,
-            exit_policy: ExitPolicy::Operational,
-            out: ReportOutput {
-                format: ReportFormat::Json,
-                output: None,
-            },
-            risk_audit: true,
-            verify: true,
-            ci_imported: Vec::new(),
-            ci_gaps: Vec::new(),
             checks: claim.inputs.targeted.clone(),
-            execution: None,
-            waivers: Vec::new(),
             run_mode: self.review.mode,
             deep: matches!(claim.inputs.trigger, Trigger::Manual { deep: true, .. }),
             parent: match &claim.inputs.trigger {
                 Trigger::Successor { parent, .. } => parent.parse().ok().map(sych_core::RunId),
                 _ => None,
             },
-            replay: None,
-            intent_file: None,
+            ..Request::new(comparison, self.review.models.clone())
         }
     }
 
@@ -144,7 +125,7 @@ impl Engine {
     }
 
     /// Fetches, pins and collects CI; the arguments of the analysis when it is due now.
-    async fn prepare(&self, claim: &Claim) -> anyhow::Result<Option<ReviewArguments>> {
+    async fn prepare(&self, claim: &Claim) -> anyhow::Result<Option<Request>> {
         let storage = &self.app.storage;
         let change = storage.change(claim.change_id).await?;
         let conn = self.conns.get(&change.connection_id).ok_or_else(|| {
@@ -177,7 +158,7 @@ impl Engine {
             tracing::warn!(error = %e, "cannot record the mirror's use");
         }
 
-        let args = self.arguments(mirror, claim);
+        let args = self.review_request(mirror, claim);
         let (args, pinned) = blocking(move || {
             let pinned = review::pin(&args).and_then(|p| Ok((p.policy()?, p)));
             (args, pinned)
@@ -261,7 +242,7 @@ impl Engine {
     }
 
     /// Reviews on a blocking thread while heartbeats keep the lease; a lost lease cancels it.
-    async fn analyze(&self, claim: &Claim, args: ReviewArguments) -> anyhow::Result<()> {
+    async fn analyze(&self, claim: &Claim, args: Request) -> anyhow::Result<()> {
         let (cancel_tx, cancel_rx) = watch::channel(false);
         let (store, run) = (self.store.clone(), claim.run.clone());
         let (done_tx, mut done_rx) = oneshot::channel();
