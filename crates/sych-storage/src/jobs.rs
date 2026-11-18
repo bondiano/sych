@@ -211,8 +211,9 @@ impl Storage {
         Ok(done.rows_affected() == 1)
     }
 
-    /// Pins the snapshot and policy, and either waits for `expected` CI sources until
-    /// `evidence_deadline` or (with no deadline) proceeds; fenced.
+    /// Pins the snapshot and policy, and whether that policy names `review.block_on` rules, and
+    /// either waits for `expected` CI sources until `evidence_deadline` or (with no deadline)
+    /// proceeds; fenced.
     #[allow(clippy::too_many_arguments)] // one fenced update with what it pins
     pub async fn prepare_run(
         &self,
@@ -220,6 +221,7 @@ impl Storage {
         run: &RunHandle,
         snapshot: &SourceSnapshotId,
         policy: &PolicySnapshotId,
+        block_on: bool,
         expected: &serde_json::Value,
         evidence_deadline: Option<i64>,
         now: Timestamp,
@@ -232,7 +234,8 @@ impl Storage {
         let mut tx = self.write().await?;
         let done = sqlx::query(concat!(
             "UPDATE runs SET state = $1, stage = 'EVIDENCE', source_snapshot_id = $2,
-                 policy_snapshot_id = $3, expected_sources = $4, evidence_deadline = $5
+                 policy_snapshot_id = $3, expected_sources = $4, evidence_deadline = $5,
+                 block_on = $11
              WHERE id = $6 AND state IN ",
             active!(),
             " AND ",
@@ -248,6 +251,7 @@ impl Storage {
         .bind(&fence.owner)
         .bind(fence.epoch)
         .bind(now.as_second())
+        .bind(i64::from(block_on))
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;

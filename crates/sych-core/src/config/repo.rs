@@ -40,7 +40,7 @@ pub struct ReviewSettings {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub fixture_paths: Vec<String>,
     /// Globs of rule ids (`SEC-*`) whose open findings fail the check run instead of leaving it
-    /// neutral; empty keeps the review advisory.
+    /// neutral, as does a failed run; empty keeps the review advisory.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub block_on: Vec<String>,
 }

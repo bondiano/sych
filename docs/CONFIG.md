@@ -115,7 +115,8 @@ makes a new policy id and new checkpoint keys.
 
 `review.block_on` in `.sych/config.yaml` lists globs of rule ids (`["SEC-*"]`, `["EFFECT-01", "MIG-*"]`) whose open
 findings fail the check run instead of leaving it `neutral` ([SERVER.md](SERVER.md#summary-inline-and-check-run));
-the result lists them in `blocked_by`. A finding of a waived obligation does not block, as it does not raise the
+the result lists them in `blocked_by`. A run that fails before a result fails the check too, as it checked none of
+them. A finding of a waived obligation does not block, as it does not raise the
 recommendation. The policy comes from the target tip, so a change cannot lift its own block. Unset, the review stays
 advisory, and the key is left out of the policy snapshot. Add it only once the deployed reviewer knows it: an
 older one refuses the unknown key.

@@ -213,3 +213,68 @@ async fn a_result_blocked_by_block_on_fails_the_check() {
         .expect("summary");
     assert!(summary.contains("Blocking:"), "{summary}");
 }
+
+/// A run that read a policy with `review.block_on` and then failed fails its check closed, as a
+/// required check passes on neutral; a later run that fails before reading the policy keeps the
+/// change's last known gate. Without one the check stays neutral.
+#[tokio::test(flavor = "current_thread")]
+async fn a_failed_run_fails_its_check_when_the_policy_has_block_on() {
+    for (recorded, conclusion) in [
+        (Some(true), "failure"),
+        (Some(false), "neutral"),
+        (None, "neutral"),
+    ] {
+        let w = world(None).await;
+        let head = w.branch("src/b.rs");
+        w.open_pull(&head, &w.base, false);
+        let s = &w.app.storage;
+        w.pr_event("d-1", "opened", &head).await;
+        w.schedule(6).await;
+        let mut inputs = s.latest(1).await.expect("latest").expect("run").inputs;
+        (inputs.checks, inputs.publish) = (true, true);
+        let fail = async |block_on: Option<bool>| {
+            s.generate(1, &inputs, now().as_second() + 600, 3, now())
+                .await
+                .expect("gen");
+            let c = s.claim("w", 60, now()).await.expect("claim").expect("job");
+            if let Some(block_on) = block_on {
+                let snap = sych_core::SourceSnapshotId(sych_core::sha256(b"snap"));
+                let policy = sych_core::PolicySnapshotId(sych_core::sha256(b"policy"));
+                s.prepare_run(
+                    &c.fence,
+                    &c.run,
+                    &snap,
+                    &policy,
+                    block_on,
+                    &json!({}),
+                    None,
+                    now(),
+                )
+                .await
+                .expect("prepare");
+            }
+
+            s.enqueue_failure_check(&c.run, now().as_second())
+                .await
+                .expect("enqueue")
+                .expect("an operation");
+            drain(&w).await;
+        };
+        fail(recorded).await;
+        fail(None).await;
+        let runs = lock(&w.fake).check_runs.clone();
+        let last = runs.last().expect("a check run");
+        assert_eq!(
+            last["conclusion"].as_str(),
+            Some(conclusion),
+            "{recorded:?}"
+        );
+        assert_eq!(
+            last["output"]["summary"]
+                .as_str()
+                .is_some_and(|b| b.contains("review.block_on")),
+            recorded == Some(true),
+            "{last}"
+        );
+    }
+}
