@@ -136,6 +136,7 @@ async fn a_waiting_run_is_released_until_its_deadline_and_woken_early() {
             &c.run,
             &snap,
             &policy,
+            false,
             &json!({"expected": ["tests"]}),
             Some(T0 + 181),
             at(1),

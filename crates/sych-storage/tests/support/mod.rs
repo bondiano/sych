@@ -94,8 +94,17 @@ pub async fn finish(s: &Storage, c: &Claim, now: i64) -> Result<(), StorageError
     let snap = SourceSnapshotId(sha256(b"snap"));
     let policy = PolicySnapshotId(sha256(b"policy"));
     // A stale fence pins nothing here; the writes below report it.
-    s.prepare_run(&c.fence, &c.run, &snap, &policy, &json!({}), None, at(now))
-        .await?;
+    s.prepare_run(
+        &c.fence,
+        &c.run,
+        &snap,
+        &policy,
+        false,
+        &json!({}),
+        None,
+        at(now),
+    )
+    .await?;
     s.freeze(&c.fence, &c.run.id, &json!({}), at(now)).await?;
     let result = result_for(c);
     let digest = s

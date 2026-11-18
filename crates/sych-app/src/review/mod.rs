@@ -237,6 +237,11 @@ impl Pinned {
             .policy_snapshot(self.source.clone(), Timestamp::now())
             .map_err(|err| Failure::no_result(format!("cannot hash policy: {err}")).into())
     }
+
+    /// Whether the trusted policy names `review.block_on` rules, so a failed run fails its check.
+    pub fn blocks(&self) -> bool {
+        !self.effective.repository.config.review.block_on.is_empty()
+    }
 }
 
 /// Commit messages a prompt names at most; the newest come first.

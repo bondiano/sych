@@ -216,6 +216,7 @@ async fn recovered_same_owner_rejects_old_epoch_pins_and_finalization() {
                 &old.run,
                 &SourceSnapshotId(sha256(b"snap")),
                 &PolicySnapshotId(sha256(b"policy")),
+                false,
                 &json!({}),
                 None,
                 at(2),

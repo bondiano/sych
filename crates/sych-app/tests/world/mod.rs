@@ -479,6 +479,7 @@ pub async fn commit_claimed_with(
         &c.run,
         &snap.snapshot.id,
         &policy,
+        false,
         &json!({}),
         None,
         now(),

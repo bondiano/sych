@@ -123,9 +123,18 @@ async fn lost_bytes_unfrozen_inputs_and_cancel_before_commit_leave_no_result_or_
         .await
         .expect("gen");
     let c = claim(&s, "w", 1).await;
-    s.prepare_run(&c.fence, &c.run, &snap, &policy, &json!({}), None, at(1))
-        .await
-        .expect("prepare");
+    s.prepare_run(
+        &c.fence,
+        &c.run,
+        &snap,
+        &policy,
+        false,
+        &json!({}),
+        None,
+        at(1),
+    )
+    .await
+    .expect("prepare");
     s.freeze(&c.fence, &c.run.id, &json!({}), at(1))
         .await
         .expect("freeze");
@@ -154,9 +163,18 @@ async fn lost_bytes_unfrozen_inputs_and_cancel_before_commit_leave_no_result_or_
         .await
         .expect("gen");
     let c = claim(&s, "w", 5).await;
-    s.prepare_run(&c.fence, &c.run, &snap, &policy, &json!({}), None, at(5))
-        .await
-        .expect("prepare");
+    s.prepare_run(
+        &c.fence,
+        &c.run,
+        &snap,
+        &policy,
+        false,
+        &json!({}),
+        None,
+        at(5),
+    )
+    .await
+    .expect("prepare");
     let result = result_for(&c);
     let digest = s
         .put_artifact(

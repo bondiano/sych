@@ -60,6 +60,9 @@ pub struct PublishClaim {
     pub run_id: String,
     /// `None` for the check of a run that failed before it had a result.
     pub result_id: Option<String>,
+    /// Whether the policy names `review.block_on` rules: as the run read it, else as the
+    /// change's latest run that read one did; `None` when no run of the change got that far.
+    pub block_on: Option<bool>,
     pub generation: i64,
     pub attempts: i64,
     pub owner: String,
@@ -404,7 +407,18 @@ fn claim_row(r: &AnyRow) -> Result<PublishClaim, StorageError> {
         attempts: r.get(11),
         owner: r.get(12),
         epoch: r.get(13),
+        block_on: r.get::<Option<i64>, _>(17).map(|b| b != 0),
     })
+}
+
+/// `PublishClaim::block_on` of operation `o` on object `p`: the run's own flag, else the latest
+/// one its change recorded.
+macro_rules! run_block_on {
+    () => {
+        "coalesce((SELECT r.block_on FROM runs r WHERE r.id = o.run_id),
+             (SELECT r.block_on FROM runs r WHERE r.change_id = p.change_id
+                 AND r.block_on IS NOT NULL ORDER BY r.generation DESC LIMIT 1))"
+    };
 }
 
 /// The claim of operation `id` as the publisher needs it.
@@ -412,13 +426,15 @@ async fn claimed(
     tx: &mut sqlx::Transaction<'_, sqlx::Any>,
     id: i64,
 ) -> Result<PublishClaim, StorageError> {
-    let r = sqlx::query(
+    let r = sqlx::query(concat!(
         "SELECT o.id, o.object_id, p.change_id, c.tenant_id, c.access_scope, p.slot, p.marker,
              p.remote_id, o.run_id, o.result_id, o.generation, o.attempts, o.owner, o.lease_epoch,
-             p.kind, p.fingerprint, p.anchor
+             p.kind, p.fingerprint, p.anchor, ",
+        run_block_on!(),
+        "
          FROM publication_operations o JOIN publication_objects p ON p.id = o.object_id
-         JOIN changes c ON c.id = p.change_id WHERE o.id = $1",
-    )
+         JOIN changes c ON c.id = p.change_id WHERE o.id = $1"
+    ))
     .bind(id)
     .fetch_one(&mut **tx)
     .await?;
@@ -457,15 +473,17 @@ impl Storage {
         &self,
         change_id: i64,
     ) -> Result<Option<PublishClaim>, StorageError> {
-        let r = sqlx::query(
+        let r = sqlx::query(concat!(
             "SELECT o.id, o.object_id, p.change_id, c.tenant_id, c.access_scope, p.slot, p.marker,
                  p.remote_id, o.run_id, o.result_id, o.generation, o.attempts,
-                 coalesce(o.owner, ''), o.lease_epoch, p.kind, p.fingerprint, p.anchor
+                 coalesce(o.owner, ''), o.lease_epoch, p.kind, p.fingerprint, p.anchor, ",
+            run_block_on!(),
+            "
              FROM publication_operations o JOIN publication_objects p ON p.id = o.object_id
              JOIN changes c ON c.id = p.change_id
              WHERE p.change_id = $1 AND p.kind = 'SUMMARY' AND o.state = 'DELIVERED'
-             ORDER BY o.id DESC LIMIT 1",
-        )
+             ORDER BY o.id DESC LIMIT 1"
+        ))
         .bind(change_id)
         .fetch_optional(self.pool())
         .await?;

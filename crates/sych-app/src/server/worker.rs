@@ -191,6 +191,7 @@ impl Engine {
                 &claim.run,
                 &pinned.snap.snapshot.id,
                 &policy.id,
+                pinned.blocks(),
                 &expected,
                 deadline,
                 (self.now)(),

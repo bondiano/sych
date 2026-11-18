@@ -103,6 +103,7 @@ pub const TABLES: &[Table] = &[
             T("coverage"),
             I("unknown_obligations"),
             T("mode"),
+            I("block_on"),
         ],
     },
     Table {

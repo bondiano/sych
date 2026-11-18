@@ -260,9 +260,14 @@ impl Engine {
     async fn render(&self, c: &PublishClaim, repo: &str, complete: bool) -> anyhow::Result<String> {
         let storage = &self.app.storage;
         if c.kind == ObjectKind::Check && c.result_id.is_none() {
-            return Ok(
-                "Sych could not complete this review; the run failed before a result.".into(),
-            );
+            let gate = if c.block_on == Some(true) {
+                " The rules `review.block_on` names were not checked, so the check fails."
+            } else {
+                ""
+            };
+            return Ok(format!(
+                "Sych could not complete this review; the run failed before a result.{gate}"
+            ));
         }
 
         let (result, manifest) = self.load(c).await?;
@@ -364,16 +369,20 @@ impl Engine {
             (ObjectKind::Check, remote) => {
                 let failed = c.result_id.is_none();
                 // Advisory unless `review.block_on` named a rule with an open finding: never
-                // success, so no one reads a neutral run as a pass.
-                // A result that cannot be read now is retried, like any transient failure.
-                let blocking = !failed
-                    && !self
+                // success, so no one reads a neutral run as a pass. A failed run under such a
+                // policy checked none of them, so it fails closed: a required check passes on
+                // neutral. A result that cannot be read now is retried, like any transient failure.
+                let blocking = if failed {
+                    c.block_on == Some(true)
+                } else {
+                    !self
                         .load(c)
                         .await
                         .map_err(|e| ScmError::new(ScmErrorKind::Transient, format!("{e:#}")))?
                         .0
                         .blocked_by
-                        .is_empty();
+                        .is_empty()
+                };
                 let output = CheckOutput {
                     name: CHECK_NAME,
                     conclusion: if blocking { "failure" } else { "neutral" },
