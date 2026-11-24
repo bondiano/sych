@@ -9,3 +9,5 @@ site/package-lock.json linguist-generated=true
 web/src/modules/Ui/components/ui/** linguist-vendored=true
 # Benchmark fixtures that plant defects on purpose; reviewing them as the change's code reports the plants.
 eval/bench/plants/** linguist-vendored=true
+# Written by the pinned SCIP indexers: `cargo test -p sych-adapters --test architecture -- --ignored bless`.
+fixtures/architecture/*/*/index.scip binary linguist-generated=true

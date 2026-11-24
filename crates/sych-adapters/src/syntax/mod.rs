@@ -7,7 +7,7 @@ mod logging;
 mod python;
 mod react;
 mod rust;
-mod tree;
+pub(crate) mod tree;
 
 use std::collections::BTreeMap;
 

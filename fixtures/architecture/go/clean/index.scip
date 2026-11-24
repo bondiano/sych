@@ -1,0 +1,155 @@
+
+`D
+scip-go0.2.92--output=/tmp/.tmp2eJooj/project-0/head/index.scipfile:///tmp/.tmpeu39l0 Æ
+
+app/app.goD:scip-go gomod example.com/clean . `example.com/clean/app`/BL@scip-go gomod example.com/clean . `example.com/clean/inventory`/BH<scip-go gomod example.com/clean . `example.com/clean/queue`/BT@scip-go gomod example.com/clean . `example.com/clean/app`/Run().BZ local 0B	L@scip-go gomod example.com/clean . `example.com/clean/inventory`/BVJscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#B!local 1BH<scip-go gomod example.com/clean . `example.com/clean/queue`/BNBscip-go gomod example.com/clean . `example.com/clean/queue`/New().Blocal 1B	UIscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Push().B	local 2B
+local 1B
+THscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Len().B
+local 1B
+THscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Limit.B
+local 3Blocal 2B
+local 3Blocal 0B
+[Oscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M0().Blocal 3Blocal 0B
+[Oscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M1().Blocal 3Blocal 0B
+[Oscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M2().Blocal 3BV
+:scip-go gomod example.com/clean . `example.com/clean/app`/(#2app:"go*package appw
+@scip-go gomod example.com/clean . `example.com/clean/app`/Run().(2Run:,"go*&func Run(inv *inventory.Inventory) int
+local 2(=2n:"go*	var n int'
+local 3(=2total:"go*var total int*
+local 0(=2inv:"go*var inv *Inventory"
+local 1(=2q:"go*var q *Queue"go0Û#
+inventory/inventory.goJ@scip-go gomod example.com/clean . `example.com/clean/inventory`/B^Jscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#BZ dPscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#Count.BR
+local 0BVJscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#B	cOscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M0().BZ local 0B	\Pscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#Count.B
+local 1B
+VJscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#B
+	cOscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M1().B
+Z
+ local 1B	\Pscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#Count.B
+local 2BVJscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#B	cOscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M2().BZ local 2B	\Pscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#Count.B
+local 3BVJscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#B	cOscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M3().BZ local 3B	\Pscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#Count.B
+local 4BVJscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#B	cOscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M4().BZ local 4B	\Pscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#Count.B
+local 5BVJscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#B	cOscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M5().BZ local 5B	\Pscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#Count.B
+local 6BVJscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#B	cOscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M6().BZ  local 6B	\Pscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#Count.B
+local 7B"VJscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#B"	cOscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M7().B"Z"$ local 7B#	\Pscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#Count.B#
+y
+Oscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M5().(2M5: "go*func (*Inventory).M5() inty
+Oscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M7().(2M7: "go*func (*Inventory).M7() intƒ
+Jscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#(12	Inventory:("go*"type Inventory struct{ Count int }y
+Oscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M2().(2M2: "go*func (*Inventory).M2() inty
+Oscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M6().(2M6: "go*func (*Inventory).M6() inth
+@scip-go gomod example.com/clean . `example.com/clean/inventory`/(#2	inventory:"go*package inventoryy
+Pscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#Count.(2Count:"go*struct field Count inty
+Oscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M0().(2M0: "go*func (*Inventory).M0() inty
+Oscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M1().(2M1: "go*func (*Inventory).M1() inty
+Oscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M3().(2M3: "go*func (*Inventory).M3() inty
+Oscip-go gomod example.com/clean . `example.com/clean/inventory`/Inventory#M4().(2M4: "go*func (*Inventory).M4() int&
+local 6(=2i:"go*var i *Inventory&
+local 7(=2i:"go*var i *Inventory&
+local 0(=2i:"go*var i *Inventory&
+local 1(=2i:"go*var i *Inventory&
+local 2(=2i:"go*var i *Inventory&
+local 3(=2i:"go*var i *Inventory&
+local 4(=2i:"go*var i *Inventory&
+local 5(=2i:"go*var i *Inventory"go0­
+inventory/table/table.goPFscip-go gomod example.com/clean . `example.com/clean/inventory/table`/BaMscip-go gomod example.com/clean . `example.com/clean/inventory/table`/Rows().B	Z f
+Fscip-go gomod example.com/clean . `example.com/clean/inventory/table`/(#2table:"go*package tablen
+Mscip-go gomod example.com/clean . `example.com/clean/inventory/table`/Rows().(2Rows:"go*func Rows() int"go0™
+net/kinds/stream/stream.goQGscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/B_Mscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/Limit.BR`Nscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/Stream#BRbNscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/Fits().B	Z local 0B
+local 0B	YMscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/Limit.Bi
+Gscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/(#2stream:"go*package streamv
+Nscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/Stream#(12Stream:"go*type Stream struct{}{
+Mscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/Limit.(2Limit:!"go*const Limit untyped int = 8u
+Nscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/Fits().(2Fits:"go*func Fits(n int) bool
+local 0(=2n:"go*	var n int"go0°
+net/socket/addr/addr.goPFscip-go gomod example.com/clean . `example.com/clean/net/socket/addr`/B]Kscip-go gomod example.com/clean . `example.com/clean/net/socket/addr`/Port.B
+Rx
+Kscip-go gomod example.com/clean . `example.com/clean/net/socket/addr`/Port.(2Port:!"go*const Port untyped int = 80d
+Fscip-go gomod example.com/clean . `example.com/clean/net/socket/addr`/(#2addr:"go*package addr"go0û
+net/socket/listen/listen.goRHscip-go gomod example.com/clean . `example.com/clean/net/socket/listen`/BSGscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/B*cOscip-go gomod example.com/clean . `example.com/clean/net/socket/listen`/Open().B	Z SGscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/BZNscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/Stream#BSGscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/BZNscip-go gomod example.com/clean . `example.com/clean/net/kinds/stream`/Stream#Bz
+Oscip-go gomod example.com/clean . `example.com/clean/net/socket/listen`/Open().(2Open:"go*func Open() stream.Streamj
+Hscip-go gomod example.com/clean . `example.com/clean/net/socket/listen`/(#2listen:"go*package listen"go0Œ
+queue/queue.goF<scip-go gomod example.com/clean . `example.com/clean/queue`/BVBscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#B
+Z \Hscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Items.BR\Hscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Limit.BR]Iscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#served.BRVBscip-go gomod example.com/clean . `example.com/clean/queue`/New().BZ
+ NBscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#BNBscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#B		THscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Limit.B	local 0BNBscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#B	]Iscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Full().BZ local 0BTHscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Items.Blocal 0BUIscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#served.Blocal 0B!"THscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Limit.B#(local 1BNBscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#B	[Iscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#View().BR2local 1B)*THscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Items.B+0local 2BNBscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#B	]Iscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Push().BZ local 3Blocal 2BUIscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Full().Blocal 2BTHscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Items.B	local 2BTHscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Items.Blocal 3B local 4BNBscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#B	\Hscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Len().BZ local 4BTHscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Items.Bt
+Iscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Full().(2Full:"go*func (*Queue).Full() bool\
+<scip-go gomod example.com/clean . `example.com/clean/queue`/(#2queue:"go*package queueœ
+Bscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#(12Queue:M"go*Gtype Queue struct {
+    Items  []string
+    Limit  int
+    served int
+}q
+Hscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Limit.(2Limit:"go*struct field Limit intd
+Bscip-go gomod example.com/clean . `example.com/clean/queue`/New().(2New:"go*func New() *Queuex
+Iscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#View().(2View:#"go*func (*Queue).View() []stringz
+Iscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Push().(2Push:%"go*func (*Queue).Push(item string)p
+Hscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Len().(2Len:"go*func (*Queue).Len() intv
+Hscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Items.(2Items:!"go*struct field Items []stringt
+Iscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#served.(2served:"go*struct field served int"
+local 0(=2q:"go*var q *Queue"
+local 1(=2q:"go*var q *Queue"
+local 2(=2q:"go*var q *Queue(
+local 3(=2item:"go*var item string"
+local 4(=2q:"go*var q *Queue"go0 
+queue/queue_test.goF<scip-go gomod example.com/clean . `example.com/clean/queue`/BB6scip-go gomod github.com/golang/go/src go1.22 testing/B\Hscip-go gomod example.com/clean . `example.com/clean/queue`/TestQueue().BZ local 0BB6scip-go gomod github.com/golang/go/src go1.22 testing/BD8scip-go gomod github.com/golang/go/src go1.22 testing/T#Blocal 1BNBscip-go gomod example.com/clean . `example.com/clean/queue`/New().B	local 1BTHscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Items.Blocal 1BTHscip-go gomod example.com/clean . `example.com/clean/queue`/Queue#Items.B{
+Hscip-go gomod example.com/clean . `example.com/clean/queue`/TestQueue().(2	TestQueue:""go*func TestQueue(t *testing.T)
+local 0(=2t:"go*var t *T"
+local 1(=2q:"go*var q *Queue"go0ü
+\../.tmpbHESsf/go-build/e3/e3a172ed3fa3046e4941092e5b73e9d94b33710b36180480c227e1003e2b1a82-dMAscip-go gomod example.com/clean . `example.com/clean/queue.test`/B=1scip-go gomod github.com/golang/go/src go1.22 os/BB6scip-go gomod github.com/golang/go/src go1.22 testing/B	VJscip-go gomod github.com/golang/go/src go1.22 `testing/internal/testdeps`/B	H<scip-go gomod example.com/clean . `example.com/clean/queue`/BH<scip-go gomod example.com/clean . `example.com/clean/queue`/B[Gscip-go gomod example.com/clean . `example.com/clean/queue.test`/tests.B	Z B6scip-go gomod github.com/golang/go/src go1.22 testing/BOCscip-go gomod github.com/golang/go/src go1.22 testing/InternalTest#B"H<scip-go gomod example.com/clean . `example.com/clean/queue`/BTHscip-go gomod example.com/clean . `example.com/clean/queue`/TestQueue().B`Lscip-go gomod example.com/clean . `example.com/clean/queue.test`/benchmarks.BZ B6scip-go gomod github.com/golang/go/src go1.22 testing/BTHscip-go gomod github.com/golang/go/src go1.22 testing/InternalBenchmark#B,aMscip-go gomod example.com/clean . `example.com/clean/queue.test`/fuzzTargets.BZ B6scip-go gomod github.com/golang/go/src go1.22 testing/BUIscip-go gomod github.com/golang/go/src go1.22 testing/InternalFuzzTarget#B.^Jscip-go gomod example.com/clean . `example.com/clean/queue.test`/examples.B Z " B6scip-go gomod github.com/golang/go/src go1.22 testing/B RFscip-go gomod github.com/golang/go/src go1.22 testing/InternalExample#B (\Hscip-go gomod example.com/clean . `example.com/clean/queue.test`/init().B$	Z$( VJscip-go gomod github.com/golang/go/src go1.22 `testing/internal/testdeps`/B&	aUscip-go gomod github.com/golang/go/src go1.22 `testing/internal/testdeps`/ModulePath.B&
+VJscip-go gomod github.com/golang/go/src go1.22 `testing/internal/testdeps`/B'	aUscip-go gomod github.com/golang/go/src go1.22 `testing/internal/testdeps`/ImportPath.B'
+\Hscip-go gomod example.com/clean . `example.com/clean/queue.test`/main().B*	Z*/ local 0B+B6scip-go gomod github.com/golang/go/src go1.22 testing/B+NBscip-go gomod github.com/golang/go/src go1.22 testing/MainStart().B+VJscip-go gomod github.com/golang/go/src go1.22 `testing/internal/testdeps`/B+ _Sscip-go gomod github.com/golang/go/src go1.22 `testing/internal/testdeps`/TestDeps#B+!)SGscip-go gomod example.com/clean . `example.com/clean/queue.test`/tests.B+-2XLscip-go gomod example.com/clean . `example.com/clean/queue.test`/benchmarks.B+4>YMscip-go gomod example.com/clean . `example.com/clean/queue.test`/fuzzTargets.B+@KVJscip-go gomod example.com/clean . `example.com/clean/queue.test`/examples.B+MU=1scip-go gomod github.com/golang/go/src go1.22 os/B-D8scip-go gomod github.com/golang/go/src go1.22 os/Exit().B-local 0B-	
+J>scip-go gomod github.com/golang/go/src go1.22 testing/M#Run().B-z
+Gscip-go gomod example.com/clean . `example.com/clean/queue.test`/tests.(=2tests:&"go* var tests []testing.InternalTestŽ
+Lscip-go gomod example.com/clean . `example.com/clean/queue.test`/benchmarks.(=2
+benchmarks:0"go**var benchmarks []testing.InternalBenchmark’
+Mscip-go gomod example.com/clean . `example.com/clean/queue.test`/fuzzTargets.(=2fuzzTargets:2"go*,var fuzzTargets []testing.InternalFuzzTarget†
+Jscip-go gomod example.com/clean . `example.com/clean/queue.test`/examples.(=2examples:,"go*&var examples []testing.InternalExamplee
+Hscip-go gomod example.com/clean . `example.com/clean/queue.test`/init().(2init:"go*func init()e
+Hscip-go gomod example.com/clean . `example.com/clean/queue.test`/main().(2main:"go*func main()_
+Ascip-go gomod example.com/clean . `example.com/clean/queue.test`/(#2main:"go*package main
+local 0(=2m:"go*var m *M"go0–:
+ring/ring.goE;scip-go gomod example.com/clean . `example.com/clean/ring`/BR>scip-go gomod example.com/clean . `example.com/clean/ring`/T0#BZ T@scip-go gomod example.com/clean . `example.com/clean/ring`/T0#n.BRlocal 0BJ>scip-go gomod example.com/clean . `example.com/clean/ring`/T0#B	YEscip-go gomod example.com/clean . `example.com/clean/ring`/T0#Next().BZ local 1BJ>scip-go gomod example.com/clean . `example.com/clean/ring`/T1#Blocal 0B	L@scip-go gomod example.com/clean . `example.com/clean/ring`/T0#n.B
+local 1BL@scip-go gomod example.com/clean . `example.com/clean/ring`/T1#n.BR>scip-go gomod example.com/clean . `example.com/clean/ring`/T1#B
+Z
+ T@scip-go gomod example.com/clean . `example.com/clean/ring`/T1#n.BRlocal 2BJ>scip-go gomod example.com/clean . `example.com/clean/ring`/T1#B	YEscip-go gomod example.com/clean . `example.com/clean/ring`/T1#Next().BZ local 3BJ>scip-go gomod example.com/clean . `example.com/clean/ring`/T2#Blocal 2B	L@scip-go gomod example.com/clean . `example.com/clean/ring`/T1#n.B
+local 3BL@scip-go gomod example.com/clean . `example.com/clean/ring`/T2#n.BR>scip-go gomod example.com/clean . `example.com/clean/ring`/T2#BZ T@scip-go gomod example.com/clean . `example.com/clean/ring`/T2#n.BRlocal 4BJ>scip-go gomod example.com/clean . `example.com/clean/ring`/T2#B	YEscip-go gomod example.com/clean . `example.com/clean/ring`/T2#Next().BZ local 5BJ>scip-go gomod example.com/clean . `example.com/clean/ring`/T3#Blocal 4B	L@scip-go gomod example.com/clean . `example.com/clean/ring`/T2#n.B
+local 5BL@scip-go gomod example.com/clean . `example.com/clean/ring`/T3#n.BR>scip-go gomod example.com/clean . `example.com/clean/ring`/T3#BZ T@scip-go gomod example.com/clean . `example.com/clean/ring`/T3#n.BRlocal 6BJ>scip-go gomod example.com/clean . `example.com/clean/ring`/T3#B	YEscip-go gomod example.com/clean . `example.com/clean/ring`/T3#Next().BZ  local 7BJ>scip-go gomod example.com/clean . `example.com/clean/ring`/T4#Blocal 6B	L@scip-go gomod example.com/clean . `example.com/clean/ring`/T3#n.B
+local 7BL@scip-go gomod example.com/clean . `example.com/clean/ring`/T4#n.BR>scip-go gomod example.com/clean . `example.com/clean/ring`/T4#B"Z"$ T@scip-go gomod example.com/clean . `example.com/clean/ring`/T4#n.B#R#local 8B&J>scip-go gomod example.com/clean . `example.com/clean/ring`/T4#B&	YEscip-go gomod example.com/clean . `example.com/clean/ring`/T4#Next().B&Z&( local 9B&J>scip-go gomod example.com/clean . `example.com/clean/ring`/T5#B&local 8B'	L@scip-go gomod example.com/clean . `example.com/clean/ring`/T4#n.B'
+local 9B'L@scip-go gomod example.com/clean . `example.com/clean/ring`/T5#n.B'R>scip-go gomod example.com/clean . `example.com/clean/ring`/T5#B*Z*, T@scip-go gomod example.com/clean . `example.com/clean/ring`/T5#n.B+R+local 10B.J>scip-go gomod example.com/clean . `example.com/clean/ring`/T5#B.	YEscip-go gomod example.com/clean . `example.com/clean/ring`/T5#Next().B.Z.0 local 11B.J>scip-go gomod example.com/clean . `example.com/clean/ring`/T6#B.local 10B/	L@scip-go gomod example.com/clean . `example.com/clean/ring`/T5#n.B/
+local 11B/L@scip-go gomod example.com/clean . `example.com/clean/ring`/T6#n.B/R>scip-go gomod example.com/clean . `example.com/clean/ring`/T6#B2Z24 T@scip-go gomod example.com/clean . `example.com/clean/ring`/T6#n.B3R3local 12B6J>scip-go gomod example.com/clean . `example.com/clean/ring`/T6#B6	YEscip-go gomod example.com/clean . `example.com/clean/ring`/T6#Next().B6Z68 local 13B6J>scip-go gomod example.com/clean . `example.com/clean/ring`/T0#B6local 12B7	L@scip-go gomod example.com/clean . `example.com/clean/ring`/T6#n.B7
+local 13B7L@scip-go gomod example.com/clean . `example.com/clean/ring`/T0#n.B7e
+>scip-go gomod example.com/clean . `example.com/clean/ring`/T0#(12T0:"go*type T0 struct{ n int }a
+@scip-go gomod example.com/clean . `example.com/clean/ring`/T1#n.(2n:"go*struct field n inta
+@scip-go gomod example.com/clean . `example.com/clean/ring`/T3#n.(2n:"go*struct field n inte
+>scip-go gomod example.com/clean . `example.com/clean/ring`/T4#(12T4:"go*type T4 struct{ n int }a
+@scip-go gomod example.com/clean . `example.com/clean/ring`/T6#n.(2n:"go*struct field n intq
+Escip-go gomod example.com/clean . `example.com/clean/ring`/T2#Next().(2Next: "go*func (*T2).Next(o *T3) intq
+Escip-go gomod example.com/clean . `example.com/clean/ring`/T5#Next().(2Next: "go*func (*T5).Next(o *T6) inta
+@scip-go gomod example.com/clean . `example.com/clean/ring`/T0#n.(2n:"go*struct field n inte
+>scip-go gomod example.com/clean . `example.com/clean/ring`/T1#(12T1:"go*type T1 struct{ n int }e
+>scip-go gomod example.com/clean . `example.com/clean/ring`/T3#(12T3:"go*type T3 struct{ n int }a
+@scip-go gomod example.com/clean . `example.com/clean/ring`/T4#n.(2n:"go*struct field n intY
+;scip-go gomod example.com/clean . `example.com/clean/ring`/(#2ring:"go*package ringa
+@scip-go gomod example.com/clean . `example.com/clean/ring`/T2#n.(2n:"go*struct field n inte
+>scip-go gomod example.com/clean . `example.com/clean/ring`/T6#(12T6:"go*type T6 struct{ n int }q
+Escip-go gomod example.com/clean . `example.com/clean/ring`/T1#Next().(2Next: "go*func (*T1).Next(o *T2) intq
+Escip-go gomod example.com/clean . `example.com/clean/ring`/T3#Next().(2Next: "go*func (*T3).Next(o *T4) intq
+Escip-go gomod example.com/clean . `example.com/clean/ring`/T4#Next().(2Next: "go*func (*T4).Next(o *T5) intq
+Escip-go gomod example.com/clean . `example.com/clean/ring`/T6#Next().(2Next: "go*func (*T6).Next(o *T0) inte
+>scip-go gomod example.com/clean . `example.com/clean/ring`/T2#(12T2:"go*type T2 struct{ n int }e
+>scip-go gomod example.com/clean . `example.com/clean/ring`/T5#(12T5:"go*type T5 struct{ n int }a
+@scip-go gomod example.com/clean . `example.com/clean/ring`/T5#n.(2n:"go*struct field n intq
+Escip-go gomod example.com/clean . `example.com/clean/ring`/T0#Next().(2Next: "go*func (*T0).Next(o *T1) int
+local 3(=2o:"go*	var o *T2
+local 4(=2t:"go*	var t *T2
+local 5(=2o:"go*	var o *T3
+local 6(=2t:"go*	var t *T3
+local 8(=2t:"go*	var t *T4 
+local 12(=2t:"go*	var t *T6 
+local 13(=2o:"go*	var o *T0
+local 0(=2t:"go*	var t *T0
+local 2(=2t:"go*	var t *T1
+local 7(=2o:"go*	var o *T4
+local 9(=2o:"go*	var o *T5 
+local 10(=2t:"go*	var t *T5 
+local 11(=2o:"go*	var o *T6
+local 1(=2o:"go*	var o *T1"go0

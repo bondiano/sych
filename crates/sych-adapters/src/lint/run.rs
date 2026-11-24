@@ -20,7 +20,7 @@ const MAX_DEPTH: usize = 8;
 
 /// `program args` in `cwd` with only an empty `HOME` (under `scratch`), an empty `PATH` and
 /// what `env` sets: no user config, credentials or helper tools reach it. Killed after `timeout`.
-pub(super) fn run(
+pub(crate) fn run(
     program: &Path,
     args: &[String],
     cwd: &Path,
