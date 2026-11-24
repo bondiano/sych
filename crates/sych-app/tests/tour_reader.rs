@@ -83,6 +83,7 @@ fn repo() -> TempDir {
 fn sych(cwd: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_sych"))
         .current_dir(cwd)
+        .env("XDG_CONFIG_HOME", cwd.join("user-config"))
         .args(args)
         .output()
         .expect("run sych")
@@ -163,6 +164,7 @@ fn store_tour(data: &Path, result: &ReviewResult) -> String {
 fn a_stored_tour_is_read_privately_marked_stale_and_survives_pruned_source() {
     let (repo, data) = (repo(), TempDir::new().expect("tempdir"));
     let (d, r) = (data.path(), repo.path().to_str().expect("utf-8"));
+    fs::create_dir(d.join(".sych-data")).expect("legacy dir");
     assert_eq!(sych(d, &["db", "migrate"]).status.code(), Some(0));
     let fake = d.join("fake.yaml");
     fs::write(&fake, FAKE).expect("write");
@@ -302,6 +304,7 @@ fn stored(dir: &Path) -> Vec<(PathBuf, Vec<u8>)> {
 fn a_handoff_is_reproducible_consent_first_and_changes_no_file() {
     let (repo, data) = (repo(), TempDir::new().expect("tempdir"));
     let (d, r) = (data.path(), repo.path().to_str().expect("utf-8"));
+    fs::create_dir(d.join(".sych-data")).expect("legacy dir");
     assert_eq!(sych(d, &["db", "migrate"]).status.code(), Some(0));
     let fake = d.join("fake.yaml");
     fs::write(&fake, FAKE).expect("write");

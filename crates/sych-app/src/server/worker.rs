@@ -54,7 +54,7 @@ impl Engine {
                 Trigger::Successor { parent, .. } => parent.parse().ok().map(sych_core::RunId),
                 _ => None,
             },
-            ..Request::new(comparison, self.review.models.clone())
+            ..Request::new(comparison, Some(self.review.models.clone()))
         }
     }
 

@@ -516,13 +516,13 @@ Errors — `{"error": {code, message, retryable, correlation_id, details}}`: 400
 
 | CLI | What it does |
 |---|---|
-| `sych review --change github:CONN:OWNER/REPO:N --config sych.yaml` | the same server pipeline in-process from the current PR state; publishes nothing; exit codes as for `review`; writes the result as `--format json` or `sarif` (`markdown` is refused: `sych show --run RUN --format markdown` renders the run) |
+| `sych review --change github:CONN:OWNER/REPO:N --config sych.yaml` | the same server pipeline in-process from the current PR state; publishes nothing; exit codes as for `review`; writes a summary to a terminal by default, or the result as `--format json` or `sarif`; use `sych show --run RUN --format markdown` for Markdown |
 | `sych publish --run ID --as CLIENT --config …` | puts the summary of a committed run into the outbox (writer); the server sends it |
 | `sych cancel --run ID --as CLIENT --config …` | cancellation before commit — exit 130 and `CANCELLED`; committed — exit 0 and the previous state |
 | `sych rerun --change ID [--profile deep] --as CLIENT --config …` | a new generation (writer) |
 | `sych reconcile [--change ID] [--allow-create OP --actor … --reason …]` | see [Operator runbook](#operator-runbook) |
 | `sych serve` / `api` / `worker --config … [--models …] [--semantic …]` | process roles |
-| `sych db migrate`, `sych cache prune --dry-run` | migrations only explicitly; a deletion plan without deleting |
+| `sych db migrate`, `sych cache prune --dry-run` | apply server migrations; preview pruning |
 
 Local `publish`/`cancel`/`rerun` act on behalf of a configured client with the required role; an unknown client
 or an insufficient role — exit 4.
@@ -695,8 +695,8 @@ completeness, held budget, 80% and 100% of a tenant budget.
    events Pull request, Issue comment, Workflow run, Check suite; install it only on the repositories you list.
 2. **Secrets** (outside the repository and the Nix store): `SYCH_GITHUB_APP_KEY_FILE` (path to the PEM), `SYCH_GITHUB_WEBHOOK_SECRET`,
    `SYCH_API_TOKEN_OWNER`, `SYCH_DATABASE_URL`, the model key (`SYCH_OPENROUTER_API_KEY`).
-3. `sych config validate --config sych.yaml`, then `sych db migrate --config sych.yaml` — the schema changes only
-   through this command; `serve` does not start on an unmigrated database (exit 3).
+3. `sych config validate --config sych.yaml`, then `sych db migrate --config sych.yaml`.
+   `serve` exits 3 on an unmigrated database.
 4. `sych serve --config sych.yaml`. Check: `curl 127.0.0.1:8080/health/ready`, `curl 127.0.0.1:8080/metrics`.
    In the App settings send a `ping` (Redeliver): expect 202 and an `IGNORED` receipt. Open a PR: receipt `SCHEDULED`,
    intent `REFRESH`.

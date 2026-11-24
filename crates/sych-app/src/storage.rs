@@ -1,8 +1,8 @@
 //! Local storage: where the database and artifacts live, and reading a saved run back.
 
-use std::env;
 use std::future::Future;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::{env, fs, io};
 
 use anyhow::Context;
 use serde::de::DeserializeOwned;
@@ -17,8 +17,7 @@ use crate::config;
 use crate::errors::Failure;
 use crate::render::Report;
 
-const DEFAULT_DATABASE: &str = ".sych-data/sych.db";
-const DEFAULT_ARTIFACTS: &str = ".sych-data/artifacts";
+const LEGACY_DATA: &str = ".sych-data";
 
 /// Runs one future on a single-threaded runtime.
 pub fn block_on<F: Future>(future: F) -> anyhow::Result<F::Output> {
@@ -32,9 +31,82 @@ pub fn block_on<F: Future>(future: F) -> anyhow::Result<F::Output> {
 /// `SQLite` and artifact paths are relative to `sych.yaml`; without a config they default
 /// under `./.sych-data`. `PostgreSQL` URLs are passed to the database driver unchanged.
 pub fn store_config(config: Option<&Path>, server: &ServerConfig) -> anyhow::Result<StoreConfig> {
-    let base = config
+    let base = config_dir(config);
+    resolve_store(server, base, &base.join(LEGACY_DATA))
+}
+
+/// The local CLI shares a user store unless a store from an earlier installation exists.
+pub fn local_store_config(
+    config: Option<&Path>,
+    server: &ServerConfig,
+) -> anyhow::Result<StoreConfig> {
+    let base = config_dir(config);
+    if server.storage.database_url_env.is_some() && server.storage.artifact_store.is_some() {
+        return resolve_store(server, base, base);
+    }
+
+    let legacy = base.join(LEGACY_DATA);
+    let working = Path::new(LEGACY_DATA);
+    for path in [legacy.as_path(), working] {
+        if legacy_store(path, server)? {
+            return resolve_store(server, base, path);
+        }
+    }
+
+    let defaults = config::user_dir("XDG_DATA_HOME", "LOCALAPPDATA", ".local/share")
+        .ok_or_else(|| Failure::invalid("cannot locate the user data directory for Sych"))?;
+    resolve_store(server, base, &defaults)
+}
+
+fn config_dir(config: Option<&Path>) -> &Path {
+    config
         .and_then(Path::parent)
-        .map_or_else(PathBuf::new, Path::to_path_buf);
+        .unwrap_or_else(|| Path::new(""))
+}
+
+fn legacy_store(path: &Path, server: &ServerConfig) -> anyhow::Result<bool> {
+    if !legacy_metadata(path)?.is_some_and(|meta| meta.is_dir()) {
+        return Ok(false);
+    }
+
+    if server.storage.database_url_env.is_none() {
+        for entry in [
+            "sych.db",
+            "sych.db-wal",
+            "sych.db-shm",
+            "sych.db.migrate.lock",
+        ] {
+            legacy_metadata(&path.join(entry))?;
+        }
+    }
+
+    if server.storage.artifact_store.is_none() {
+        legacy_metadata(&path.join("artifacts"))?;
+    }
+
+    Ok(true)
+}
+
+fn legacy_metadata(path: &Path) -> anyhow::Result<Option<fs::Metadata>> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_symlink() => Err(Failure::invalid(format!(
+            "legacy store path {} is a symlink",
+            path.display()
+        ))
+        .into()),
+        Ok(meta) => Ok(Some(meta)),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(err) => {
+            Err(Failure::invalid(format!("cannot inspect {}: {err}", path.display())).into())
+        }
+    }
+}
+
+fn resolve_store(
+    server: &ServerConfig,
+    base: &Path,
+    defaults: &Path,
+) -> anyhow::Result<StoreConfig> {
     let database = match &server.storage.database_url_env {
         Some(name) => {
             let url = env::var(name.as_str()).map_err(|_| {
@@ -43,15 +115,15 @@ pub fn store_config(config: Option<&Path>, server: &ServerConfig) -> anyhow::Res
                     name.as_str()
                 ))
             })?;
-            database(&url, &base)?
+            database(&url, base)?
         }
-        None => Database::Sqlite(base.join(DEFAULT_DATABASE)),
+        None => Database::Sqlite(defaults.join("sych.db")),
     };
     let artifacts = server
         .storage
         .artifact_store
         .as_ref()
-        .map_or_else(|| base.join(DEFAULT_ARTIFACTS), |s| base.join(&s.path));
+        .map_or_else(|| defaults.join("artifacts"), |s| base.join(&s.path));
     Ok(StoreConfig {
         database,
         artifacts,
@@ -87,6 +159,13 @@ fn database(value: &str, base: &Path) -> anyhow::Result<Database> {
 /// Storage location from the server config at `config`, or engine defaults.
 pub fn load_store_config(config: Option<&Path>) -> anyhow::Result<StoreConfig> {
     store_config(config, &config::server(config)?)
+}
+
+/// Resolve the store used by direct local review and the commands that read its runs.
+pub fn load_local_store_config(config: Option<&Path>) -> anyhow::Result<StoreConfig> {
+    let path = config::local_path(config)?;
+    let path = path.as_deref();
+    local_store_config(path, &config::server(path)?)
 }
 
 /// Whether the configured database opens at the current schema; never migrates.
@@ -165,7 +244,7 @@ pub fn saved_report(config: Option<&Path>, run: &str) -> anyhow::Result<Report> 
         .parse()
         .map(RunId)
         .map_err(|_| Failure::invalid(format!("`{run}` is not a run id")))?;
-    let store = load_store_config(config)?;
+    let store = load_local_store_config(config)?;
     block_on(load_report(store, run))?.with_context(|| format!("cannot read saved run {run}"))
 }
 

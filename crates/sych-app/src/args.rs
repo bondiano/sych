@@ -127,7 +127,7 @@ pub struct AuthChatgptArguments {
 
 #[derive(Subcommand)]
 pub enum DbCommands {
-    /// Apply pending migrations; other commands never change the schema
+    /// Apply pending migrations; local review migrates SQLite automatically
     Migrate(StoreArguments),
     /// Import a stopped `SQLite` snapshot and its artifacts into an empty, migrated `PostgreSQL`
     /// database
@@ -172,8 +172,9 @@ pub struct Output {
 /// [`Output`] of a saved review, which can also be SARIF.
 #[derive(clap::Args)]
 pub struct ReportOutput {
-    #[arg(long, value_enum, default_value = "json")]
-    pub format: ReportFormat,
+    /// Output format (JSON by default, with a short summary for review on a terminal)
+    #[arg(long, value_enum)]
+    pub format: Option<ReportFormat>,
     /// Write the rendered result here instead of stdout; parent directories are created
     #[arg(long)]
     pub output: Option<PathBuf>,
@@ -181,6 +182,9 @@ pub struct ReportOutput {
 
 #[derive(clap::Args)]
 pub struct ReviewArguments {
+    /// Ref, A..B (two-dot), or A...B (merge-base); defaults to HEAD against the default branch
+    #[arg(value_name = "REF", conflicts_with_all = ["base", "head", "diff_base", "change"])]
+    pub target: Option<String>,
     #[command(flatten)]
     pub comparison: Comparison,
     /// Review a provider change at its current state instead of local refs; never publishes
@@ -190,15 +194,16 @@ pub struct ReviewArguments {
         conflicts_with = "base"
     )]
     pub change: Option<String>,
-    /// Server config; engine defaults when omitted. Repository policy always comes from the
-    /// target tip, never from the reviewed head
+    /// Trusted config; for local reviews, defaults to the user config if present.
+    /// Repository policy comes from the target tip unless --policy-ref is set
     #[arg(long)]
     pub config: Option<PathBuf>,
     /// `fake` makes no external calls; `roles` routes each role through `models.roles` and its
     /// fallback chains; otherwise one pinned model profile of `--config` (with only its own
-    /// fallback chain). Real profiles make paid or quota-counted calls within the budgets
+    /// fallback chain). Defaults to `default_models` in the config or `fake`.
+    /// Real profiles make paid or quota-counted calls within the budgets
     #[arg(long, value_parser = ModelSelection::parse)]
-    pub models: ModelSelection,
+    pub models: Option<ModelSelection>,
     /// Scripted evidence and assessments for the fake adapter; without it obligations stay
     /// honestly unassessed
     #[arg(long)]
@@ -502,6 +507,24 @@ impl ModelSelection {
             "fake" => Ok(Self::Fake),
             "roles" => Ok(Self::Roles),
             name => Ok(Self::Profile(name.to_owned())),
+        }
+    }
+
+    /// Resolve an omitted CLI selector from the validated trusted config.
+    pub fn for_review(explicit: Option<&Self>, configured: Option<&str>) -> Self {
+        match (explicit, configured) {
+            (Some(models), _) => models.clone(),
+            (None, Some("roles")) => Self::Roles,
+            (None, Some(name)) if name != "fake" => Self::Profile(name.to_owned()),
+            (None, configured) => {
+                if configured.is_none() {
+                    eprintln!(
+                        "No model was selected or called. Set default_models in your user config or pass --config and --models to enable models."
+                    );
+                }
+
+                Self::Fake
+            }
         }
     }
 }

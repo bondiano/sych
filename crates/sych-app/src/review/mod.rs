@@ -196,7 +196,8 @@ fn model_profile(
     fake_responses: bool,
     server: &ServerConfig,
 ) -> anyhow::Result<Option<Routing>> {
-    let selected = match &args.models {
+    let models = ModelSelection::for_review(args.models.as_ref(), server.default_models.as_deref());
+    let selected = match &models {
         ModelSelection::Fake => return Ok(None),
         ModelSelection::Roles => None,
         ModelSelection::Profile(name) => Some(name.as_str()),
@@ -219,15 +220,29 @@ fn model_profile(
 }
 
 /// Where a review's run lives: a new local run, or a server run a worker claimed.
-pub enum Target {
+enum Target {
     Local {
         change_key: String,
+        cli: bool,
     },
     /// Every write carries `run.fence`; the run stops when `cancel` turns true or drops.
     Claimed {
         run: RunHandle,
         cancel: watch::Receiver<bool>,
     },
+}
+
+impl Target {
+    fn local(args: &Request, cli: bool) -> Self {
+        Self::Local {
+            change_key: format!("{}...{}", args.comparison.base, args.comparison.head),
+            cli,
+        }
+    }
+
+    fn is_local_cli(&self) -> bool {
+        matches!(self, Self::Local { cli: true, .. })
+    }
 }
 
 /// The pinned comparison and the trusted policy a review reads.
@@ -305,19 +320,17 @@ fn waive(effective: &mut EffectiveConfig, waivers: &[(String, RuleException)]) {
     }
 }
 
-/// Runs and saves one review. `store` overrides the configured storage (eval runs).
-pub fn run(args: &Request, store: Option<StoreConfig>) -> anyhow::Result<Report> {
-    run_with_candidates(args, store).map(|(report, ..)| report)
+/// Reviews and saves a new run in the local CLI store.
+pub fn run_local_cli(args: &Request) -> anyhow::Result<Report> {
+    execute(args, None, Target::local(args, true)).map(|(report, ..)| report)
 }
 
-/// [`run`], also returning every model candidate, verified or not, and the packets a finished
-/// discovery searched (evaluation).
+/// Runs an evaluation, returning all candidates and the packets a finished discovery searched.
 pub fn run_with_candidates(
     args: &Request,
     store: Option<StoreConfig>,
 ) -> anyhow::Result<(Report, Vec<Candidate>, Vec<usize>)> {
-    let change_key = format!("{}...{}", args.comparison.base, args.comparison.head);
-    execute(args, store, Target::Local { change_key })
+    execute(args, store, Target::local(args, false))
 }
 
 /// Reviews into an existing server run under its lease.
@@ -355,6 +368,10 @@ fn execute(
     let model = model_profile(args, fake.is_some(), &effective.server)?;
     let store = match store {
         Some(store) => store,
+        None if target.is_local_cli() => {
+            storage::local_store_config(args.config.as_deref(), &effective.server)
+                .context("cannot locate the store")?
+        }
         None => storage::store_config(args.config.as_deref(), &effective.server)
             .context("cannot locate the store")?,
     };

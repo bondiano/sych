@@ -1,6 +1,8 @@
 //! JSON and Markdown renderers of a saved review. Repository text is data: it is
 //! escaped for Markdown/HTML, and terminal control characters never reach the output raw.
 
+use std::cmp::Reverse;
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use serde::{Deserialize, Serialize};
@@ -11,7 +13,7 @@ use sych_core::effects::EffectLedger;
 use sych_core::{
     CiFacts, CodeRef, DiffManifest, Evidence, EvidenceManifest, ExternalInputManifest, Finding,
     LintFacts, Obligation, ObligationStatus, PolicySnapshot, PolicySource, ReviewResult,
-    SchemaVersion, SemanticFacts, SourceSnapshot, SyntaxFacts, UsageSummary,
+    SchemaVersion, SemanticFacts, Severity, SourceSnapshot, SyntaxFacts, UsageSummary,
 };
 
 /// Policy diagnostics of a run: effective-config provenance and the head's proposed diff.
@@ -68,6 +70,63 @@ use architecture::{architecture, explanation};
 /// Bidi overrides and isolates can make reviewed text read differently than it runs.
 fn is_bidi_control(c: char) -> bool {
     matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+}
+
+/// One line of untrusted text, safe to print to a terminal.
+fn terminal_line(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            if c.is_control() || is_bidi_control(c) || matches!(c, '\u{2028}' | '\u{2029}') {
+                ' '
+            } else {
+                c
+            }
+        })
+        .collect()
+}
+
+pub fn summary(result: &ReviewResult) -> String {
+    let mut out = format!(
+        "Recommendation: {}\nCoverage: {}\nFindings:",
+        tag(&result.recommendation),
+        tag(&result.coverage),
+    );
+    let mut counts = BTreeMap::new();
+    let mut findings: Vec<_> = result.findings.iter().collect();
+    for finding in &findings {
+        *counts.entry(finding.severity).or_insert(0) += 1;
+    }
+    for severity in [
+        Severity::Critical,
+        Severity::High,
+        Severity::Medium,
+        Severity::Low,
+        Severity::Info,
+    ] {
+        let _ = write!(
+            out,
+            " {} {}",
+            counts.get(&severity).copied().unwrap_or(0),
+            tag(&severity)
+        );
+    }
+    out.push('\n');
+    findings.sort_by_key(|f| Reverse(f.severity));
+    for finding in findings.into_iter().take(5) {
+        let _ = write!(out, "- [{}] ", tag(&finding.severity));
+        if let Some(anchor) = finding.anchors.first() {
+            let _ = write!(
+                out,
+                "{}:{} ",
+                terminal_line(anchor.path.as_str()),
+                anchor.start_line
+            );
+        }
+
+        let _ = writeln!(out, "{}", terminal_line(&finding.title));
+    }
+    let _ = writeln!(out, "Run: {}", result.run_id);
+    out
 }
 
 /// Pretty JSON with DEL, C1 controls and bidi controls `\u`-escaped; serde already escapes C0.

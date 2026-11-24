@@ -27,9 +27,14 @@ impl Session<'_> {
     /// every write it makes carries its fence.
     pub(super) async fn save(self, store: &StoreConfig, target: Target) -> Result<Saved, Stopped> {
         let failed = |e: &dyn Display| Stopped::Failed(e.to_string());
-        let storage = Storage::open(store).await.map_err(|e| failed(&e))?;
+        let storage = if target.is_local_cli() {
+            Storage::open_local(store).await
+        } else {
+            Storage::open(store).await
+        }
+        .map_err(|e| failed(&e))?;
         let (run, mut cancel) = match target {
-            Target::Local { change_key } => {
+            Target::Local { change_key, .. } => {
                 let partition = Partition {
                     tenant_id: TENANT_LOCAL.into(),
                     access_scope: self.snap.snapshot.repository.clone(),

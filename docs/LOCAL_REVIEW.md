@@ -1,22 +1,28 @@
 # Local review
 
 Local review reads only Git objects, stores the run in local storage ([STORAGE.md](STORAGE.md)) and publishes nothing to the SCM.
-The fake adapter (`--models fake`) proves that the harness works, not review quality; review with a real model is
-`--models PROFILE` ([ANALYSIS.md](ANALYSIS.md)).
 
 ## Workflow
 
 ```sh
-sych db migrate
-sych review --repo . --base origin/main --head HEAD --models fake \
-  --format json --output .sych-output/review.json
-sych review --repo . --base origin/main --models fake --format markdown --output .sych-output/review.md
+sych review
+sych review feature/example
+sych review main..HEAD --format json --output .sych-output/review.json
+sych review main...HEAD --format markdown --output .sych-output/review.md
 sych show --run RUN_ID --format markdown
 sych explain --run RUN_ID --obligation EFFECT-01 --format markdown
 ```
 
-- `--base` is the target ref: policy is taken only from its tip, and the diff is computed from the `merge-base`; `--diff-base` sets
+- With no target, Sych reviews `HEAD` against the default branch. It tries `refs/remotes/origin/HEAD`,
+  `main`, and `master` in order. If none resolves, pass `--base REF` (exit 2).
+- A positional `REF` reviews that ref against the default branch. `A..B` is equivalent to
+  `--diff-base A --head B`, and `A...B` to `--base A --head B`. Combining a positional target with
+  `--base`, `--head` or `--diff-base` exits 2.
+- `--base` names the target tip for policy and computes the diff from the merge base. `--diff-base` uses
   an exact two-dot comparison.
+- Sych warns when the working tree is dirty. The run reads committed changes from the pinned snapshot.
+- Model selection follows [the personal configuration](CONFIG.md#files). Pass `--models fake` to force
+  a review with zero model calls, or `--models PROFILE` to select a model ([ANALYSIS.md](ANALYSIS.md)).
 - A changed file is not read, but stays in scope as excluded `GENERATED`, when the target tip's `.gitattributes`
   sets `linguist-generated` or `linguist-vendored` for it (third-party code, fixtures defective on purpose), or its `BASE` version's first kilobyte already carried a marker (`@generated`,
   `DO NOT EDIT`, `Code generated`). As with policy, a change's own `.gitattributes` does not count. A marker only
@@ -31,8 +37,11 @@ sych explain --run RUN_ID --obligation EFFECT-01 --format markdown
     it; the text is not a requirement and does not excuse a defect.
   - No verifier and no high-risk audit sees it, so a description can add a hypothesis, never argue one away.
   - Unreadable history leaves no description rather than failing the review.
-- `--format json|markdown|sarif` (JSON by default); `--output PATH` writes a file and creates the directory, otherwise stdout.
-  `sarif` (only `review` and `show`) writes SARIF 2.1.0 for GitHub code scanning and editors:
+- With `--format` and `--output` omitted, a terminal gets a short summary with the recommendation, coverage, severity
+  counts, top findings with locations, and run ID. Piped or redirected stdout gets JSON by default. Use `--format json|markdown|sarif`
+  to select a format explicitly. `--output PATH` creates parent directories and writes the selected format
+  to a file, defaulting to JSON.
+- `sarif` (only `review` and `show`) writes SARIF 2.1.0 for GitHub code scanning and editors:
   - every open finding is a result at its first HEAD anchor, keyed by `partialFingerprints["sych/v1"]`;
   - a dismissed finding carries a suppression, and resolved or obsolete findings are left out;
   - a finding only on deleted lines has no location;
@@ -174,7 +183,7 @@ author's word, otherwise `UNKNOWN/INSUFFICIENT_EVIDENCE`.
 |---:|---|
 | 0 | result stored (operational mode does not fail because of findings) |
 | 2 | invalid flags, refs, config, policy or fixture |
-| 3 | no usable stored result: database not migrated, write failure, result could not be output |
+| 3 | no usable stored result: database migration needed or failed, storage or output failure |
 | 4 | missing credentials or access: a model profile's credentials are not set, a sign-in failed, or a local `ask --kind risk-decision` |
 | 10 | `--exit-policy strict` and a significant violation (`ATTENTION_REQUIRED`) |
 | 11 | `--exit-policy strict` and coverage is not `COMPLETE_FOR_SCOPE`; 10 takes precedence |

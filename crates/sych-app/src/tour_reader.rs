@@ -16,7 +16,7 @@ use sych_storage::{Storage, StorageError, TENANT_LOCAL, tour_role};
 use crate::args::{Comparison, TourCommands, TourRef};
 use crate::errors::Failure;
 use crate::output::emit_as;
-use crate::storage::{block_on, load_store_config, saved_report};
+use crate::storage::{block_on, load_local_store_config, saved_report};
 use crate::{followup, snapshot};
 
 /// The only reader of a local store.
@@ -91,7 +91,7 @@ fn with_session<T>(
     change: impl FnOnce(&TourArtifact, TourSession) -> anyhow::Result<(TourSession, T)>,
 ) -> anyhow::Result<(TourArtifact, TourSession, T)> {
     let run = run_id(&r.run)?;
-    let store = load_store_config(r.config.as_deref())?;
+    let store = load_local_store_config(r.config.as_deref())?;
     block_on(async {
         let storage = Storage::open(&store).await?;
         let (tour, session) = load(&storage, run, r).await?;
@@ -133,7 +133,7 @@ pub(crate) fn pinned(
 fn show(r: &TourRef, repo: &Path, brief: bool) -> anyhow::Result<ExitCode> {
     let report = saved_report(r.config.as_deref(), &r.run)?;
     let (t, session, ()) = with_session(r, |_, s| Ok((s, ())))?;
-    let store = load_store_config(r.config.as_deref())?;
+    let store = load_local_store_config(r.config.as_deref())?;
     let exchanges = block_on(async {
         let storage = Storage::open(&store).await?;
         anyhow::Ok(

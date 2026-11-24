@@ -28,6 +28,7 @@ fn git(dir: &Path, args: &[&str]) {
 fn sych(cwd: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_sych"))
         .current_dir(cwd)
+        .env("XDG_CONFIG_HOME", cwd.join("user-config"))
         .args(args)
         .output()
         .expect("run sych")
@@ -63,6 +64,7 @@ fn repo(policy: Option<&str>) -> TempDir {
 
 fn review(repo: &TempDir) -> (Value, String) {
     let data = TempDir::new().expect("tempdir");
+    fs::create_dir(data.path().join(".sych-data")).expect("legacy dir");
     assert_eq!(sych(data.path(), &["db", "migrate"]).status.code(), Some(0));
     let path = repo.path().to_str().expect("utf-8 path");
     let out = sych(

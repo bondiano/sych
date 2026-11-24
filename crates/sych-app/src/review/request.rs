@@ -12,7 +12,8 @@ pub struct Request {
     pub comparison: Comparison,
     /// Server config; engine defaults when `None`.
     pub config: Option<PathBuf>,
-    pub models: ModelSelection,
+    /// `None` lets the CLI review use the trusted config's default selector.
+    pub models: Option<ModelSelection>,
     /// Scripted evidence and assessments for the fake adapter.
     pub fake_responses: Option<PathBuf>,
     /// The policy of this revision instead of the target tip's.
@@ -53,7 +54,7 @@ pub struct Request {
 impl Request {
     /// A local review of `comparison` with everything else at its default: semantic facts on,
     /// the whole pipeline, no imported CI, waivers or parent.
-    pub fn new(comparison: Comparison, models: ModelSelection) -> Self {
+    pub fn new(comparison: Comparison, models: Option<ModelSelection>) -> Self {
         Self {
             comparison,
             config: None,

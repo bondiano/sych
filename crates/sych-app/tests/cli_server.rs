@@ -94,8 +94,6 @@ async fn cancel_exits_130_before_commit_and_keeps_a_committed_result() {
         (code, out.trim()),
         (130, format!("run {active} is CANCELLED").as_str())
     );
-    let (code, _) = sych(&w, &["review", "--repo", "."]);
-    assert_eq!(code, 2, "--base or --change is required");
 }
 
 #[tokio::test(flavor = "current_thread")]
