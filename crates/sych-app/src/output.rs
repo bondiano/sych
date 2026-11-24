@@ -2,14 +2,17 @@
 
 use std::fs;
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, absolute};
 
 use serde::Serialize;
+use sych_core::SnapshotHeadKind;
 
 use crate::args::{Output, ReportOutput};
+use crate::config;
 use crate::errors::Failure;
 use crate::render::{self, Format, Report, ReportFormat};
 use crate::render_sarif;
+use crate::report_view;
 
 /// Writes `text` to `output` (creating its directory) or stdout.
 pub fn emit(text: &str, output: Option<&Path>) -> anyhow::Result<()> {
@@ -44,11 +47,59 @@ pub fn emit_as<T: Serialize>(
 }
 
 /// A saved review as `out` asks, SARIF included.
-pub fn emit_report(report: &Report, out: &ReportOutput) -> anyhow::Result<()> {
-    let path = out.output.as_deref();
-    match out.format.unwrap_or(ReportFormat::Json) {
-        ReportFormat::Json => emit_json(report, path),
-        ReportFormat::Markdown => emit(&render::markdown(report), path),
-        ReportFormat::Sarif => emit_json(&render_sarif::sarif(&report.review_result), path),
+pub fn emit_report(
+    report: &Report,
+    out: &ReportOutput,
+    repo: &Path,
+    config: Option<&Path>,
+    terminal_summary: bool,
+) -> anyhow::Result<()> {
+    let report_path = out.output.as_deref();
+    if let Some(patch_path) = out.fixes_patch.as_deref()
+        && let Some(report_path) = report_path
+        && absolute(patch_path)? == absolute(report_path)?
+    {
+        return Err(
+            Failure::invalid("--fixes-patch and --output must name different files").into(),
+        );
+    }
+
+    let material = || -> anyhow::Result<_> {
+        let redactor = config::server(config)?
+            .redaction
+            .redactor()
+            .map_err(Failure::invalid)?;
+        let (view, unified_diff) = report_view::build(report, repo, &redactor);
+        if let Some(path) = out.fixes_patch.as_deref() {
+            if unified_diff.is_empty() {
+                eprintln!("No applicable suggested fixes in this run.");
+            }
+
+            emit(&unified_diff, Some(path))?;
+        }
+
+        Ok(view)
+    };
+    let format = out.format.unwrap_or(ReportFormat::Json);
+    match format {
+        ReportFormat::Markdown => emit(&render::markdown(report, &material()?), report_path),
+        ReportFormat::ReportView => emit_json(&material()?, report_path),
+        ReportFormat::Json | ReportFormat::Sarif => {
+            if out.fixes_patch.is_some() {
+                material()?;
+            }
+
+            if terminal_summary {
+                let kind = report
+                    .snapshot
+                    .as_ref()
+                    .map_or(SnapshotHeadKind::Committed, |s| s.head_kind);
+                emit(&render::summary(&report.review_result, kind), None)
+            } else if matches!(format, ReportFormat::Json) {
+                emit_json(report, report_path)
+            } else {
+                emit_json(&render_sarif::sarif(&report.review_result), report_path)
+            }
+        }
     }
 }

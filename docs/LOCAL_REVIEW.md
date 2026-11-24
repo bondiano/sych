@@ -19,6 +19,24 @@ The report marks the head as uncommitted. Sych pins the commit in `refs/sych/loc
 run's source is retained (normally seven days), and `sych cache prune` releases the pin when that
 source expires.
 
+## Code and fixes in a report
+
+```sh
+sych show --run RUN_ID --repo . --format markdown --fixes-patch fixes.patch
+sych show --run RUN_ID --repo . --format report-view --output report-view.json
+```
+
+Markdown and the structured report view show pinned source excerpts with the finding's lines
+marked, nearby change hunks and a validated fix when available. `--repo` defaults to the current
+directory. If source retention expired, the blobs are missing or an excerpt is withheld, the
+finding stays visible with “source unavailable”. The existing JSON report keeps its format.
+
+`--fixes-patch PATH` writes the applicable non-conflicting fixes as one patch for the reviewed head.
+Omissions are explained alongside the finding, including identical replacements, unavailable
+source and changes that expose protected text. Inspect the patch and run
+`git apply --check fixes.patch` on the reviewed version before applying it. If no fix is available,
+the patch file is empty.
+
 ## Workflow
 
 ```sh
@@ -55,9 +73,9 @@ sych explain --run RUN_ID --obligation EFFECT-01 --format markdown
   - No verifier and no high-risk audit sees it, so a description can add a hypothesis, never argue one away.
   - Unreadable history leaves no description rather than failing the review.
 - With `--format` and `--output` omitted, a terminal gets a short summary with the recommendation, coverage, severity
-  counts, top findings with locations, and run ID. Piped or redirected stdout gets JSON by default. Use `--format json|markdown|sarif`
-  to select a format explicitly. `--output PATH` creates parent directories and writes the selected format
-  to a file, defaulting to JSON.
+  counts, top findings with locations, and run ID. Piped or redirected stdout gets JSON by default. Use
+  `--format json|markdown|report-view|sarif` to select a format explicitly. `--output PATH` creates parent directories
+  and writes the selected format to a file, defaulting to JSON.
 - `sarif` (only `review` and `show`) writes SARIF 2.1.0 for GitHub code scanning and editors:
   - every open finding is a result at its first HEAD anchor, keyed by `partialFingerprints["sych/v1"]`;
   - a dismissed finding carries a suppression, and resolved or obsolete findings are left out;

@@ -19,6 +19,7 @@ pub mod probe;
 pub mod quality;
 pub mod render;
 pub mod render_sarif;
+pub mod report_view;
 pub mod review;
 pub mod schema_lint;
 pub mod semantic;

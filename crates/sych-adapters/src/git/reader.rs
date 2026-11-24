@@ -74,21 +74,24 @@ impl LocalSnapshot {
 
     /// Whether `path` is a directory on `side`, e.g. a Python namespace package.
     pub(crate) fn is_dir(&self, side: SourceSide, path: &RepoPath) -> bool {
-        self.git
-            .stdout([
-                "ls-tree",
-                "-z",
-                "-l",
-                self.commit(side).hex(),
-                "--",
-                path.as_str(),
-            ])
-            .is_ok_and(|listing| {
-                tree_records(&listing)
-                    .next()
-                    .flatten()
-                    .is_some_and(|r| r.kind == "tree")
-            })
+        self.tree_listing(side, path).is_ok_and(|listing| {
+            tree_records(&listing)
+                .flatten()
+                .any(|r| r.path == path.as_str().as_bytes() && r.kind == "tree")
+        })
+    }
+
+    fn tree_listing(&self, side: SourceSide, path: &RepoPath) -> Result<Vec<u8>, SnapshotError> {
+        self.git.stdout([
+            "--literal-pathspecs",
+            "ls-tree",
+            "--full-tree",
+            "-z",
+            "-l",
+            self.commit(side).hex(),
+            "--",
+            path.as_str(),
+        ])
     }
 
     /// Blob id and text of `path` on `side`, read once per run: see [`Self::read_blob`].
@@ -135,17 +138,7 @@ impl LocalSnapshot {
         }
 
         let unavailable = |e: SnapshotError| ReadError::Unavailable(e.to_string());
-        let listing = self
-            .git
-            .stdout([
-                "ls-tree",
-                "-z",
-                "-l",
-                self.commit(side).hex(),
-                "--",
-                path.as_str(),
-            ])
-            .map_err(unavailable)?;
+        let listing = self.tree_listing(side, path).map_err(unavailable)?;
         let TreeRecord {
             mode,
             kind,
@@ -153,8 +146,8 @@ impl LocalSnapshot {
             size: bytes,
             ..
         } = tree_records(&listing)
-            .next()
             .flatten()
+            .find(|r| r.path == path.as_str().as_bytes())
             .ok_or_else(missing)?;
         let content = match (mode, kind) {
             ("120000", _) => Some(ContentKind::Symlink),

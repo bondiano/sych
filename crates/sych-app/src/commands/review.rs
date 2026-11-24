@@ -54,16 +54,13 @@ pub fn run(args: &ReviewArguments) -> anyhow::Result<ExitCode> {
     let report = review::run_local_cli(request, local_head)?;
     let r = &report.review_result;
     // The result is saved before it is written; `sych show` can still print it.
-    if terminal {
-        let kind = report
-            .snapshot
-            .as_ref()
-            .map_or(SnapshotHeadKind::Committed, |s| s.head_kind);
-        emit(&render::summary(r, kind), None)?;
-    } else {
-        emit_report(&report, &args.out)?;
-    }
-
+    emit_report(
+        &report,
+        &args.out,
+        &args.comparison.repo,
+        args.config.as_deref(),
+        terminal,
+    )?;
     tracing::info!(run = %r.run_id, recommendation = ?r.recommendation, coverage = ?r.coverage, "review saved");
     Ok(review::exit_code(args.exit_policy, r))
 }
@@ -104,9 +101,14 @@ fn change_review(args: &ReviewArguments, change: &str) -> anyhow::Result<ExitCod
     let (connection, repo, number) = parse(change)
         .ok_or_else(|| Failure::invalid("--change is github:CONNECTION:OWNER/REPO:NUMBER"))?;
     // Only the result comes back from the server path; Markdown renders a whole saved run.
-    if matches!(args.out.format, Some(ReportFormat::Markdown)) {
+    if args.out.fixes_patch.is_some()
+        || matches!(
+            args.out.format,
+            Some(ReportFormat::Markdown | ReportFormat::ReportView)
+        )
+    {
         return Err(Failure::invalid(
-            "--change writes json or sarif; `sych show --run RUN --format markdown` renders the run",
+            "--change writes json or sarif; use `sych show` with the pinned repository for source and fixes",
         )
         .into());
     }

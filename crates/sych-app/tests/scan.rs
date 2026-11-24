@@ -123,3 +123,92 @@ fn without_the_security_profile_nothing_is_scanned() {
     let (result, _) = review(&repo(Some(policy)));
     assert!(found(&result).is_empty(), "{result}");
 }
+
+#[test]
+fn report_view_reads_pinned_code_and_keeps_findings_after_git_prunes_it() {
+    let repo = repo(None);
+    let data = TempDir::new().expect("data");
+    let cwd = data.path();
+    let repo_arg = repo.path().to_str().expect("UTF-8 path");
+    assert!(sych(cwd, &["db", "migrate"]).status.success());
+    let review = sych(
+        cwd,
+        &[
+            "review",
+            "--repo",
+            repo_arg,
+            "--base",
+            "target",
+            "--models",
+            "fake",
+            "--semantic",
+            "off",
+        ],
+    );
+    assert!(
+        review.status.success(),
+        "{}",
+        String::from_utf8_lossy(&review.stderr)
+    );
+    let original: Value = serde_json::from_slice(&review.stdout).expect("stored result");
+    let run = original["review_result"]["run_id"].as_str().expect("run");
+    let show = |format: &str| {
+        let result = sych(
+            cwd,
+            &["show", "--repo", repo_arg, "--run", run, "--format", format],
+        );
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let text = String::from_utf8(result.stdout).expect("UTF-8");
+        assert!(!text.contains(TOKEN) && !text.contains("hunter2hunter2"));
+        text
+    };
+    fs::write(
+        repo.path().join("package.json"),
+        "uncommitted replacement\n",
+    )
+    .expect("worktree");
+    let md = show("markdown");
+    assert!(md.contains("+    \"postinstall\""), "{md}");
+    assert!(md.contains("source unavailable"));
+    assert!(!md.contains("uncommitted replacement") && !md.contains('\u{202e}'));
+
+    let view: Value = serde_json::from_str(&show("report-view")).expect("structured view");
+    let findings = view["findings"].as_array().expect("findings");
+    let supply = findings
+        .iter()
+        .find(|f| f["rule_id"] == "SEC-SUPPLY-CHAIN")
+        .expect("supply chain");
+    let anchor = &supply["anchors"][0];
+    assert_eq!(anchor["excerpt"]["first_line"], 1);
+    assert!(
+        anchor["diff"]
+            .as_str()
+            .expect("change diff")
+            .contains("+    \"postinstall\"")
+    );
+    assert!(supply["remediation"].as_str().is_some());
+    assert_eq!(
+        serde_json::from_str::<Value>(&show("json")).expect("JSON"),
+        original
+    );
+
+    git(repo.path(), &["reset", "--hard", "target"]);
+    git(repo.path(), &["reflog", "expire", "--expire=now", "--all"]);
+    git(repo.path(), &["gc", "--prune=now"]);
+    let pruned: Value = serde_json::from_str(&show("report-view")).expect("pruned view");
+    for (finding, before) in pruned["findings"]
+        .as_array()
+        .expect("findings")
+        .iter()
+        .zip(findings)
+    {
+        assert_eq!(finding["id"], before["id"]);
+        for anchor in finding["anchors"].as_array().expect("anchors") {
+            assert!(anchor["excerpt"].is_null() && anchor["diff"].is_null());
+        }
+    }
+}

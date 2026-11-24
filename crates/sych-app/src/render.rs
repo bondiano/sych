@@ -12,11 +12,13 @@ use sych_core::config::{PolicyDiff, Provenance};
 use sych_core::db_schema::DbSchemaFacts;
 use sych_core::effects::EffectLedger;
 use sych_core::{
-    CiFacts, CodeRef, DiffManifest, Evidence, EvidenceManifest, ExternalInputManifest, Finding,
-    LintFacts, Obligation, ObligationStatus, PolicySnapshot, PolicySource, ReviewResult,
-    SchemaVersion, SemanticFacts, Severity, SnapshotHeadKind, SourceSnapshot, SyntaxFacts,
-    UsageSummary,
+    CiFacts, CodeRef, DiffManifest, Evidence, EvidenceManifest, ExternalInputManifest, LintFacts,
+    Obligation, ObligationStatus, PolicySnapshot, PolicySource, ReportFinding, ReportView,
+    ReviewResult, SchemaVersion, SemanticFacts, Severity, SnapshotHeadKind, SourceSnapshot,
+    SyntaxFacts, UsageSummary,
 };
+
+use crate::report_view::markdown as report_markdown;
 
 /// Policy diagnostics of a run: effective-config provenance and the head's proposed diff.
 #[derive(Serialize, Deserialize)]
@@ -64,6 +66,8 @@ pub enum Format {
 pub enum ReportFormat {
     Json,
     Markdown,
+    /// Structured findings with excerpts, change hunks and fix previews
+    ReportView,
     /// SARIF 2.1.0 for code scanning
     Sarif,
 }
@@ -245,7 +249,7 @@ fn list(out: &mut String, items: impl IntoIterator<Item = String>) {
 }
 
 /// One finding with its location, action and the findings kept in its `also`.
-fn finding(out: &mut String, f: &Finding) {
+fn finding(out: &mut String, f: &ReportFinding) {
     let _ = writeln!(
         out,
         "- **{}** {} {}: {}",
@@ -255,11 +259,32 @@ fn finding(out: &mut String, f: &Finding) {
         md(&f.title)
     );
     explanation(out, &f.explanation);
+    if let Some(rule) = &f.rule_id {
+        let _ = writeln!(out, "  - rule: {}", md(rule));
+    }
+
+    for condition in &f.triggering_conditions {
+        let _ = writeln!(out, "  - condition: {}", md(condition));
+    }
     let _ = writeln!(out, "  - consequence: {}", md(&f.consequence));
     for a in &f.anchors {
-        let _ = writeln!(out, "  - at {}", code_ref(a));
+        let _ = writeln!(out, "  - at {}", code_ref(&a.reference));
+        report_markdown::anchor(out, a);
     }
     let _ = writeln!(out, "  - action: {}", md(&f.suggested_action));
+    let _ = writeln!(out, "  - validation: {}", md(&f.validation_expectation));
+    if let Some(action) = f
+        .remediation
+        .as_ref()
+        .filter(|action| action.as_str() != f.suggested_action)
+    {
+        let _ = writeln!(out, "  - remediation: {}", md(action));
+    }
+
+    for limitation in &f.limitations {
+        let _ = writeln!(out, "  - limitation: {}", md(limitation));
+    }
+    report_markdown::fix(out, f);
     for a in &f.also {
         let _ = writeln!(
             out,
@@ -272,6 +297,11 @@ fn finding(out: &mut String, f: &Finding) {
                 .map(|r| format!(" at {}", code_ref(r)))
                 .unwrap_or_default()
         );
+        let _ = writeln!(out, "    - {}", md(&a.explanation));
+        for condition in &a.triggering_conditions {
+            let _ = writeln!(out, "    - condition: {}", md(condition));
+        }
+        let _ = writeln!(out, "    - consequence: {}", md(&a.consequence));
     }
 }
 
@@ -366,7 +396,7 @@ pub(crate) fn uncommitted_label(kind: SnapshotHeadKind) -> Option<&'static str> 
     }
 }
 
-pub fn markdown(report: &Report) -> String {
+pub fn markdown(report: &Report, view: &ReportView) -> String {
     let r = &report.review_result;
     let mut out = String::new();
     let _ = writeln!(out, "# Sych review\n");
@@ -419,10 +449,23 @@ pub fn markdown(report: &Report) -> String {
     }
 
     out.push_str("\n## Findings\n\n");
-    for f in &r.findings {
+    for count in &view.header.counts {
+        let _ = writeln!(
+            out,
+            "- {} {}: {}",
+            tag(&count.severity),
+            tag(&count.category),
+            count.count
+        );
+    }
+    if !view.header.counts.is_empty() {
+        out.push('\n');
+    }
+
+    for f in &view.findings {
         finding(&mut out, f);
     }
-    if r.findings.is_empty() {
+    if view.findings.is_empty() {
         out.push_str("- none\n");
     }
 

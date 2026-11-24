@@ -172,6 +172,9 @@ pub struct ReportOutput {
     /// Write the rendered result here instead of stdout; parent directories are created
     #[arg(long)]
     pub output: Option<PathBuf>,
+    /// Write the combined patch of applicable suggested changes
+    #[arg(long, value_name = "PATH")]
+    pub fixes_patch: Option<PathBuf>,
 }
 
 #[derive(clap::Args)]
@@ -281,6 +284,9 @@ pub struct DoctorArguments {
 pub struct ShowArguments {
     #[arg(long)]
     pub run: String,
+    /// Repository containing the run's pinned source
+    #[arg(long, default_value = ".")]
+    pub repo: PathBuf,
     #[arg(long)]
     pub config: Option<PathBuf>,
     #[command(flatten)]
