@@ -1,4 +1,4 @@
-from clean.queue import Queue
+from fx.queue import Queue
 
 
 def test_queue() -> None:

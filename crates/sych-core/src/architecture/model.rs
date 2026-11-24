@@ -169,6 +169,16 @@ pub(crate) mod sample {
             node
         }
 
+        /// A file of `module`'s at `path`, of `lines` lines.
+        pub fn file(&mut self, module: NodeId, path: &str, lines: usize) {
+            self.model.files.push(File {
+                path: path.into(),
+                module,
+                test: false,
+                lines,
+            });
+        }
+
         pub fn item(&mut self, owner: NodeId, name: &str, kind: ItemKind) -> ItemId {
             let file = self
                 .model
@@ -216,6 +226,12 @@ pub(crate) mod sample {
                 copies: false,
                 test: false,
             });
+        }
+
+        /// The same, where the code only takes a copy of `item`'s value.
+        pub fn read(&mut self, holder: ItemId, item: ItemId) {
+            self.refer(holder, item);
+            self.model.references.last_mut().expect("just added").copies = true;
         }
     }
 }

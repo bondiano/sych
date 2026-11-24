@@ -1,5 +1,5 @@
-from smelly.inventory import Inventory
-from smelly.queue import Queue
+from fx.inventory import Inventory
+from fx.queue import Queue
 
 
 def run(inventory: Inventory) -> int:

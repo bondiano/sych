@@ -1,6 +1,4 @@
-from smelly import kinds
-
-LIMIT = 8
+from fx import kinds
 
 
 def open_stream() -> kinds.Stream:

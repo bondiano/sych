@@ -116,6 +116,44 @@ fn review_language_is_en_or_ru_and_defaults_to_en() {
 }
 
 #[test]
+fn architecture_bounds_default_to_upstreams_and_none_may_be_zero() {
+    let config = |text: &str| with(PolicyFiles::default(), ".sych/config.yaml", text);
+    let parsed = |text: &str| {
+        RepositoryPolicy::parse(&config(text), &ServerConfig::engine_default())
+            .expect("policy")
+            .config
+            .architecture
+    };
+    let default = parsed("schema_version: 1\n");
+    assert!(default.enabled);
+    assert_eq!(
+        (
+            default.limits.tangle_members,
+            default.limits.shallow_functions,
+            default.limits.wide_directory,
+            default.limits.long_file
+        ),
+        (7, 7, 15, 2_000)
+    );
+    let set = parsed(
+        "schema_version: 1\narchitecture:\n  enabled: false\n  limits:\n    long_file: 3000\n",
+    );
+    assert!(!set.enabled);
+    assert_eq!(
+        (set.limits.long_file, set.limits.wide_directory),
+        (3_000, 15)
+    );
+    let errors = repo_errors(&config(
+        "schema_version: 1\narchitecture:\n  limits:\n    wide_directory: 0\n",
+    ));
+    assert_eq!(
+        errors[0].path, "architecture.limits.wide_directory",
+        "{}",
+        errors[0]
+    );
+}
+
+#[test]
 fn unknown_key_names_the_exact_path() {
     let errors = server_errors("fixtures/config/unknown-key.sych.yaml");
     assert_eq!(errors.len(), 1);

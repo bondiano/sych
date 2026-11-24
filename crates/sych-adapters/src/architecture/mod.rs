@@ -238,7 +238,8 @@ fn model(
 
         bytes
     };
-    let built = model_of(language, dir, &bytes, &root.join(dir))
+    let sources = sources_of(language, dir, blobs.blobs.keys().map(RepoPath::as_str));
+    let built = model_of(language, dir, &bytes, &root.join(dir), &sources)
         .map_err(|e| (BackendStatus::Failed, format!("index: {e}")))?;
     tracing::info!(
         ?language,
@@ -254,18 +255,42 @@ fn model(
     Ok(built)
 }
 
-/// The model of the `language` project in `dir` from its SCIP `index`, reading the indexed
-/// files under `project`, the project's directory on disk.
+/// The model of the `language` project in `dir` from its SCIP `index`, reading the files
+/// under `project`, the project's directory on disk; `sources` are its source files.
 pub fn model_of(
     language: Language,
     dir: &str,
     index: &[u8],
     project: &Path,
+    sources: &[String],
 ) -> Result<Built, String> {
     let index = scip::read(index).map_err(|e| e.to_string())?;
-    Ok(build::build(language, dir, &index, &|path: &str| {
-        fs::read_to_string(project.join(path)).ok()
-    }))
+    Ok(build::build(
+        language,
+        dir,
+        &index,
+        &|path: &str| fs::read_to_string(project.join(path)).ok(),
+        sources,
+    ))
+}
+
+/// The project-relative paths of `language`'s source files among `paths`, under `dir`.
+pub fn sources_of<'p>(
+    language: Language,
+    dir: &str,
+    paths: impl Iterator<Item = &'p str>,
+) -> Vec<String> {
+    paths
+        .filter(|p| under(p, dir))
+        .filter(|p| sych_core::source_language(p).is_some_and(|(l, _)| l == language))
+        .map(|p| {
+            if dir.is_empty() {
+                p.to_owned()
+            } else {
+                p[dir.len() + 1..].to_owned()
+            }
+        })
+        .collect()
 }
 
 /// Where the index of these inputs is kept: the indexer and toolchain, whether dependencies

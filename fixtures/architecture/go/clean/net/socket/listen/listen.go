@@ -1,6 +1,6 @@
 package listen
 
-import "example.com/clean/net/kinds/stream"
+import "example.com/fx/net/kinds/stream"
 
 func Open() stream.Stream {
 	return stream.Stream{}

@@ -1,5 +1,5 @@
-from clean.inventory import Inventory
-from clean.queue import Queue
+from fx.inventory import Inventory
+from fx.queue import Queue
 
 
 def run(inventory: Inventory) -> int:

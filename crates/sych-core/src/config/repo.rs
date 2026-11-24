@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{Problems, ServerConfig};
+use crate::architecture::Limits;
 use crate::{RepoPath, ReviewLanguage, SchemaVersion};
 
 /// Policy files live here; anything else in the directory is rejected.
@@ -191,6 +192,31 @@ impl Default for NitpickSettings {
     }
 }
 
+/// Architecture review: the structure of each project a change touches, on the diff base and
+/// on head. Read from the target tip, as every setting here, so a change cannot loosen the
+/// bounds its own code is judged by.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct ArchitectureSettings {
+    pub enabled: bool,
+    pub limits: Limits,
+}
+
+impl ArchitectureSettings {
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+impl Default for ArchitectureSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            limits: Limits::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TourGeneration {
@@ -232,6 +258,10 @@ pub struct RepoConfig {
     pub nitpicks: NitpickSettings,
     #[serde(default)]
     pub tour: TourSettings,
+    /// Left out of the policy snapshot while it is the default, so a config without it keeps
+    /// its policy id.
+    #[serde(default, skip_serializing_if = "ArchitectureSettings::is_default")]
+    pub architecture: ArchitectureSettings,
 }
 
 impl Default for RepoConfig {
@@ -244,6 +274,7 @@ impl Default for RepoConfig {
             ci: CiSettings::default(),
             nitpicks: NitpickSettings::default(),
             tour: TourSettings::default(),
+            architecture: ArchitectureSettings::default(),
         }
     }
 }
@@ -282,6 +313,20 @@ impl RepoConfig {
                 c.max_tokens_per_request <= ceiling,
                 "context.max_tokens_per_request",
                 &format!("exceeds server ceiling budgets.analysis.max_input_tokens = {ceiling}"),
+            );
+        }
+
+        let limits = &self.architecture.limits;
+        for (key, value) in [
+            ("tangle_members", limits.tangle_members),
+            ("shallow_functions", limits.shallow_functions),
+            ("wide_directory", limits.wide_directory),
+            ("long_file", limits.long_file),
+        ] {
+            p.check(
+                value > 0,
+                format!("architecture.limits.{key}"),
+                "must be at least 1",
             );
         }
 

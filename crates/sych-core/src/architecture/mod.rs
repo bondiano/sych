@@ -9,10 +9,14 @@
 //! Upstream reads Rust only; here a language adapter builds the same model for Rust, Go,
 //! TypeScript/JavaScript and Python.
 
+mod baseline;
+mod checks;
 mod graph;
 mod model;
 mod tree;
 
+pub use baseline::{Change, Comparison, Found, compare};
+pub use checks::{Check, Diagnostic, HELD_IN_MIND, Limits, Location, Picture, Step, check, draw};
 pub use graph::{Graph, Thing, ThingId, Use, circles};
 pub use model::{File, FileId, Item, ItemId, ItemKind, Model, Reference, Wrapper};
 pub use tree::{Node, NodeId, NodeKind, Tree};

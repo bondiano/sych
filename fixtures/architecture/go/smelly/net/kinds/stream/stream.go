@@ -1,6 +1,6 @@
 package stream
 
-import "example.com/smelly/net/socket/addr"
+import "example.com/fx/net/socket/addr"
 
 type Stream struct{}
 

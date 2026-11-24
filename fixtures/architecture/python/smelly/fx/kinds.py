@@ -1,4 +1,4 @@
-from smelly import sockets
+from fx import sockets
 
 
 class Stream:

@@ -1,4 +1,4 @@
-from clean.kernel.timers import Timers
+from fx.kernel.timers import Timers
 
 
 class Tasks:
@@ -8,8 +8,3 @@ class Tasks:
     def spawn(self, timers: Timers) -> None:
         timers.arm()
         self.count += 1
-
-
-def tick(tasks: Tasks, timers: Timers) -> None:
-    timers.fire()
-    tasks.count += 1
