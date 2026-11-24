@@ -2,24 +2,18 @@
 //! indexers get: a `PATH` of the pinned indexers alone, an empty `HOME`, no network where bwrap
 //! can make a namespace, cargo unable to compile (so no build script or proc-macro runs),
 //! scip-python given an empty environment (so no `python` or `pip` runs) and no package script.
-//! A run past its time bound is killed, and an index past its size bound is not read.
+//! A run past its time or memory bound is killed, and an index past its size bound is not read
+//! (`tooling.indexers`).
 
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
-use std::time::Duration;
-
 use sych_core::{BackendStatus, Language};
 
 use crate::git::Materialized;
 use crate::lint::easement::{self, Failure};
 use crate::lint::run;
 use crate::semantic::Options;
-
-/// Each run indexes a whole project, not only the changed files.
-pub(super) const TIMEOUT: Duration = Duration::from_secs(600);
-/// A larger index is not read: the project is past what one review analyses.
-pub(super) const MAX_INDEX_BYTES: u64 = 512 << 20;
 
 /// The SCIP index of the `language` project in `dir` of the workspace at `root`; what the run
 /// costs goes to `limitations`.
@@ -67,8 +61,17 @@ pub(super) fn index(
             ],
         ),
     };
-    let ran = run::run(&bin.join(program), &args, &project, scratch, &vars, TIMEOUT)
-        .map_err(|e| failed(format!("{program}: {e}")))?;
+    let (timeout, memory) = easement::bounds(&options.tooling.indexers);
+    let ran = run::run_within(
+        &bin.join(program),
+        &args,
+        &project,
+        scratch,
+        &vars,
+        timeout,
+        memory,
+    )
+    .map_err(|e| failed(format!("{program}: {e}")))?;
     if !ran.status.success() {
         let stderr: String = String::from_utf8_lossy(&ran.stderr)
             .lines()
@@ -82,9 +85,10 @@ pub(super) fn index(
     let size = fs::metadata(&output)
         .map_err(|e| failed(format!("{program} wrote no index: {e}")))?
         .len();
-    if size > MAX_INDEX_BYTES {
+    let most = u64::from(options.tooling.indexers.max_index_mb) << 20;
+    if size > most {
         return Err(failed(format!(
-            "{program} wrote an index of {size} bytes, past the {MAX_INDEX_BYTES} it may have"
+            "{program} wrote an index of {size} bytes, past the {most} it may have"
         )));
     }
 

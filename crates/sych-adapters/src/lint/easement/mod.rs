@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde_json::json;
+use sych_core::config::Indexers;
 use sych_core::{
     BackendStatus, ChangeStatus, CiDiagnostic, Language, LintFacts, Producer, RepoPath,
     SchemaVersion, SourceSide, canonical_sha256,
@@ -30,8 +31,6 @@ use report::{Key, Report};
 const TOOL: &str = "easement";
 const CONFIG: &str = "easement.yml";
 const ARGS: [&str; 4] = ["check", "--format", "json", "--no-cache"];
-/// Each run indexes a whole project, not only the changed files.
-const TIMEOUT: Duration = Duration::from_secs(600);
 /// Violations a limitation lists one by one when no packet can carry them.
 const MAX_LISTED: usize = 20;
 /// New violations kept as facts; a policy added over old code can have thousands.
@@ -268,7 +267,8 @@ fn check(
     )
     .map_err(|e| tool_failure(&e))?;
     let args: Vec<String> = ARGS.map(String::from).into();
-    let out = run::run(&easement, &args, &project, scratch, &vars, TIMEOUT)
+    let (timeout, memory) = bounds(&options.tooling.indexers);
+    let out = run::run_within(&easement, &args, &project, scratch, &vars, timeout, memory)
         .map_err(|e| (BackendStatus::Failed, format!("{TOOL}: {e}")))?;
     let stderr = || -> String {
         String::from_utf8_lossy(&out.stderr)
@@ -285,6 +285,14 @@ fn check(
             format!("{TOOL} {}: {}", out.status, stderr()),
         )),
     }
+}
+
+/// The time and memory bounds of one indexer run.
+pub(crate) fn bounds(indexers: &Indexers) -> (Duration, Option<u64>) {
+    (
+        Duration::from_secs(indexers.timeout_seconds.into()),
+        Some(u64::from(indexers.memory_mb) << 20),
+    )
 }
 
 /// A tool that cannot be had: unsupported here, or failed to fetch.
@@ -343,6 +351,12 @@ pub(crate) fn environment(
     vars.extend(installed);
     if !sandbox::isolated() {
         limitations.push(NOT_ISOLATED.into());
+    }
+
+    if !run::memory_bounded() {
+        limitations.push(
+            "the indexers' memory is not bounded here: there is no /proc to measure it".into(),
+        );
     }
 
     Ok(vars)

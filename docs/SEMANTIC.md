@@ -254,7 +254,7 @@ execute repository code and work without project setup:
 | jarl | `.r`, `.R` | `check --output-format sarif`; with an empty `PATH` it finds no `Rscript`, so package-specific rules (which would start R in the project) are skipped | `jarl.toml`, `.jarl.toml` |
 | actionlint | `.github/workflows/*.y(a)ml` | `-shellcheck= -pyflakes= -format '{{json .}}'` | `.github/actionlint.y(a)ml` |
 | zizmor | workflows, `action.y(a)ml`, `.github/dependabot.yml` | `--offline --format sarif` | `zizmor.yml`, `.github/zizmor.yml` |
-| easement | changed `.rs`, `.go`, TS/JS and `.py` files, manifests and policy files under a directory whose head has `easement.yml` | `check --format json --no-cache` on each such project, at most 600 s each | `easement.yml`, the files it `extends` (one level), its `baseline` (default `easement.baseline.yml`) and its `diagram` |
+| easement | changed `.rs`, `.go`, TS/JS and `.py` files, manifests and policy files under a directory whose head has `easement.yml` | `check --format json --no-cache` on each such project, within `tooling.indexers` (600 s and 4096 MiB resident by default) each | `easement.yml`, the files it `extends` (one level), its `baseline` (default `easement.baseline.yml`) and its `diagram` |
 
 Head is materialized from Git objects (as for language servers), and the linter runs in it with a cleared environment:
 empty `PATH` (actionlint will not find shellcheck, oxlint will not find node), `HOME` is an empty temporary directory (no

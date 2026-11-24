@@ -33,6 +33,13 @@ is rejected without printing the value itself.
   fallbacks). `docker` requires `docker_image` with an `@sha256:` digest and currently installs only pnpm.
   `on_unavailable: fail` (default) stops the review with `TOOLING_UNAVAILABLE` (code 3) if no
   backend is available or the installation failed; `degrade` continues without dependencies, with a limitation.
+- `tooling.indexers` bounds each run of the pinned SCIP indexers, architecture review's
+  ([ARCHITECTURE.md](ARCHITECTURE.md)) and easement's: `timeout_seconds` (600) of wall clock, `memory_mb` (4096) of
+  memory the run and every process it starts hold resident together, read from `/proc` every 100 ms (a run may
+  pass it for that long, and one shorter than that is not measured); past either the run is killed. Architecture review also reads no index past `max_index_mb` (512), indexes no project past
+  `max_files` (5000) source files and analyses at most `max_projects` (4) projects of a change. A project past a bound
+  is reported as not analysed, never as clean; 0 is a config error. The bounds are the server's: a repository cannot
+  raise them.
 - `redaction` extends the built-in secret redaction (private keys, `ghp_`/`sk-`/`AKIA`… tokens,
   values of `password`/`token`/`api_key`… keys) and never replaces it. `token_prefixes` are token
   prefixes (16+ `[A-Za-z0-9_-]` characters are required after the prefix), `secret_keys` are key name substrings
