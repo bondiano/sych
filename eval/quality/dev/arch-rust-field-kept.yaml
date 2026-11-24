@@ -1,0 +1,59 @@
+schema_version: 1
+id: arch-rust-field-kept
+split: development
+language: rust
+variant: safe
+profiles: [correctness]
+rationale: "admit_all only calls RunQueue::push, so the queue still keeps its fields to itself: there is no leak to report."
+base:
+  Cargo.toml: |
+    [package]
+    name = "runqueue"
+    version = "0.1.0"
+    edition = "2024"
+  src/lib.rs: |
+    pub mod queue;
+    pub mod sched;
+  src/queue.rs: |
+    pub struct RunQueue {
+        items: Vec<u32>,
+        limit: usize,
+    }
+
+    impl RunQueue {
+        pub fn new(limit: usize) -> RunQueue {
+            RunQueue {
+                items: Vec::new(),
+                limit,
+            }
+        }
+
+        pub fn push(&mut self, task: u32) -> bool {
+            if self.items.len() >= self.limit {
+                return false;
+            }
+
+            self.items.push(task);
+            true
+        }
+    }
+  src/sched.rs: |
+    use crate::queue::RunQueue;
+
+    pub fn admit(queue: &mut RunQueue, task: u32) -> bool {
+        queue.push(task)
+    }
+head:
+  src/sched.rs: |
+    use crate::queue::RunQueue;
+
+    pub fn admit(queue: &mut RunQueue, task: u32) -> bool {
+        queue.push(task)
+    }
+
+    pub fn admit_all(queue: &mut RunQueue, tasks: &[u32]) -> usize {
+        tasks.iter().filter(|&&task| queue.push(task)).count()
+    }
+expected:
+  forbidden_claims:
+    - "RunQueue::items is known outside RunQueue."

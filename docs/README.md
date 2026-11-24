@@ -18,6 +18,8 @@
 - [ANALYSIS.md](ANALYSIS.md): model review passes (assessment, discovery, risk audit, verifier) and quality measurements.
 - [MODELS.md](MODELS.md): model providers and subscriptions, role routing, budgets and the cost ledger.
 - [SEMANTIC.md](SEMANTIC.md): pinned language servers and linters, semantic facts and their cache.
+- [ARCHITECTURE.md](ARCHITECTURE.md): architecture review: the six structure checks, the SCIP-built model per language,
+  completeness and what a change does against its diff base.
 - [STORAGE.md](STORAGE.md): PostgreSQL and SQLite, content-addressed artifacts, retention, GC and backup.
 
 ## Running a server

@@ -282,6 +282,7 @@ fn packets(
             head_compiled: false,
             ledger: &EffectLedger::default(),
             lint: &[],
+            architecture: &[],
             limits: BrokerLimits::from_settings(&policy.config.context),
         },
         snap,

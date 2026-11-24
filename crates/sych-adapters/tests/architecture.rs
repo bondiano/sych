@@ -25,7 +25,7 @@ fn bless_fixture_indexes() {
             for variant in ["smelly", "clean"] {
                 let dir = fixture_dir(name, variant);
                 let (_repo, snapshot) = snapshot(&sources(&dir));
-                let found = architecture::collect(&snapshot, options);
+                let found = architecture::collect(&snapshot, options, &[]);
                 let [analysis] = found.as_slice() else {
                     panic!("{name}/{variant}: one project, {} found", found.len());
                 };
@@ -256,7 +256,12 @@ fn a_change_touches_the_outermost_cargo_workspace_and_the_nearest_project_of_the
     let head = snapshot
         .materialize(sych_core::SourceSide::Head, tree.path(), 1 << 20)
         .expect("materialized");
-    let (found, more) = architecture::projects(&snapshot, (tree.path(), &head), None);
+    let (found, more) = architecture::projects(
+        &snapshot,
+        (tree.path(), &head),
+        None,
+        &["web/app".to_owned()],
+    );
     let found: Vec<(Language, &str)> = found.iter().map(|(l, d)| (*l, d.as_str())).collect();
     assert_eq!(
         found,
@@ -267,7 +272,7 @@ fn a_change_touches_the_outermost_cargo_workspace_and_the_nearest_project_of_the
             (Language::Typescript, "web"),
         ]
     );
-    assert_eq!(more, 1, "web/app is the fifth project");
+    assert_eq!(more, 0, "web/app, the fifth, is labelled fixture data");
 }
 
 /// What the run must never do: each marker file appears only if repository code ran.
@@ -304,7 +309,7 @@ fn the_indexers_run_no_repository_code_and_read_only_pinned_blobs() {
         "pub const B: usize = 2;\npub fn dirty() {}\n",
     )
     .expect("dirty");
-    let analyses = with_tools(|options| architecture::collect(&snapshot, options));
+    let analyses = with_tools(|options| architecture::collect(&snapshot, options, &[]));
     let languages: Vec<Language> = analyses.iter().map(|a| a.language).collect();
     assert_eq!(
         languages,

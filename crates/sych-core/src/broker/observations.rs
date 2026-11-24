@@ -3,6 +3,7 @@
 
 use super::build::{Candidate, file_for};
 use super::{Priority, UNSEEN_GAPS};
+use crate::architecture::{ArchitectureFacts, Change};
 use crate::effects::{EffectLedger, EffectMatch, LEDGER_GAPS, Resolution};
 use crate::{
     BackendStatus, CiFacts, CodeRef, Completeness, DiffManifest, LintFacts, RepoPath, SourceSide,
@@ -153,6 +154,50 @@ pub(super) fn lint(
                     d.code.as_deref().unwrap_or("-")
                 ),
                 evidence: Some(facts.evidence_id()),
+                completeness: Completeness::Partial,
+                link: None,
+            });
+        }
+    }
+}
+
+/// Architecture findings a change introduces or makes worse refute in their file's packet: the
+/// model sees the code a check computed them from, with the chain, the places or the sizes
+/// that make them. What the checks computed stays theirs; a model's word about it is a
+/// finding of its own.
+pub(super) fn architecture(
+    facts: &[ArchitectureFacts],
+    path: &RepoPath,
+    manifest: &DiffManifest,
+    out: &mut Vec<Candidate>,
+) {
+    let Some(side) = file_for(manifest, path).and_then(|f| f.side(SourceSide::Head)) else {
+        return;
+    };
+    for project in facts.iter().filter(|f| f.status == BackendStatus::Ready) {
+        for found in &project.findings {
+            let Some(r) = found.code_ref.as_ref().filter(|r| r.path == side.path) else {
+                continue;
+            };
+            let change = match found.change {
+                Some(Change::New) => "new",
+                Some(Change::Worse) => "worse",
+                Some(Change::Same | Change::Better) => continue,
+                None => "base unchecked",
+            };
+            let notes: String = found.notes.join("; ").chars().take(240).collect();
+            out.push(Candidate {
+                side: r.side,
+                path: r.path.clone(),
+                start: r.start_line,
+                end: r.end_line,
+                priority: Priority::Refuting,
+                reason: format!(
+                    "architecture {} ({change}): {}; {notes}",
+                    found.check.name(),
+                    found.message
+                ),
+                evidence: Some(project.evidence_id()),
                 completeness: Completeness::Partial,
                 link: None,
             });

@@ -153,6 +153,7 @@ pub async fn report_of(
         ci_facts: facts.ci,
         effect_ledger: facts.ledger,
         lint_facts: facts.lint,
+        architecture_facts: facts.architecture,
         context_packets: packets.packets,
         review_result,
     })

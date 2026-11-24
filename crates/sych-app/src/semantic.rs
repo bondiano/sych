@@ -6,10 +6,11 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 
 use sych_adapters::git::LocalSnapshot;
-use sych_adapters::lint;
 use sych_adapters::semantic::{self, Options};
 use sych_adapters::tools::{ToolCache, ToolError, default_cache_root};
-use sych_core::config::Tooling;
+use sych_adapters::{architecture, lint};
+use sych_core::architecture::ArchitectureFacts;
+use sych_core::config::{ArchitectureSettings, Tooling};
 use sych_core::{LintFacts, SemanticFacts};
 
 use crate::errors::Failure;
@@ -58,6 +59,31 @@ pub fn collect_lint(snap: &LocalSnapshot, tooling: &Tooling) -> anyhow::Result<V
         state_dir: &state_dir,
     };
     Ok(lint::collect(snap, &options))
+}
+
+/// The architecture checks of each project the change touches, on both sides, with pinned
+/// SCIP indexers; a tool that cannot be fetched is reported in its facts, never fatal.
+pub fn collect_architecture(
+    snap: &LocalSnapshot,
+    tooling: &Tooling,
+    settings: &ArchitectureSettings,
+    fixture_paths: &[String],
+) -> anyhow::Result<Vec<ArchitectureFacts>> {
+    let root = default_cache_root()
+        .ok_or_else(|| Failure::invalid("no tool cache directory (set SYCH_TOOLS_DIR or HOME)"))?;
+    let state_dir = state_dir(&root);
+    let cache = ToolCache::new(root);
+    let resolve = |tool, target: &str| {
+        block_on(cache.ensure(tool, target))
+            .map_err(|_| ToolError::Download("cannot start runtime".into()))?
+    };
+    let options = Options {
+        resolve: &resolve,
+        cache: None,
+        tooling,
+        state_dir: &state_dir,
+    };
+    Ok(architecture::facts(snap, &options, settings, fixture_paths))
 }
 
 /// Sych-owned install state beside the tool cache, or under it when the cache root's parent is

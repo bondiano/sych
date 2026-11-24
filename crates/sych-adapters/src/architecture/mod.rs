@@ -4,11 +4,13 @@
 //! are written from pinned Git objects, never from a working tree, and no repository code runs.
 
 mod build;
+mod facts;
 mod index;
 mod scip;
 mod source;
 
 pub use build::Built;
+pub use facts::facts;
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -16,7 +18,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
 
-use sych_core::{BackendStatus, Language, RepoPath, SourceSide, sha256};
+use sych_core::{BackendStatus, Language, RepoPath, SourceSide, glob_match, sha256};
 
 use crate::git::{LocalSnapshot, Materialized};
 use crate::lint::easement::{self, Failure, under};
@@ -45,12 +47,14 @@ pub struct Analysis {
     pub limitations: Vec<String>,
 }
 
-/// The projects the diff touches, by the source and manifest files it changes, root first;
-/// and how many more were left out.
+/// The projects the diff touches, by the source and manifest files it changes, root first,
+/// but those whose directory a glob of `skip` (labelled fixture data) matches; and how many
+/// more were left out.
 pub fn projects(
     snapshot: &LocalSnapshot,
     head: Side<'_>,
     base: Option<Side<'_>>,
+    skip: &[String],
 ) -> (Vec<(Language, String)>, usize) {
     let mut found = BTreeSet::new();
     for file in &snapshot.manifest.files {
@@ -66,8 +70,12 @@ pub fn projects(
             }
         }
     }
-    let mut found: Vec<(Language, String)> =
-        found.into_iter().map(|(_, dir, l)| (l, dir)).collect();
+    let fixture = |dir: &str| !dir.is_empty() && skip.iter().any(|g| glob_match(g, dir));
+    let mut found: Vec<(Language, String)> = found
+        .into_iter()
+        .filter(|(_, dir, _)| !fixture(dir))
+        .map(|(_, dir, l)| (l, dir))
+        .collect();
     let more = found.len().saturating_sub(MAX_PROJECTS);
     found.truncate(MAX_PROJECTS);
     (found, more)
@@ -121,9 +129,10 @@ fn root(language: Language, path: &str, (root, blobs): Side<'_>) -> Option<Strin
 }
 
 /// Each project the diff touches, analysed on head and, where it is there too, on the diff
-/// base. Tool failures are reported inside.
+/// base; a project in labelled fixture data, which `skip` matches, is not. Tool failures are
+/// reported inside.
 #[tracing::instrument(level = "info", name = "architecture", skip_all)]
-pub fn collect(snapshot: &LocalSnapshot, options: &Options<'_>) -> Vec<Analysis> {
+pub fn collect(snapshot: &LocalSnapshot, options: &Options<'_>, skip: &[String]) -> Vec<Analysis> {
     let touches = snapshot
         .manifest
         .files
@@ -142,7 +151,7 @@ pub fn collect(snapshot: &LocalSnapshot, options: &Options<'_>) -> Vec<Analysis>
         return Vec::new();
     };
     let base_side = base.as_ref().ok().map(|(root, m)| (root.as_path(), m));
-    let (found, more) = projects(snapshot, (head_root, head_blobs), base_side);
+    let (found, more) = projects(snapshot, (head_root, head_blobs), base_side, skip);
     let scratch = match tempfile::tempdir() {
         Ok(dir) => dir,
         Err(e) => {
@@ -301,12 +310,7 @@ fn cache_key(
     blobs: &Materialized,
     options: &Options<'_>,
 ) -> Option<PathBuf> {
-    let tool = match language {
-        Language::Rust => "rust-analyzer",
-        Language::Go => "scip-go",
-        Language::Typescript => "scip-typescript",
-        Language::Python => "scip-python",
-    };
+    let tool = indexer(language);
     let mut input = format!(
         "architecture-index v1\n{language:?}\n{dir}\n{tool} {}\n{}\n",
         tools::sole_pinned(tool).map_or("unpinned", |t| t.version.as_str()),
@@ -320,6 +324,16 @@ fn cache_key(
     let directory = options.state_dir.join("architecture");
     fs::create_dir_all(&directory).ok()?;
     Some(directory.join(format!("{}.scip", sha256(input.as_bytes()).hex())))
+}
+
+/// The pinned indexer of `language`.
+fn indexer(language: Language) -> &'static str {
+    match language {
+        Language::Rust => "rust-analyzer",
+        Language::Go => "scip-go",
+        Language::Typescript => "scip-typescript",
+        Language::Python => "scip-python",
+    }
 }
 
 /// Keeps `bytes` under `key`, and only the newest entries.

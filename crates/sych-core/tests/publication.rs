@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::slice;
 use std::{env, fs};
 
+use sych_core::architecture::PICTURE;
 use sych_core::publication::{
     DiffSide, InlineAnchor, MAX_INLINE, Placement, SummaryContext, anchor, inline_body, plan,
     render_summary,
@@ -470,4 +471,30 @@ fn model_text_renders_as_words_not_markup() {
             assert!(!rendered.contains(markup), "{markup} in {text}");
         }
     }
+}
+
+#[test]
+fn an_architecture_picture_is_a_closed_code_block_in_the_summary_and_left_out_inline() {
+    let mut drawn = result().findings[0].clone();
+    drawn.explanation = format!(
+        "2 modules in `p` use each other in a circle.{PICTURE}    ┌─▶ kinds\n    └─────┘\n```"
+    );
+    let inline = inline_body(&drawn, ReviewLanguage::En);
+    // The agent prompt quotes it in a longer fence; the comment's paragraph leaves it out.
+    let paragraph = inline.split("<details>").next().expect("a paragraph");
+    assert!(
+        !paragraph.contains("┌─▶") && paragraph.contains("use each other in a circle. "),
+        "{inline}"
+    );
+    let mut with = result();
+    with.findings = vec![drawn];
+    let summary = render_summary(&with, &[], &ctx());
+    let block = summary
+        .split("```text\n")
+        .nth(1)
+        .expect("the picture's block");
+    assert!(
+        block.starts_with("    ┌─▶ kinds\n    └─────┘\n```\n"),
+        "{summary}"
+    );
 }

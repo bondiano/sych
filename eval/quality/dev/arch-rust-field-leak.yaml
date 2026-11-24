@@ -1,0 +1,70 @@
+schema_version: 1
+id: arch-rust-field-leak
+split: development
+language: rust
+variant: safe
+profiles: [correctness]
+rationale: "admit keeps the limit check, so behaviour is unchanged, but it now pushes into RunQueue::items itself while the queue keeps `limit` to itself and works on its fields in `push` and `full`: the field leaks out of its type."
+base:
+  Cargo.toml: |
+    [package]
+    name = "runqueue"
+    version = "0.1.0"
+    edition = "2024"
+  src/lib.rs: |
+    pub mod queue;
+    pub mod sched;
+  src/queue.rs: |
+    pub struct RunQueue {
+        pub items: Vec<u32>,
+        limit: usize,
+    }
+
+    impl RunQueue {
+        pub fn new(limit: usize) -> RunQueue {
+            RunQueue {
+                items: Vec::new(),
+                limit,
+            }
+        }
+
+        pub fn full(&self) -> bool {
+            self.items.len() >= self.limit
+        }
+
+        pub fn push(&mut self, task: u32) -> bool {
+            if self.full() {
+                return false;
+            }
+
+            self.items.push(task);
+            true
+        }
+    }
+  src/sched.rs: |
+    use crate::queue::RunQueue;
+
+    pub fn admit(queue: &mut RunQueue, task: u32) -> bool {
+        queue.push(task)
+    }
+head:
+  src/sched.rs: |
+    use crate::queue::RunQueue;
+
+    pub fn admit(queue: &mut RunQueue, task: u32) -> bool {
+        if queue.full() {
+            return false;
+        }
+
+        queue.items.push(task);
+        true
+    }
+expected:
+  findings:
+    - category: improvement
+      semantic_target: "RunQueue::items worked on outside RunQueue"
+      required_condition: "admit pushes into RunQueue::items itself instead of calling RunQueue::push"
+      evidence_locations:
+        - { side: HEAD, path: src/sched.rs, start_line: 8, end_line: 8 }
+  forbidden_claims:
+    - "admit no longer respects the queue's limit."

@@ -7,6 +7,7 @@ use std::fmt::Write;
 
 use super::prose::prose;
 use super::tr;
+use crate::architecture::PICTURE;
 use crate::{Finding, FindingCategory, ReviewLanguage, Severity, SourceSide};
 
 /// The severity with a colour dot; severity names stay English in every language.
@@ -76,11 +77,16 @@ pub(crate) fn details(out: &mut String, finding: &Finding, language: ReviewLangu
 }
 
 /// The explanation followed by the consequence, each ended as a sentence; their case is kept,
-/// as either may start with an identifier.
+/// as either may start with an identifier. An architecture finding's picture stays in the
+/// summary: one paragraph has no room for a code block.
 fn paragraph(finding: &Finding) -> String {
-    [&finding.explanation, &finding.consequence]
+    let explanation = finding
+        .explanation
+        .split_once(PICTURE)
+        .map_or(finding.explanation.as_str(), |(prose, _)| prose);
+    [explanation, finding.consequence.as_str()]
         .into_iter()
-        .map(|text| text.trim())
+        .map(str::trim)
         .filter(|text| !text.is_empty())
         .map(|text| {
             let stop = if text.ends_with(['.', '!', '?']) {
