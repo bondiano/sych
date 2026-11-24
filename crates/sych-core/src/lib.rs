@@ -2,6 +2,7 @@
 
 pub mod analysis;
 pub mod api;
+pub mod architecture;
 pub mod broker;
 mod ci;
 pub mod config;

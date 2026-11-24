@@ -1,3 +1,4 @@
+pub mod architecture;
 pub mod chat;
 pub mod ci;
 pub mod execution;

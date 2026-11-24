@@ -5,8 +5,8 @@
 //! empty `PATH` and `HOME`, no network options, and a time bound. easement checks the
 //! architecture of each project an `easement.yml` roots (see [`easement`]).
 
-mod easement;
-mod run;
+pub(crate) mod easement;
+pub(crate) mod run;
 
 use std::path::Path;
 use std::{fs, io};
@@ -23,7 +23,7 @@ use crate::sandbox::{self, NOT_ISOLATED};
 use crate::semantic::{Options, Resolve};
 use crate::tools::{self, ToolError, host_target};
 
-const MAX_WORKSPACE_BLOB_BYTES: u64 = 4 << 20;
+pub(crate) const MAX_WORKSPACE_BLOB_BYTES: u64 = 4 << 20;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Format {

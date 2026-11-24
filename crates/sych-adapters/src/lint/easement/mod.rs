@@ -3,7 +3,7 @@
 //! at the changed files, and, against the diff base, the violations new on head that no changed
 //! line shows (a changed policy, a moved file).
 
-mod env;
+pub(crate) mod env;
 mod report;
 
 use std::cell::OnceCell;
@@ -37,10 +37,10 @@ const MAX_LISTED: usize = 20;
 /// New violations kept as facts; a policy added over old code can have thousands.
 const MAX_INTRODUCED: usize = 200;
 
-pub(super) type Workspace = Result<(PathBuf, Materialized), SnapshotError>;
+pub(crate) type Workspace = Result<(PathBuf, Materialized), SnapshotError>;
 
 /// Why a run gave no report, and the status that makes it.
-type Failure = (BackendStatus, String);
+pub(crate) type Failure = (BackendStatus, String);
 
 /// Directories whose `easement.yml` on head roots a project this diff touches: a changed
 /// source or manifest under it, or a changed file of its policy. Root first.
@@ -256,57 +256,18 @@ fn check(
     limitations: &mut Vec<String>,
 ) -> Result<Report, Failure> {
     let project = root.join(dir);
-    let tool = |e: ToolError| {
-        let status = match e {
-            ToolError::Unsupported(_) => BackendStatus::Unsupported,
-            _ => BackendStatus::Failed,
-        };
-        (status, e.to_string())
-    };
     let paths = || m.blobs.keys().map(RepoPath::as_str);
     let languages: BTreeSet<Language> = paths()
         .filter(|p| under(p, dir))
         .filter_map(env::language)
         .collect();
-    if languages.contains(&Language::Rust) {
-        // rustup reads a `rust-toolchain` in any directory above the one cargo runs in.
-        for file in paths().filter(|p| matches!(name(p), "rust-toolchain" | "rust-toolchain.toml"))
-        {
-            toolchain(&root.join(parent(file))).map_err(tool)?;
-        }
-
-        limitations.push(
-            "build scripts and proc-macros are not run: imports that generated or \
-             macro-expanded code writes are not judged"
-                .into(),
-        );
-    }
-
-    if languages.contains(&Language::Python) {
-        limitations.push(
-            "packages of a Python environment are not resolved: scip-python gets an empty \
-             environment and never runs pip or python"
-                .into(),
-        );
-    }
-
-    let installed = install(root, m, dir, &languages, options, limitations)?;
-    let easement =
-        (options.resolve)(tools::sole_pinned(TOOL).map_err(tool)?, &host_target()).map_err(tool)?;
-    let mut vars = env::indexers(
-        &scratch.join("bin"),
-        &languages,
-        options.resolve,
-        options.state_dir,
+    let vars = environment(root, m, dir, &languages, scratch, options, limitations)?;
+    let easement = (options.resolve)(
+        tools::sole_pinned(TOOL).map_err(|e| tool_failure(&e))?,
+        &host_target(),
     )
-    .map_err(tool)?;
-    // Later entries win: an installed `CARGO_HOME` replaces the host's.
-    vars.extend(installed);
+    .map_err(|e| tool_failure(&e))?;
     let args: Vec<String> = ARGS.map(String::from).into();
-    if !sandbox::isolated() {
-        limitations.push(NOT_ISOLATED.into());
-    }
-
     let out = run::run(&easement, &args, &project, scratch, &vars, TIMEOUT)
         .map_err(|e| (BackendStatus::Failed, format!("{TOOL}: {e}")))?;
     let stderr = || -> String {
@@ -324,6 +285,67 @@ fn check(
             format!("{TOOL} {}: {}", out.status, stderr()),
         )),
     }
+}
+
+/// A tool that cannot be had: unsupported here, or failed to fetch.
+pub(crate) fn tool_failure(e: &ToolError) -> Failure {
+    let status = match e {
+        ToolError::Unsupported(_) => BackendStatus::Unsupported,
+        _ => BackendStatus::Failed,
+    };
+    (status, e.to_string())
+}
+
+/// The environment pinned indexers of `languages` run in on the project in `dir` of the
+/// workspace at `root`: a `PATH` of the indexers alone under `scratch`, and the dependencies
+/// installed when the tooling says so. What it costs goes to `limitations`.
+pub(crate) fn environment(
+    root: &Path,
+    m: &Materialized,
+    dir: &str,
+    languages: &BTreeSet<Language>,
+    scratch: &Path,
+    options: &Options<'_>,
+    limitations: &mut Vec<String>,
+) -> Result<Vec<(String, OsString)>, Failure> {
+    let paths = || m.blobs.keys().map(RepoPath::as_str);
+    if languages.contains(&Language::Rust) {
+        // rustup reads a `rust-toolchain` in any directory above the one cargo runs in.
+        for file in paths().filter(|p| matches!(name(p), "rust-toolchain" | "rust-toolchain.toml"))
+        {
+            toolchain(&root.join(parent(file))).map_err(|e| tool_failure(&e))?;
+        }
+
+        limitations.push(
+            "build scripts and proc-macros are not run: imports that generated or \
+             macro-expanded code writes are not judged"
+                .into(),
+        );
+    }
+
+    if languages.contains(&Language::Python) {
+        limitations.push(
+            "packages of a Python environment are not resolved: scip-python gets an empty \
+             environment and never runs pip or python"
+                .into(),
+        );
+    }
+
+    let installed = install(root, m, dir, languages, options, limitations)?;
+    let mut vars = env::indexers(
+        &scratch.join("bin"),
+        languages,
+        options.resolve,
+        options.state_dir,
+    )
+    .map_err(|e| tool_failure(&e))?;
+    // Later entries win: an installed `CARGO_HOME` replaces the host's.
+    vars.extend(installed);
+    if !sandbox::isolated() {
+        limitations.push(NOT_ISOLATED.into());
+    }
+
+    Ok(vars)
 }
 
 /// Dependencies of the project in `dir`, and the environment the installs leave. easement
@@ -406,7 +428,10 @@ fn policy_on(snapshot: &LocalSnapshot, side: SourceSide, dir: &str) -> Option<BT
     Some(report::config_paths(dir, &config, &text))
 }
 
-fn materialize(snapshot: &LocalSnapshot, side: SourceSide) -> (Option<TempDir>, Workspace) {
+pub(crate) fn materialize(
+    snapshot: &LocalSnapshot,
+    side: SourceSide,
+) -> (Option<TempDir>, Workspace) {
     let dir = match tempfile::tempdir() {
         Ok(dir) => dir,
         Err(e) => {
@@ -483,7 +508,7 @@ fn anchored(snapshot: &LocalSnapshot, mut d: CiDiagnostic) -> CiDiagnostic {
     d
 }
 
-fn under(path: &str, dir: &str) -> bool {
+pub(crate) fn under(path: &str, dir: &str) -> bool {
     dir.is_empty()
         || path
             .strip_prefix(dir)

@@ -15,10 +15,10 @@ use crate::tools::{self, ToolError, host_target};
 
 /// No file has this path, so cargo fails before any build script or proc-macro compiles:
 /// `rust-analyzer scip` always builds them, whatever its configuration says.
-pub(super) const NO_RUSTC: &str = "/nonexistent/sych-compiles-no-repository-code";
+pub(crate) const NO_RUSTC: &str = "/nonexistent/sych-compiles-no-repository-code";
 
 /// The language of a project file easement reads: a source or a manifest.
-pub(super) fn language(path: &str) -> Option<Language> {
+pub(crate) fn language(path: &str) -> Option<Language> {
     let name = path.rsplit('/').next().unwrap_or(path);
     match name {
         "Cargo.toml" => Some(Language::Rust),
@@ -30,7 +30,7 @@ pub(super) fn language(path: &str) -> Option<Language> {
 
 /// Fills `bin` with the pinned indexers of `languages` and returns the environment easement
 /// runs in; `state_dir` holds the module cache `go mod download` fills.
-pub(super) fn indexers(
+pub(crate) fn indexers(
     bin: &Path,
     languages: &BTreeSet<Language>,
     resolve: &Resolve<'_>,
