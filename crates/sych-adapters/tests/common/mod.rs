@@ -2,6 +2,7 @@
 //! some of them.
 #![allow(dead_code)]
 
+pub mod architecture;
 pub mod repo;
 
 use std::os::unix::fs::PermissionsExt;

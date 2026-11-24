@@ -44,13 +44,16 @@ struct Unit<'i> {
     holders: Vec<(Span, ItemId)>,
 }
 
-/// `text` gives an indexed file's text by its path relative to the project; `dir` is the
-/// project's directory in the repository, `""` for its root.
+/// `text` gives a file's text by its path relative to the project; `dir` is the project's
+/// directory in the repository, `""` for its root. `sources`: every source file of the
+/// language in the project, by the same paths; those the index leaves out count for layout
+/// only.
 pub fn build(
     language: Language,
     dir: &str,
     index: &Index<'_>,
     text: &dyn Fn(&str) -> Option<String>,
+    sources: &[String],
 ) -> Built {
     let mut builder = Builder {
         language,
@@ -104,6 +107,10 @@ pub fn build(
         });
         units.push(unit);
     }
+
+    let indexed: HashSet<&str> = units.iter().map(|u| u.document.path.as_str()).collect();
+    let unindexed = sources.iter().filter(|s| !indexed.contains(s.as_str()));
+    files.extend(layout_only(dir, unindexed, text, builder.tree.root()));
 
     // Items first: a reference may name one a later document defines.
     for unit in &mut units {
@@ -476,6 +483,31 @@ fn unresolved(units: &[Unit<'_>], items: &[Item]) -> usize {
                 .count()
         })
         .sum()
+}
+
+/// Files the index leaves out, which count for layout only: in no module but the project.
+fn layout_only<'s>(
+    dir: &str,
+    sources: impl Iterator<Item = &'s String>,
+    text: &dyn Fn(&str) -> Option<String>,
+    project: NodeId,
+) -> Vec<File> {
+    sources
+        .filter_map(|source| {
+            let lines = text(source)?.lines().count();
+            let path = if dir.is_empty() {
+                source.clone()
+            } else {
+                format!("{dir}/{source}")
+            };
+            Some(File {
+                test: classify(&path, false) == PathClass::Test,
+                path,
+                module: project,
+                lines,
+            })
+        })
+        .collect()
 }
 
 /// The item whose extent holds `pos` and starts last: the innermost, as extents nest.

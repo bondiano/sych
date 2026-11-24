@@ -131,6 +131,17 @@ A candidate with one anchor elsewhere is reviewed as usual, and the files are st
 the obligations that cover them (`TEST-INTEGRITY` among them). Unset, nothing is dropped; while empty it is left out of
 the policy snapshot, so a config without it keeps its policy id.
 
+## Architecture bounds
+
+`architecture` in `.sych/config.yaml` sets the bounds of the architecture checks: `enabled` (default `true`) and
+`limits` with `tangle_members` (7), `shallow_functions` (7), `wide_directory` (15) and `long_file` (2000), the
+defaults being deslop-please's. A tangle all in one module is reported past `tangle_members` things; a module is
+shallow past `shallow_functions` functions shown, at most as many hidden, and a list (of things, or of one thing's
+functions) past the same bound; a directory holds at most `wide_directory` files and directories of code, a file at
+most `long_file` lines. A bound of 0 is a config error. As every key here, it is read from the target tip, so a change
+cannot loosen the bounds its own code is judged by. Add the key only once the deployed reviewer knows it: an older
+one refuses the unknown key.
+
 ## Policy from head is not applied
 
 `sych review` reads `.sych/` only from the target tip. Changes to `.sych/` in the head under review go into

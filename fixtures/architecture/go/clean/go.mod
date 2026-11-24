@@ -1,3 +1,3 @@
-module example.com/clean
+module example.com/fx
 
 go 1.22

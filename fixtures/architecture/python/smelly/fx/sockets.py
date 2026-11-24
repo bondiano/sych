@@ -1,4 +1,6 @@
-from clean import kinds
+from fx import kinds
+
+LIMIT = 8
 
 
 def open_stream() -> kinds.Stream:

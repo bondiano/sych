@@ -1,3 +1,3 @@
-module example.com/smelly
+module example.com/fx
 
 go 1.22

@@ -1,8 +1,8 @@
 package app
 
 import (
-	"example.com/clean/inventory"
-	"example.com/clean/queue"
+	"example.com/fx/inventory"
+	"example.com/fx/queue"
 )
 
 func Run(inv *inventory.Inventory) int {
