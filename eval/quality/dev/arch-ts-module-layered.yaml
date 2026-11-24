@@ -1,0 +1,46 @@
+schema_version: 1
+id: arch-ts-module-layered
+split: development
+language: typescript
+variant: safe
+profiles: [correctness]
+rationale: "LIMIT moves into kinds, which socket already uses: the modules stay in one order, kinds below socket."
+base:
+  package.json: |
+    {"name": "net", "version": "1.0.0", "private": true}
+  tsconfig.json: |
+    {"compilerOptions": {"strict": true, "target": "es2022", "module": "esnext", "moduleResolution": "bundler", "noEmit": true}, "include": ["src"]}
+  src/kinds.ts: |
+    export class Stream {}
+
+    export function fits(n: number): boolean {
+      return n < 8;
+    }
+  src/socket.ts: |
+    import { Stream } from "./kinds";
+
+    export const LIMIT = 8;
+
+    export function open(): Stream {
+      return new Stream();
+    }
+head:
+  src/kinds.ts: |
+    export const LIMIT = 8;
+
+    export class Stream {}
+
+    export function fits(n: number): boolean {
+      return n < LIMIT;
+    }
+  src/socket.ts: |
+    import { LIMIT, Stream } from "./kinds";
+
+    export { LIMIT };
+
+    export function open(): Stream {
+      return new Stream();
+    }
+expected:
+  forbidden_claims:
+    - "kinds and socket use each other in a circle."

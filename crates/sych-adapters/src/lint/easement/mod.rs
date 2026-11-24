@@ -404,7 +404,7 @@ fn install(
         limitations.push(
             "dependencies are not installed (tooling.dependency_install is off): imports of \
              third-party packages are not resolved, and a package.json that declares \
-             dependencies stops easement"
+             dependencies stops easement and the SCIP indexers"
                 .into(),
         );
     }

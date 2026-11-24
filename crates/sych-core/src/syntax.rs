@@ -9,6 +9,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::LintFacts;
+use crate::architecture::ArchitectureFacts;
 use crate::effects::EffectLedger;
 use crate::semantic::facts_evidence_id;
 use crate::{
@@ -198,6 +199,9 @@ pub struct RunFacts {
     /// Pinned linters run on the head's changed files.
     #[serde(default)]
     pub lint: Vec<LintFacts>,
+    /// The architecture checks of each project the change touches, on both sides.
+    #[serde(default)]
+    pub architecture: Vec<ArchitectureFacts>,
     /// Tables and columns a changed migration touches, with the code that names them.
     #[serde(default)]
     pub schema_refs: Vec<crate::SchemaRef>,

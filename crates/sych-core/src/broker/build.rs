@@ -8,6 +8,7 @@ use super::neighbours::Neighbourhood;
 use super::observations;
 use super::select::select;
 use super::{ContextRequest, EvidencePacket, Priority, Purpose, Relation};
+use crate::architecture::ArchitectureFacts;
 use crate::config::ContextSettings;
 use crate::effects::EffectLedger;
 use crate::{
@@ -91,6 +92,8 @@ pub struct BrokerInput<'a> {
     pub head_compiled: bool,
     pub ledger: &'a EffectLedger,
     pub lint: &'a [LintFacts],
+    /// Architecture findings, which their file's packet shows.
+    pub architecture: &'a [ArchitectureFacts],
     pub limits: Limits,
 }
 
@@ -220,6 +223,23 @@ pub(super) fn file_for<'a>(manifest: &'a DiffManifest, path: &RepoPath) -> Optio
     })
 }
 
+/// What the facts other than semantic neighbours put in the packets of `units`' files.
+fn observe(
+    input: &BrokerInput<'_>,
+    units: &[&ReviewUnit],
+    candidates: &mut Vec<Candidate>,
+    gaps: &mut Vec<String>,
+) {
+    for unit_path in units.iter().flat_map(|u| &u.paths) {
+        observations::syntax(input.syntax, unit_path, input.manifest, candidates);
+        observations::unseen(input.syntax, unit_path, input.manifest, gaps);
+        observations::ci(input.ci, unit_path, input.manifest, candidates);
+        observations::ledger(input.ledger, unit_path, input.manifest, candidates, gaps);
+        observations::lint(input.lint, unit_path, input.manifest, candidates, gaps);
+        observations::architecture(input.architecture, unit_path, input.manifest, candidates);
+    }
+}
+
 fn packet(
     input: &BrokerInput<'_>,
     reader: &dyn SnapshotReader,
@@ -305,25 +325,7 @@ fn packet(
             }
         }
     }
-    for unit_path in units.iter().flat_map(|u| &u.paths) {
-        observations::syntax(input.syntax, unit_path, input.manifest, &mut candidates);
-        observations::unseen(input.syntax, unit_path, input.manifest, &mut gaps);
-        observations::ci(input.ci, unit_path, input.manifest, &mut candidates);
-        observations::ledger(
-            input.ledger,
-            unit_path,
-            input.manifest,
-            &mut candidates,
-            &mut gaps,
-        );
-        observations::lint(
-            input.lint,
-            unit_path,
-            input.manifest,
-            &mut candidates,
-            &mut gaps,
-        );
-    }
+    observe(input, units, &mut candidates, &mut gaps);
     let limits = (input.limits.max_files, input.limits.max_span_lines);
     select(
         reader, state, request, candidates, queries, gaps, requests, limits,

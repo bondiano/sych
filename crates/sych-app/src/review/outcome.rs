@@ -5,6 +5,7 @@ use std::time::Duration;
 use anyhow::Context as _;
 
 use sych_core::analysis::packet_evidence;
+use sych_core::architecture;
 use sych_core::broker::{
     BrokerInput, EvidencePacket, PacketResolution, build_packets, context_gaps, context_limited,
     unshown_changes,
@@ -47,6 +48,7 @@ impl Session<'_> {
                     head_compiled,
                     ledger: &self.facts.ledger,
                     lint: &self.facts.lint,
+                    architecture: &self.facts.architecture,
                     limits,
                 },
                 self.snap,
@@ -238,18 +240,8 @@ impl Session<'_> {
         }
 
         task_gaps.extend(self.ci_gaps.iter().cloned());
-        // Deterministic, so they stand beside the verified findings without a model.
-        let findings: Vec<_> = if self.security {
-            let found = scan(
-                &self.snap.manifest,
-                self.snap,
-                self.fixture_paths,
-                self.language,
-            );
-            findings.iter().cloned().chain(found).collect()
-        } else {
-            findings.to_vec()
-        };
+        task_gaps.extend(architecture::gaps(&self.facts.architecture));
+        let findings = self.with_static(findings, now);
         let reduced = reduce(&ReduceInput {
             plan,
             assessments: &assessments,
@@ -336,6 +328,42 @@ fn usage(record: &AnalysisRecord) -> UsageSummary {
         })
         .collect();
     usage
+}
+
+impl Session<'_> {
+    /// The model's `findings` and the deterministic ones, which stand beside them without a
+    /// model: the security scan's and architecture review's. Computed, never written by a model.
+    fn with_static(
+        &self,
+        findings: &[sych_core::Finding],
+        now: Timestamp,
+    ) -> Vec<sych_core::Finding> {
+        let mut out: Vec<_> = findings.to_vec();
+        if self.security {
+            out.extend(scan(
+                &self.snap.manifest,
+                self.snap,
+                self.fixture_paths,
+                self.language,
+            ));
+        }
+
+        let changed = |path: &str| {
+            self.snap
+                .manifest
+                .files
+                .iter()
+                .any(|f| f.new.as_ref().is_some_and(|s| s.path.as_str() == path))
+        };
+        out.extend(architecture::findings(
+            &self.facts.architecture,
+            self.rules,
+            &changed,
+            self.language,
+            now,
+        ));
+        out
+    }
 }
 
 #[cfg(test)]

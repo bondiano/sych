@@ -4,6 +4,7 @@
 use std::fmt::Write as _;
 
 use serde::{Deserialize, Serialize};
+use sych_core::architecture::ArchitectureFacts;
 use sych_core::broker::EvidencePacket;
 use sych_core::config::{PolicyDiff, Provenance};
 use sych_core::effects::EffectLedger;
@@ -39,6 +40,8 @@ pub struct Report {
     pub effect_ledger: EffectLedger,
     /// Diagnostics of the pinned linters on the head's changed files.
     pub lint_facts: Vec<LintFacts>,
+    /// The architecture checks of each project the change touches, on both sides.
+    pub architecture_facts: Vec<ArchitectureFacts>,
     pub context_packets: Vec<EvidencePacket>,
     pub review_result: ReviewResult,
 }
@@ -57,6 +60,10 @@ pub enum ReportFormat {
     /// SARIF 2.1.0 for code scanning
     Sarif,
 }
+
+mod architecture;
+
+use architecture::{architecture, explanation};
 
 /// Bidi overrides and isolates can make reviewed text read differently than it runs.
 fn is_bidi_control(c: char) -> bool {
@@ -175,7 +182,7 @@ fn finding(out: &mut String, f: &Finding) {
         tag(&f.lifecycle),
         md(&f.title)
     );
-    let _ = writeln!(out, "  - {}", md(&f.explanation));
+    explanation(out, &f.explanation);
     let _ = writeln!(out, "  - consequence: {}", md(&f.consequence));
     for a in &f.anchors {
         let _ = writeln!(out, "  - at {}", code_ref(a));
@@ -335,6 +342,7 @@ pub fn markdown(report: &Report) -> String {
         out.push_str("- none\n");
     }
 
+    architecture(&mut out, &report.architecture_facts);
     out.push_str("\n## Gaps\n\n");
     list(
         &mut out,

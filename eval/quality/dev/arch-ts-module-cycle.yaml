@@ -1,0 +1,44 @@
+schema_version: 1
+id: arch-ts-module-cycle
+split: development
+language: typescript
+variant: safe
+profiles: [correctness]
+rationale: "fits now reads LIMIT from socket while socket builds Streams from kinds: the two sibling modules use each other in a circle, though no two of their things do."
+base:
+  package.json: |
+    {"name": "net", "version": "1.0.0", "private": true}
+  tsconfig.json: |
+    {"compilerOptions": {"strict": true, "target": "es2022", "module": "esnext", "moduleResolution": "bundler", "noEmit": true}, "include": ["src"]}
+  src/kinds.ts: |
+    export class Stream {}
+
+    export function fits(n: number): boolean {
+      return n < 8;
+    }
+  src/socket.ts: |
+    import { Stream } from "./kinds";
+
+    export const LIMIT = 8;
+
+    export function open(): Stream {
+      return new Stream();
+    }
+head:
+  src/kinds.ts: |
+    import { LIMIT } from "./socket";
+
+    export class Stream {}
+
+    export function fits(n: number): boolean {
+      return n < LIMIT;
+    }
+expected:
+  findings:
+    - category: improvement
+      semantic_target: "module cycle between kinds and socket"
+      required_condition: "kinds imports LIMIT from socket while socket imports Stream from kinds"
+      evidence_locations:
+        - { side: HEAD, path: src/kinds.ts, start_line: 6, end_line: 6 }
+  forbidden_claims:
+    - "fits compares against a different limit than before."

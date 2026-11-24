@@ -4,6 +4,14 @@
   "description": "Semantic and syntax facts of a run as one stored, versioned document.",
   "type": "object",
   "properties": {
+    "architecture": {
+      "description": "The architecture checks of each project the change touches, on both sides.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ArchitectureFacts"
+      }
+    },
     "ci": {
       "type": "array",
       "items": {
@@ -61,6 +69,149 @@
     "ci"
   ],
   "$defs": {
+    "ArchitectureFacts": {
+      "type": "object",
+      "properties": {
+        "base_checked": {
+          "description": "The diff base was checked: without it no finding is new or old.",
+          "type": "boolean"
+        },
+        "coverage": {
+          "description": "Per check: what it proves. A circle found stands; an index that cannot see some code\ndoes not prove that no other one is there.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CheckCoverage"
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArchitectureFinding"
+          }
+        },
+        "fixed": {
+          "description": "Findings of the diff base that head no longer has.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FixedFinding"
+          }
+        },
+        "language": {
+          "$ref": "#/$defs/Language"
+        },
+        "limitations": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "limits": {
+          "$ref": "#/$defs/Limits"
+        },
+        "producer": {
+          "description": "The pinned indexer and its version; `config_hash` covers the limits.",
+          "$ref": "#/$defs/Producer"
+        },
+        "project": {
+          "description": "The project's directory, `\"\"` for the repository's root.",
+          "type": "string"
+        },
+        "schema_version": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "source_snapshot_id": {
+          "$ref": "#/$defs/SourceSnapshotId"
+        },
+        "status": {
+          "$ref": "#/$defs/BackendStatus"
+        }
+      },
+      "required": [
+        "schema_version",
+        "source_snapshot_id",
+        "producer",
+        "language",
+        "project",
+        "status",
+        "base_checked",
+        "limits",
+        "coverage",
+        "findings"
+      ]
+    },
+    "ArchitectureFinding": {
+      "type": "object",
+      "properties": {
+        "base_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0
+        },
+        "change": {
+          "description": "Against the diff base; `None` when it was not checked.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Change"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "check": {
+          "$ref": "#/$defs/Check"
+        },
+        "code_ref": {
+          "description": "Where it is reported, on head; a finding in a file the change does not touch has one.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "key": {
+          "description": "The members' names, the field's, the module's or the path: never a line.",
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "picture": {
+          "description": "The shape of what was found, drawn in box-drawing characters.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "size": {
+          "description": "Members of the circle, places the field is known, functions shown, directory members\nor lines.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "check",
+        "key",
+        "message",
+        "notes",
+        "picture",
+        "size"
+      ]
+    },
     "BackendStatus": {
       "type": "string",
       "enum": [
@@ -86,6 +237,63 @@
           "type": "string",
           "const": "UNBOUND"
         }
+      ]
+    },
+    "Change": {
+      "oneOf": [
+        {
+          "description": "The base has nothing like it.",
+          "type": "string",
+          "const": "NEW"
+        },
+        {
+          "description": "The base has it, smaller.",
+          "type": "string",
+          "const": "WORSE"
+        },
+        {
+          "description": "The base has it as it is: existing debt.",
+          "type": "string",
+          "const": "SAME"
+        },
+        {
+          "description": "The base has it, larger: the change improved it.",
+          "type": "string",
+          "const": "BETTER"
+        }
+      ]
+    },
+    "Check": {
+      "type": "string",
+      "enum": [
+        "module-cycle",
+        "tangle",
+        "field-leak",
+        "shallow-module",
+        "wide-directory",
+        "long-file"
+      ]
+    },
+    "CheckCoverage": {
+      "type": "object",
+      "properties": {
+        "check": {
+          "$ref": "#/$defs/Check"
+        },
+        "completeness": {
+          "$ref": "#/$defs/Completeness"
+        },
+        "reason": {
+          "description": "Why it is partial.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "check",
+        "completeness"
       ]
     },
     "CiBindingKind": {
@@ -754,6 +962,25 @@
         "runtime"
       ]
     },
+    "FixedFinding": {
+      "type": "object",
+      "properties": {
+        "check": {
+          "$ref": "#/$defs/Check"
+        },
+        "key": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "check",
+        "key",
+        "message"
+      ]
+    },
     "GitObjectId": {
       "type": "string",
       "pattern": "^(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
@@ -1020,6 +1247,41 @@
         "resolution",
         "notes"
       ]
+    },
+    "Limits": {
+      "description": "The bounds the checks judge by; upstream's are the defaults.",
+      "type": "object",
+      "properties": {
+        "long_file": {
+          "description": "A file has at most this many lines, blank and comment lines too.",
+          "type": "integer",
+          "format": "uint",
+          "default": 2000,
+          "minimum": 0
+        },
+        "shallow_functions": {
+          "description": "A module is shallow past this many functions shown, and only with a list (of things,\nor of one thing's functions) past it.",
+          "type": "integer",
+          "format": "uint",
+          "default": 7,
+          "minimum": 0
+        },
+        "tangle_members": {
+          "description": "A tangle all in one module is reported past this many things: its members cannot be\nlearned one at a time.",
+          "type": "integer",
+          "format": "uint",
+          "default": 7,
+          "minimum": 0
+        },
+        "wide_directory": {
+          "description": "A directory holds at most this many files and directories of code.",
+          "type": "integer",
+          "format": "uint",
+          "default": 15,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
     },
     "LintFacts": {
       "type": "object",

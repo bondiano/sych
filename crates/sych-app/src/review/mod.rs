@@ -10,7 +10,7 @@ use sych_adapters::git::LocalSnapshot;
 use sych_adapters::{execution, syntax};
 use sych_core::analysis::Discovered;
 use sych_core::broker::{EvidencePacket, Limits};
-use sych_core::config::Budgets;
+use sych_core::config::{Budgets, Rule};
 use sych_core::config::{
     EffectiveConfig, PolicyFiles, PolicyInput, ReviewProfile, RuleException, ServerConfig,
     ServerInput, policy_diff,
@@ -135,12 +135,18 @@ fn derived_facts(
         .cloned()
         .chain(refused.iter().map(ToString::to_string))
         .collect();
-    let (facts, lint) = match args.semantic {
+    let (facts, lint, architecture) = match args.semantic {
         Switch::On => (
             semantic::collect_facts(snap, &effective.server.tooling)?,
             semantic::collect_lint(snap, &effective.server.tooling)?,
+            semantic::collect_architecture(
+                snap,
+                &effective.server.tooling,
+                &effective.repository.config.architecture,
+                &effective.repository.config.review.fixture_paths,
+            )?,
         ),
-        Switch::Off => (Vec::new(), Vec::new()),
+        Switch::Off => (Vec::new(), Vec::new(), Vec::new()),
     };
     let effects = &effective.repository.effects;
     let syntax = syntax::collect(snap, effects);
@@ -157,6 +163,7 @@ fn derived_facts(
         .chain(syntax.iter().map(|f| f.to_evidence(&snap.snapshot, now)))
         .chain(ledger.to_evidence(&snap.snapshot, now).transpose())
         .chain(lint.iter().map(|f| f.to_evidence(&snap.snapshot, now)))
+        .chain(architecture.iter().map(|f| f.to_evidence(&snap.snapshot, now)))
         // The MIG obligations cite it; they exist only when a migration path changed.
         .chain(snap.manifest.files.iter().any(migration_changed).then(|| {
             deploy::matrix(effective.repository.deployment.as_ref())
@@ -177,6 +184,7 @@ fn derived_facts(
         ci,
         ledger,
         lint,
+        architecture,
         schema_refs: schema::schema_refs(snap),
     };
     Ok((facts, derived, external, ci_gaps))
@@ -417,6 +425,7 @@ fn execute(
             .profiles
             .contains(&ReviewProfile::Security),
         block_on: &effective.repository.config.review.block_on,
+        rules: &effective.repository.rules,
         now,
     };
     let saved =
@@ -437,6 +446,7 @@ fn execute(
         ci_facts: facts.ci,
         effect_ledger: facts.ledger,
         lint_facts: facts.lint,
+        architecture_facts: facts.architecture,
         context_packets: saved.packets,
         review_result: saved.result,
     };
@@ -497,5 +507,8 @@ struct Session<'a> {
     security: bool,
     /// `review.block_on` of the trusted policy.
     block_on: &'a [String],
+    /// The trusted repository rules: a required `ARCH-*` rule makes an architecture finding a
+    /// rule violation.
+    rules: &'a [Rule],
     now: Timestamp,
 }

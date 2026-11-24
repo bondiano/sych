@@ -18,6 +18,7 @@ use sych_core::{
     SymbolFacts, SyntaxFacts, line_range, plan, reduce, sha256,
 };
 
+mod architecture;
 mod chunks;
 mod compiled;
 mod generated;
@@ -276,6 +277,7 @@ fn run_built(
         head_compiled,
         ledger,
         lint,
+        architecture: &[],
         limits,
     };
     let packets = build_packets(&input, &Reader::new());

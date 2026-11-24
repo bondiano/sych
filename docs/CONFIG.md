@@ -139,8 +139,9 @@ defaults being deslop-please's. A tangle all in one module is reported past `tan
 shallow past `shallow_functions` functions shown, at most as many hidden, and a list (of things, or of one thing's
 functions) past the same bound; a directory holds at most `wide_directory` files and directories of code, a file at
 most `long_file` lines. A bound of 0 is a config error. As every key here, it is read from the target tip, so a change
-cannot loosen the bounds its own code is judged by. Add the key only once the deployed reviewer knows it: an older
-one refuses the unknown key.
+cannot loosen the bounds its own code is judged by. A required rule `ARCH-<CHECK>` makes a finding of that check a
+rule violation, and its exceptions waive it ([ARCHITECTURE.md](ARCHITECTURE.md#in-the-result)). Add the key only once
+the deployed reviewer knows it: an older one refuses the unknown key.
 
 ## Policy from head is not applied
 
