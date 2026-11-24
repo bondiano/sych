@@ -10,8 +10,8 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sych_core::api;
 use sych_core::{
-    DecodeError, Evidence, ObligationStatus, PolicySnapshot, ReviewResult, SourceSnapshot,
-    canonical_json, canonical_sha256, decode, schema,
+    DecodeError, Evidence, ObligationStatus, PolicySnapshot, ReviewResult, SnapshotHeadKind,
+    SourceSnapshot, canonical_json, canonical_sha256, decode, schema,
 };
 
 fn root() -> PathBuf {
@@ -41,6 +41,40 @@ fn v1_fixtures_decode_and_round_trip() {
         &result.obligations[1].status,
         ObligationStatus::Unknown { reason_code, .. } if reason_code == "SEMANTIC_PROVIDER_UNAVAILABLE"
     ));
+}
+
+#[test]
+fn uncommitted_provenance_preserves_the_existing_committed_snapshot_contract() {
+    let json = fixture("v1/source-snapshot.json");
+    let mut snapshot: SourceSnapshot = decode(&json).expect("legacy snapshot");
+    assert_eq!(snapshot.head_kind, SnapshotHeadKind::Committed);
+    let original: Value = serde_json::from_str(&json).expect("legacy JSON");
+    assert_eq!(serde_json::to_value(&snapshot).expect("JSON"), original);
+
+    let mut identity = original;
+    let fields = identity.as_object_mut().expect("snapshot object");
+    for key in ["schema_version", "id", "target_ref", "created_at"] {
+        fields.remove(key);
+    }
+    let committed = snapshot.identity().expect("committed identity");
+    assert_eq!(
+        committed.0,
+        canonical_sha256(&identity).expect("legacy identity")
+    );
+
+    snapshot.head_kind = SnapshotHeadKind::Staged;
+    let staged = snapshot.identity().expect("staged identity");
+    assert_ne!(committed, staged);
+    let encoded = serde_json::to_string(&snapshot).expect("serialize staged");
+    assert_eq!(
+        decode::<SourceSnapshot>(&encoded).expect("decode staged"),
+        snapshot
+    );
+
+    snapshot.head_kind = SnapshotHeadKind::Worktree;
+    let worktree = snapshot.identity().expect("worktree identity");
+    assert_ne!(worktree, committed);
+    assert_ne!(worktree, staged);
 }
 
 #[test]

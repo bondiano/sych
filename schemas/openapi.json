@@ -4690,6 +4690,15 @@
         },
         "type": "array"
       },
+      "SnapshotHeadKind": {
+        "description": "Where the reviewed head's content came from.",
+        "enum": [
+          "COMMITTED",
+          "STAGED",
+          "WORKTREE"
+        ],
+        "type": "string"
+      },
       "SourceSide": {
         "enum": [
           "DIFF_BASE",
@@ -4716,6 +4725,9 @@
           },
           "head": {
             "$ref": "#/components/schemas/GitObjectId"
+          },
+          "head_kind": {
+            "$ref": "#/components/schemas/SnapshotHeadKind"
           },
           "id": {
             "$ref": "#/components/schemas/SourceSnapshotId"
