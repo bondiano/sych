@@ -35,8 +35,8 @@ nothing. The semantic checks leave test code out; the layout checks count it.
 ## How the model is built
 
 For each project a change touches (the outermost Cargo workspace or nearest `Cargo.toml`, the nearest `go.mod`,
-`tsconfig.json` or `package.json`, the nearest Python project file or the repository's root; at most four, those in
-`review.fixture_paths` left out), Sych writes the diff base and head from pinned Git objects, never from a working
+`tsconfig.json` or `package.json`, the nearest Python project file or the repository's root; at most
+`tooling.indexers.max_projects`, those in `review.fixture_paths` left out), Sych writes the diff base and head from pinned Git objects, never from a working
 tree, and runs the pinned SCIP indexer on the whole project on each side: rust-analyzer, scip-go, scip-typescript,
 scip-python. The syntax of each indexed file (syn, tree-sitter, oxc) adds what an index does not say: where an
 item's code is, whether a function takes a receiver or implements a trait or protocol, which functions only wrap
@@ -57,8 +57,11 @@ does. Go forbids a cycle of packages, so a Go tangle is the ring of a single pac
 
 No repository code runs: the indexers get a `PATH` of the pinned indexers alone and an empty `HOME`, cargo cannot
 compile, so no build script or proc-macro runs, scip-python gets an empty environment and never starts `python` or
-`pip`, no package script runs, and each run is killed past ten minutes; an index past 512 MiB, or a project past 5000
-source files, is not read. An index is cached in the state directory by its inputs: the indexer and its version,
+`pip`, and no package script runs. The server's `tooling.indexers` bounds each run
+([CONFIG.md](CONFIG.md)): a run past `timeout_seconds` (600), or whose processes together hold more than `memory_mb`
+(4096) resident, is killed; an index past `max_index_mb` (512), or a project past `max_files` (5000) source files, is
+not read. Such a project is `ARCHITECTURE_UNAVAILABLE`, never clean. Memory is measured from Linux's `/proc`; where
+there is none, only the time bound holds, and the facts say so. An index is cached in the state directory by its inputs: the indexer and its version,
 whether dependencies are installed, and every blob of the project.
 
 ## What is complete

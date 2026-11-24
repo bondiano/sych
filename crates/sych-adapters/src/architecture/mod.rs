@@ -25,10 +25,6 @@ use crate::lint::easement::{self, Failure, under};
 use crate::semantic::Options;
 use crate::tools;
 
-/// Projects analysed in one run; a change across more is analysed in part.
-pub const MAX_PROJECTS: usize = 4;
-/// Source files of one project; a larger one is not indexed in a review.
-pub const MAX_FILES: usize = 5_000;
 /// Index files kept in the cache; the oldest go first.
 const CACHE_ENTRIES: usize = 64;
 
@@ -48,13 +44,14 @@ pub struct Analysis {
 }
 
 /// The projects the diff touches, by the source and manifest files it changes, root first,
-/// but those whose directory a glob of `skip` (labelled fixture data) matches; and how many
-/// more were left out.
+/// but those whose directory a glob of `skip` (labelled fixture data) matches; at most `most`
+/// of them, and how many more were left out.
 pub fn projects(
     snapshot: &LocalSnapshot,
     head: Side<'_>,
     base: Option<Side<'_>>,
     skip: &[String],
+    most: usize,
 ) -> (Vec<(Language, String)>, usize) {
     let mut found = BTreeSet::new();
     for file in &snapshot.manifest.files {
@@ -76,8 +73,8 @@ pub fn projects(
         .filter(|(_, dir, _)| !fixture(dir))
         .map(|(_, dir, l)| (l, dir))
         .collect();
-    let more = found.len().saturating_sub(MAX_PROJECTS);
-    found.truncate(MAX_PROJECTS);
+    let more = found.len().saturating_sub(most);
+    found.truncate(most);
     (found, more)
 }
 
@@ -151,7 +148,9 @@ pub fn collect(snapshot: &LocalSnapshot, options: &Options<'_>, skip: &[String])
         return Vec::new();
     };
     let base_side = base.as_ref().ok().map(|(root, m)| (root.as_path(), m));
-    let (found, more) = projects(snapshot, (head_root, head_blobs), base_side, skip);
+    let bounds = &options.tooling.indexers;
+    let most = usize::try_from(bounds.max_projects).unwrap_or(usize::MAX);
+    let (found, more) = projects(snapshot, (head_root, head_blobs), base_side, skip, most);
     let scratch = match tempfile::tempdir() {
         Ok(dir) => dir,
         Err(e) => {
@@ -167,7 +166,7 @@ pub fn collect(snapshot: &LocalSnapshot, options: &Options<'_>, skip: &[String])
             let mut limitations = Vec::new();
             if more > 0 && i == 0 {
                 limitations.push(format!(
-                    "{more} more projects the change touches are not analysed: one review analyses {MAX_PROJECTS}"
+                    "{more} more projects the change touches are not analysed: one review analyses {most} (tooling.indexers.max_projects)"
                 ));
             }
 
@@ -226,10 +225,14 @@ fn model(
         .keys()
         .filter(|p| under(p.as_str(), dir) && easement::env::language(p.as_str()) == Some(language))
         .count();
-    if sources > MAX_FILES {
+    let most = usize::try_from(options.tooling.indexers.max_files).unwrap_or(usize::MAX);
+    if sources > most {
         return Err((
             BackendStatus::Unsupported,
-            format!("{sources} {language:?} files, more than the {MAX_FILES} one review indexes"),
+            format!(
+                "{sources} {language:?} files, more than the {most} one review indexes \
+                 (tooling.indexers.max_files)"
+            ),
         ));
     }
 

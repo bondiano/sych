@@ -261,6 +261,7 @@ fn a_change_touches_the_outermost_cargo_workspace_and_the_nearest_project_of_the
         (tree.path(), &head),
         None,
         &["web/app".to_owned()],
+        4,
     );
     let found: Vec<(Language, &str)> = found.iter().map(|(l, d)| (*l, d.as_str())).collect();
     assert_eq!(
