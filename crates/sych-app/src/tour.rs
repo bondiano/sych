@@ -15,10 +15,10 @@ use sych_core::analysis::tour_prompt::{self, TourDraft};
 use sych_core::config::{Role, RunMode};
 use sych_core::model::{AttemptRecord, DataBlock, Limits, Prompt, Purpose};
 use sych_core::tour::{self, TourArtifact, TourEvent, TourPlan, TourState};
-use sych_core::{ComparisonMode, MicroUsd, ReviewResult, RunId, SnapshotReader, Timestamp};
+use sych_core::{MicroUsd, ReviewResult, RunId, SnapshotReader, Timestamp};
 use sych_storage::{ArtifactKind, RunLedger, Storage, TENANT_LOCAL, tour_role};
 
-use crate::args::{Comparison, ModelSelection, TourArguments};
+use crate::args::{ModelSelection, TourArguments};
 use crate::backend::{self, ResolveError};
 use crate::errors::Failure;
 use crate::output::emit_as;
@@ -141,14 +141,7 @@ pub fn run(args: &TourArguments) -> anyhow::Result<ExitCode> {
     let saved = report
         .snapshot
         .ok_or_else(|| Failure::invalid("the run's source snapshot was pruned; review again"))?;
-    let snap = snapshot::capture(&Comparison {
-        repo: args.repo.clone(),
-        base: saved.target_tip.hex().to_owned(),
-        head: saved.head.hex().to_owned(),
-        diff_base: (saved.comparison == ComparisonMode::ExplicitDiffBase)
-            .then(|| saved.diff_base.hex().to_owned()),
-        fork: false,
-    })?;
+    let snap = snapshot::reopen(&saved, &args.repo)?;
     if snap.snapshot.id != result.source_snapshot_id {
         return Err(Failure::invalid("--repo is not the repository this run reviewed").into());
     }

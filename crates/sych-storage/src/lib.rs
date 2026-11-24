@@ -19,6 +19,7 @@ mod import;
 mod jobs;
 mod ledger;
 mod lineage;
+mod local_heads;
 mod outbox;
 mod publish;
 mod queue;
@@ -42,8 +43,8 @@ use serde::de::DeserializeOwned;
 use sqlx::migrate::{MigrateError, Migrator};
 use sqlx::{AnyPool, Row};
 use sych_core::{
-    DecodeError, PolicySnapshotId, ReviewResult, RunId, SCHEMA_VERSION, Sha256Digest,
-    SourceSnapshotId, Timestamp, canonical_json, decode, sha256,
+    DecodeError, ReviewResult, RunId, SCHEMA_VERSION, Sha256Digest, Timestamp, canonical_json,
+    decode, sha256,
 };
 use thiserror::Error;
 
@@ -56,6 +57,7 @@ pub use digest::{DIGEST_RETRY_SECONDS, MAX_DIGEST_ATTEMPTS};
 pub use gc::{PruneCandidate, PruneReason, PruneReport};
 pub use jobs::{Claim, Fence};
 pub use lineage::{FindingRow, WaiverRecord};
+pub use local_heads::{LocalHeadPin, PrunableLocalHead};
 pub use outbox::{INVALID_ANCHOR, Operation};
 pub use publish::{MAX_PUBLISH_ATTEMPTS, ObjectKind, PublishClaim};
 pub use queue::JobFilter;
@@ -206,56 +208,6 @@ fn int(value: u64) -> i64 {
 }
 
 impl Storage {
-    /// Records a RUNNING run with the next generation of its change, in one transaction.
-    pub async fn begin_run(
-        &self,
-        partition: &Partition,
-        change_key: &str,
-        snapshot: &SourceSnapshotId,
-        policy: &PolicySnapshotId,
-        now: Timestamp,
-    ) -> Result<RunHandle, StorageError> {
-        let mut tx = self.write().await?;
-        let row = sqlx::query(
-            "INSERT INTO changes (tenant_id, access_scope, change_key, desired_generation)
-             VALUES ($1, $2, $3, 1)
-             ON CONFLICT (tenant_id, access_scope, change_key)
-             DO UPDATE SET desired_generation = changes.desired_generation + 1
-             RETURNING id, desired_generation",
-        )
-        .bind(&partition.tenant_id)
-        .bind(&partition.access_scope)
-        .bind(change_key)
-        .fetch_one(&mut *tx)
-        .await?;
-        let change_id: i64 = row.get(0);
-        let generation: i64 = row.get(1);
-        let id = RunId::new_v7();
-        sqlx::query(
-            "INSERT INTO runs (id, tenant_id, access_scope, change_id, generation,
-                 source_snapshot_id, policy_snapshot_id, state, stage, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, 'RUNNING', 'PLAN', $8)",
-        )
-        .bind(id.to_string())
-        .bind(&partition.tenant_id)
-        .bind(&partition.access_scope)
-        .bind(change_id)
-        .bind(generation)
-        .bind(snapshot.0.to_string())
-        .bind(policy.0.to_string())
-        .bind(now.as_second())
-        .execute(&mut *tx)
-        .await?;
-        tx.commit().await?;
-        tracing::info!(run = %id, generation, change = %change_key, "run started");
-        Ok(RunHandle {
-            id,
-            partition: partition.clone(),
-            generation: u64::try_from(generation).unwrap_or_default(),
-            fence: None,
-        })
-    }
-
     /// Stores a document as canonical JSON and pins it to the run under `role`.
     /// The row is written before the bytes, so a crash leaves a row GC can see.
     pub async fn put_artifact<T: Serialize>(

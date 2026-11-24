@@ -2,6 +2,23 @@
 
 Local review reads only Git objects, stores the run in local storage ([STORAGE.md](STORAGE.md)) and publishes nothing to the SCM.
 
+## Uncommitted changes
+
+`--staged` uses the index on top of `HEAD`. `--worktree` uses the index, tracked working-tree
+changes and untracked files that Git does not ignore. Both compare against the selected base.
+
+```sh
+sych review --staged
+sych review --worktree
+```
+
+Run one mode at a time. The current `HEAD` is the parent of the synthetic commit, so these
+modes cannot be combined with `--head`, `--change`, or a positional target ending at a different ref. Sych builds the commit in a temporary
+index, with Git filters and hooks disabled. Your files, index, `HEAD` and branch refs stay intact.
+The report marks the head as uncommitted. Sych pins the commit in `refs/sych/local/` while the
+run's source is retained (normally seven days), and `sych cache prune` releases the pin when that
+source expires.
+
 ## Workflow
 
 ```sh
@@ -20,7 +37,7 @@ sych explain --run RUN_ID --obligation EFFECT-01 --format markdown
   `--base`, `--head` or `--diff-base` exits 2.
 - `--base` names the target tip for policy and computes the diff from the merge base. `--diff-base` uses
   an exact two-dot comparison.
-- Sych warns when the working tree is dirty. The run reads committed changes from the pinned snapshot.
+- A committed review warns when the working tree is dirty. Every run reads the pinned snapshot.
 - Model selection follows [the personal configuration](CONFIG.md#files). Pass `--models fake` to force
   a review with zero model calls, or `--models PROFILE` to select a model ([ANALYSIS.md](ANALYSIS.md)).
 - A changed file is not read, but stays in scope as excluded `GENERATED`, when the target tip's `.gitattributes`

@@ -4,6 +4,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
+use sych_adapters::git::capture_local_head;
+use sych_core::SnapshotHeadKind;
 use sych_storage::Storage;
 use tokio::time;
 
@@ -24,12 +26,40 @@ pub fn run(args: &ReviewArguments) -> anyhow::Result<ExitCode> {
     }
 
     let comparison = target::resolve(&args.comparison, args.target.as_deref())?;
-    target::warn_dirty(&comparison.repo);
-    let report = review::run_local_cli(request(args, comparison))?;
+    let mut request = request(args, comparison);
+    request.head_kind = match (args.staged, args.worktree) {
+        (true, _) => SnapshotHeadKind::Staged,
+        (_, true) => SnapshotHeadKind::Worktree,
+        _ => SnapshotHeadKind::Committed,
+    };
+    let terminal = terminal_summary(&args.out);
+    let local_head = if let Some(label) = render::uncommitted_label(request.head_kind) {
+        if request.comparison.head != "HEAD" {
+            return Err(Failure::invalid(
+                "--staged and --worktree require HEAD as the reviewed head",
+            )
+            .into());
+        }
+
+        let head = capture_local_head(&request.comparison.repo, request.head_kind)?;
+        if !terminal {
+            eprintln!("Reviewing {label}.");
+        }
+
+        Some(head)
+    } else {
+        target::warn_dirty(&request.comparison.repo);
+        None
+    };
+    let report = review::run_local_cli(request, local_head)?;
     let r = &report.review_result;
     // The result is saved before it is written; `sych show` can still print it.
-    if terminal_summary(&args.out) {
-        emit(&render::summary(r), None)?;
+    if terminal {
+        let kind = report
+            .snapshot
+            .as_ref()
+            .map_or(SnapshotHeadKind::Committed, |s| s.head_kind);
+        emit(&render::summary(r, kind), None)?;
     } else {
         emit_report(&report, &args.out)?;
     }
@@ -134,7 +164,7 @@ fn change_review(args: &ReviewArguments, change: &str) -> anyhow::Result<ExitCod
     })??;
     let path = args.out.output.as_deref();
     if terminal_summary(&args.out) {
-        emit(&render::summary(&result), None)?;
+        emit(&render::summary(&result, SnapshotHeadKind::Committed), None)?;
     } else if matches!(args.out.format, Some(ReportFormat::Sarif)) {
         emit_json(&render_sarif::sarif(&result), path)?;
     } else {

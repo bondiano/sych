@@ -3,6 +3,8 @@
 mod attributes;
 mod command;
 mod fetch;
+mod local_head;
+mod local_worktree;
 mod parse;
 mod policy;
 mod reader;
@@ -13,6 +15,7 @@ use thiserror::Error;
 
 pub use command::Git;
 pub use fetch::fetch_commits;
+pub use local_head::{LocalHead, capture_local_head, delete_local_ref};
 pub use policy::{MAX_POLICY_FILE_BYTES, read_policy_files};
 pub use snapshot::{LocalSnapshot, SnapshotRequest};
 pub use workspace::Materialized;

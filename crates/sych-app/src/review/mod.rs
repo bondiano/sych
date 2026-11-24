@@ -6,7 +6,7 @@ use std::{fs, io};
 
 use anyhow::Context;
 
-use sych_adapters::git::LocalSnapshot;
+use sych_adapters::git::{LocalHead, LocalSnapshot};
 use sych_adapters::{execution, syntax};
 use sych_core::analysis::Discovered;
 use sych_core::broker::{EvidencePacket, Limits};
@@ -19,7 +19,7 @@ use sych_core::db_schema::DbSchemaConfig;
 use sych_core::{
     Candidate, Coverage, Evidence, EvidenceManifest, ExternalInputManifest, FileChange,
     PolicySnapshot, PolicySource, Recommendation, ReviewPlan, ReviewResult, RunFacts,
-    SchemaVersion, SourceSide, Timestamp, is_migration_path, plan, redact,
+    SchemaVersion, SnapshotHeadKind, SourceSide, Timestamp, is_migration_path, plan, redact,
 };
 use sych_core::{deploy, effects};
 use sych_storage::{RunHandle, StoreConfig};
@@ -231,6 +231,7 @@ enum Target {
     Local {
         change_key: String,
         kind: LocalRun,
+        local_head: Option<LocalHead>,
     },
     /// Every write carries `run.fence`; the run stops when `cancel` turns true or drops.
     Claimed {
@@ -246,10 +247,11 @@ enum LocalRun {
 }
 
 impl Target {
-    fn local(args: &Request, kind: LocalRun) -> Self {
+    fn local(args: &Request, kind: LocalRun, local_head: Option<LocalHead>) -> Self {
         Self::Local {
             change_key: format!("{}...{}", args.comparison.base, args.comparison.head),
             kind,
+            local_head,
         }
     }
 
@@ -295,10 +297,17 @@ const MAX_INTENT_FILE_BYTES: u64 = 1 << 20;
 /// no intent rather than failing the review: intent is optional context.
 fn intent(args: &Request, snap: &LocalSnapshot) -> anyhow::Result<Option<String>> {
     let Some(path) = &args.intent_file else {
-        return Ok(snap
-            .commit_messages(MAX_INTENT_COMMITS)
-            .ok()
-            .map(|m| m.join("\n\n")));
+        let messages = snap.commit_messages(MAX_INTENT_COMMITS).ok();
+        if args.head_kind == SnapshotHeadKind::Committed {
+            return Ok(messages.map(|m| m.join("\n\n")));
+        }
+
+        let mut messages = messages.unwrap_or_default();
+        messages.insert(
+            0,
+            "The uncommitted changes have no commit message of their own.".into(),
+        );
+        return Ok(Some(messages.join("\n\n")));
     };
     let read = fs::metadata(path)
         .and_then(|m| {
@@ -314,7 +323,8 @@ fn intent(args: &Request, snap: &LocalSnapshot) -> anyhow::Result<Option<String>
 
 /// Pins the comparison and reads the trusted policy at its target tip.
 pub fn pin(args: &Request) -> anyhow::Result<Pinned> {
-    let snap = snapshot::capture(&args.comparison).context("cannot pin the comparison")?;
+    let snap = snapshot::capture_with_kind(&args.comparison, args.head_kind)
+        .context("cannot pin the comparison")?;
     let (effective, trusted, head, source) = trusted_config(args, &snap)?;
     Ok(Pinned {
         snap,
@@ -340,14 +350,19 @@ fn waive(effective: &mut EffectiveConfig, waivers: &[(String, RuleException)]) {
 }
 
 /// Reviews and saves a new run in the local CLI store.
-pub fn run_local_cli(mut args: Request) -> anyhow::Result<Report> {
+pub fn run_local_cli(mut args: Request, local_head: Option<LocalHead>) -> anyhow::Result<Report> {
     let kind = if args.config.is_some() {
         LocalRun::ConfiguredCli
     } else {
         args.config = config::local_path(None)?;
         LocalRun::DefaultCli
     };
-    execute(&args, None, Target::local(&args, kind)).map(|(report, ..)| report)
+    if let Some(head) = &local_head {
+        head.commit().hex().clone_into(&mut args.comparison.head);
+    }
+
+    let target = Target::local(&args, kind, local_head);
+    execute(&args, None, target).map(|(report, ..)| report)
 }
 
 /// Runs an evaluation, returning all candidates and the packets a finished discovery searched.
@@ -355,7 +370,7 @@ pub fn run_with_candidates(
     args: &Request,
     store: Option<StoreConfig>,
 ) -> anyhow::Result<(Report, Vec<Candidate>, Vec<usize>)> {
-    execute(args, store, Target::local(args, LocalRun::Evaluation))
+    execute(args, store, Target::local(args, LocalRun::Evaluation, None))
 }
 
 /// Reviews into an existing server run under its lease.

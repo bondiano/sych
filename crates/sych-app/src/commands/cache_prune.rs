@@ -1,5 +1,6 @@
 use std::process::ExitCode;
 
+use sych_adapters::git::delete_local_ref;
 use sych_core::Timestamp;
 use sych_storage::Storage;
 
@@ -22,12 +23,13 @@ pub fn run(args: &CachePruneArguments) -> anyhow::Result<ExitCode> {
     let retention = server.storage.retention;
     let artifacts = store.artifacts.clone();
     let now = Timestamp::now();
-    let (report, records, active) = block_on(async move {
+    let (report, records, active, refs) = block_on(async move {
         let storage = Storage::open(&store).await?;
         let report = storage.prune(now, dry_run).await?;
         let records = storage.prune_records(now, &retention, dry_run).await?;
         let active = storage.active_repositories().await?;
-        Ok::<_, sych_storage::StorageError>((report, records, active))
+        let refs = prune_local_refs(&storage, now, dry_run).await?;
+        Ok::<_, sych_storage::StorageError>((report, records, active, refs))
     })??;
     for c in &report.candidates {
         println!("{:?} {} {}", c.reason, c.kind, c.sha256);
@@ -44,9 +46,33 @@ pub fn run(args: &CachePruneArguments) -> anyhow::Result<ExitCode> {
         eligible = report.candidates.len(),
         deleted = report.deleted,
         records = records.iter().map(|r| r.rows).sum::<i64>(),
+        local_refs = refs,
         mirrors = gone.len(),
         dry_run,
         "prune finished"
     );
     Ok(ExitCode::SUCCESS)
+}
+
+async fn prune_local_refs(
+    storage: &Storage,
+    now: Timestamp,
+    dry_run: bool,
+) -> Result<usize, sych_storage::StorageError> {
+    let mut count = 0;
+    for head in storage.prunable_local_heads(now).await? {
+        if !dry_run {
+            if let Err(err) = delete_local_ref(&head.git_dir, &head.oid) {
+                tracing::warn!(run = %head.run, error = %err, "cannot prune local Git ref");
+                continue;
+            }
+
+            storage.forget_local_head(&head).await?;
+        }
+
+        println!("LocalRef refs/sych/local/{}", head.oid.hex());
+        count += 1;
+    }
+
+    Ok(count)
 }

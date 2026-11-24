@@ -181,6 +181,12 @@ pub struct ReviewArguments {
     pub target: Option<String>,
     #[command(flatten)]
     pub comparison: Comparison,
+    /// Review the staged index on top of HEAD
+    #[arg(long, conflicts_with_all = ["worktree", "change", "head"])]
+    pub staged: bool,
+    /// Review staged, unstaged and untracked files on top of HEAD (excluding ignored files)
+    #[arg(long, conflicts_with_all = ["change", "head"])]
+    pub worktree: bool,
     /// Review a provider change at its current state instead of local refs; never publishes
     #[arg(
         long,

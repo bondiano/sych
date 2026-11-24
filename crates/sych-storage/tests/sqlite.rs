@@ -4,11 +4,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use sych_core::{
-    PolicySnapshotId, ReviewResult, RunId, SourceSnapshotId, Timestamp, decode, sha256,
+    GitObjectId, PolicySnapshotId, ReviewResult, RunId, SourceSnapshotId, Timestamp, decode, sha256,
 };
 use sych_storage::{
-    ArtifactKind, Database, Partition, PruneReason, RunHandle, Storage, StorageError, StoreConfig,
-    TENANT_LOCAL,
+    ArtifactKind, Database, LocalHeadPin, Partition, PruneReason, RunHandle, Storage, StorageError,
+    StoreConfig, TENANT_LOCAL,
 };
 use tempfile::TempDir;
 
@@ -69,10 +69,15 @@ async fn begin(storage: &Storage, change: &str) -> RunHandle {
 
 async fn completed(storage: &Storage) -> (RunHandle, ReviewResult) {
     let run = begin(storage, "main...feature").await;
-    let result = result_for(&run);
+    let result = complete(storage, &run).await;
+    (run, result)
+}
+
+async fn complete(storage: &Storage, run: &RunHandle) -> ReviewResult {
+    let result = result_for(run);
     storage
         .put_artifact(
-            &run,
+            run,
             "source_snapshot",
             ArtifactKind::SourceSnapshot,
             &"snapshot",
@@ -82,7 +87,7 @@ async fn completed(storage: &Storage) -> (RunHandle, ReviewResult) {
         .expect("put snapshot");
     let digest = storage
         .put_artifact(
-            &run,
+            run,
             "review_result",
             ArtifactKind::ReviewResult,
             &result,
@@ -91,10 +96,50 @@ async fn completed(storage: &Storage) -> (RunHandle, ReviewResult) {
         .await
         .expect("put result");
     storage
-        .complete_run(&run, &result, &digest, at(1))
+        .complete_run(run, &result, &digest, at(1))
         .await
         .expect("complete");
-    (run, result)
+    result
+}
+
+#[tokio::test]
+async fn local_head_lives_with_its_run_and_source_snapshot() {
+    let (dir, storage) = migrated().await;
+    let oid: GitObjectId = format!("sha1:{}", "a".repeat(40)).parse().expect("oid");
+    let pin = LocalHeadPin {
+        git_dir: dir.path().to_str().expect("path"),
+        oid: &oid,
+    };
+    let run = storage
+        .begin_run_with_local_head(
+            &partition(),
+            "local head",
+            &SourceSnapshotId(sha256(b"snapshot")),
+            &PolicySnapshotId(sha256(b"policy")),
+            at(0),
+            Some(pin),
+        )
+        .await
+        .expect("begin");
+    let prune = async |offset| {
+        storage
+            .prunable_local_heads(at(offset))
+            .await
+            .expect("local heads")
+    };
+    assert!(prune(8 * DAY).await.is_empty(), "active run");
+    complete(&storage, &run).await;
+    assert!(prune(7 * DAY - 1).await.is_empty(), "retained source");
+    let expired = prune(7 * DAY).await;
+    assert_eq!(expired.len(), 1);
+    assert_eq!(expired[0].oid, oid);
+    assert_eq!(expired[0].git_dir, dir.path());
+    assert_eq!(expired[0].run, run.id);
+    storage
+        .forget_local_head(&expired[0])
+        .await
+        .expect("forget");
+    assert!(prune(8 * DAY).await.is_empty());
 }
 
 #[tokio::test]

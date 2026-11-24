@@ -14,7 +14,8 @@ use sych_core::effects::EffectLedger;
 use sych_core::{
     CiFacts, CodeRef, DiffManifest, Evidence, EvidenceManifest, ExternalInputManifest, Finding,
     LintFacts, Obligation, ObligationStatus, PolicySnapshot, PolicySource, ReviewResult,
-    SchemaVersion, SemanticFacts, Severity, SourceSnapshot, SyntaxFacts, UsageSummary,
+    SchemaVersion, SemanticFacts, Severity, SnapshotHeadKind, SourceSnapshot, SyntaxFacts,
+    UsageSummary,
 };
 
 /// Policy diagnostics of a run: effective-config provenance and the head's proposed diff.
@@ -91,8 +92,14 @@ fn terminal_line(text: &str) -> String {
         .collect()
 }
 
-pub fn summary(result: &ReviewResult) -> String {
-    let mut out = format!(
+pub fn summary(result: &ReviewResult, head_kind: SnapshotHeadKind) -> String {
+    let mut out = String::new();
+    if let Some(label) = uncommitted_label(head_kind) {
+        let _ = writeln!(out, "Head: {label}");
+    }
+
+    let _ = write!(
+        out,
         "Recommendation: {}\nCoverage: {}\nFindings:",
         tag(&result.recommendation),
         tag(&result.coverage),
@@ -351,6 +358,14 @@ fn policy(out: &mut String, report: &Report) {
     );
 }
 
+pub(crate) fn uncommitted_label(kind: SnapshotHeadKind) -> Option<&'static str> {
+    match kind {
+        SnapshotHeadKind::Committed => None,
+        SnapshotHeadKind::Staged => Some("staged changes (uncommitted)"),
+        SnapshotHeadKind::Worktree => Some("working tree changes (uncommitted)"),
+    }
+}
+
 pub fn markdown(report: &Report) -> String {
     let r = &report.review_result;
     let mut out = String::new();
@@ -374,6 +389,10 @@ pub fn markdown(report: &Report) -> String {
         );
         let _ = writeln!(out, "- diff base: {} ({})", s.diff_base, tag(&s.comparison));
         let _ = writeln!(out, "- head: {}", s.head);
+        if let Some(label) = uncommitted_label(s.head_kind) {
+            let _ = writeln!(out, "- head source: {label}");
+        }
+
         let _ = writeln!(out, "- snapshot: {}", s.id.0);
     } else {
         let _ = writeln!(
