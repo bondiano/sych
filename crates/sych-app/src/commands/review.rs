@@ -1,5 +1,4 @@
 use std::io::{self, IsTerminal};
-use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
@@ -26,8 +25,7 @@ pub fn run(args: &ReviewArguments) -> anyhow::Result<ExitCode> {
 
     let comparison = target::resolve(&args.comparison, args.target.as_deref())?;
     target::warn_dirty(&comparison.repo);
-    let config = config::local_path(args.config.as_deref())?;
-    let report = review::run_local_cli(&request(args, comparison, config))?;
+    let report = review::run_local_cli(request(args, comparison))?;
     let r = &report.review_result;
     // The result is saved before it is written; `sych show` can still print it.
     if terminal_summary(&args.out) {
@@ -45,13 +43,9 @@ fn terminal_summary(out: &ReportOutput) -> bool {
 }
 
 /// What a local `sych review` asks of the pipeline: its flags, the rest at their defaults.
-fn request(
-    args: &ReviewArguments,
-    comparison: Comparison,
-    config: Option<PathBuf>,
-) -> review::Request {
+fn request(args: &ReviewArguments, comparison: Comparison) -> review::Request {
     review::Request {
-        config,
+        config: args.config.clone(),
         fake_responses: args.fake_responses.clone(),
         policy_ref: args.policy_ref.clone(),
         semantic: args.semantic,

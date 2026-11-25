@@ -223,7 +223,7 @@ fn model_profile(
 enum Target {
     Local {
         change_key: String,
-        cli: bool,
+        kind: LocalRun,
     },
     /// Every write carries `run.fence`; the run stops when `cancel` turns true or drops.
     Claimed {
@@ -232,16 +232,28 @@ enum Target {
     },
 }
 
+enum LocalRun {
+    Evaluation,
+    ConfiguredCli,
+    DefaultCli,
+}
+
 impl Target {
-    fn local(args: &Request, cli: bool) -> Self {
+    fn local(args: &Request, kind: LocalRun) -> Self {
         Self::Local {
             change_key: format!("{}...{}", args.comparison.base, args.comparison.head),
-            cli,
+            kind,
         }
     }
 
     fn is_local_cli(&self) -> bool {
-        matches!(self, Self::Local { cli: true, .. })
+        matches!(
+            self,
+            Self::Local {
+                kind: LocalRun::ConfiguredCli | LocalRun::DefaultCli,
+                ..
+            }
+        )
     }
 }
 
@@ -321,8 +333,14 @@ fn waive(effective: &mut EffectiveConfig, waivers: &[(String, RuleException)]) {
 }
 
 /// Reviews and saves a new run in the local CLI store.
-pub fn run_local_cli(args: &Request) -> anyhow::Result<Report> {
-    execute(args, None, Target::local(args, true)).map(|(report, ..)| report)
+pub fn run_local_cli(mut args: Request) -> anyhow::Result<Report> {
+    let kind = if args.config.is_some() {
+        LocalRun::ConfiguredCli
+    } else {
+        args.config = config::local_path(None)?;
+        LocalRun::DefaultCli
+    };
+    execute(&args, None, Target::local(&args, kind)).map(|(report, ..)| report)
 }
 
 /// Runs an evaluation, returning all candidates and the packets a finished discovery searched.
@@ -330,7 +348,7 @@ pub fn run_with_candidates(
     args: &Request,
     store: Option<StoreConfig>,
 ) -> anyhow::Result<(Report, Vec<Candidate>, Vec<usize>)> {
-    execute(args, store, Target::local(args, false))
+    execute(args, store, Target::local(args, LocalRun::Evaluation))
 }
 
 /// Reviews into an existing server run under its lease.
@@ -366,13 +384,17 @@ fn execute(
     } = pin(args)?;
     waive(&mut effective, &args.waivers);
     let model = model_profile(args, fake.is_some(), &effective.server)?;
-    let store = match store {
-        Some(store) => store,
-        None if target.is_local_cli() => {
-            storage::local_store_config(args.config.as_deref(), &effective.server)
-                .context("cannot locate the store")?
-        }
-        None => storage::store_config(args.config.as_deref(), &effective.server)
+    let store = match (store, &target) {
+        (Some(store), _) => store,
+        (
+            None,
+            Target::Local {
+                kind: LocalRun::DefaultCli,
+                ..
+            },
+        ) => storage::local_store_config(args.config.as_deref(), &effective.server)
+            .context("cannot locate the store")?,
+        (None, _) => storage::store_config(args.config.as_deref(), &effective.server)
             .context("cannot locate the store")?,
     };
     if args.policy_ref.is_some() {

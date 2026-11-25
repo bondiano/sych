@@ -163,7 +163,11 @@ pub fn load_store_config(config: Option<&Path>) -> anyhow::Result<StoreConfig> {
 
 /// Resolve the store used by direct local review and the commands that read its runs.
 pub fn load_local_store_config(config: Option<&Path>) -> anyhow::Result<StoreConfig> {
-    let path = config::local_path(config)?;
+    if config.is_some() {
+        return load_store_config(config);
+    }
+
+    let path = config::local_path(None)?;
     let path = path.as_deref();
     local_store_config(path, &config::server(path)?)
 }

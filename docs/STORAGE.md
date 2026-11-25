@@ -16,8 +16,9 @@
 - `storage.database_url_env` accepts a `postgres://…` or `postgresql://…` URL for PostgreSQL; invalid or unsupported
   URLs fail without falling back to SQLite. PostgreSQL connection strings are redacted in logs and doctor output.
   SQLite values (`sqlite://PATH`, `sqlite:PATH` or a raw path) and `storage.artifact_store.path` resolve relative
-  to `sych.yaml` (absolute paths stay absolute). For default paths in a local review, Sych looks for
-  `.sych-data/` next to `sych.yaml`, then in the current directory. Otherwise it puts `sych.db` and
+  to `sych.yaml` (absolute paths stay absolute). With an explicit `--config`, default paths are under
+  `.sych-data/` next to that file. Without `--config`, local commands look for `.sych-data/` next to
+  the discovered personal config, then in the current directory. Otherwise they put `sych.db` and
   `artifacts/` under `$XDG_DATA_HOME/sych/`.
   When `XDG_DATA_HOME` is unset or relative, the directory is `~/.local/share/sych/` on Linux,
   `~/Library/Application Support/sych/` on macOS, or `%LOCALAPPDATA%/sych/` on Windows.

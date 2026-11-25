@@ -145,3 +145,36 @@ fn review_loads_user_config_and_allows_an_explicit_config_override() {
     let (out, _) = reviewed(cwd, &[]);
     assert!(!String::from_utf8_lossy(&out.stderr).contains("No model was selected or called"));
 }
+
+#[test]
+fn an_explicit_config_keeps_the_same_store_for_review_and_maintenance() {
+    let repo = text_repository();
+    let cwd = repo.path();
+    let config = "custom/explicit.yaml";
+    fs::create_dir(cwd.join("custom")).expect("config directory");
+    fs::write(cwd.join(config), "schema_version: 1\nmode: personal\n").expect("config");
+    let (_, report) = reviewed(cwd, &["--config", config]);
+    let run = report["review_result"]["run_id"].as_str().expect("run");
+
+    let pruned = sych(cwd, &["cache", "prune", "--dry-run", "--config", config]);
+    assert!(
+        pruned.status.success(),
+        "{}",
+        String::from_utf8_lossy(&pruned.stderr)
+    );
+    let migrated = sych(cwd, &["db", "migrate", "--config", config]);
+    assert!(
+        migrated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&migrated.stderr)
+    );
+    let shown = sych(cwd, &["show", "--run", run, "--config", config]);
+    assert!(
+        shown.status.success(),
+        "{}",
+        String::from_utf8_lossy(&shown.stderr)
+    );
+    assert_eq!(json(&shown), report);
+    assert!(cwd.join("custom/.sych-data/sych.db").is_file());
+    assert!(!cwd.join("user-data/sych/sych.db").exists());
+}
