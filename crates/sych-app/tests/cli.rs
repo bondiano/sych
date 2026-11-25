@@ -8,6 +8,9 @@ use std::process::{Command, Output};
 use serde_json::Value;
 use tempfile::TempDir;
 
+#[path = "cli/defaults.rs"]
+mod defaults;
+
 const RULES: &str = r#"schema_version: 1
 rules:
   - id: EFFECT-01
@@ -85,6 +88,8 @@ assessments:
 fn sych(cwd: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_sych"))
         .current_dir(cwd)
+        .env("XDG_CONFIG_HOME", cwd.join("user-config"))
+        .env("XDG_DATA_HOME", cwd.join("user-data"))
         .args(args)
         .output()
         .expect("run sych")
@@ -93,6 +98,7 @@ fn sych(cwd: &Path, args: &[&str]) -> Output {
 /// A migrated store in its own working directory (`./.sych-data`).
 fn store() -> TempDir {
     let dir = TempDir::new().expect("tempdir");
+    fs::create_dir(dir.path().join(".sych-data")).expect("legacy directory");
     assert_eq!(sych(dir.path(), &["db", "migrate"]).status.code(), Some(0));
     dir
 }
@@ -220,7 +226,7 @@ fn empty_diff_saves_an_explicit_empty_scope() {
 }
 
 #[test]
-fn invalid_fixture_unmigrated_store_and_failed_save_keep_no_result() {
+fn invalid_fixture_and_failed_save_keep_no_result() {
     let (repo, data) = (repo(false), store());
     let bad = data.path().join("bad.yaml");
     fs::write(&bad, "schema_version: 1\nassessments:\n  - rule_id: EFFECT-01\n    status: SUPPORTED\n    evidence: [missing]\n").expect("write");
@@ -230,12 +236,6 @@ fn invalid_fixture_unmigrated_store_and_failed_save_keep_no_result() {
         &["--fake-responses", bad.to_str().expect("path")],
     );
     assert_eq!(out.status.code(), Some(2));
-
-    let empty = TempDir::new().expect("tempdir");
-    assert_eq!(
-        review(empty.path(), repo.path(), &[]).status.code(),
-        Some(3)
-    );
 
     // Artifact bytes cannot be written: the run is FAILED, never COMPLETED.
     fs::remove_dir_all(data.path().join(".sych-data/artifacts")).ok();

@@ -1,11 +1,12 @@
 //! Backend connections, explicit migrations and the shared single-writer transaction.
 
-use std::fs;
+use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::path;
 
 use sqlx::any::{AnyConnectOptions, AnyPoolOptions, install_default_drivers};
 use sqlx::{Any, AnyPool, Row, Transaction};
+use tokio::task::spawn_blocking;
 use url::Url;
 
 use crate::{
@@ -121,37 +122,80 @@ async fn pool(database: &Database, create: bool) -> Result<AnyPool, StorageError
         .map_err(StorageError::from)
 }
 
-impl Storage {
-    /// Applies pending migrations; the only operation that creates a database file or schema.
-    pub async fn migrate(config: &StoreConfig) -> Result<Vec<i64>, StorageError> {
-        if let Database::Sqlite(path) = &config.database
-            && let Some(dir) = path.parent()
-        {
-            fs::create_dir_all(dir)?;
-        }
+async fn migrate_pool(database: &Database) -> Result<(AnyPool, Vec<i64>), StorageError> {
+    // SQLx's SQLite migration lock is a no-op. Keep a sidecar locked until the schema
+    // is ready so concurrent reviews and explicit migrations serialize across processes.
+    let _lock = if let Database::Sqlite(path) = database {
+        let mut lock = path.as_os_str().to_owned();
+        lock.push(".migrate.lock");
+        Some(
+            spawn_blocking(move || -> io::Result<File> {
+                let lock = path::PathBuf::from(lock);
+                if let Some(dir) = lock.parent() {
+                    fs::create_dir_all(dir)?;
+                }
 
-        let postgres = matches!(&config.database, Database::Postgres(_));
-        let migrator = if postgres {
-            &POSTGRES_MIGRATOR
-        } else {
-            &MIGRATOR
-        };
-        let pool = pool(&config.database, true).await?;
-        let before = applied(&pool, postgres).await?;
-        if before.iter().any(|version| {
-            !migrator
-                .iter()
-                .any(|migration| migration.version == *version)
-        }) {
-            pool.close().await;
-            return Err(StorageError::NewerSchema(config.database.to_string()));
-        }
-
-        migrator.run(&pool).await?;
-        let after = applied(&pool, postgres).await?;
+                let file = OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .truncate(false)
+                    .open(lock)?;
+                file.lock()?;
+                Ok(file)
+            })
+            .await
+            .map_err(io::Error::other)??,
+        )
+    } else {
+        None
+    };
+    let postgres = matches!(database, Database::Postgres(_));
+    let migrator = if postgres {
+        &POSTGRES_MIGRATOR
+    } else {
+        &MIGRATOR
+    };
+    let pool = pool(database, true).await?;
+    let before = applied(&pool, postgres).await?;
+    if before.iter().any(|version| {
+        !migrator
+            .iter()
+            .any(|migration| migration.version == *version)
+    }) {
         pool.close().await;
-        tracing::info!(database = %config.database, applied = after.len() - before.len(), "database migrated");
-        Ok(after.into_iter().filter(|v| !before.contains(v)).collect())
+        return Err(StorageError::NewerSchema(database.to_string()));
+    }
+
+    migrator.run(&pool).await?;
+    let after = applied(&pool, postgres).await?;
+    let changes: Vec<_> = after.into_iter().filter(|v| !before.contains(v)).collect();
+    tracing::info!(%database, applied = changes.len(), "database migrated");
+    Ok((pool, changes))
+}
+
+impl Storage {
+    /// Applies pending migrations and creates the database if necessary.
+    pub async fn migrate(config: &StoreConfig) -> Result<Vec<i64>, StorageError> {
+        let (pool, changes) = migrate_pool(&config.database).await?;
+        pool.close().await;
+        Ok(changes)
+    }
+
+    /// Opens the local review store, applying pending migrations for SQLite only.
+    pub async fn open_local(config: &StoreConfig) -> Result<Self, StorageError> {
+        match Self::open(config).await {
+            Err(StorageError::NotMigrated(_)) if matches!(config.database, Database::Sqlite(_)) => {
+            }
+            opened => return opened,
+        }
+
+        let (pool, _) = migrate_pool(&config.database).await?;
+        Ok(Self {
+            pool,
+            store: ArtifactStore::new(&config.artifacts),
+            postgres: false,
+        })
     }
 
     /// Opens a migrated database; never creates a database file or changes the schema.

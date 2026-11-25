@@ -29,7 +29,7 @@ use crate::backend::{self, ResolveError};
 use crate::errors::Failure;
 use crate::output::emit_as;
 use crate::render::Report;
-use crate::storage::{block_on, load_store_config, saved_report};
+use crate::storage::{block_on, load_local_store_config, saved_report};
 use crate::{config, tour_reader};
 
 /// Spans one context query may add, as in analysis.
@@ -228,7 +228,7 @@ pub fn run(args: &AskArguments) -> anyhow::Result<ExitCode> {
             .into());
         }
     };
-    let store = load_store_config(r.config.as_deref())?;
+    let store = load_local_store_config(r.config.as_deref())?;
     let report = saved_report(r.config.as_deref(), &r.run)?;
     let actor = tour_reader::LOCAL_ACTOR;
     let exchange = block_on(async {

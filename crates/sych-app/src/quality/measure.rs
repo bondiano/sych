@@ -91,7 +91,7 @@ fn review_case(
         execution: case.execution.as_ref().map(super::CaseExecution::config),
         replay,
         risk_audit: args.risk_audit,
-        ..review::Request::new(comparison, args.models.clone())
+        ..review::Request::new(comparison, Some(args.models.clone()))
     };
     // The configured store: its ledger keeps the money caps across the whole suite.
     review::run_with_candidates(&review, None)

@@ -46,7 +46,7 @@ pub fn emit_as<T: Serialize>(
 /// A saved review as `out` asks, SARIF included.
 pub fn emit_report(report: &Report, out: &ReportOutput) -> anyhow::Result<()> {
     let path = out.output.as_deref();
-    match out.format {
+    match out.format.unwrap_or(ReportFormat::Json) {
         ReportFormat::Json => emit_json(report, path),
         ReportFormat::Markdown => emit(&render::markdown(report), path),
         ReportFormat::Sarif => emit_json(&render_sarif::sarif(&report.review_result), path),

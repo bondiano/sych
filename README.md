@@ -23,22 +23,15 @@ Paste this into your coding agent (Claude Code, Codex, Cursor…) in the reposit
 the CLI and runs a free review without any model calls:
 
 ```text
-Install Sych 0.2.0 (https://github.com/bondiano/sych) and run a free trial review of this repository.
+Install Sych from the main branch of https://github.com/bondiano/sych and run a free review.
 
-1. Install the CLI. Download the archive for this machine and its .sha256 file from
-   https://github.com/bondiano/sych/releases/tag/v0.2.0 (targets: x86_64-unknown-linux-gnu,
-   aarch64-unknown-linux-gnu, aarch64-apple-darwin), verify the checksum, and install the `sych`
-   binary into ~/.local/bin (make sure that directory is on PATH). On any other platform run
-   `cargo install --git https://github.com/bondiano/sych --tag v0.2.0 --locked sych-app`
-   instead (needs Rust 1.94 or newer). `sych --version` must print `sych 0.2.0`.
-2. In the repository root, add `.sych-data/` to .gitignore: the local store lives there.
-3. Run `sych db migrate`.
-4. Run `sych review --repo . --base origin/main --models fake --format markdown`. Use the
-   repository's default branch instead of origin/main if it differs. If HEAD has no commits
-   beyond it, use `--base HEAD~1`. `--models fake` makes no model calls. The first run downloads
+1. Install the CLI with Rust 1.94 or newer:
+   cargo install --git https://github.com/bondiano/sych --branch main --locked sych-app
+2. In the repository, run `sych review`. If I already have a Sych configuration, add
+   `--models fake` to guarantee a free run. If HEAD has no commits beyond the default branch
+   and has a parent, add `--diff-base HEAD~1` to review the last commit. The first run downloads
    pinned language servers and linters into ~/.cache/sych/tools.
-5. Show me the result and explain it: the verdict, the obligations and why they stay
-   UNKNOWN/NOT_ASSESSED without a model, and the coverage gaps. Do not change any source files.
+3. Show the verdict, UNKNOWN/NOT_ASSESSED obligations and coverage gaps. Do not change any source files.
 ```
 
 More prompts are on the [install page](https://bondiano.github.io/sych/install/): a real model review through
@@ -52,13 +45,11 @@ as above):
 /plugin install sych@sych
 ```
 
-By hand, on Linux (x86_64, aarch64) or macOS (Apple silicon) with a
-[release archive](https://github.com/bondiano/sych/releases/latest), or from source:
+To run the short form by hand, build the CLI from source and run it inside your repository:
 
 ```sh
-cargo install --git https://github.com/bondiano/sych --tag v0.2.0 --locked sych-app
-sych db migrate
-sych review --repo . --base origin/main --models fake --format markdown
+cargo install --git https://github.com/bondiano/sych --branch main --locked sych-app
+sych review
 ```
 
 The server image is `ghcr.io/bondiano/sych:0.2.0`.
@@ -153,7 +144,7 @@ crates/sych-core/      domain types, planner, reducer, broker, model routing; no
 crates/sych-adapters/  Git snapshot, GitHub, model providers, language servers, syntax/CI facts, sandbox
 crates/sych-storage/   PostgreSQL/SQLite runs and pointers, artifact store, ledger, GC
 crates/sych-style/     the house style check rustfmt and Clippy lack
-migrations/            backend-specific migrations (applied only by `sych db migrate`)
+migrations/            backend-specific database migrations
 schemas/               JSON Schema and OpenAPI generated from the Rust DTOs (do not edit)
 fixtures/              frozen documents, Git/config/review fixtures
 examples/              working personal and corporate sych.yaml with .sych/

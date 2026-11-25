@@ -9,6 +9,15 @@ use super::{
 impl ServerConfig {
     pub(super) fn validate_models(&self, p: &mut Problems<'_>) {
         let m = &self.models;
+        if let Some(name) = &self.default_models {
+            p.check(
+                matches!(name.as_str(), "fake" | "roles")
+                    || (!name.is_empty() && m.profiles.contains_key(name)),
+                "default_models",
+                "expected `fake`, `roles` or a configured model profile",
+            );
+        }
+
         for (name, provider) in &m.providers {
             self.validate_provider(p, name, provider);
         }

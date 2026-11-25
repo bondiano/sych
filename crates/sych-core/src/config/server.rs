@@ -58,6 +58,9 @@ pub struct ServerConfig {
     pub workers: Workers,
     #[serde(default)]
     pub models: Models,
+    /// Model selector for a CLI review without `--models`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_models: Option<String>,
     #[serde(default)]
     pub budgets: Budgets,
     #[serde(default)]

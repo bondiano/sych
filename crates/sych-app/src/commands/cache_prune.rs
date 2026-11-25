@@ -6,13 +6,19 @@ use sych_storage::Storage;
 use crate::args::CachePruneArguments;
 use crate::config;
 use crate::server::mirrors;
-use crate::storage::{block_on, store_config};
+use crate::storage::{block_on, local_store_config, store_config};
 
 /// Artifacts, records past retention and unused mirrors; `--dry-run` only lists the plan.
 pub fn run(args: &CachePruneArguments) -> anyhow::Result<ExitCode> {
     let dry_run = args.dry_run;
-    let server = config::server(args.config.as_deref())?;
-    let store = store_config(args.config.as_deref(), &server)?;
+    let path = config::local_path(args.config.as_deref())?;
+    let path = path.as_deref();
+    let server = config::server(path)?;
+    let store = if args.config.is_some() {
+        store_config(path, &server)?
+    } else {
+        local_store_config(path, &server)?
+    };
     let retention = server.storage.retention;
     let artifacts = store.artifacts.clone();
     let now = Timestamp::now();

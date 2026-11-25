@@ -1,8 +1,8 @@
 //! Hardened `git` invocation.
 //!
 //! The environment is cleared, system and global config are ignored, replace refs and lazy
-//! fetches are disabled, and every command addresses the object database through
-//! `--git-dir`, so no work tree, index, hook, filter, textconv or external diff is involved.
+//! fetches are disabled, and snapshot commands address the object database through `--git-dir`.
+//! The local CLI probes worktree status separately with external helpers disabled.
 //! Arguments are passed as argv, never through a shell.
 
 use std::ffi::OsStr;
@@ -80,6 +80,76 @@ impl Git {
         })
     }
 
+    /// Checks for local changes without feeding the work tree into review analysis.
+    pub fn worktree_dirty(repo: &Path) -> Result<bool, SnapshotError> {
+        let run = |args: &[&str]| {
+            command()
+                .arg("-C")
+                .arg(repo)
+                .args(args)
+                .output()
+                .map_err(|e| spawn_failed(&e))
+        };
+        if checked_stdout(run(&["rev-parse", "--is-inside-work-tree"])?)? != b"true\n" {
+            return Ok(false);
+        }
+
+        // Status can run clean filters for entries whose index stat has changed.
+        let filters = run(&[
+            "config",
+            "--name-only",
+            "--null",
+            "--get-regexp",
+            r"^filter\..*\.(clean|process|required)$",
+        ])?;
+        let keys = if filters.status.code() == Some(1) {
+            Vec::new()
+        } else {
+            checked_stdout(filters)?
+        };
+        let keys = str::from_utf8(&keys)
+            .map_err(|_| SnapshotError::Git("git filter config key is not UTF-8".into()))?;
+        let keys = keys.split_terminator('\0');
+        let count = keys.clone().count();
+        let mut cmd = command();
+        for (index, key) in keys.enumerate() {
+            let value = if key.ends_with(".required") {
+                "false"
+            } else {
+                ""
+            };
+            cmd.env(format!("GIT_CONFIG_KEY_{index}"), key)
+                .env(format!("GIT_CONFIG_VALUE_{index}"), value);
+        }
+
+        let mut child = cmd
+            .env("GIT_CONFIG_COUNT", count.to_string())
+            .arg("-C")
+            .arg(repo)
+            .args([
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=normal",
+                "--ignore-submodules=dirty",
+                "--no-renames",
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|e| spawn_failed(&e))?;
+        let bytes = child
+            .stdout
+            .take()
+            .map(|mut out| io::copy(&mut out, &mut io::sink()))
+            .transpose();
+        let status = child.wait().map_err(|e| spawn_failed(&e))?;
+        if !status.success() {
+            return Err(SnapshotError::Git(format!("git status failed ({status})")));
+        }
+
+        Ok(bytes.map_err(|e| spawn_failed(&e))?.unwrap_or_default() != 0)
+    }
+
     pub fn git_dir(&self) -> &Path {
         &self.git_dir
     }
@@ -135,14 +205,17 @@ impl Git {
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let out = self.output(args)?;
-        if out.status.success() {
-            Ok(out.stdout)
-        } else {
-            Err(SnapshotError::Git(
-                String::from_utf8_lossy(&out.stderr).trim().to_owned(),
-            ))
-        }
+        checked_stdout(self.output(args)?)
+    }
+}
+
+fn checked_stdout(out: Output) -> Result<Vec<u8>, SnapshotError> {
+    if out.status.success() {
+        Ok(out.stdout)
+    } else {
+        Err(SnapshotError::Git(
+            String::from_utf8_lossy(&out.stderr).trim().to_owned(),
+        ))
     }
 }
 

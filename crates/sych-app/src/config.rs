@@ -1,8 +1,8 @@
 //! Reading the server config and the working-tree policy for authoring checks.
 
-use std::fs;
 use std::io::{self, ErrorKind};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::{env, fs};
 
 use sych_adapters::git::MAX_POLICY_FILE_BYTES;
 use sych_core::RepoPath;
@@ -14,6 +14,50 @@ use crate::errors::Failure;
 
 /// The personal example `sych config init` writes.
 pub const PERSONAL_EXAMPLE: &str = include_str!("../../../examples/personal/sych.yaml");
+
+/// Resolve the local CLI config without looking in the reviewed repository.
+pub fn local_path(explicit: Option<&Path>) -> anyhow::Result<Option<PathBuf>> {
+    if let Some(path) = explicit {
+        return Ok(Some(path.to_owned()));
+    }
+
+    let Some(path) =
+        user_dir("XDG_CONFIG_HOME", "APPDATA", ".config").map(|dir| dir.join("sych.yaml"))
+    else {
+        return Ok(None);
+    };
+    match path.try_exists() {
+        Ok(true) => Ok(Some(path)),
+        Ok(false) => Ok(None),
+        Err(err) => {
+            Err(Failure::invalid(format!("cannot locate {}: {err}", path.display())).into())
+        }
+    }
+}
+
+/// The XDG override must be absolute. Otherwise use the platform's user directory.
+pub(crate) fn user_dir(xdg: &str, windows: &str, unix: &str) -> Option<PathBuf> {
+    let absolute_env = |name| {
+        env::var_os(name)
+            .map(PathBuf::from)
+            .filter(|p| p.is_absolute())
+    };
+    absolute_env(xdg)
+        .or_else(|| {
+            if cfg!(windows) {
+                absolute_env(windows)
+            } else {
+                let home = absolute_env("HOME")?;
+                let subdir = if cfg!(target_os = "macos") {
+                    "Library/Application Support"
+                } else {
+                    unix
+                };
+                Some(home.join(subdir))
+            }
+        })
+        .map(|dir| dir.join("sych"))
+}
 
 /// Server config text, or `None` for engine defaults.
 pub fn read_server(config: Option<&Path>) -> anyhow::Result<Option<String>> {

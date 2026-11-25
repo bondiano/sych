@@ -227,10 +227,10 @@ fn run_case(case: &Case, suite_dir: &Path) -> Result<Actual, String> {
         fake_responses: case.fake_responses.as_ref().map(|p| suite_dir.join(p)),
         // Harness evaluation stays deterministic and offline.
         semantic: Switch::Off,
-        ..review::Request::new(comparison, ModelSelection::Fake)
+        ..review::Request::new(comparison, Some(ModelSelection::Fake))
     };
-    let report =
-        review::run(&args, Some(store())).map_err(|e| format!("review saved no result: {e:#}"))?;
+    let (report, ..) = review::run_with_candidates(&args, Some(store()))
+        .map_err(|e| format!("review saved no result: {e:#}"))?;
     let r = report.review_result;
     Ok(Actual {
         recommendation: r.recommendation,

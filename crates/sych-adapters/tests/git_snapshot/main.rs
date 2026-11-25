@@ -437,6 +437,34 @@ fn repository_helpers_are_never_executed() {
 }
 
 #[test]
+fn worktree_status_sees_changes_without_running_repository_filters() {
+    let dir = repo();
+    let d = dir.path();
+    let marker = d.join("filter-ran");
+    let payload = format!("touch '{}'; cat", marker.display());
+    write(d, ".gitattributes", b"*.txt filter=sample\n");
+    write(d, "nested/tracked.txt", b"initial\n");
+    commit(d, "base");
+    git(d, &["config", "filter.sample.clean", &payload]);
+    git(d, &["config", "filter.sample.process", &payload]);
+    git(d, &["config", "filter.sample.required", "true"]);
+    let nested = d.join("nested");
+    assert!(!Git::worktree_dirty(&nested).expect("clean"));
+
+    write(d, "nested/tracked.txt", b"unstaged modification\n");
+    assert!(Git::worktree_dirty(&nested).expect("unstaged"));
+    assert!(!marker.exists(), "status executed a configured filter");
+    write(d, "nested/tracked.txt", b"initial\n");
+    write(d, "untracked", b"outside the requested subdirectory\n");
+    assert!(Git::worktree_dirty(&nested).expect("untracked"));
+    assert!(!marker.exists(), "status executed a configured filter");
+
+    git(d, &["config", "--remove-section", "filter.sample"]);
+    git(d, &["add", "untracked"]);
+    assert!(Git::worktree_dirty(&nested).expect("staged"));
+}
+
+#[test]
 fn policy_is_read_from_target_tip_and_symlinks_are_not_followed() {
     let dir = repo();
     let d = dir.path();

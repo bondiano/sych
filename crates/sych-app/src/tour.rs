@@ -22,7 +22,7 @@ use crate::args::{Comparison, ModelSelection, TourArguments};
 use crate::backend::{self, ResolveError};
 use crate::errors::Failure;
 use crate::output::emit_as;
-use crate::storage::{block_on, load_store_config, saved_report};
+use crate::storage::{block_on, load_local_store_config, saved_report};
 use crate::{config, snapshot, tour_reader};
 
 /// Code shown to the guide; the rest of a long stop is cut, the reader still renders it all.
@@ -163,7 +163,7 @@ pub fn run(args: &TourArguments) -> anyhow::Result<ExitCode> {
         effective.repository.config.tour.target_steps as usize,
     );
     let run: RunId = result.run_id;
-    let store = load_store_config(Some(config))?;
+    let store = load_local_store_config(Some(config))?;
     let out = block_on(async {
         let storage = Storage::open(&store).await?;
         let handle = storage.run_handle(TENANT_LOCAL, run).await?;

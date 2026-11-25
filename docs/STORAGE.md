@@ -16,13 +16,18 @@
 - `storage.database_url_env` accepts a `postgres://…` or `postgresql://…` URL for PostgreSQL; invalid or unsupported
   URLs fail without falling back to SQLite. PostgreSQL connection strings are redacted in logs and doctor output.
   SQLite values (`sqlite://PATH`, `sqlite:PATH` or a raw path) and `storage.artifact_store.path` resolve relative
-  to `sych.yaml` (absolute paths stay absolute), not the CWD. Without configuration the CLI uses
-  `./.sych-data/sych.db` and `./.sych-data/artifacts`.
+  to `sych.yaml` (absolute paths stay absolute). With an explicit `--config`, default paths are under
+  `.sych-data/` next to that file. Without `--config`, local commands look for `.sych-data/` next to
+  the discovered personal config, then in the current directory. Otherwise they put `sych.db` and
+  `artifacts/` under `$XDG_DATA_HOME/sych/`.
+  When `XDG_DATA_HOME` is unset or relative, the directory is `~/.local/share/sych/` on Linux,
+  `~/Library/Application Support/sych/` on macOS, or `%LOCALAPPDATA%/sych/` on Windows.
 
 ## Invariants
 
-- Only `sych db migrate` changes the schema. All other commands open the database only at the current schema, otherwise exit 3
-  with a hint; they do not touch a newer schema either.
+- A direct local review applies pending SQLite migrations. PostgreSQL and server stores require
+  `sych db migrate`. Commands that only open the database require the current schema and exit 3
+  with a hint for a schema mismatch.
 - A run is created `RUNNING` with the next generation of its change. Each artifact first gets a row and a pin
   to the run, then its bytes are written.
 - The result pointer, usage and `COMPLETED` are committed in one transaction, and only if the result bytes are already
@@ -84,7 +89,7 @@ artifact. Raw CI artifacts are not stored at all: the zip is read in memory, and
 
 ## Schema compatibility
 
-The schema is changed only by `sych db migrate`. 0004 rebuilds `runs` (snapshot/policy ids became nullable) using the
+SQLite migration 0004 rebuilds `runs` (snapshot/policy ids became nullable) using the
 SQLite procedure with foreign keys disabled inside a single transaction. `cargo test -p sych-storage --test upgrade`
 brings up a v2 database from `fixtures/storage/v2-seed.sql` (completed run, pin, `UNKNOWN` charge) and verifies that after
 migration the data and foreign keys are intact. Backward compatibility is not promised yet, but data in existing databases

@@ -98,7 +98,7 @@ async fn completed(storage: &Storage) -> (RunHandle, ReviewResult) {
 }
 
 #[tokio::test]
-async fn schema_changes_only_through_migrate() {
+async fn regular_open_requires_an_explicit_migration() {
     let dir = tempfile::tempdir().expect("tempdir");
     let cfg = config(dir.path());
     assert!(matches!(
@@ -120,6 +120,25 @@ async fn schema_changes_only_through_migrate() {
         Storage::migrate(&cfg).await.expect("again")
     );
     Storage::open(&cfg).await.expect("open after migrate");
+}
+
+#[tokio::test]
+async fn local_review_and_explicit_migrate_can_initialize_the_same_store() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let cfg = config(dir.path());
+    let (local, second, migration) = tokio::join!(
+        Storage::open_local(&cfg),
+        Storage::open_local(&cfg),
+        Storage::migrate(&cfg),
+    );
+    migration.expect("explicit migration");
+    let run = begin(&local.expect("local storage"), "feature").await;
+    let stored = second
+        .expect("second local storage")
+        .run_handle(TENANT_LOCAL, run.id)
+        .await
+        .expect("run from the shared database");
+    assert_eq!(stored.id, run.id);
 }
 
 #[tokio::test]

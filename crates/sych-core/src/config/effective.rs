@@ -202,6 +202,7 @@ impl ServerConfig {
             http: super::Http::default(),
             workers: super::Workers::default(),
             models: super::Models::default(),
+            default_models: None,
             budgets: super::Budgets::default(),
             execution: super::Execution::default(),
             tooling: super::Tooling::default(),

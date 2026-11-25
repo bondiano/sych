@@ -4,10 +4,19 @@
 
 | File | Owner | Read from |
 |---|---|---|
-| `sych.yaml` | process owner / operator | local file, `--config` |
+| `sych.yaml` | process owner / operator | `--config` or the personal config directory for local reviews |
 | `.sych/config.yaml` | repository owner | Git objects of the **target tip** (`--base`) |
 | `.sych/rules.yaml`, `effects.yaml`, `deploy.yaml` ([DEPLOYMENT.md](DEPLOYMENT.md)) | repository owner | same; paths are set in `policy.*_file` |
 | `.sych/contracts/**` | repository owner | same; hashed as is |
+
+For local reviews, an explicit `--config` takes precedence. Otherwise Sych looks for
+`$XDG_CONFIG_HOME/sych/sych.yaml`. When `XDG_CONFIG_HOME` is unset or relative, it uses
+`~/.config/sych/sych.yaml` on Linux, `~/Library/Application Support/sych/sych.yaml` on macOS,
+or `%APPDATA%/sych/sych.yaml` on Windows. Without a file at that location, Sych uses built-in defaults.
+
+Set the top-level `default_models` in the personal config to a profile name, `roles`, or `fake`.
+This setting applies to local reviews that omit `--models`. Without it, Sych uses `fake`, makes
+zero model calls, and prints a setup hint to stderr.
 
 Working examples: [`examples/personal/`](../examples/personal/). Secrets are not stored in the configuration:
 `*_env` holds only the environment variable name (`UPPER_SNAKE_CASE`); a secret value in that position
