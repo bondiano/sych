@@ -12,21 +12,39 @@ use super::SnapshotError;
 use super::command::command;
 use super::local_head::{line, run};
 
+#[derive(Clone, Copy)]
+struct ModeOptions {
+    trust_file_mode: bool,
+    has_symlinks: bool,
+}
+
 pub(super) fn overlay(
     root: &Path,
     indexed: impl Fn() -> Command,
     hash_length: usize,
 ) -> Result<(), SnapshotError> {
     let paths = changed_paths(&indexed)?;
-    let entries = paths
-        .into_iter()
-        .map(|path| overlay_entry(root, path, &indexed))
-        .collect::<Result<Vec<_>, _>>()?;
-    if !entries.is_empty() {
-        write_overlay(indexed, &entries, hash_length)?;
+    if paths.is_empty() {
+        return Ok(());
     }
 
-    Ok(())
+    let modes = ModeOptions {
+        trust_file_mode: cfg!(unix) && mode_enabled(&indexed, "core.filemode")?,
+        has_symlinks: mode_enabled(&indexed, "core.symlinks")?,
+    };
+    let entries = paths
+        .into_iter()
+        .map(|path| overlay_entry(root, path, &indexed, modes))
+        .collect::<Result<Vec<_>, _>>()?;
+    write_overlay(indexed, &entries, hash_length)
+}
+
+fn mode_enabled(indexed: impl Fn() -> Command, key: &str) -> Result<bool, SnapshotError> {
+    let value = run(
+        indexed().args(["config", "--type=bool", "--default", "true", "--get", key]),
+        &format!("read Git {key} configuration"),
+    )?;
+    Ok(line(&value)? == "true")
 }
 
 fn changed_paths(indexed: impl Fn() -> Command) -> Result<BTreeSet<RepoPath>, SnapshotError> {
@@ -111,6 +129,7 @@ fn overlay_entry(
     root: &Path,
     path: RepoPath,
     indexed: impl Fn() -> Command,
+    modes: ModeOptions,
 ) -> Result<Entry, SnapshotError> {
     let absolute = root.join(path.as_str());
     for ancestor in absolute.ancestors().skip(1).take_while(|p| *p != root) {
@@ -123,7 +142,6 @@ fn overlay_entry(
         return Ok((path, None));
     };
     let (mode, file) = if info.is_file() {
-        let mode = regular_mode(&info);
         let file = open_regular(&absolute).map_err(|e| unavailable("open worktree file", &e))?;
         let opened = file
             .metadata()
@@ -137,6 +155,7 @@ fn overlay_entry(
             ));
         }
 
+        let mode = worktree_file_mode(&path, &info, &indexed, modes)?;
         (mode, file)
     } else if info.is_symlink() {
         let target = fs::read_link(&absolute).map_err(|e| unavailable("read symlink", &e))?;
@@ -159,12 +178,11 @@ fn overlay_entry(
     Ok((path, Some((mode, object))))
 }
 
-fn staged_gitlink(
+fn staged_entries(
     path: &RepoPath,
-    absolute: &Path,
     indexed: impl Fn() -> Command,
-) -> Result<Option<(&'static str, String)>, SnapshotError> {
-    let staged = run(
+) -> Result<Vec<u8>, SnapshotError> {
+    run(
         indexed().env("GIT_LITERAL_PATHSPECS", "1").args([
             "ls-files",
             "--stage",
@@ -173,7 +191,47 @@ fn staged_gitlink(
             path.as_str(),
         ]),
         "inspect the indexed path",
-    )?;
+    )
+}
+
+fn worktree_file_mode(
+    path: &RepoPath,
+    info: &fs::Metadata,
+    indexed: impl Fn() -> Command,
+    modes: ModeOptions,
+) -> Result<&'static str, SnapshotError> {
+    if !modes.has_symlinks || !modes.trust_file_mode {
+        let entries = staged_entries(path, indexed)?;
+        let staged_mode = entries.split(|&byte| byte == 0).find_map(|entry| {
+            let mut fields = entry.splitn(2, |&byte| byte == b'\t');
+            let metadata = fields.next()?;
+            if !metadata.ends_with(b" 0") || fields.next() != Some(path.as_str().as_bytes()) {
+                return None;
+            }
+
+            metadata.split(|&byte| byte == b' ').next()
+        });
+        match staged_mode {
+            // Git represents an indexed symlink as a file containing its target.
+            Some(b"120000") if !modes.has_symlinks => return Ok("120000"),
+            Some(b"100755") if !modes.trust_file_mode => return Ok("100755"),
+            _ => (),
+        }
+    }
+
+    Ok(if modes.trust_file_mode {
+        regular_mode(info)
+    } else {
+        "100644"
+    })
+}
+
+fn staged_gitlink(
+    path: &RepoPath,
+    absolute: &Path,
+    indexed: impl Fn() -> Command,
+) -> Result<Option<(&'static str, String)>, SnapshotError> {
+    let staged = staged_entries(path, indexed)?;
     if !staged.starts_with(b"160000 ") {
         return Ok(None);
     }

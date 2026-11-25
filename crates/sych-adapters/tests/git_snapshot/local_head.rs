@@ -90,6 +90,57 @@ fn stages_raw_files_without_changing_the_index_or_running_configured_helpers() {
 }
 
 #[test]
+fn worktree_uses_the_index_mode_when_git_ignores_file_permissions() {
+    let repository = repo();
+    let dir = repository.path();
+    write(dir, "tracked.sh", b"old\n");
+    commit(dir, "base");
+    git(dir, &["update-index", "--chmod=+x", "tracked.sh"]);
+    git(dir, &["config", "core.filemode", "false"]);
+
+    write(dir, "tracked.sh", b"edited\n");
+    write(dir, "new.sh", b"new\n");
+    fs::set_permissions(dir.join("tracked.sh"), fs::Permissions::from_mode(0o644))
+        .expect("clear the worktree executable bit");
+    fs::set_permissions(dir.join("new.sh"), fs::Permissions::from_mode(0o755))
+        .expect("set the worktree executable bit");
+
+    let snapshot = capture_local_head(dir, Worktree).expect("worktree snapshot");
+    let oid = snapshot.commit().hex();
+    assert!(git(dir, &["ls-tree", oid, "tracked.sh"]).starts_with(b"100755 "));
+    assert!(git(dir, &["ls-tree", oid, "new.sh"]).starts_with(b"100644 "));
+    assert_eq!(
+        git(dir, &["show", &format!("{oid}:tracked.sh")]),
+        b"edited\n"
+    );
+}
+
+#[test]
+fn worktree_keeps_a_git_symlink_placeholder_as_a_link() {
+    let repository = repo();
+    let dir = repository.path();
+    symlink("old-target", dir.join("link")).expect("create symlink");
+    commit(dir, "base");
+    git(dir, &["config", "core.symlinks", "false"]);
+    fs::remove_file(dir.join("link")).expect("remove symlink");
+    git(dir, &["checkout", "--", "link"]);
+    assert!(
+        fs::symlink_metadata(dir.join("link"))
+            .expect("placeholder")
+            .is_file()
+    );
+    write(dir, "link", b"changed-target");
+
+    let snapshot = capture_local_head(dir, Worktree).expect("worktree snapshot");
+    let oid = snapshot.commit().hex();
+    assert!(git(dir, &["ls-tree", oid, "link"]).starts_with(b"120000 "));
+    assert_eq!(
+        git(dir, &["show", &format!("{oid}:link")]),
+        b"changed-target"
+    );
+}
+
+#[test]
 fn captures_linked_worktree_paths_and_symlinks_as_links() {
     let repository = repo();
     let dir = repository.path();
