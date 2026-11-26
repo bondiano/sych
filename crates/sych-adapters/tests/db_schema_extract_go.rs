@@ -517,3 +517,49 @@ type Note struct {
     assert!(note.columns.iter().any(|c| c.name == "labels"));
     assert!(!note.columns.iter().any(|c| c.name == "other"));
 }
+
+#[test]
+fn ent_aliased_schema_missing_edge_limitation_and_non_bun_local_base_model() {
+    // Ent aliased import (`import e "entgo.io/ent"`) + missing target records a limitation.
+    let ent = extract_go(
+        ModelExtractorKind::Ent,
+        &[(
+            "ent/schema/item.go",
+            r#"
+package schema
+import (
+    e "entgo.io/ent"
+    "entgo.io/ent/schema/edge"
+    "entgo.io/ent/schema/field"
+)
+type Item struct { e.Schema }
+func (Item) Fields() []e.Field { return []e.Field{field.Int("owner_id")} }
+func (Item) Edges() []e.Edge { return []e.Edge{edge.To("owner", ExternalOwner.Type).Field("owner_id")} }
+"#,
+        )],
+    );
+    let item = ent
+        .tables
+        .iter()
+        .find(|t| t.name == "items")
+        .expect("items");
+    assert_eq!(item.relations.len(), 1);
+    assert_eq!(item.relations[0].references.table, "external_owners");
+    assert!(
+        ent.limitations
+            .iter()
+            .any(|l| l.contains("edge target `ExternalOwner`") && l.contains("not found")),
+        "{:?}",
+        ent.limitations
+    );
+
+    // Non-Bun Go package defining and embedding its own local BaseModel emits zero Bun tables.
+    let bun = extract_go(
+        ModelExtractorKind::Bun,
+        &[(
+            "domain/local.go",
+            "package domain\ntype BaseModel struct { ID int64 }\ntype LocalEntity struct {\n    BaseModel\n    Name string\n}\n",
+        )],
+    );
+    assert!(bun.tables.is_empty(), "{:?}", bun.tables);
+}

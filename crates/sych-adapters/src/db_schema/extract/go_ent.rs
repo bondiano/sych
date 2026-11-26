@@ -105,10 +105,19 @@ pub fn extract(
                 &target_schema,
             ) {
                 EdgeTarget::Resolved(tbl, pk) => (tbl, pk),
-                EdgeTarget::Missing => (
-                    default_table_name(&target_schema, None, &settings.naming, &settings.tables),
-                    "id".to_owned(),
-                ),
+                EdgeTarget::Missing => {
+                    let inferred = default_table_name(
+                        &target_schema,
+                        None,
+                        &settings.naming,
+                        &settings.tables,
+                    );
+                    limitations.push(format!(
+                        "ent: edge target `{target_schema}` on `{}` ({}) not found in scanned schemas; inferred `{inferred}`(`id`)",
+                        s.name, s.file
+                    ));
+                    (inferred, "id".to_owned())
+                }
                 EdgeTarget::Ambiguous => {
                     limitations.push(format!(
                             "ent: ambiguous edge target `{target_schema}` on `{}` ({}); skipped relation on `{local_col}`",
@@ -172,6 +181,7 @@ fn collect_ent_types(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, Ent
     let root = tree.root_node();
     let dir = dir_of(file);
     let mut pkg = String::new();
+    let mut ent_alias: Option<String> = None;
     let mut cursor = root.walk();
 
     for child in root.named_children(&mut cursor) {
@@ -179,6 +189,8 @@ fn collect_ent_types(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, Ent
             if let Some(id) = child.named_child(0) {
                 node_text(id, src).clone_into(&mut pkg);
             }
+        } else if child.kind() == "import_declaration" {
+            collect_ent_import_alias(child, src, &mut ent_alias);
         } else if child.kind() == "type_declaration" {
             let mut tc = child.walk();
             for spec in child.named_children(&mut tc) {
@@ -193,7 +205,7 @@ fn collect_ent_types(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, Ent
                     continue;
                 };
                 if type_node.kind() == "struct_type"
-                    && node_text(type_node, src).contains("ent.Schema")
+                    && embeds_ent_schema(type_node, src, ent_alias.as_deref())
                 {
                     let name = node_text(name_node, src).to_owned();
                     let line = u32::try_from(spec.start_position().row + 1).unwrap_or(u32::MAX);
@@ -216,6 +228,67 @@ fn collect_ent_types(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, Ent
             }
         }
     }
+}
+
+fn collect_ent_import_alias(node: Node<'_>, src: &str, ent_alias: &mut Option<String>) {
+    if node.kind() == "import_spec" {
+        let Some(path_node) = node.child_by_field_name("path") else {
+            return;
+        };
+        let path = node_text(path_node, src).trim_matches(['"', '`']);
+        if path == "entgo.io/ent" || path.ends_with("/entgo.io/ent") {
+            let alias = node
+                .child_by_field_name("name")
+                .map(|n| node_text(n, src).trim())
+                .filter(|a| !a.is_empty() && *a != "_");
+            *ent_alias = Some(alias.unwrap_or("ent").to_owned());
+        }
+
+        return;
+    }
+
+    let mut cur = node.walk();
+    for ch in node.named_children(&mut cur) {
+        collect_ent_import_alias(ch, src, ent_alias);
+    }
+}
+
+fn embeds_ent_schema(struct_node: Node<'_>, src: &str, ent_alias: Option<&str>) -> bool {
+    let mut cursor = struct_node.walk();
+    for child in struct_node.named_children(&mut cursor) {
+        if child.kind() != "field_declaration_list" {
+            continue;
+        }
+
+        let mut fc = child.walk();
+        for fnode in child.named_children(&mut fc) {
+            if fnode.kind() != "field_declaration" || fnode.child_by_field_name("name").is_some() {
+                continue;
+            }
+
+            let Some(ty) = fnode.child_by_field_name("type") else {
+                continue;
+            };
+            let trimmed = node_text(ty, src).trim().trim_start_matches('*').trim();
+            if trimmed == "ent.Schema" {
+                return true;
+            }
+
+            match ent_alias {
+                Some(".") if trimmed == "Schema" => return true,
+                Some(alias)
+                    if trimmed
+                        .strip_prefix(alias)
+                        .and_then(|rest| rest.strip_prefix('.'))
+                        == Some("Schema") =>
+                {
+                    return true;
+                }
+                _ => {}
+            }
+        }
+    }
+    false
 }
 
 fn collect_ent_methods(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, EntSchema>) {

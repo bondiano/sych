@@ -102,7 +102,8 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
         let Some(src) = tree.read_text(file) else {
             continue;
         };
-        if !src.contains("bun:\"") && !src.contains("uptrace/bun") && !src.contains("BaseModel") {
+        if !src.contains("bun:\"") && !src.contains("uptrace/bun") && !src.contains("bun.BaseModel")
+        {
             continue;
         }
 
@@ -517,18 +518,18 @@ fn parse_struct(
 
 fn is_bun_base_model(type_text: &str, bun_alias: Option<&str>) -> bool {
     let trimmed = type_text.trim().trim_start_matches('*').trim();
-    if trimmed == "bun.BaseModel" || trimmed == "BaseModel" {
+    if trimmed == "bun.BaseModel" {
         return true;
     }
 
-    if let Some(alias) = bun_alias
-        && alias != "."
-    {
-        return trimmed
-            .strip_prefix(alias)
-            .and_then(|rest| rest.strip_prefix('.'))
-            == Some("BaseModel");
+    match bun_alias {
+        Some(".") => trimmed == "BaseModel",
+        Some(alias) => {
+            trimmed
+                .strip_prefix(alias)
+                .and_then(|rest| rest.strip_prefix('.'))
+                == Some("BaseModel")
+        }
+        None => false,
     }
-
-    false
 }
