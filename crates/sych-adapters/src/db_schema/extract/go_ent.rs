@@ -181,7 +181,7 @@ fn collect_ent_types(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, Ent
     let root = tree.root_node();
     let dir = dir_of(file);
     let mut pkg = String::new();
-    let mut ent_alias: Option<String> = None;
+    let mut ent_aliases: Vec<String> = Vec::new();
     let mut cursor = root.walk();
 
     for child in root.named_children(&mut cursor) {
@@ -190,7 +190,7 @@ fn collect_ent_types(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, Ent
                 node_text(id, src).clone_into(&mut pkg);
             }
         } else if child.kind() == "import_declaration" {
-            collect_ent_import_alias(child, src, &mut ent_alias);
+            collect_ent_import_aliases(child, src, &mut ent_aliases);
         } else if child.kind() == "type_declaration" {
             let mut tc = child.walk();
             for spec in child.named_children(&mut tc) {
@@ -205,7 +205,7 @@ fn collect_ent_types(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, Ent
                     continue;
                 };
                 if type_node.kind() == "struct_type"
-                    && embeds_ent_schema(type_node, src, ent_alias.as_deref())
+                    && embeds_ent_schema(type_node, src, &ent_aliases)
                 {
                     let name = node_text(name_node, src).to_owned();
                     let line = u32::try_from(spec.start_position().row + 1).unwrap_or(u32::MAX);
@@ -230,7 +230,7 @@ fn collect_ent_types(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, Ent
     }
 }
 
-fn collect_ent_import_alias(node: Node<'_>, src: &str, ent_alias: &mut Option<String>) {
+fn collect_ent_import_aliases(node: Node<'_>, src: &str, ent_aliases: &mut Vec<String>) {
     if node.kind() == "import_spec" {
         let Some(path_node) = node.child_by_field_name("path") else {
             return;
@@ -245,7 +245,7 @@ fn collect_ent_import_alias(node: Node<'_>, src: &str, ent_alias: &mut Option<St
                 return;
             }
 
-            *ent_alias = Some(alias.unwrap_or("ent").to_owned());
+            ent_aliases.push(alias.unwrap_or("ent").to_owned());
         }
 
         return;
@@ -253,11 +253,11 @@ fn collect_ent_import_alias(node: Node<'_>, src: &str, ent_alias: &mut Option<St
 
     let mut cur = node.walk();
     for ch in node.named_children(&mut cur) {
-        collect_ent_import_alias(ch, src, ent_alias);
+        collect_ent_import_aliases(ch, src, ent_aliases);
     }
 }
 
-fn embeds_ent_schema(struct_node: Node<'_>, src: &str, ent_alias: Option<&str>) -> bool {
+fn embeds_ent_schema(struct_node: Node<'_>, src: &str, ent_aliases: &[String]) -> bool {
     let mut cursor = struct_node.walk();
     for child in struct_node.named_children(&mut cursor) {
         if child.kind() != "field_declaration_list" {
@@ -278,17 +278,15 @@ fn embeds_ent_schema(struct_node: Node<'_>, src: &str, ent_alias: Option<&str>) 
                 return true;
             }
 
-            match ent_alias {
-                Some(".") if trimmed == "Schema" => return true,
-                Some(alias)
-                    if trimmed
-                        .strip_prefix(alias)
+            for alias in ent_aliases {
+                if (alias == "." && trimmed == "Schema")
+                    || trimmed
+                        .strip_prefix(alias.as_str())
                         .and_then(|rest| rest.strip_prefix('.'))
-                        == Some("Schema") =>
+                        == Some("Schema")
                 {
                     return true;
                 }
-                _ => {}
             }
         }
     }

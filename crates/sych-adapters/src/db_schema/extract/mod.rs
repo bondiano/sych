@@ -43,7 +43,11 @@ pub fn extract_models(
     for kind in active {
         let extracted = match kind {
             ModelExtractorKind::Gorm => go_gorm::extract(tree, settings),
-            ModelExtractorKind::Bun => go_bun::extract(tree, settings),
+            ModelExtractorKind::Bun => {
+                let (tables, bun_limits) = go_bun::extract(tree, settings);
+                limitations.extend(bun_limits);
+                tables
+            }
             ModelExtractorKind::Ent => {
                 let (tables, ent_limits) = go_ent::extract(tree, settings);
                 limitations.extend(ent_limits);

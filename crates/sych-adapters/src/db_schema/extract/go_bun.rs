@@ -3,7 +3,8 @@
 use std::collections::BTreeMap;
 
 use sych_core::db_schema::{
-    DbModelColumn, DbModelRelation, DbModelTable, DbSourcePosition, ModelExtractionSettings,
+    DbModelColumn, DbModelRelation, DbModelTable, DbModelUnique, DbSourcePosition,
+    ModelExtractionSettings,
 };
 use tree_sitter::{Node, Parser};
 
@@ -90,8 +91,11 @@ impl BunRegistry<'_> {
     }
 }
 
-/// Extracts Bun ORM model tables from Go files in `tree`.
-pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec<DbModelTable> {
+/// Extracts Bun ORM model tables and any resolution limitations from Go files in `tree`.
+pub fn extract(
+    tree: &SourceTree<'_>,
+    settings: &ModelExtractionSettings,
+) -> (Vec<DbModelTable>, Vec<String>) {
     let files = tree.files_with_extensions(&["go"], &settings.paths);
     let mut structs = Vec::new();
     for file in &files {
@@ -126,6 +130,7 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
 
     let mut tables = Vec::new();
     let mut join_tables: BTreeMap<String, DbModelTable> = BTreeMap::new();
+    let mut limitations = Vec::new();
 
     for st in &structs {
         if settings
@@ -141,57 +146,95 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
             continue;
         };
 
-        let mut table = DbModelTable {
-            schema: None,
-            name: String::new(),
-            source: Some(DbSourcePosition {
-                file: st.file.clone(),
-                line: st.line,
-            }),
-            columns: Vec::new(),
-            primary_key: Vec::new(),
-            join_table_for: Vec::new(),
-            uniques: Vec::new(),
-            relations: Vec::new(),
-        };
-        table.set_qualified_name(table_name);
-        let mut st_joins = Vec::new();
-
-        for field in &st.fields {
-            if field.name.is_none() || is_bun_base_model(&field.type_text, st.bun_alias.as_deref())
-            {
-                continue;
-            }
-
-            let Some(fname) = field.name.as_deref() else {
-                continue;
-            };
-            if !fname.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
-                continue;
-            }
-
-            apply_bun_field(
-                st,
-                field,
-                fname,
-                settings,
-                &registry,
-                &mut table,
-                &mut st_joins,
-            );
-        }
-
-        if !table.columns.is_empty() || !table.relations.is_empty() || !table.primary_key.is_empty()
-        {
-            tables.push(table);
-            for (m2m_name, jt) in st_joins {
+        if let Some(extracted) = extract_bun_table(st, table_name, settings, &registry) {
+            tables.push(extracted.table);
+            for (m2m_name, jt) in extracted.joins {
                 join_tables.entry(m2m_name).or_insert(jt);
             }
+            limitations.extend(extracted.limitations);
         }
     }
 
     tables.extend(join_tables.into_values());
-    tables
+    (tables, limitations)
+}
+
+struct ExtractedBunTable {
+    table: DbModelTable,
+    joins: Vec<(String, DbModelTable)>,
+    limitations: Vec<String>,
+}
+
+struct BunTableState<'a> {
+    table: &'a mut DbModelTable,
+    composite_uniques: BTreeMap<String, Vec<String>>,
+    joins: Vec<(String, DbModelTable)>,
+    limitations: Vec<String>,
+}
+
+fn extract_bun_table(
+    st: &BunStruct,
+    table_name: &str,
+    settings: &ModelExtractionSettings,
+    registry: &BunRegistry<'_>,
+) -> Option<ExtractedBunTable> {
+    let mut table = DbModelTable {
+        schema: None,
+        name: String::new(),
+        source: Some(DbSourcePosition {
+            file: st.file.clone(),
+            line: st.line,
+        }),
+        columns: Vec::new(),
+        primary_key: Vec::new(),
+        join_table_for: Vec::new(),
+        uniques: Vec::new(),
+        relations: Vec::new(),
+    };
+    table.set_qualified_name(table_name);
+    let mut state = BunTableState {
+        table: &mut table,
+        composite_uniques: BTreeMap::new(),
+        joins: Vec::new(),
+        limitations: Vec::new(),
+    };
+
+    for field in &st.fields {
+        if field.name.is_none() || is_bun_base_model(&field.type_text, st.bun_alias.as_deref()) {
+            continue;
+        }
+
+        let Some(fname) = field.name.as_deref() else {
+            continue;
+        };
+        if !fname.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
+            continue;
+        }
+
+        apply_bun_field(st, field, fname, settings, registry, &mut state);
+    }
+
+    for cols in state.composite_uniques.into_values() {
+        if cols.len() == 1 {
+            if let Some(col) = state.table.columns.iter_mut().find(|c| c.name == cols[0]) {
+                col.unique = true;
+            }
+        } else if cols.len() > 1 {
+            state.table.uniques.push(DbModelUnique { columns: cols });
+        }
+    }
+
+    let joins = state.joins;
+    let limits = state.limitations;
+    if table.columns.is_empty() && table.relations.is_empty() && table.primary_key.is_empty() {
+        return None;
+    }
+
+    Some(ExtractedBunTable {
+        table,
+        joins,
+        limitations: limits,
+    })
 }
 
 #[derive(Default)]
@@ -202,6 +245,7 @@ struct BunFieldTag {
     pk: bool,
     notnull: bool,
     unique: bool,
+    unique_group: Option<String>,
     max_len: Option<u32>,
     rel_kind: Option<String>,
     join_spec: Option<String>,
@@ -225,6 +269,14 @@ fn parse_bun_tag(tag: &str) -> BunFieldTag {
             "pk" => out.pk = true,
             "notnull" => out.notnull = true,
             "unique" => out.unique = true,
+            _ if token.starts_with("unique:") => {
+                let group = token.trim_start_matches("unique:").trim();
+                if group.is_empty() {
+                    out.unique = true;
+                } else {
+                    out.unique_group = Some(group.to_owned());
+                }
+            }
             _ if token.starts_with("type:") => {
                 let ty = token.trim_start_matches("type:").to_ascii_lowercase();
                 if (ty.starts_with("varchar(") || ty.starts_with("char("))
@@ -258,8 +310,7 @@ fn apply_bun_field(
     fname: &str,
     settings: &ModelExtractionSettings,
     registry: &BunRegistry<'_>,
-    table: &mut DbModelTable,
-    st_joins: &mut Vec<(String, DbModelTable)>,
+    state: &mut BunTableState<'_>,
 ) {
     let parsed = parse_bun_tag(&field.bun_tag);
     if parsed.skip {
@@ -277,12 +328,20 @@ fn apply_bun_field(
                 }),
                 columns: Vec::new(),
                 primary_key: Vec::new(),
-                join_table_for: vec![table.table_ref(), table_ref_from_qualified(&target_tbl)],
+                join_table_for: vec![
+                    state.table.table_ref(),
+                    table_ref_from_qualified(&target_tbl),
+                ],
                 uniques: Vec::new(),
                 relations: Vec::new(),
             };
             jt.set_qualified_name(&m2m);
-            st_joins.push((m2m, jt));
+            state.joins.push((m2m, jt));
+        } else {
+            state.limitations.push(format!(
+                "bun: m2m target `{}` on `{}` ({}) not found in scanned models; skipped join table `{m2m}`",
+                field.type_text, st.name, st.file
+            ));
         }
 
         return;
@@ -294,7 +353,7 @@ fn apply_bun_field(
             && let Some((lhs, rhs)) = join.split_once('=')
             && let Some(target_tbl) = registry.resolve_target_table(st, &field.type_text)
         {
-            table.relations.push(DbModelRelation {
+            state.table.relations.push(DbModelRelation {
                 columns: vec![lhs.trim().to_owned()],
                 references: table_ref_from_qualified(&target_tbl),
                 ref_columns: vec![rhs.trim().to_owned()],
@@ -308,10 +367,18 @@ fn apply_bun_field(
         .col_override
         .unwrap_or_else(|| default_column_name(fname, &settings.naming));
     if parsed.pk {
-        table.primary_key.push(col_name.clone());
+        state.table.primary_key.push(col_name.clone());
     }
 
-    table.columns.push(DbModelColumn {
+    if let Some(group) = parsed.unique_group {
+        state
+            .composite_uniques
+            .entry(group)
+            .or_default()
+            .push(col_name.clone());
+    }
+
+    state.table.columns.push(DbModelColumn {
         name: col_name,
         required: parsed.notnull || parsed.pk,
         unique: parsed.unique,

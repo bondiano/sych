@@ -468,35 +468,7 @@ func (Token) Edges() []ent.Edge {
         .expect("tokens");
     assert_eq!(tok.relations[0].ref_columns, ["account_uid"]);
 
-    // Bun aliased uptrace/bun embed (with and without tag) + aliased package import relation.
-    let bun = extract_go(
-        ModelExtractorKind::Bun,
-        &[
-            (
-                "pkg_models/user.go",
-                "package pkg_models\nimport b \"github.com/uptrace/bun\"\ntype User struct {\n    b.BaseModel `bun:\"table:custom_users\"`\n    ID int64\n}\ntype Minimal struct {\n    b.BaseModel\n    ID int64\n}\n",
-            ),
-            (
-                "pkg_app/post.go",
-                "package pkg_app\nimport (\n    b \"github.com/uptrace/bun\"\n    \"example.com/pkg_models\"\n    _ \"example.com/unrelated/pkg_models\"\n    m \"example.com/pkg_models\"\n)\ntype Post struct {\n    b.BaseModel `bun:\"table:posts\"`\n    ID        int64            `bun:\",pk\"`\n    AuthorID  int64            `bun:\",notnull\"`\n    Author    *m.User          `bun:\"rel:belongs-to,join:author_id=id\"`\n    EditorID  int64            `bun:\",notnull\"`\n    Editor    *pkg_models.User `bun:\"rel:belongs-to,join:editor_id=id\"`\n}\n",
-            ),
-        ],
-    );
-    assert!(bun.tables.iter().any(|t| t.name == "custom_users"));
-    assert!(bun.tables.iter().any(|t| t.name == "minimals"));
-    let post = bun
-        .tables
-        .iter()
-        .find(|t| t.name == "posts")
-        .expect("posts");
-    assert_eq!(post.relations.len(), 2);
-    assert!(
-        post.relations
-            .iter()
-            .all(|r| r.references.table == "custom_users")
-    );
-
-    // GORM non-[]byte slices with serializer/type tag are kept as scalar columns.
+    // GORM non-[]byte slices with serializer/type tag and []uint8 are kept as scalar columns.
     let gorm = extract_go(
         ModelExtractorKind::Gorm,
         &[(
@@ -522,6 +494,68 @@ type Note struct {
     assert!(note.columns.iter().any(|c| c.name == "labels"));
     assert!(note.columns.iter().any(|c| c.name == "raw"));
     assert!(!note.columns.iter().any(|c| c.name == "other"));
+}
+
+#[test]
+fn bun_aliased_imports_named_uniques_and_unresolved_m2m() {
+    // Bun aliased uptrace/bun embed + aliased package import + named/composite unique:<group>.
+    let bun = extract_go(
+        ModelExtractorKind::Bun,
+        &[
+            (
+                "pkg_models/user.go",
+                "package pkg_models\nimport b \"github.com/uptrace/bun\"\ntype User struct {\n    b.BaseModel `bun:\"table:custom_users\"`\n    ID int64\n}\ntype Minimal struct {\n    b.BaseModel\n    ID int64\n}\n",
+            ),
+            (
+                "pkg_app/post.go",
+                r#"
+package pkg_app
+import (
+    b "github.com/uptrace/bun"
+    "example.com/pkg_models"
+    _ "example.com/unrelated/pkg_models"
+    m "example.com/pkg_models"
+)
+type Post struct {
+    b.BaseModel `bun:"table:posts"`
+    ID        int64            `bun:",pk"`
+    TenantID  int64            `bun:"tenant_id,unique:uq_tenant_slug,notnull"`
+    Slug      string           `bun:"slug,unique:uq_tenant_slug,notnull"`
+    Code      string           `bun:"code,unique:uq_code"`
+    AuthorID  int64            `bun:",notnull"`
+    Author    *m.User          `bun:"rel:belongs-to,join:author_id=id"`
+    EditorID  int64            `bun:",notnull"`
+    Editor    *pkg_models.User `bun:"rel:belongs-to,join:editor_id=id"`
+    ExtTags   []ExternalTag    `bun:"m2m:post_ext_tags"`
+}
+"#,
+            ),
+        ],
+    );
+    assert!(bun.tables.iter().any(|t| t.name == "custom_users"));
+    assert!(bun.tables.iter().any(|t| t.name == "minimals"));
+    let post = bun
+        .tables
+        .iter()
+        .find(|t| t.name == "posts")
+        .expect("posts");
+    assert_eq!(post.relations.len(), 2);
+    assert!(
+        post.relations
+            .iter()
+            .all(|r| r.references.table == "custom_users")
+    );
+    assert!(post.columns.iter().any(|c| c.name == "code" && c.unique));
+    assert!(
+        post.uniques
+            .iter()
+            .any(|u| u.columns == ["tenant_id", "slug"])
+    );
+    assert!(
+        bun.limitations.iter().any(|l| l.contains("post_ext_tags")),
+        "{:?}",
+        bun.limitations
+    );
 }
 
 #[test]
