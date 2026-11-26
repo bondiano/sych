@@ -9,7 +9,8 @@ use crate::config;
 use crate::server::mirrors;
 use crate::storage::{block_on, local_store_config, store_config};
 
-/// Artifacts, records past retention and unused mirrors; `--dry-run` only lists the plan.
+/// Artifacts, records past retention, expired local snapshot refs and unused mirrors;
+/// `--dry-run` only lists the plan.
 pub fn run(args: &CachePruneArguments) -> anyhow::Result<ExitCode> {
     let dry_run = args.dry_run;
     let path = config::local_path(args.config.as_deref())?;

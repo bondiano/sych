@@ -71,7 +71,7 @@ pub(super) fn warn_dirty(repo: &Path) {
     match Git::worktree_dirty(repo) {
         Ok(false) => {}
         Ok(true) => eprintln!(
-            "warning: reviewing committed changes only; --staged and --worktree are not yet available"
+            "warning: reviewing committed changes only; pass --staged or --worktree to include uncommitted edits"
         ),
         Err(_) => eprintln!(
             "warning: could not check for local changes; reviewing committed changes only"
