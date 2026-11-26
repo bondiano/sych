@@ -968,6 +968,993 @@
         ],
         "type": "object"
       },
+      "DbCheck": {
+        "additionalProperties": false,
+        "description": "One table or column `CHECK` constraint.",
+        "properties": {
+          "expression": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "expression"
+        ],
+        "type": "object"
+      },
+      "DbColumn": {
+        "additionalProperties": false,
+        "description": "One column of a database table.",
+        "properties": {
+          "data_type": {
+            "$ref": "#/components/schemas/DbColumnType"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nullable": {
+            "type": "boolean"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DbSourcePosition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "data_type",
+          "nullable"
+        ],
+        "type": "object"
+      },
+      "DbColumnType": {
+        "description": "Normalized SQL column type carrying the exact properties the rules inspect.",
+        "oneOf": [
+          {
+            "description": "PostgreSQL `boolean`, MySQL `tinyint(1)` / `boolean`, SQLite declared `BOOL`/`BOOLEAN`.",
+            "properties": {
+              "kind": {
+                "const": "boolean",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Integer column; `bits` is `Some(8|16|24|32|64)` on PG/MySQL, `None` on SQLite.",
+            "properties": {
+              "bits": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "kind": {
+                "const": "integer",
+                "type": "string"
+              },
+              "raw": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "raw"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Character/string column (`varchar`, `char`, `text`, etc.).",
+            "properties": {
+              "char_max_len": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "is_char_type": {
+                "default": false,
+                "description": "True for length-limited SQL character types (`varchar`, `char`, `bpchar`, ...).",
+                "type": "boolean"
+              },
+              "kind": {
+                "const": "string",
+                "type": "string"
+              },
+              "raw": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "raw"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Native database enum type (PostgreSQL `CREATE TYPE ... AS ENUM`, MySQL `ENUM(...)`).",
+            "properties": {
+              "kind": {
+                "const": "enum",
+                "type": "string"
+              },
+              "type_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "values": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Any other SQL type.",
+            "properties": {
+              "kind": {
+                "const": "other",
+                "type": "string"
+              },
+              "raw": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "raw"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "DbForeignKey": {
+        "additionalProperties": false,
+        "description": "One foreign key constraint on a table.",
+        "properties": {
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ref_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "ref_schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ref_table": {
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DbSourcePosition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "columns",
+          "ref_table",
+          "ref_columns"
+        ],
+        "type": "object"
+      },
+      "DbFunction": {
+        "additionalProperties": false,
+        "description": "A user-defined database function or stored procedure.",
+        "properties": {
+          "extension_owned": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "DbIndex": {
+        "additionalProperties": false,
+        "description": "One database index or primary key constraint.",
+        "properties": {
+          "include": {
+            "description": "Non-key covering `INCLUDE` columns.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "method": {
+            "description": "Access method in lowercase; empty or `\"btree\"` means default B-tree.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/DbIndexPart"
+            },
+            "type": "array"
+          },
+          "predicate": {
+            "description": "Partial index `WHERE` predicate; `None` when total.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DbSourcePosition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unique": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "parts"
+        ],
+        "type": "object"
+      },
+      "DbIndexPart": {
+        "additionalProperties": false,
+        "description": "One key part of a database index or primary key.",
+        "properties": {
+          "column": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "desc": {
+            "type": "boolean"
+          },
+          "expression": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "opclass": {
+            "description": "Operator class or collation modifier that changes search semantics.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prefix_length": {
+            "description": "MySQL prefix sub-part length (`col(20)`).",
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "DbModelColumn": {
+        "additionalProperties": false,
+        "description": "One model field mapped to a database column.",
+        "properties": {
+          "enum": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "max_length": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DbSourcePosition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unique": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "DbModelManifest": {
+        "additionalProperties": false,
+        "description": "Application model described with physical database names.",
+        "properties": {
+          "extractor": {
+            "description": "Built-in extractor or adapter name that produced this manifest.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/DbModelTable"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "tables"
+        ],
+        "type": "object"
+      },
+      "DbModelRelation": {
+        "additionalProperties": false,
+        "description": "Model relation stored as a foreign key on this table.",
+        "properties": {
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "ref_columns": {
+            "description": "Referenced columns, one per `columns` entry; empty means referenced table's key.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "references": {
+            "$ref": "#/components/schemas/DbModelTableRef"
+          }
+        },
+        "required": [
+          "columns",
+          "references"
+        ],
+        "type": "object"
+      },
+      "DbModelTable": {
+        "additionalProperties": false,
+        "description": "One model entity mapped to a physical database table.",
+        "properties": {
+          "columns": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DbModelColumn"
+            },
+            "type": "array"
+          },
+          "join_table_for": {
+            "description": "Set on a many-to-many join table: the two tables it joins.",
+            "items": {
+              "$ref": "#/components/schemas/DbModelTableRef"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "primary_key": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "relations": {
+            "items": {
+              "$ref": "#/components/schemas/DbModelRelation"
+            },
+            "type": "array"
+          },
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DbSourcePosition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uniques": {
+            "items": {
+              "$ref": "#/components/schemas/DbModelUnique"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "DbModelTableRef": {
+        "additionalProperties": false,
+        "description": "Reference to a table in a relation or join table.",
+        "properties": {
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "table": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "table"
+        ],
+        "type": "object"
+      },
+      "DbModelUnique": {
+        "additionalProperties": false,
+        "description": "Composite (or single-column) uniqueness promised by the model.",
+        "properties": {
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "columns"
+        ],
+        "type": "object"
+      },
+      "DbSchema": {
+        "additionalProperties": false,
+        "description": "One database schema / namespace.",
+        "properties": {
+          "functions": {
+            "items": {
+              "$ref": "#/components/schemas/DbFunction"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tables": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DbTable"
+            },
+            "type": "array"
+          },
+          "triggers": {
+            "items": {
+              "$ref": "#/components/schemas/DbTrigger"
+            },
+            "type": "array"
+          },
+          "views": {
+            "items": {
+              "$ref": "#/components/schemas/DbView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "DbSchemaConfig": {
+        "additionalProperties": false,
+        "description": "Standalone schema linter configuration (`.sych/schema-lint.yaml` or `--config`).",
+        "properties": {
+          "exclusions": {
+            "items": {
+              "$ref": "#/components/schemas/DbSchemaExclusion"
+            },
+            "type": "array"
+          },
+          "models": {
+            "$ref": "#/components/schemas/ModelExtractionSettings"
+          },
+          "rules": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DbSchemaRuleConfig"
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "DbSchemaExclusion": {
+        "additionalProperties": false,
+        "description": "Exact exclusion silencing one rule on one database object, with a mandatory reason.",
+        "properties": {
+          "object": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "rule": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "object",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "DbSchemaFinding": {
+        "additionalProperties": false,
+        "description": "One structured schema finding emitted by a deterministic rule.",
+        "properties": {
+          "fix": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "object": {
+            "$ref": "#/components/schemas/DbSchemaObject"
+          },
+          "rule": {
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DbSourcePosition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "rule",
+          "object",
+          "message",
+          "fix"
+        ],
+        "type": "object"
+      },
+      "DbSchemaObject": {
+        "additionalProperties": false,
+        "description": "Database object a finding addresses.",
+        "properties": {
+          "column": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "foreign_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "function": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "index": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "schema": {
+            "type": "string"
+          },
+          "table": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "trigger": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "view": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "schema"
+        ],
+        "type": "object"
+      },
+      "DbSchemaReport": {
+        "description": "Complete deterministic report of a schema check run.",
+        "properties": {
+          "dialect": {
+            "$ref": "#/components/schemas/SqlDialect"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/DbSchemaFinding"
+            },
+            "type": "array"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "skipped_rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "unmatched_exclusions": {
+            "items": {
+              "$ref": "#/components/schemas/DbSchemaExclusion"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "dialect",
+          "findings"
+        ],
+        "type": "object"
+      },
+      "DbSchemaRuleConfig": {
+        "additionalProperties": false,
+        "description": "Per-rule toggle, severity override and rule-specific options.",
+        "properties": {
+          "enabled": {
+            "description": "`None` uses the rule's default (`true`, except `default_off` rules like `plain-tables`).",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "options": {
+            "additionalProperties": true,
+            "description": "Rule-specific options (for example `required-column` and `plain-tables`).",
+            "type": "object"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuleSeverity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional severity override for review findings (`low`, `medium`, `high`, `critical`)."
+          }
+        },
+        "type": "object"
+      },
+      "DbSchemaRuleInfo": {
+        "description": "Serializable description of one built-in schema rule.",
+        "properties": {
+          "default_enabled": {
+            "type": "boolean"
+          },
+          "default_severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "dialects": {
+            "items": {
+              "$ref": "#/components/schemas/SqlDialect"
+            },
+            "type": "array"
+          },
+          "exception": {
+            "type": "string"
+          },
+          "fix": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "parent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requires_model": {
+            "type": "boolean"
+          },
+          "review_rule_id": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "review_rule_id",
+          "dialects",
+          "default_enabled",
+          "requires_model",
+          "default_severity",
+          "why",
+          "fix",
+          "exception"
+        ],
+        "type": "object"
+      },
+      "DbSchemaSnapshot": {
+        "additionalProperties": false,
+        "description": "Normalized structural snapshot of a database schema: no row data, no credentials.",
+        "properties": {
+          "dialect": {
+            "$ref": "#/components/schemas/SqlDialect"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "schemas": {
+            "items": {
+              "$ref": "#/components/schemas/DbSchema"
+            },
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/components/schemas/DbSchemaSource",
+            "default": "live_database"
+          }
+        },
+        "required": [
+          "schema_version",
+          "dialect",
+          "schemas"
+        ],
+        "type": "object"
+      },
+      "DbSchemaSource": {
+        "description": "How a database schema snapshot was obtained.",
+        "oneOf": [
+          {
+            "const": "live_database",
+            "description": "Direct read-only catalog inspection against a live database.",
+            "type": "string"
+          },
+          {
+            "const": "ci_snapshot",
+            "description": "Schema snapshot exported in CI and imported as a bound artifact.",
+            "type": "string"
+          },
+          {
+            "const": "static_sql",
+            "description": "Reconstructed statically from SQL schema/migration files.",
+            "type": "string"
+          }
+        ]
+      },
+      "DbSourcePosition": {
+        "additionalProperties": false,
+        "description": "One source location in application model code or a SQL migration file.",
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "file",
+          "line"
+        ],
+        "type": "object"
+      },
+      "DbTable": {
+        "additionalProperties": false,
+        "description": "One database table with its columns, keys, indexes and check constraints.",
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/DbCheck"
+            },
+            "type": "array"
+          },
+          "columns": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DbColumn"
+            },
+            "type": "array"
+          },
+          "foreign_keys": {
+            "items": {
+              "$ref": "#/components/schemas/DbForeignKey"
+            },
+            "type": "array"
+          },
+          "indexes": {
+            "items": {
+              "$ref": "#/components/schemas/DbIndex"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "primary_key": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DbIndex"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DbSourcePosition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "DbTrigger": {
+        "additionalProperties": false,
+        "description": "A user-defined trigger on a table.",
+        "properties": {
+          "extension_owned": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "table",
+          "name"
+        ],
+        "type": "object"
+      },
+      "DbView": {
+        "additionalProperties": false,
+        "description": "A database view or materialized view.",
+        "properties": {
+          "extension_owned": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "Delivery": {
         "description": "`GET /v1/admin/deliveries`: one received webhook and what admission decided; no payload.",
         "properties": {
@@ -2192,6 +3179,92 @@
         "minimum": 0,
         "type": "integer"
       },
+      "ModelExtractionSettings": {
+        "additionalProperties": false,
+        "description": "Model extraction settings in `.sych/config.yaml` or standalone config.",
+        "properties": {
+          "exclude": {
+            "description": "Struct/model names to skip during static extraction.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "extractors": {
+            "default": [
+              "auto"
+            ],
+            "description": "Which built-in static extractors run (`[auto]` by default).",
+            "items": {
+              "$ref": "#/components/schemas/ModelExtractorKind"
+            },
+            "type": "array"
+          },
+          "naming": {
+            "$ref": "#/components/schemas/ModelNamingOverrides"
+          },
+          "paths": {
+            "description": "Optional path globs limiting where model files are scanned.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tables": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Struct/model name (or `pkg.Name`) -> explicit physical table name override.",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "ModelExtractorKind": {
+        "description": "Supported built-in static application model extractors.",
+        "oneOf": [
+          {
+            "enum": [
+              "gorm",
+              "bun",
+              "ent",
+              "prisma",
+              "drizzle",
+              "sqlalchemy",
+              "django",
+              "diesel",
+              "seaorm"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "auto",
+            "description": "Detect all supported ORMs present in the repository automatically.",
+            "type": "string"
+          },
+          {
+            "const": "none",
+            "description": "Disable static model extraction.",
+            "type": "string"
+          }
+        ]
+      },
+      "ModelNamingOverrides": {
+        "additionalProperties": false,
+        "description": "Naming overrides for static ORM extractors when naming is configured at runtime.",
+        "properties": {
+          "no_lower_case": {
+            "type": "boolean"
+          },
+          "singular_table": {
+            "type": "boolean"
+          },
+          "table_prefix": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Obligation": {
         "description": "One concrete question with its rule, scope, acceptance criterion and assessment.",
         "oneOf": [
@@ -3286,6 +4359,17 @@
         ],
         "type": "object"
       },
+      "RuleSeverity": {
+        "description": "YAML spelling of [`Severity`].",
+        "enum": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "type": "string"
+      },
       "RunSnapshots": {
         "description": "`GET /v1/runs/:id/snapshots`: the source and policy snapshots a completed result is bound\nto, so a gate checks what was reviewed (repository, head, base, policy source) and not only\nthe ids.",
         "properties": {
@@ -3420,6 +4504,58 @@
           "model_attempts",
           "cost_known_micro_usd",
           "unknown_cost_attempts"
+        ],
+        "type": "object"
+      },
+      "SchemaCheckRequest": {
+        "additionalProperties": false,
+        "description": "`POST /v1/schema/check`: evaluate a database schema snapshot against structural rules\nand an optional application model manifest; stateless, never connects to a live database.",
+        "properties": {
+          "config": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DbSchemaConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DbModelManifest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion",
+            "default": 1
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/DbSchemaSnapshot"
+          }
+        },
+        "required": [
+          "snapshot"
+        ],
+        "type": "object"
+      },
+      "SchemaRulesResponse": {
+        "description": "`GET /v1/schema/rules`: catalogue of built-in database and application schema linter rules.",
+        "properties": {
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/DbSchemaRuleInfo"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "rules"
         ],
         "type": "object"
       },
@@ -3648,6 +4784,15 @@
           "n"
         ],
         "type": "object"
+      },
+      "SqlDialect": {
+        "description": "Supported relational database engines.",
+        "enum": [
+          "postgres",
+          "mysql",
+          "sqlite"
+        ],
+        "type": "string"
       },
       "SubscriptionFee": {
         "description": "A fixed subscription fee of the tenant; not attributed to a repository.",
@@ -8706,6 +9851,146 @@
           }
         ],
         "summary": "Reveal one step's answer in the caller's session"
+      }
+    },
+    "/v1/schema/check": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchemaCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DbSchemaReport"
+                }
+              }
+            },
+            "description": "Evaluate a database schema snapshot against structural rules and an optional model manifest; stateless"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Evaluate a database schema snapshot against structural rules and an optional model manifest; stateless"
+      }
+    },
+    "/v1/schema/rules": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaRulesResponse"
+                }
+              }
+            },
+            "description": "Built-in database and application schema linter rules"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "error envelope"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ],
+        "summary": "Built-in database and application schema linter rules"
       }
     },
     "/v1/summary": {

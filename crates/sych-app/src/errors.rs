@@ -19,6 +19,8 @@ pub const EXIT_INCOMPLETE: u8 = 11;
 pub const EXIT_CANCELLED: u8 = 130;
 /// Some eval or validation cases did not meet their expectations.
 pub const EXIT_EVAL_FAILED: u8 = 1;
+/// Schema linter reported findings or stale exclusions.
+pub const EXIT_SCHEMA_FINDINGS: u8 = 1;
 
 /// An error with a decided exit code; its message may hold several lines.
 #[derive(Debug, Error)]

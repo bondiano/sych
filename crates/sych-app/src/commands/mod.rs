@@ -17,6 +17,7 @@ pub mod handoff;
 pub mod reconcile;
 pub mod review;
 pub mod run_action;
+pub mod schema;
 pub mod semantic;
 pub mod serve;
 pub mod show;

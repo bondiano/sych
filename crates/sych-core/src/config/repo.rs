@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{Problems, ServerConfig};
 use crate::architecture::Limits;
+use crate::db_schema::SchemaLintSettings;
 use crate::{RepoPath, ReviewLanguage, SchemaVersion};
 
 /// Policy files live here; anything else in the directory is rejected.
@@ -81,6 +82,9 @@ pub struct PolicySettings {
     pub rules_file: RepoPath,
     pub effects_file: RepoPath,
     pub deployment_file: RepoPath,
+    /// Optional schema linter config and exclusions file under `.sych/`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema_lint_file: Option<RepoPath>,
 }
 
 fn path(p: &str) -> RepoPath {
@@ -94,6 +98,7 @@ impl Default for PolicySettings {
             rules_file: path(".sych/rules.yaml"),
             effects_file: path(".sych/effects.yaml"),
             deployment_file: path(".sych/deploy.yaml"),
+            schema_lint_file: None,
         }
     }
 }
@@ -140,6 +145,8 @@ pub enum ReportFormat {
     GoVetJson,
     TerraformPlan,
     KubernetesRendered,
+    DbSchemaSnapshot,
+    DbModelManifest,
 }
 
 /// A report ID only; the server maps it to trusted job selectors.
@@ -262,6 +269,10 @@ pub struct RepoConfig {
     /// its policy id.
     #[serde(default, skip_serializing_if = "ArchitectureSettings::is_default")]
     pub architecture: ArchitectureSettings,
+    /// Optional database and application schema linter settings (off by default). Left out of the
+    /// policy snapshot while at its default, so existing configs keep their policy id.
+    #[serde(default, skip_serializing_if = "SchemaLintSettings::is_default")]
+    pub schema_lint: SchemaLintSettings,
 }
 
 impl Default for RepoConfig {
@@ -275,6 +286,7 @@ impl Default for RepoConfig {
             nitpicks: NitpickSettings::default(),
             tour: TourSettings::default(),
             architecture: ArchitectureSettings::default(),
+            schema_lint: SchemaLintSettings::default(),
         }
     }
 }
@@ -297,6 +309,17 @@ impl RepoConfig {
                 &format!("`{s}` must be a file under {POLICY_DIR}, outside contracts/"),
             );
         }
+        if let Some(file) = &policy.schema_lint_file {
+            let s = file.as_str();
+            p.check(
+                s.starts_with(POLICY_DIR)
+                    && !s.starts_with(".sych/contracts/")
+                    && s != REPO_CONFIG_FILE,
+                "policy.schema_lint_file",
+                &format!("`{s}` must be a file under {POLICY_DIR}, outside contracts/"),
+            );
+        }
+
         let c = &self.context;
         p.check(
             c.initial_tokens_per_unit <= c.max_tokens_per_request,
@@ -329,6 +352,8 @@ impl RepoConfig {
                 "must be at least 1",
             );
         }
+
+        self.schema_lint.validate(p);
 
         for (i, report) in self.ci.expected_reports.iter().enumerate() {
             p.check(

@@ -24,6 +24,7 @@ mod questions;
 mod queue;
 mod reconciler;
 pub mod requests;
+mod schema;
 mod slack;
 pub mod smoke;
 mod snapshots;
@@ -264,6 +265,8 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/v1/runs/{id}/tours/{tour}/complete", post(tours::complete))
         .route("/v1/runs/{id}/tours/{tour}/dismiss", post(tours::dismiss))
         .route("/v1/runs/{id}/tours/{tour}/questions", post(questions::ask))
+        .route("/v1/schema/rules", get(schema::rules))
+        .route("/v1/schema/check", post(schema::check))
         // Signed by Slack, not a `/v1` caller; its small form body takes the API limit.
         .route("/slack/commands", post(slack::commands))
         .layer(DefaultBodyLimit::max(API_BODY_LIMIT));

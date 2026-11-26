@@ -240,9 +240,9 @@ waiting; after it — freeze with gaps, and a late report yields a successor. Fr
 (run/attempt/job/artifact/binding) and the gaps.
 
 Limitations: no comparison with baseline diagnostics (a diagnostic disappearing between producer/version) is made —
-such conclusions are not claimed. Go reports (`go_test_json`, `go_cover`, `go_vet_json`), `terraform_plan` and
-`kubernetes_rendered` go through the same downloader/parser/binding as the
-other formats.
+such conclusions are not claimed. Go reports (`go_test_json`, `go_cover`, `go_vet_json`), `terraform_plan`,
+`kubernetes_rendered`, `db_schema_snapshot` and `db_model_manifest` go through the same downloader/parser/binding as the
+other formats ([DB_SCHEMA.md](DB_SCHEMA.md)).
 
 **Terraform plan** (`terraform_plan`, `terraform show -json` of a saved plan, `format_version` 1.x; another major is
 `CI_REPORT_MALFORMED`). It is reduced on import to allowlisted structure — address, actions, replacement order
@@ -497,6 +497,8 @@ as `before`, gives the next one. Times are Unix seconds, money micro-USD.
 | `GET /v1/runs/:id/tour[?tour=]` | reader | the newest (or named) tour as the caller's own session sees it: unrevealed answers blanked, `stale` once the result revision or the change's generation moved on; source is not included, only `code_refs`; a pruned tour — 409 `TOUR_UNAVAILABLE` |
 | `POST /v1/runs/:id/tours/:tour/reveal\|complete\|dismiss` | reader | the caller's session (the actor is the API client), never published and never an approval; `reveal` takes `{step_id}`; finishing a finished session — 409 `SESSION_FINISHED` |
 | `POST /v1/runs/:id/tours/:tour/questions` | reader; `RISK_DECISION` maintainer | a follow-up on one step (`{step_id, kind, question, waiver?}`), stored as the caller's private exchange and listed in their `GET …/tour` (`exchanges`). `COMPREHENSION` asks the engine's models over the mirror's pinned blobs under `budgets.followup_session` per session (503 without an engine, 409 `SOURCE_UNAVAILABLE` / `NO_ANSWER`); `FACT_REQUEST` records the caller's statement; `RISK_DECISION` records a waiver like `POST /v1/waivers` (terms in `waiver`, 403 below maintainer) and never rewrites a status |
+| `GET /v1/schema/rules` | reader | catalogue of the 18 built-in database and application schema linter rules ([DB_SCHEMA.md](DB_SCHEMA.md)) |
+| `POST /v1/schema/check` | reader | stateless evaluation of `{schema_version, snapshot, manifest?, config?}` against structural DB and model rules; never connects to a live database; invalid config or manifest — 400 `INVALID_REQUEST` |
 | `POST /hooks/github/:connection` | webhook signature | see [Admission](#admission) |
 | `GET /health/live` | — | the process is alive; does not depend on the model |
 | `GET /health/ready` | — | the DB responds and the artifact store is writable; without config or secrets |

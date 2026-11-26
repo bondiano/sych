@@ -283,6 +283,7 @@ fn packets(
             ledger: &EffectLedger::default(),
             lint: &[],
             architecture: &[],
+            db_schema: &[],
             limits: BrokerLimits::from_settings(&policy.config.context),
         },
         snap,

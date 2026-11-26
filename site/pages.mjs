@@ -30,6 +30,7 @@ export const GROUPS = [
 		pages: [
 			['docs/ANALYSIS.md', 'analysis'],
 			['docs/SEMANTIC.md', 'semantic'],
+			['docs/DB_SCHEMA.md', 'db-schema'],
 		],
 	},
 	{

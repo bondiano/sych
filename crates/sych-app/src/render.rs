@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use sych_core::architecture::ArchitectureFacts;
 use sych_core::broker::EvidencePacket;
 use sych_core::config::{PolicyDiff, Provenance};
+use sych_core::db_schema::DbSchemaFacts;
 use sych_core::effects::EffectLedger;
 use sych_core::{
     CiFacts, CodeRef, DiffManifest, Evidence, EvidenceManifest, ExternalInputManifest, Finding,
@@ -44,6 +45,9 @@ pub struct Report {
     pub lint_facts: Vec<LintFacts>,
     /// The architecture checks of each project the change touches, on both sides.
     pub architecture_facts: Vec<ArchitectureFacts>,
+    /// Database and application schema checks when `schema_lint` is enabled.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub db_schema_facts: Vec<DbSchemaFacts>,
     pub context_packets: Vec<EvidencePacket>,
     pub review_result: ReviewResult,
 }
@@ -64,8 +68,10 @@ pub enum ReportFormat {
 }
 
 mod architecture;
+mod db_schema;
 
 use architecture::{architecture, explanation};
+use db_schema::db_schema;
 
 /// Bidi overrides and isolates can make reviewed text read differently than it runs.
 fn is_bidi_control(c: char) -> bool {
@@ -402,6 +408,7 @@ pub fn markdown(report: &Report) -> String {
     }
 
     architecture(&mut out, &report.architecture_facts);
+    db_schema(&mut out, &report.db_schema_facts);
     out.push_str("\n## Gaps\n\n");
     list(
         &mut out,

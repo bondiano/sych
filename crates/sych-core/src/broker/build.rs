@@ -10,6 +10,7 @@ use super::select::select;
 use super::{ContextRequest, EvidencePacket, Priority, Purpose, Relation};
 use crate::architecture::ArchitectureFacts;
 use crate::config::ContextSettings;
+use crate::db_schema::DbSchemaFacts;
 use crate::effects::EffectLedger;
 use crate::{
     BackendStatus, CiFacts, CodeRef, Completeness, DiffManifest, EvidenceId, FileChange, LintFacts,
@@ -94,6 +95,8 @@ pub struct BrokerInput<'a> {
     pub lint: &'a [LintFacts],
     /// Architecture findings, which their file's packet shows.
     pub architecture: &'a [ArchitectureFacts],
+    /// Database and application schema findings anchored to changed files.
+    pub db_schema: &'a [DbSchemaFacts],
     pub limits: Limits,
 }
 
@@ -237,6 +240,7 @@ fn observe(
         observations::ledger(input.ledger, unit_path, input.manifest, candidates, gaps);
         observations::lint(input.lint, unit_path, input.manifest, candidates, gaps);
         observations::architecture(input.architecture, unit_path, input.manifest, candidates);
+        observations::db_schema(input.db_schema, unit_path, input.manifest, candidates);
     }
 }
 

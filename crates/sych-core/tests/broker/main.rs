@@ -278,6 +278,7 @@ fn run_built(
         ledger,
         lint,
         architecture: &[],
+        db_schema: &[],
         limits,
     };
     let packets = build_packets(&input, &Reader::new());

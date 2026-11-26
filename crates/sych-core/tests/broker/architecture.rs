@@ -69,6 +69,7 @@ fn reasons(architecture: &[ArchitectureFacts]) -> Vec<(String, Priority)> {
         ledger: &EffectLedger::default(),
         lint: &[],
         architecture,
+        db_schema: &[],
         limits: limits(),
     };
     // The first packet is the file's discovery packet.

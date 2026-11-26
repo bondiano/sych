@@ -4,10 +4,11 @@ use std::process::ExitCode;
 use clap::Parser;
 use sych_app::args::{
     AuthCommands, CacheCommands, Cli, Commands, ConfigCommands, DbCommands, EvalCommands,
+    SchemaCommands,
 };
 use sych_app::commands::{
     ask, auth_chatgpt, cache_prune, config_init, config_validate, db_import, db_migrate, doctor,
-    eval_measure, eval_run, eval_validate, explain, handoff, reconcile, review, run_action,
+    eval_measure, eval_run, eval_validate, explain, handoff, reconcile, review, run_action, schema,
     semantic, serve, show, tour,
 };
 use sych_app::quality::{auto_judge, compare, judge};
@@ -66,6 +67,27 @@ fn main() -> ExitCode {
         }
         Commands::Db(DbCommands::ImportSqlite(args)) => {
             run_command("db import-sqlite", || db_import::run(&args))
+        }
+        Commands::Schema(SchemaCommands::Check(args)) => {
+            run_command("schema check", || schema::check(&args))
+        }
+        Commands::Schema(SchemaCommands::Baseline(args)) => {
+            run_command("schema baseline", || schema::baseline(&args))
+        }
+        Commands::Schema(SchemaCommands::Snapshot(args)) => {
+            run_command("schema snapshot", || schema::snapshot(&args))
+        }
+        Commands::Schema(SchemaCommands::Extract(args)) => {
+            run_command("schema extract", || schema::extract(&args))
+        }
+        Commands::Schema(SchemaCommands::Rules(args)) => {
+            run_command("schema rules", || schema::rules(&args))
+        }
+        Commands::Schema(SchemaCommands::Explain(args)) => {
+            run_command("schema explain", || schema::explain(&args))
+        }
+        Commands::Schema(SchemaCommands::ManifestSchema(args)) => {
+            run_command("schema manifest-schema", || schema::manifest_schema(&args))
         }
         Commands::Auth(AuthCommands::Chatgpt(args)) => {
             run_command("auth chatgpt", || auth_chatgpt::run(&args))

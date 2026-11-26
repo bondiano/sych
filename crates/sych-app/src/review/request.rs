@@ -49,6 +49,14 @@ pub struct Request {
     pub replay: Option<Vec<Discovered>>,
     /// The author's description of the change, instead of its commit messages.
     pub intent_file: Option<PathBuf>,
+    /// Local CLI override for `.sych/config.yaml` `schema_lint.enabled`.
+    pub schema_lint: Option<Switch>,
+    /// Local CLI live read-only database DSN for schema linting.
+    pub db_dsn: Option<String>,
+    /// Local CLI explicit application model manifest JSON for schema linting.
+    pub db_model_manifest: Option<PathBuf>,
+    /// `owner/name` of the repository on a server run, used to enforce `schema_lint.connections` allowlists.
+    pub repository_full_name: Option<String>,
 }
 
 impl Request {
@@ -76,6 +84,10 @@ impl Request {
             parent: None,
             replay: None,
             intent_file: None,
+            schema_lint: None,
+            db_dsn: None,
+            db_model_manifest: None,
+            repository_full_name: None,
         }
     }
 }

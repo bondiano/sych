@@ -1,0 +1,542 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DbSchemaSnapshot",
+  "description": "Normalized structural snapshot of a database schema: no row data, no credentials.",
+  "type": "object",
+  "properties": {
+    "dialect": {
+      "$ref": "#/$defs/SqlDialect"
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    },
+    "schemas": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DbSchema"
+      }
+    },
+    "source": {
+      "$ref": "#/$defs/DbSchemaSource",
+      "default": "live_database"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "dialect",
+    "schemas"
+  ],
+  "$defs": {
+    "DbCheck": {
+      "description": "One table or column `CHECK` constraint.",
+      "type": "object",
+      "properties": {
+        "expression": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "expression"
+      ]
+    },
+    "DbColumn": {
+      "description": "One column of a database table.",
+      "type": "object",
+      "properties": {
+        "data_type": {
+          "$ref": "#/$defs/DbColumnType"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DbSourcePosition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "data_type",
+        "nullable"
+      ]
+    },
+    "DbColumnType": {
+      "description": "Normalized SQL column type carrying the exact properties the rules inspect.",
+      "oneOf": [
+        {
+          "description": "PostgreSQL `boolean`, MySQL `tinyint(1)` / `boolean`, SQLite declared `BOOL`/`BOOLEAN`.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "boolean"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Integer column; `bits` is `Some(8|16|24|32|64)` on PG/MySQL, `None` on SQLite.",
+          "type": "object",
+          "properties": {
+            "bits": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "integer"
+            },
+            "raw": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "raw"
+          ]
+        },
+        {
+          "description": "Character/string column (`varchar`, `char`, `text`, etc.).",
+          "type": "object",
+          "properties": {
+            "char_max_len": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0
+            },
+            "is_char_type": {
+              "description": "True for length-limited SQL character types (`varchar`, `char`, `bpchar`, ...).",
+              "type": "boolean",
+              "default": false
+            },
+            "kind": {
+              "type": "string",
+              "const": "string"
+            },
+            "raw": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "raw"
+          ]
+        },
+        {
+          "description": "Native database enum type (PostgreSQL `CREATE TYPE ... AS ENUM`, MySQL `ENUM(...)`).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "enum"
+            },
+            "type_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "values": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "values"
+          ]
+        },
+        {
+          "description": "Any other SQL type.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "other"
+            },
+            "raw": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "raw"
+          ]
+        }
+      ]
+    },
+    "DbForeignKey": {
+      "description": "One foreign key constraint on a table.",
+      "type": "object",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "ref_columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ref_schema": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ref_table": {
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DbSourcePosition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "columns",
+        "ref_table",
+        "ref_columns"
+      ]
+    },
+    "DbFunction": {
+      "description": "A user-defined database function or stored procedure.",
+      "type": "object",
+      "properties": {
+        "extension_owned": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "DbIndex": {
+      "description": "One database index or primary key constraint.",
+      "type": "object",
+      "properties": {
+        "include": {
+          "description": "Non-key covering `INCLUDE` columns.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "method": {
+          "description": "Access method in lowercase; empty or `\"btree\"` means default B-tree.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DbIndexPart"
+          }
+        },
+        "predicate": {
+          "description": "Partial index `WHERE` predicate; `None` when total.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DbSourcePosition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unique": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "parts"
+      ]
+    },
+    "DbIndexPart": {
+      "description": "One key part of a database index or primary key.",
+      "type": "object",
+      "properties": {
+        "column": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "desc": {
+          "type": "boolean"
+        },
+        "expression": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opclass": {
+          "description": "Operator class or collation modifier that changes search semantics.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prefix_length": {
+          "description": "MySQL prefix sub-part length (`col(20)`).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "DbSchema": {
+      "description": "One database schema / namespace.",
+      "type": "object",
+      "properties": {
+        "functions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DbFunction"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "tables": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DbTable"
+          }
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DbTrigger"
+          }
+        },
+        "views": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DbView"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "DbSchemaSource": {
+      "description": "How a database schema snapshot was obtained.",
+      "oneOf": [
+        {
+          "description": "Direct read-only catalog inspection against a live database.",
+          "type": "string",
+          "const": "live_database"
+        },
+        {
+          "description": "Schema snapshot exported in CI and imported as a bound artifact.",
+          "type": "string",
+          "const": "ci_snapshot"
+        },
+        {
+          "description": "Reconstructed statically from SQL schema/migration files.",
+          "type": "string",
+          "const": "static_sql"
+        }
+      ]
+    },
+    "DbSourcePosition": {
+      "description": "One source location in application model code or a SQL migration file.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "line"
+      ]
+    },
+    "DbTable": {
+      "description": "One database table with its columns, keys, indexes and check constraints.",
+      "type": "object",
+      "properties": {
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DbCheck"
+          }
+        },
+        "columns": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DbColumn"
+          }
+        },
+        "foreign_keys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DbForeignKey"
+          }
+        },
+        "indexes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DbIndex"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "primary_key": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DbIndex"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DbSourcePosition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "DbTrigger": {
+      "description": "A user-defined trigger on a table.",
+      "type": "object",
+      "properties": {
+        "extension_owned": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "table": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "table",
+        "name"
+      ]
+    },
+    "DbView": {
+      "description": "A database view or materialized view.",
+      "type": "object",
+      "properties": {
+        "extension_owned": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "SqlDialect": {
+      "description": "Supported relational database engines.",
+      "type": "string",
+      "enum": [
+        "postgres",
+        "mysql",
+        "sqlite"
+      ]
+    }
+  }
+}

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     ConfigError, Execution, Http, Models, Problems, Redaction, Scm, Tooling, endpoint, parse_yaml,
 };
+use crate::db_schema::ServerSchemaLint;
 use crate::{MicroUsd, SchemaVersion};
 
 /// Name of an environment variable that holds a secret; the value is never stored here.
@@ -80,6 +81,9 @@ pub struct ServerConfig {
     /// Left out of the effective config when unset, so the config hash stays as it was.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub slack: Option<super::SlackCommands>,
+    /// Optional trusted read-only DB connections for schema linting; omitted when empty.
+    #[serde(default, skip_serializing_if = "ServerSchemaLint::is_default")]
+    pub schema_lint: ServerSchemaLint,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -302,6 +306,8 @@ impl ServerConfig {
             refs.push(("slack.signing_secret_env".into(), &s.signing_secret_env));
         }
 
+        refs.extend(self.schema_lint.env_refs());
+
         refs
     }
 
@@ -338,6 +344,8 @@ impl ServerConfig {
         if let Some(s) = &self.slack {
             s.validate(&mut p);
         }
+
+        self.schema_lint.validate(&mut p);
 
         p.check(
             self.scm.github.iter().all(|c| c.oauth.is_none())

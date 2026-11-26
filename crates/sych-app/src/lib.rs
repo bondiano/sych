@@ -20,6 +20,7 @@ pub mod quality;
 pub mod render;
 pub mod render_sarif;
 pub mod review;
+pub mod schema_lint;
 pub mod semantic;
 pub mod server;
 pub mod snapshot;

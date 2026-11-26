@@ -237,6 +237,7 @@ pub async fn report_of(
         effect_ledger: facts.ledger,
         lint_facts: facts.lint,
         architecture_facts: facts.architecture,
+        db_schema_facts: facts.db_schema,
         context_packets: packets.packets,
         review_result,
     })
