@@ -402,9 +402,12 @@ fn collect_go_imports(
         let alias = node
             .child_by_field_name("name")
             .map(|n| node_text(n, src).trim())
-            .filter(|a| !a.is_empty() && *a != "_");
-        let is_bun_pkg = path == "github.com/uptrace/bun" || path.ends_with("/uptrace/bun");
-        if is_bun_pkg {
+            .filter(|a| !a.is_empty());
+        if alias == Some("_") {
+            return;
+        }
+
+        if path.ends_with("/uptrace/bun") {
             *bun_alias = Some(alias.unwrap_or("bun").to_owned());
         }
 

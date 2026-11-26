@@ -240,7 +240,11 @@ fn collect_ent_import_alias(node: Node<'_>, src: &str, ent_alias: &mut Option<St
             let alias = node
                 .child_by_field_name("name")
                 .map(|n| node_text(n, src).trim())
-                .filter(|a| !a.is_empty() && *a != "_");
+                .filter(|a| !a.is_empty());
+            if alias == Some("_") {
+                return;
+            }
+
             *ent_alias = Some(alias.unwrap_or("ent").to_owned());
         }
 

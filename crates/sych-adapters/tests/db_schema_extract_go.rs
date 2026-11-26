@@ -478,7 +478,7 @@ func (Token) Edges() []ent.Edge {
             ),
             (
                 "pkg_app/post.go",
-                "package pkg_app\nimport (\n    b \"github.com/uptrace/bun\"\n    m \"example.com/pkg_models\"\n)\ntype Post struct {\n    b.BaseModel `bun:\"table:posts\"`\n    ID       int64   `bun:\",pk\"`\n    AuthorID int64   `bun:\",notnull\"`\n    Author   *m.User `bun:\"rel:belongs-to,join:author_id=id\"`\n}\n",
+                "package pkg_app\nimport (\n    b \"github.com/uptrace/bun\"\n    \"example.com/pkg_models\"\n    _ \"example.com/unrelated/pkg_models\"\n    m \"example.com/pkg_models\"\n)\ntype Post struct {\n    b.BaseModel `bun:\"table:posts\"`\n    ID        int64            `bun:\",pk\"`\n    AuthorID  int64            `bun:\",notnull\"`\n    Author    *m.User          `bun:\"rel:belongs-to,join:author_id=id\"`\n    EditorID  int64            `bun:\",notnull\"`\n    Editor    *pkg_models.User `bun:\"rel:belongs-to,join:editor_id=id\"`\n}\n",
             ),
         ],
     );
@@ -489,8 +489,12 @@ func (Token) Edges() []ent.Edge {
         .iter()
         .find(|t| t.name == "posts")
         .expect("posts");
-    assert_eq!(post.relations.len(), 1);
-    assert_eq!(post.relations[0].references.table, "custom_users");
+    assert_eq!(post.relations.len(), 2);
+    assert!(
+        post.relations
+            .iter()
+            .all(|r| r.references.table == "custom_users")
+    );
 
     // GORM non-[]byte slices with serializer/type tag are kept as scalar columns.
     let gorm = extract_go(
