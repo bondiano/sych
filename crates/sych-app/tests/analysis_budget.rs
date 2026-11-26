@@ -13,7 +13,7 @@ async fn a_pass_denied_beside_an_unsettled_sibling_is_retried() {
     // Two searches in flight together exceed the cap by their byte bounds; settled, they fit.
     let run_with = |parallel| {
         let mut budgets = Budgets::default();
-        budgets.analysis.max_input_tokens = Some(8_000);
+        budgets.analysis.max_input_tokens = Some(8_500);
         budgets.analysis.max_parallel_calls = Some(parallel);
         run_on(repo(true), supported_and_empty, budgets, 1, false)
     };

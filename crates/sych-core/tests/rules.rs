@@ -196,6 +196,89 @@ fn a_skipped_test_inside_a_source_file_triggers_test_integrity() {
     assert!(rule(&p, "TEST-INTEGRITY").is_some());
 }
 
+fn added(path: &str) -> FileChange {
+    FileChange {
+        status: ChangeStatus::Added,
+        old: None,
+        new: Some(side(path)),
+        similarity: None,
+        generated: false,
+        generated_claim: false,
+        hunks: Vec::new(),
+        limitations: Vec::new(),
+    }
+}
+
+fn syntax_facts(path: &str, kind: SyntaxKind, detail: &str) -> RunFacts {
+    RunFacts {
+        syntax: vec![SyntaxFacts {
+            schema_version: SchemaVersion,
+            source_snapshot_id: snapshot(),
+            side: SourceSide::Head,
+            language: Language::Rust,
+            producer: Producer {
+                name: "syn".into(),
+                version: "2".into(),
+                config_hash: None,
+            },
+            files: BTreeMap::new(),
+            facts: vec![SyntaxFact {
+                kind,
+                code_ref: code_ref(path, 12),
+                symbol: None,
+                detail: detail.into(),
+                in_change: true,
+                related: Vec::new(),
+                subject: None,
+                guard: None,
+            }],
+            limitations: Vec::new(),
+        }],
+        ..RunFacts::default()
+    }
+}
+
+#[test]
+fn added_files_do_not_falsely_trigger_test_integrity_or_effect_02() {
+    let repo = policy(&[]);
+
+    // Brand-new integration test file with opt-in #[ignore = "needs postgres"].
+    let opt_in = syntax_facts(
+        "tests/db_schema.rs",
+        SyntaxKind::TestSkipped,
+        "#[ignore = \"needs postgres\"]",
+    );
+    let p = planned(vec![added("tests/db_schema.rs")], &repo, &opt_in);
+    assert!(rule(&p, "TEST-INTEGRITY").is_none());
+
+    // Brand-new test file with suite-focusing `.only` still triggers TEST-INTEGRITY.
+    let focused = syntax_facts("tests/new.test.ts", SyntaxKind::TestSkipped, "it.only");
+    let p = planned(vec![added("tests/new.test.ts")], &repo, &focused);
+    assert!(rule(&p, "TEST-INTEGRITY").is_some());
+
+    // Brand-new source file with best-effort `let _ = conn.close().await;` does not trigger EFFECT-02.
+    let close = syntax_facts(
+        "src/inspect/mysql.rs",
+        SyntaxKind::DiscardedResult,
+        "let _ = conn.close().await;",
+    );
+    let p = planned(vec![added("src/inspect/mysql.rs")], &repo, &close);
+    assert!(rule(&p, "EFFECT-02").is_none());
+
+    // Brand-new source file with a real structural lifetime hazard still triggers EFFECT-02.
+    let guard = syntax_facts(
+        "src/inspect/mysql.rs",
+        SyntaxKind::GuardAcrossAwait,
+        "mutex guard held across await",
+    );
+    let p = planned(vec![added("src/inspect/mysql.rs")], &repo, &guard);
+    assert!(rule(&p, "EFFECT-02").is_some());
+
+    // Modified existing file introducing `let _ = ...` still triggers EFFECT-02.
+    let p = planned(vec![changed("src/inspect/mysql.rs")], &repo, &close);
+    assert!(rule(&p, "EFFECT-02").is_some());
+}
+
 #[test]
 fn moving_logic_out_of_the_rule_paths_keeps_the_rule() {
     let rules = policy(&[(".sych/rules.yaml", ORDERS_RULE)]);

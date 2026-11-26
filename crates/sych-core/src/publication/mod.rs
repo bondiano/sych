@@ -3,6 +3,7 @@
 //! the immutable result and the diff manifest, never from model prose.
 
 mod body;
+mod dismiss;
 mod prose;
 mod revisit;
 mod summary;
@@ -11,11 +12,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    DiffManifest, Finding, FindingCategory, FindingId, Lifecycle, ReviewLanguage, ReviewResult,
-    SourceSide,
+    DiffManifest, Finding, FindingCategory, Lifecycle, ReviewLanguage, ReviewResult, SourceSide,
 };
 
 pub use body::{GONE_MARKER, gone_body, inline_body};
+pub use dismiss::{DISMISS_LINE_WINDOW, DismissedFinding, dismiss, matches_dismissed};
 pub use revisit::{Posted, revisit};
 pub use summary::{SummaryContext, problems, render_summary};
 
@@ -120,23 +121,6 @@ pub struct Planned {
     pub placement: Placement,
     /// Inline in an earlier revision; does not count against the limit.
     pub already_inline: bool,
-}
-
-/// Marks the findings whose fingerprint was `dismissed` in the change: they are published no
-/// more and block nothing, in whichever revision they come back.
-// shortcut: by exact fingerprint; a claim on edited lines comes back as new, match by path and
-// content if that shows up.
-pub fn dismiss(result: &mut ReviewResult, dismissed: &[String]) {
-    for f in &mut result.findings {
-        if dismissed.contains(&f.fingerprint.to_string()) {
-            f.lifecycle = Lifecycle::Dismissed;
-        }
-    }
-    let open: Vec<FindingId> = (result.findings.iter())
-        .filter(|f| f.lifecycle == Lifecycle::Open)
-        .map(|f| f.id)
-        .collect();
-    result.blocked_by.retain(|id| open.contains(id));
 }
 
 /// Defects and rule violations go inline by severity, at most [`MAX_INLINE`] new ones; nits and

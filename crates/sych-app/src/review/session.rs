@@ -4,15 +4,91 @@ use std::fmt::Display;
 
 use serde::Serialize;
 
-use sych_core::broker::ContextPackets;
-use sych_core::{Evidence, ExternalInputManifest, SchemaVersion, Sha256Digest, Timestamp};
+use sych_adapters::git::LocalSnapshot;
+use sych_core::analysis::{Discovered, PriorRevisionContext};
+use sych_core::broker::{ContextPackets, EvidencePacket, Limits};
+use sych_core::config::{Budgets, Rule, RuleException};
+use sych_core::db_schema::DbSchemaConfig;
+use sych_core::{
+    Candidate, Evidence, EvidenceManifest, ExternalInputManifest, PolicySnapshot, ReviewPlan,
+    ReviewResult, RunFacts, SchemaVersion, Sha256Digest, Timestamp,
+};
 use sych_storage::{
     ArtifactKind, LocalHeadPin, Partition, RunHandle, Storage, StorageError, StoreConfig,
     TENANT_LOCAL,
 };
 use tokio::{signal, time};
 
-use super::{Saved, Session, Stopped, Target};
+use super::Target;
+use crate::backend::Routing;
+use crate::fake::Scripted;
+use crate::render::PolicyReview;
+
+pub(super) struct Saved {
+    pub(super) external: ExternalInputManifest,
+    pub(super) evidence_manifest: EvidenceManifest,
+    pub(super) evidence: Vec<Evidence>,
+    pub(super) packets: Vec<EvidencePacket>,
+    pub(super) result: ReviewResult,
+    /// Every candidate of the model passes, verified or not.
+    pub(super) candidates: Vec<Candidate>,
+    /// Packets a finished general discovery searched, by index into `packets`; an
+    /// obligation's risk audit looks for that rule only, so it does not count.
+    pub(super) searched: Vec<usize>,
+}
+
+pub(super) enum Stopped {
+    Failed(String),
+    Cancelled,
+}
+
+pub(super) struct Session<'a> {
+    pub(super) snap: &'a LocalSnapshot,
+    pub(super) policy: &'a PolicySnapshot,
+    pub(super) policy_review: &'a PolicyReview,
+    pub(super) plan: &'a ReviewPlan,
+    pub(super) script: Scripted,
+    pub(super) facts: &'a RunFacts,
+    /// Evidence derived in this run from `facts`.
+    pub(super) derived: Vec<Evidence>,
+    /// Imported CI reports, frozen as external inputs.
+    pub(super) external: Vec<Evidence>,
+    pub(super) limits: Limits,
+    /// The resolved route plan; `None` runs the fake adapter.
+    pub(super) model: Option<&'a Routing>,
+    pub(super) budgets: &'a Budgets,
+    pub(super) risk_audit: bool,
+    pub(super) verify: bool,
+    /// `context.expansion_rounds` of the trusted policy.
+    pub(super) expansion_rounds: u32,
+    /// `--intent-file`, else the change's commit messages: for the discovery, review and
+    /// expansion prompts.
+    pub(super) intent: Option<String>,
+    /// `eval measure --replay`: these discoveries are verified again instead of a new search.
+    pub(super) replay: Option<&'a [Discovered]>,
+    /// Expected CI reports that are not evidence; each is a task gap.
+    pub(super) ci_gaps: &'a [String],
+    /// The parent run whose checkpoints may answer this run's tasks.
+    pub(super) parent: Option<sych_core::RunId>,
+    /// `review.language` of the trusted policy.
+    pub(super) language: sych_core::ReviewLanguage,
+    pub(super) fixture_paths: &'a [String],
+    /// The `security` profile: added lines are scanned for secrets and hidden text, and
+    /// discovery also hunts security defects.
+    pub(super) security: bool,
+    /// `review.block_on` of the trusted policy.
+    pub(super) block_on: &'a [String],
+    /// The trusted repository rules: a required `ARCH-*` rule makes an architecture finding a
+    /// rule violation.
+    pub(super) rules: &'a [Rule],
+    /// Server-recorded scoped waivers, also checked against built-in `DB-*` rules.
+    pub(super) waivers: &'a [(String, RuleException)],
+    /// Effective trusted schema linter config (inline `.sych/config.yaml` + optional `.sych/schema-lint.yaml`).
+    pub(super) schema_config: DbSchemaConfig,
+    /// Prior revision findings and dismissed rationales of this change (server runs).
+    pub(super) prior_revision: &'a PriorRevisionContext,
+    pub(super) now: Timestamp,
+}
 
 impl Session<'_> {
     pub(super) fn evidence(&self) -> impl Iterator<Item = &Evidence> {

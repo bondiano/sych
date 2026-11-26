@@ -2,9 +2,9 @@
 
 use sych_core::analysis::{
     AssessmentOutput, AssessmentRecord, CANDIDATE_OVERFLOW, Context, ContextAsk, Discovered,
-    DiscoveryOutput, ReviewOutput, Verified, VerifyOutput, context_asks, drop_fixture_claims,
-    effect_asks, intent, not_assessed, prompts, refuting_asks, unseen_violation,
-    validate_assessment, validate_discovery, validate_verdicts,
+    DiscoveryOutput, HistoryRole, ReviewOutput, Verified, VerifyOutput, context_asks,
+    drop_fixture_claims, effect_asks, intent, not_assessed, prompts, refuting_asks,
+    unseen_violation, validate_assessment, validate_discovery, validate_verdicts,
 };
 use sych_core::broker::{Ops, REQUIRED_OVER_BUDGET, unseen_spans};
 use sych_core::config::Role;
@@ -86,7 +86,12 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         }
 
         let context = self.context(index);
-        let prompt = prompts::assessment(&context, planned);
+        let prompt = self.with_prior(
+            prompts::assessment(&context, planned),
+            &[index],
+            &[planned],
+            HistoryRole::Reviewer,
+        );
         let outcome = self
             .router
             .leaving::<AssessmentOutput>(Role::Reviewer, &prompt, "obligation_assessment", kept)
@@ -118,14 +123,19 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         kept: u32,
         out: &mut Outcome,
     ) -> (Context, Option<Discovered>) {
-        let prompt = intent::with_intent(
-            self.hunting(prompts::review(
-                &context,
-                linked,
-                assessed,
-                &self.title(batch),
-            )),
-            self.intent,
+        let prompt = self.with_prior(
+            intent::with_intent(
+                self.hunting(prompts::review(
+                    &context,
+                    linked,
+                    assessed,
+                    &self.title(batch),
+                )),
+                self.intent,
+            ),
+            batch,
+            linked,
+            HistoryRole::Reviewer,
         );
         // A cut multi-unit review is split by the engine instead of asked again.
         let router = &self.router;
@@ -366,7 +376,12 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         candidates: Vec<Candidate>,
         out: &mut Outcome,
     ) -> Result<(Vec<ContextAsk>, Verified), TaskFailure> {
-        let prompt = prompts::verify(context, &candidates, obligations);
+        let prompt = self.with_prior(
+            prompts::verify(context, &candidates, obligations),
+            batch,
+            obligations,
+            HistoryRole::Verifier,
+        );
         let outcome = self
             .router
             .structured::<VerifyOutput>(Role::Verifier, &prompt, "candidate_verdicts")

@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use sych_core::analysis::Discovered;
+use sych_core::analysis::{Discovered, PriorRevisionContext};
 use sych_core::config::{CheckRequest, Execution, RuleException, RunMode};
 use sych_core::{RunId, SnapshotHeadKind};
 
@@ -58,6 +58,8 @@ pub struct Request {
     pub db_model_manifest: Option<PathBuf>,
     /// `owner/name` of the repository on a server run, used to enforce `schema_lint.connections` allowlists.
     pub repository_full_name: Option<String>,
+    /// Prior revision findings and dismissed rationales of the same change (server runs).
+    pub prior_revision: PriorRevisionContext,
 }
 
 impl Request {
@@ -90,6 +92,7 @@ impl Request {
             db_dsn: None,
             db_model_manifest: None,
             repository_full_name: None,
+            prior_revision: PriorRevisionContext::default(),
         }
     }
 }

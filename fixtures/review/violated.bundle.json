@@ -71,8 +71,8 @@
           "00000000-0000-0000-0000-000000000005"
         ],
         "explanation": "A stored order publishes order-created.",
-        "fingerprint": "sha256:29e66c49bc42894aa9b475f20677b8e6afce3e686d09f396744d3f3cde2dd800",
-        "id": "694a24e1-0415-8dc8-9a67-dfea12c3f77c",
+        "fingerprint": "sha256:ad4b66d169620cbd57d2dfadaac18e96c5e5314d01a3d3bc1c6943ae62b5a04a",
+        "id": "651783c0-7b85-860b-af62-28f6418aa758",
         "lifecycle": "OPEN",
         "limitations": [],
         "obligation_ids": [

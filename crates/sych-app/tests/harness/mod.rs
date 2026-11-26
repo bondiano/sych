@@ -12,7 +12,7 @@ use sych_adapters::git::{LocalSnapshot, SnapshotRequest};
 use sych_adapters::openrouter::CAPABILITIES;
 use sych_adapters::syntax;
 use sych_app::analysis::{Engine, Outcome};
-use sych_core::analysis::{Discovered, packet_evidence};
+use sych_core::analysis::{Discovered, PriorRevisionContext, packet_evidence};
 use sych_core::broker::{BrokerInput, EvidencePacket, Limits as BrokerLimits, build_packets};
 use sych_core::config::{
     BillingKind, Budgets, Enforcement, RepositoryPolicy, ReviewProfile, ServerConfig,
@@ -376,6 +376,7 @@ pub async fn run_reusing(
         language: policy.config.review.language,
         fixture_paths: &policy.config.review.fixture_paths,
         security,
+        prior_revision: &PriorRevisionContext::default(),
     };
     let outcome = match replay {
         Some(frozen) => engine.replay(frozen).await,
@@ -489,7 +490,7 @@ pub fn expanding(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
                 "category": "DEFECT", "severity": "MEDIUM", "support": "SEMANTIC_ARGUMENT",
                 "title": "t", "explanation": "`?? []` keeps it",  "anchors": [], "evidence_ids": [],
                 "alternatives_checked": ["nullish fallback"], "suggested_action": "",
-                "validation_expectation": "", "limitations": []}], "context_requests": []})
+                "validation_expectation": "", "limitations": [], "unverified_external_assumptions": []}], "context_requests": []})
                 .to_string(),
             ))
         }

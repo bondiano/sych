@@ -7,11 +7,13 @@ use crate::lineage::{Decision, Prior, decide};
 use crate::{DiffManifest, Lifecycle, ReviewResult};
 
 /// A delivered inline comment of the change: its publication object, the finding it was
-/// posted for, and whether it now carries the "no longer reported" note.
+/// posted for, whether the finding was dismissed, and whether the body now carries the
+/// "no longer reported" note.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Posted {
     pub object_id: i64,
     pub prior: Prior,
+    pub dismissed: bool,
     pub noted: bool,
 }
 
@@ -29,6 +31,10 @@ pub fn revisit(posted: &[Posted], result: &ReviewResult, manifest: &DiffManifest
 
 /// Whether `p`'s finding is gone from `result`; `None` while lineage keeps it open.
 fn gone(p: &Posted, result: &ReviewResult, manifest: &DiffManifest) -> Option<bool> {
+    if p.dismissed {
+        return Some(true);
+    }
+
     let dismissed = (result.findings.iter()).any(|f| {
         f.fingerprint.to_string() == p.prior.fingerprint && f.lifecycle == Lifecycle::Dismissed
     });

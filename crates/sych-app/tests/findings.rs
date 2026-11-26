@@ -176,3 +176,90 @@ async fn a_dismiss_command_hides_the_problem_from_this_and_later_summaries() {
         .count();
     assert_eq!(notes, 1);
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn reworded_shifted_dismissed_finding_stays_hidden_and_is_not_duplicated() {
+    let w = world(None).await;
+    let head = w.branch("src/b.rs");
+    w.open_pull(&head, &w.base, false);
+    w.pr_event("d-1", "opened", &head).await;
+    w.schedule(6).await;
+    world::commit_claimed_with(&w, &head, 1, b"policy", |result| {
+        let f = &mut result.findings[0];
+        f.category = sych_core::FindingCategory::Defect;
+        f.rule_id = None;
+        f.title = "ORM-only repository without SQL targets skipped".into();
+        f.explanation = "collect returns empty when no SQL targets exist".into();
+        f.fingerprint = sych_core::sha256(b"rev1-orm-only");
+    })
+    .await;
+    while w.engine.publish_once().await.expect("publish") {}
+    assert!(
+        lock(&w.fake).comments[&1]
+            .1
+            .contains("ORM-only repository without SQL targets skipped")
+    );
+
+    lock(&w.fake)
+        .permissions
+        .insert("dev".into(), "write".into());
+    w.comment("d-2", "dev", "/sych dismiss 1 intentional ORM-only design")
+        .await;
+    w.schedule(1).await;
+
+    let dismissed = w
+        .app
+        .storage
+        .dismissed_findings(1)
+        .await
+        .expect("dismissed");
+    assert_eq!(dismissed.len(), 1);
+    assert_eq!(dismissed[0].start_line, Some(1));
+    assert_eq!(dismissed[0].end_line, Some(1));
+    assert_eq!(
+        dismissed[0].rationale.as_deref(),
+        Some("intentional ORM-only design")
+    );
+    let change = w.app.storage.change(1).await.expect("change");
+    let latest = w
+        .app
+        .storage
+        .latest_completed_result(&change.partition.tenant_id, 1)
+        .await
+        .expect("latest");
+    assert!(latest.is_some(), "latest completed result is readable");
+
+    // Rerun emits the same issue with a new fingerprint, shifted lines and reworded title.
+    w.comment("d-3", "dev", "/sych rerun").await;
+    w.schedule(1).await;
+    world::commit_claimed_with(&w, &head, 1, b"policy", |result| {
+        let f = &mut result.findings[0];
+        f.category = sych_core::FindingCategory::Defect;
+        f.rule_id = None;
+        f.title = "ORM-only repo with no SQL target skipped".into();
+        f.explanation = "collect skips runs when no SQL targets are configured".into();
+        f.anchors[0].start_line = 4;
+        f.anchors[0].end_line = 6;
+        f.fingerprint = sych_core::sha256(b"rev2-reworded-shifted");
+    })
+    .await;
+    w.engine.lineage_once().await.expect("lineage");
+    while w.engine.publish_once().await.expect("publish") {}
+
+    let rows = w.app.storage.findings_of(1).await.expect("findings");
+    assert_eq!(rows.len(), 1, "reworded duplicate must not open a new row");
+    assert_eq!(rows[0].state, "DISMISSED");
+    let summary = lock(&w.fake).comments[&1].1.clone();
+    assert!(
+        !summary.contains("ORM-only repo with no SQL target skipped"),
+        "dismissed finding re-raised in summary:\n{summary}"
+    );
+    let notes = (lock(&w.fake).review_comments.values())
+        .filter(|c| {
+            c["body"]
+                .as_str()
+                .is_some_and(|b| b.contains("<!-- sych:resolved -->"))
+        })
+        .count();
+    assert_eq!(notes, 1);
+}

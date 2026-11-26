@@ -170,6 +170,44 @@ fn a_rule_violation_finding_carries_its_violating_case() {
     assert_eq!(f.triggering_conditions, ["a lease that expires mid-run"]);
 }
 
+/// Rule-violation fingerprints must survive new commits so `/sych dismiss` stays effective.
+#[test]
+fn rule_violation_fingerprint_is_stable_across_snapshots() {
+    let mut files = PolicyFiles::default();
+    files.files.insert(
+        ".sych/rules.yaml".parse().expect("path"),
+        RULE.as_bytes().to_vec(),
+    );
+    let policy = RepositoryPolicy::parse(&files, &ServerConfig::engine_default()).expect("policy");
+    let run_for = |snap_seed: &[u8]| {
+        let snap = SourceSnapshotId(sha256(snap_seed));
+        let manifest = DiffManifest {
+            schema_version: SchemaVersion,
+            method: "fixture".into(),
+            diff_base: oid('a'),
+            head: oid('b'),
+            files: vec![changed("src/live.go")],
+            omissions: Vec::new(),
+        };
+        let p = plan(&snap, &manifest, &policy, &RunFacts::default());
+        let mut ev = anchored("src/live.go");
+        ev.source_snapshot_id = snap.clone();
+        ev.code_refs[0].snapshot_id = snap;
+        violated(&p, &ev, &[], &[])
+    };
+    let first = run_for(b"commit-1");
+    let second = run_for(b"commit-2");
+    assert_ne!(
+        first.obligations[0].obligation.id,
+        second.obligations[0].obligation.id
+    );
+    assert_eq!(
+        first.findings[0].fingerprint,
+        second.findings[0].fingerprint
+    );
+    assert_eq!(first.findings[0].id, second.findings[0].id);
+}
+
 #[test]
 fn a_linked_nit_does_not_hide_a_high_violation() {
     let plan = two_file_plan();

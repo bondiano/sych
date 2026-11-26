@@ -67,6 +67,9 @@ pub struct CandidateVerdict {
     /// Strict structured outputs need it listed as required; serde still reads a missing one.
     #[schemars(required, extend("type" = ["object", "null"]))]
     pub suggested_change: Option<ProposedChange>,
+    /// External library, ORM, framework, SQL dialect or protocol behaviours assumed from memory
+    /// rather than shown in the repository spans; any non-empty entry prevents `CONFIRMED`.
+    pub unverified_external_assumptions: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -94,6 +97,18 @@ fn overlaps(a: &CodeRef, b: &CodeRef) -> bool {
 fn admissible(verdict: &CandidateVerdict, anchors: &[CodeRef]) -> Result<(), String> {
     if anchors.is_empty() {
         return Err("no anchor in the shown spans".into());
+    }
+
+    if verdict
+        .unverified_external_assumptions
+        .iter()
+        .any(|a| !a.trim().is_empty())
+    {
+        return Err(
+            "EXTERNAL_BEHAVIOR_UNVERIFIED: confirmation depends on unshown external library, \
+             ORM, framework, dialect or protocol behaviour"
+                .into(),
+        );
     }
 
     let preference = matches!(

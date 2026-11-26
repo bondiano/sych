@@ -185,6 +185,7 @@ fn an_inline_comment_is_rewritten_only_when_lineage_decides() {
     let posted = |object_id, noted| Posted {
         object_id,
         prior: prior(Some("EFFECT-01"), "backend/orders/create.go"),
+        dismissed: false,
         noted,
     };
     let resolved = revision();
@@ -216,6 +217,12 @@ fn an_inline_comment_is_rewritten_only_when_lineage_decides() {
     dismissed.findings[0].lifecycle = sych_core::Lifecycle::Dismissed;
     assert_eq!(revisit(&[posted(1, false)], &dismissed, &manifest()), [1]);
     assert_eq!(revisit(&[posted(1, true)], &dismissed, &manifest()), none);
+    // A dismissed finding is also gone on a partial review that no longer reports it.
+    let dismissed_posted = Posted {
+        dismissed: true,
+        ..posted(1, false)
+    };
+    assert_eq!(revisit(&[dismissed_posted], &partial, &manifest()), [1]);
 
     let body = gone_body(
         "sha256:ab",
