@@ -3,7 +3,7 @@
 //! discovery is asked again with them and with what it already proposed. A round is one more search attempt that leaves the
 //! verifier its reserve, and a round that fails or finds nothing new keeps what came before.
 
-use sych_core::analysis::{AskOperation, Context, Discovered, expansion, intent};
+use sych_core::analysis::{AskOperation, Context, Discovered, HistoryRole, expansion, intent};
 use sych_core::model::{Ledger, ModelProvider};
 use sych_core::{ObligationId, PlannedObligation};
 
@@ -65,9 +65,14 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                 break;
             }
 
-            let prompt = intent::with_intent(
-                expansion::expansion(context, linked, &self.title(batch), &found.candidates),
-                self.intent,
+            let prompt = self.with_prior(
+                intent::with_intent(
+                    expansion::expansion(context, linked, &self.title(batch), &found.candidates),
+                    self.intent,
+                ),
+                batch,
+                linked,
+                HistoryRole::Reviewer,
             );
             let Some(more) = self
                 .discover(batch, None, &prompt, context, &ids, 1, out)

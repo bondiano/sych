@@ -18,7 +18,8 @@ fn verdict(
     json!({"candidate_id": id, "verdict": "CONFIRMED", "category": "DEFECT", "severity": severity,
            "support": support, "title": "guard removed", "explanation": "e", 
            "anchors": anchors, "evidence_ids": [], "alternatives_checked": ["no wrapper"],
-           "suggested_action": "restore", "validation_expectation": "returns 0", "limitations": []})
+           "suggested_action": "restore", "validation_expectation": "returns 0", "limitations": [],
+           "unverified_external_assumptions": []})
 }
 
 fn candidates(reader: &Reader, context: &Context, n: usize) -> Vec<sych_core::Candidate> {
@@ -45,7 +46,7 @@ fn verdicts_need_an_admissible_basis() {
         verdict("cand-4", Severity::Medium, Support::Preference, &trace),
         {"candidate_id": "cand-5", "verdict": "REJECTED", "category": "NIT", "severity": "INFO",
          "support": "PREFERENCE", "title": "t", "explanation": "e",  "anchors": [], "evidence_ids": [], "alternatives_checked": [],
-         "suggested_action": "", "validation_expectation": "", "limitations": []},
+         "suggested_action": "", "validation_expectation": "", "limitations": [], "unverified_external_assumptions": []},
     ], "context_requests": []}))
     .expect("verdicts");
     let verified = validate_verdicts(
@@ -378,4 +379,56 @@ fn open_claims_are_searched_by_the_identifiers_they_name() {
         queries,
         ["heartbeat_seconds", "analyze", "lease_seconds", "fetch"]
     );
+}
+
+#[test]
+fn unverified_external_assumptions_prevent_confirmation() {
+    let reader = Reader::new();
+    let (context, _) = context(&reader);
+    let trace = vec![anchor("ref-1", 2, 4), anchor("ref-2", 2, 2)];
+    let mut external = verdict(
+        "cand-1",
+        Severity::Medium,
+        Support::SemanticArgument,
+        &trace,
+    );
+    external["unverified_external_assumptions"] =
+        json!(["uptrace/bun rel:has-many stores FK on parent"]);
+    let mut grounded = verdict(
+        "cand-2",
+        Severity::Medium,
+        Support::SemanticArgument,
+        &trace,
+    );
+    grounded["unverified_external_assumptions"] = json!([]);
+    let output: VerifyOutput = serde_json::from_value(json!({
+        "verdicts": [external, grounded],
+        "context_requests": []
+    }))
+    .expect("verdicts");
+    let verified = validate_verdicts(
+        &output,
+        candidates(&reader, &context, 2),
+        &context,
+        &reader,
+        &[],
+        "unit",
+    );
+    assert_eq!(
+        verified.candidates[0].verification_status,
+        VerificationStatus::Unresolved
+    );
+    assert!(
+        verified.candidates[0]
+            .limitations
+            .iter()
+            .any(|l| l.contains("EXTERNAL_BEHAVIOR_UNVERIFIED")),
+        "{:?}",
+        verified.candidates[0].limitations
+    );
+    assert_eq!(
+        verified.candidates[1].verification_status,
+        VerificationStatus::Confirmed
+    );
+    assert_eq!(verified.findings.len(), 1);
 }

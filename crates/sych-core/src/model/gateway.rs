@@ -446,6 +446,12 @@ mod tests {
         );
         let change = verdict["properties"]["suggested_change"].to_string();
         assert!(change.contains("\"null\""), "{change}");
+        assert!(
+            required
+                .iter()
+                .any(|r| r == "unverified_external_assumptions"),
+            "{verdict}"
+        );
     }
 
     #[test]

@@ -17,7 +17,7 @@ fn verdict(status: &str) -> String {
     json!({"verdicts": [{"candidate_id": "cand-1", "verdict": status, "category": "DEFECT",
         "severity": "MEDIUM", "support": "SEMANTIC_ARGUMENT", "title": "t", "explanation": "e",
         "anchors": [], "evidence_ids": [], "alternatives_checked": [], "suggested_action": "",
-        "validation_expectation": "", "limitations": []}], "context_requests": []})
+        "validation_expectation": "", "limitations": [], "unverified_external_assumptions": []}], "context_requests": []})
     .to_string()
 }
 

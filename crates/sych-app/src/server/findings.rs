@@ -7,7 +7,7 @@ use sych_adapters::github::TokenScope;
 use sych_core::RunId;
 use sych_core::config::RuleException;
 use sych_core::lineage::decide;
-use sych_core::publication::problems;
+use sych_core::publication::{dismiss, problems};
 use sych_core::scm::{ChangeSignal, WebhookEvent};
 use sych_storage::{ChangeRow, Intent};
 
@@ -36,7 +36,9 @@ impl Engine {
         let pending = storage.lineage_pending().await?;
         for (change, run, tenant) in &pending {
             let id = RunId(run.parse()?);
-            let result = storage.load_result(tenant, id).await?;
+            let mut result = storage.load_result(tenant, id).await?;
+            let dismissed = storage.dismissed_findings(*change).await?;
+            dismiss(&mut result, &dismissed);
             let manifest = storage.load_artifact(tenant, id, "diff_manifest").await?;
             let prior = storage.open_findings(*change).await?;
             let decisions = decide(&prior, &result, &manifest);

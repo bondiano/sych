@@ -173,11 +173,7 @@ impl Engine {
         let run = RunId(c.run_id.parse()?);
         let tenant = &c.partition.tenant_id;
         let mut result = self.app.storage.load_result(tenant, run).await?;
-        let rows = self.app.storage.findings_of(c.change_id).await?;
-        let dismissed: Vec<String> = (rows.into_iter())
-            .filter(|r| r.state == "DISMISSED")
-            .map(|r| r.fingerprint)
-            .collect();
+        let dismissed = self.app.storage.dismissed_findings(c.change_id).await?;
         dismiss(&mut result, &dismissed);
         let manifest = self
             .app

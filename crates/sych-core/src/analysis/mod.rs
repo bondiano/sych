@@ -7,7 +7,9 @@ mod context;
 mod discovery;
 pub mod expansion;
 pub mod followup;
+pub mod history;
 pub mod intent;
+mod prompt_rules;
 pub mod prompts;
 mod search_context;
 pub mod tour_prompt;
@@ -22,6 +24,10 @@ pub use discovery::{
     Answered, AskOperation, CANDIDATE_OVERFLOW, CandidateDraft, ContextAsk, Discovered,
     DiscoveryOutput, MAX_CONTEXT_ASKS, RejectedDraft, ReviewOutput, context_asks,
     drop_fixture_claims, effect_asks, obligation_id, refuting_asks, validate as validate_discovery,
+};
+pub use history::{
+    DismissedFindingSummary, HistoryRole, PriorFindingSummary, PriorRevisionContext,
+    with_prior_revision,
 };
 pub use verify::{
     CandidateVerdict, KnownDiagnostics, ProposedChange, Verdict, Verified, VerifyOutput,

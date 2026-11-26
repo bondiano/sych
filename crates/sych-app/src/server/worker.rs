@@ -9,16 +9,18 @@ use std::time::Duration;
 use serde_json::json;
 use sych_adapters::git::{SnapshotError, fetch_commits};
 use sych_adapters::github::{Secret, TokenScope};
+use sych_core::analysis::{DismissedFindingSummary, PriorFindingSummary, PriorRevisionContext};
 use sych_core::config::{ExpectedReport, RuleException};
-use sych_core::glob_match;
+use sych_core::publication::matches_dismissed;
 use sych_core::schedule::{CI_WAIT_SECONDS, Trigger, retry_at};
 use sych_core::scm::ScmErrorKind;
-use sych_storage::Claim;
+use sych_core::{Lifecycle, glob_match};
+use sych_storage::{ChangeRow, Claim};
 use tokio::sync::{oneshot, watch};
 use tokio::time;
 
 use super::ci::{Collected, Head};
-use super::engine::Engine;
+use super::engine::{Conn, Engine};
 use super::mirrors;
 use crate::args::Comparison;
 use crate::review::{self, Request};
@@ -202,11 +204,32 @@ impl Engine {
             return Ok(None);
         }
 
+        self.collect_and_freeze(
+            claim, &change, conn, &token, *args, &pinned, &prepared, &ids, deadline, now,
+        )
+        .await
+    }
+
+    #[expect(clippy::too_many_arguments, reason = "internal preparation handoff")]
+    async fn collect_and_freeze(
+        &self,
+        claim: &Claim,
+        change: &ChangeRow,
+        conn: &Conn,
+        token: &Secret,
+        mut args: Request,
+        pinned: &review::Pinned,
+        prepared: &Prepared,
+        ids: &[&str],
+        deadline: Option<i64>,
+        now: i64,
+    ) -> anyhow::Result<Option<Request>> {
+        let storage = &self.app.storage;
         let collected = Head {
             conn,
             repo: &change.full_name,
             sha: &claim.inputs.head_sha,
-            token: &token,
+            token,
             snap: &pinned.snap,
             mirror: &args.comparison.repo,
         }
@@ -220,7 +243,7 @@ impl Engine {
             return Ok(None);
         }
 
-        let sources = frozen_sources(&ids, &collected);
+        let sources = frozen_sources(ids, &collected);
         if !storage
             .freeze(&claim.fence, &claim.run.id, &sources, (self.now)())
             .await?
@@ -228,10 +251,12 @@ impl Engine {
             return Ok(None);
         }
 
-        let mut args = *args;
         args.ci_gaps = collected.gaps.iter().map(ToString::to_string).collect();
         args.ci_imported = collected.facts;
         args.waivers = self.waivers(change.id, now).await?;
+        args.prior_revision = self
+            .prior_revision(&change.partition.tenant_id, change.id)
+            .await?;
         Ok(Some(args))
     }
 
@@ -241,6 +266,65 @@ impl Engine {
             .into_iter()
             .map(|w| (w.rule_id, w.exception))
             .collect())
+    }
+
+    async fn prior_revision(
+        &self,
+        tenant: &str,
+        change_id: i64,
+    ) -> anyhow::Result<PriorRevisionContext> {
+        let dismissed = self.app.storage.dismissed_findings(change_id).await?;
+        let dismissed_findings = dismissed
+            .iter()
+            .map(|d| DismissedFindingSummary {
+                category: d.category,
+                rule_id: d.rule_id.clone(),
+                path: d.path.clone(),
+                start_line: d.start_line,
+                end_line: d.end_line,
+                title: d
+                    .title
+                    .clone()
+                    .or_else(|| d.rule_id.clone())
+                    .unwrap_or_else(|| d.fingerprint.clone()),
+                rationale: d.rationale.clone(),
+            })
+            .collect();
+        let latest = match self
+            .app
+            .storage
+            .latest_completed_result(tenant, change_id)
+            .await
+        {
+            Ok(result) => result,
+            Err(err) => {
+                tracing::warn!(change = change_id, %err, "latest completed result unreadable; continuing without prior findings");
+                None
+            }
+        };
+        let prior_findings = latest
+            .into_iter()
+            .flat_map(|r| r.findings)
+            .filter(|f| {
+                f.lifecycle == Lifecycle::Open && !dismissed.iter().any(|d| matches_dismissed(f, d))
+            })
+            .filter_map(|f| {
+                let first = f.anchors.first()?;
+                Some(PriorFindingSummary {
+                    category: f.category,
+                    rule_id: f.rule_id,
+                    path: first.path.as_str().to_owned(),
+                    start_line: Some(first.start_line),
+                    end_line: Some(first.end_line),
+                    title: f.title,
+                    suggested_action: f.suggested_action,
+                })
+            })
+            .collect();
+        Ok(PriorRevisionContext {
+            prior_findings,
+            dismissed_findings,
+        })
     }
 
     /// Reviews on a blocking thread while heartbeats keep the lease; a lost lease cancels it.

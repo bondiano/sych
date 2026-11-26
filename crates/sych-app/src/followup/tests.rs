@@ -256,6 +256,7 @@ fn a_new_defect_claim_goes_to_the_verifier() {
         validation_expectation: String::new(),
         limitations: Vec::new(),
         suggested_change: None,
+        unverified_external_assumptions: Vec::new(),
     };
     for verified in [
         Ok(VerifyOutput {

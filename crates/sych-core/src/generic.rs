@@ -41,6 +41,17 @@ const TEST_PATHS: &[&str] = &[
     "**/.gitlab-ci.yml",
 ];
 
+const NEW_FILE_LIFETIME_KINDS: &[SyntaxKind] = &[
+    SyntaxKind::DetachedSpawn,
+    SyntaxKind::GuardAcrossAwait,
+    SyntaxKind::BlockingInAsync,
+    SyntaxKind::EffectWithoutCleanup,
+    SyntaxKind::UnpairedListener,
+    SyntaxKind::UnpairedTimer,
+    SyntaxKind::UnpairedSubscription,
+    SyntaxKind::AsyncEffectUnguarded,
+];
+
 fn rule(id: &str, title: &str, severity: RuleSeverity, statement: &str, criteria: &[&str]) -> Rule {
     Rule {
         id: id.into(),
@@ -112,8 +123,8 @@ pub(crate) fn pack() -> Vec<GenericRule> {
                 Medium,
                 "Errors, cancellation and resource lifetime keep the behaviour the code relied on before the change.",
                 &[
-                    "Errors are still propagated or handled as before.",
-                    "Spawned work, listeners, timers and subscriptions are still owned, cancelled or cleaned up.",
+                    "Errors in modified code are still propagated or handled as before; best-effort teardown (such as closing a connection after capturing the primary result) is not a violation.",
+                    "Spawned work, listeners, timers and subscriptions are owned, cancelled or cleaned up.",
                 ],
             ),
             SideEffects,
@@ -182,7 +193,7 @@ pub(crate) fn pack() -> Vec<GenericRule> {
                 Medium,
                 "A change to assertions, skips, fixtures or CI gates does not quietly weaken an important check.",
                 &[
-                    "No assertion, test or CI gate that guarded behaviour was removed, skipped or loosened without an equivalent check.",
+                    "No assertion, test or CI gate that guarded behaviour was removed, skipped or loosened without an equivalent check; additive opt-in or environment-gated tests (such as #[ignore = \"needs ...\"]) in newly added files do not weaken existing checks.",
                 ],
             ),
             Correctness,
@@ -227,9 +238,39 @@ pub(crate) fn activated(
             .flat_map(|f| f.old.iter().chain(&f.new))
             .map(|s| &s.path)
     };
-    let changed_shape = |kinds: &[SyntaxKind]| {
+    // Existing files (modified, deleted, renamed, copied) had pre-change checks/behaviour at BASE;
+    // newly added files (old == None) did not.
+    let existing_paths = || {
+        files
+            .iter()
+            .filter(|f| f.old.is_some())
+            .flat_map(|f| f.old.iter().chain(&f.new))
+            .map(|s| &s.path)
+    };
+    let added_paths = || {
+        files
+            .iter()
+            .filter(|f| f.old.is_none())
+            .filter_map(|f| f.new.as_ref())
+            .map(|s| &s.path)
+    };
+    let shape_on = |kinds: &[SyntaxKind], on_existing: bool| {
         syntax.iter().flat_map(|d| &d.facts).any(|f| {
-            f.in_change && kinds.contains(&f.kind) && paths().any(|p| *p == f.code_ref.path)
+            f.in_change
+                && kinds.contains(&f.kind)
+                && if on_existing {
+                    existing_paths().any(|p| *p == f.code_ref.path)
+                } else {
+                    added_paths().any(|p| *p == f.code_ref.path)
+                }
+        })
+    };
+    let added_focus_skip = || {
+        syntax.iter().flat_map(|d| &d.facts).any(|f| {
+            f.in_change
+                && f.kind == SyntaxKind::TestSkipped
+                && f.detail.contains(".only")
+                && added_paths().any(|p| *p == f.code_ref.path)
         })
     };
     match trigger {
@@ -241,7 +282,8 @@ pub(crate) fn activated(
                 })
         }
         Trigger::Lifetime(kinds) => {
-            changed_shape(kinds)
+            shape_on(kinds, true)
+                || shape_on(NEW_FILE_LIFETIME_KINDS, false)
                 || ledger_hit(&facts.ledger, &mut paths(), |e| {
                     e.notes
                         .iter()
@@ -249,8 +291,9 @@ pub(crate) fn activated(
                 })
         }
         Trigger::TestIntegrity => {
-            paths().any(|p| any_glob(TEST_PATHS, p))
-                || changed_shape(&[SyntaxKind::TestSkipped, SyntaxKind::LintSuppressed])
+            existing_paths().any(|p| any_glob(TEST_PATHS, p))
+                || shape_on(&[SyntaxKind::TestSkipped, SyntaxKind::LintSuppressed], true)
+                || added_focus_skip()
         }
     }
 }

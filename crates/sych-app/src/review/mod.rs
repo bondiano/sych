@@ -8,18 +8,15 @@ use anyhow::Context;
 
 use sych_adapters::git::{LocalHead, LocalSnapshot};
 use sych_adapters::{execution, syntax};
-use sych_core::analysis::Discovered;
-use sych_core::broker::{EvidencePacket, Limits};
-use sych_core::config::{Budgets, Rule};
+use sych_core::broker::Limits;
 use sych_core::config::{
     EffectiveConfig, PolicyFiles, PolicyInput, ReviewProfile, RuleException, ServerConfig,
     ServerInput, policy_diff,
 };
-use sych_core::db_schema::DbSchemaConfig;
 use sych_core::{
-    Candidate, Coverage, Evidence, EvidenceManifest, ExternalInputManifest, FileChange,
-    PolicySnapshot, PolicySource, Recommendation, ReviewPlan, ReviewResult, RunFacts,
-    SchemaVersion, SnapshotHeadKind, SourceSide, Timestamp, is_migration_path, plan, redact,
+    Candidate, Coverage, Evidence, FileChange, PolicySnapshot, PolicySource, Recommendation,
+    ReviewResult, RunFacts, SchemaVersion, SnapshotHeadKind, SourceSide, Timestamp,
+    is_migration_path, plan, redact,
 };
 use sych_core::{deploy, effects};
 use sych_storage::{RunHandle, StoreConfig};
@@ -40,6 +37,7 @@ mod schema;
 mod session;
 
 pub use request::Request;
+use session::{Session, Stopped};
 
 /// Strict mode: a significant violation (10) outranks incomplete scope (11).
 pub fn exit_code(policy: ExitPolicy, result: &ReviewResult) -> ExitCode {
@@ -489,6 +487,7 @@ fn execute(
         rules: &effective.repository.rules,
         waivers: &args.waivers,
         schema_config: effective.repository.effective_schema_lint_config(),
+        prior_revision: &args.prior_revision,
         now,
     };
     let saved =
@@ -515,68 +514,4 @@ fn execute(
         review_result: saved.result,
     };
     Ok((report, saved.candidates, saved.searched))
-}
-
-struct Saved {
-    external: ExternalInputManifest,
-    evidence_manifest: EvidenceManifest,
-    evidence: Vec<Evidence>,
-    packets: Vec<EvidencePacket>,
-    result: ReviewResult,
-    /// Every candidate of the model passes, verified or not.
-    candidates: Vec<Candidate>,
-    /// Packets a finished general discovery searched, by index into `packets`; an
-    /// obligation's risk audit looks for that rule only, so it does not count.
-    searched: Vec<usize>,
-}
-
-enum Stopped {
-    Failed(String),
-    Cancelled,
-}
-
-struct Session<'a> {
-    snap: &'a LocalSnapshot,
-    policy: &'a PolicySnapshot,
-    policy_review: &'a PolicyReview,
-    plan: &'a ReviewPlan,
-    script: Scripted,
-    facts: &'a RunFacts,
-    /// Evidence derived in this run from `facts`.
-    derived: Vec<Evidence>,
-    /// Imported CI reports, frozen as external inputs.
-    external: Vec<Evidence>,
-    limits: Limits,
-    /// The resolved route plan; `None` runs the fake adapter.
-    model: Option<&'a Routing>,
-    budgets: &'a Budgets,
-    risk_audit: bool,
-    verify: bool,
-    /// `context.expansion_rounds` of the trusted policy.
-    expansion_rounds: u32,
-    /// `--intent-file`, else the change's commit messages: for the discovery, review and
-    /// expansion prompts.
-    intent: Option<String>,
-    /// `eval measure --replay`: these discoveries are verified again instead of a new search.
-    replay: Option<&'a [Discovered]>,
-    /// Expected CI reports that are not evidence; each is a task gap.
-    ci_gaps: &'a [String],
-    /// The parent run whose checkpoints may answer this run's tasks.
-    parent: Option<sych_core::RunId>,
-    /// `review.language` of the trusted policy.
-    language: sych_core::ReviewLanguage,
-    fixture_paths: &'a [String],
-    /// The `security` profile: added lines are scanned for secrets and hidden text, and
-    /// discovery also hunts security defects.
-    security: bool,
-    /// `review.block_on` of the trusted policy.
-    block_on: &'a [String],
-    /// The trusted repository rules: a required `ARCH-*` rule makes an architecture finding a
-    /// rule violation.
-    rules: &'a [Rule],
-    /// Server-recorded scoped waivers, also checked against built-in `DB-*` rules.
-    waivers: &'a [(String, RuleException)],
-    /// Effective trusted schema linter config (inline `.sych/config.yaml` + optional `.sych/schema-lint.yaml`).
-    schema_config: DbSchemaConfig,
-    now: Timestamp,
 }

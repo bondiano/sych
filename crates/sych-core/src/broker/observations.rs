@@ -289,13 +289,16 @@ pub(super) fn syntax(
                     link: None,
                 });
             };
-            if fact.kind.is_risk() {
+            let additive_skip = file.old.is_none()
+                && fact.kind == SyntaxKind::TestSkipped
+                && !fact.detail.contains(".only");
+            if fact.kind.is_risk() && !additive_skip {
                 push(
                     &fact.code_ref,
                     Priority::Refuting,
                     format!("syntax {kind}: {}", fact.detail),
                 );
-            } else if fact.kind.is_contract() {
+            } else if fact.kind.is_contract() || additive_skip {
                 push(
                     &fact.code_ref,
                     Priority::Supporting,

@@ -46,7 +46,7 @@ fn verdicts(of: &[(&str, &str)], anchors: &Value) -> String {
                 "severity": severity, "support": "SEMANTIC_ARGUMENT", "title": format!("{severity} t"),
                 "explanation": "e", "anchors": anchors, "evidence_ids": [],
                 "alternatives_checked": [], "suggested_action": "", "validation_expectation": "",
-                "limitations": []})
+                "limitations": [], "unverified_external_assumptions": []})
         })
         .collect();
     json!({"verdicts": verdicts, "context_requests": []}).to_string()

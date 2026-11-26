@@ -17,7 +17,7 @@ fn verdict(status: &str) -> String {
         "severity": "MEDIUM", "support": "SEMANTIC_ARGUMENT", "title": "t",
         "explanation": "`?? []` keeps it", "anchors": [], "evidence_ids": [],
         "alternatives_checked": [], "suggested_action": "", "validation_expectation": "",
-        "limitations": []}], "context_requests": []})
+        "limitations": [], "unverified_external_assumptions": []}], "context_requests": []})
     .to_string()
 }
 

@@ -6,12 +6,12 @@ use sqlx::{Any, Row, Transaction};
 use sych_core::config::RuleException;
 use sych_core::lineage::{Decision, Prior};
 use sych_core::publication::{GONE_MARKER, Posted};
-use sych_core::{FindingCategory, ReviewResult, Severity, Timestamp};
+use sych_core::{FindingCategory, Lifecycle, ReviewResult, Severity, Timestamp};
 
 use crate::audit::Audit;
 use crate::{Storage, StorageError};
 
-fn category(text: &str) -> FindingCategory {
+pub(crate) fn category(text: &str) -> FindingCategory {
     match text {
         "RULE_VIOLATION" => FindingCategory::RuleViolation,
         "IMPROVEMENT" => FindingCategory::Improvement,
@@ -104,6 +104,7 @@ impl Storage {
     pub async fn posted_inline(&self, change_id: i64) -> Result<Vec<Posted>, StorageError> {
         let rows = sqlx::query(
             "SELECT p.id, f.fingerprint, f.category, f.rule_id, f.path,
+                 CAST(CASE WHEN f.state = 'DISMISSED' THEN 1 ELSE 0 END AS BIGINT),
                  CAST(CASE WHEN o.body LIKE '%' || $2 || '%' THEN 1 ELSE 0 END AS BIGINT)
              FROM publication_objects p
              JOIN findings f ON f.change_id = p.change_id AND f.fingerprint = p.fingerprint
@@ -126,7 +127,8 @@ impl Storage {
                     rule_id: r.get(3),
                     path: r.get(4),
                 },
-                noted: r.get::<i64, _>(5) != 0,
+                dismissed: r.get::<i64, _>(5) != 0,
+                noted: r.get::<i64, _>(6) != 0,
             })
             .collect())
     }
@@ -405,14 +407,22 @@ async fn record_findings(
     at: i64,
 ) -> Result<(), StorageError> {
     for f in &result.findings {
-        let path = f.anchors.first().map(|a| a.path.as_str().to_owned());
+        if f.lifecycle == Lifecycle::Dismissed {
+            continue;
+        }
+
+        let first = f.anchors.first();
+        let path = first.map(|a| a.path.as_str().to_owned());
+        let start_line = first.map(|a| i64::from(a.start_line));
+        let end_line = first.map(|a| i64::from(a.end_line));
         let inserted: Option<i64> = sqlx::query_scalar(
             "INSERT INTO findings (change_id, fingerprint, finding_id, category, rule_id, path,
-                 state, first_run_id, last_run_id, updated_at, severity, title)
-             VALUES ($1, $2, $3, $4, $5, $6, 'OPEN', $7, $8, $9, $11, $12)
+                 state, first_run_id, last_run_id, updated_at, severity, title, start_line, end_line)
+             VALUES ($1, $2, $3, $4, $5, $6, 'OPEN', $7, $8, $9, $11, $12, $13, $14)
              ON CONFLICT (change_id, fingerprint) DO UPDATE SET last_run_id = excluded.last_run_id,
                  updated_at = excluded.updated_at, severity = excluded.severity,
-                 title = excluded.title
+                 title = excluded.title, start_line = excluded.start_line,
+                 end_line = excluded.end_line
              RETURNING CASE WHEN findings.first_run_id = $10 THEN findings.id END",
         )
         .bind(change_id)
@@ -427,6 +437,8 @@ async fn record_findings(
         .bind(run_id)
         .bind(severity(f.severity))
         .bind(&f.title)
+        .bind(start_line)
+        .bind(end_line)
         .fetch_one(&mut **tx)
         .await?;
         if let Some(id) = inserted {

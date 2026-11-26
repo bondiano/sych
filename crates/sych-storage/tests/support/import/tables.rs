@@ -377,6 +377,8 @@ pub const TABLES: &[Table] = &[
             I("updated_at"),
             T("severity"),
             T("title"),
+            I("start_line"),
+            I("end_line"),
         ],
     },
     Table {

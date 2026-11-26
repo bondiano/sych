@@ -11,7 +11,8 @@ use std::cmp::Reverse;
 use serde::Serialize;
 use sych_adapters::git::LocalSnapshot;
 use sych_core::analysis::{
-    self, AssessmentRecord, Context, Discovered, intent, merge_overlapping, prompts,
+    self, AssessmentRecord, Context, Discovered, HistoryRole, PriorRevisionContext, intent,
+    merge_overlapping, prompts,
 };
 use sych_core::broker::{EvidencePacket, OpStatus};
 use sych_core::config::{BillingKind, Enforcement, ReasoningEffort, Role};
@@ -158,6 +159,8 @@ pub struct Engine<'a, P, L> {
     pub fixture_paths: &'a [String],
     /// The `security` profile: discovery also hunts security defects.
     pub security: bool,
+    /// Earlier completed findings and dismissed rationales of this change (server runs).
+    pub prior_revision: &'a PriorRevisionContext,
 }
 
 fn needs_assessment(planned: &PlannedObligation) -> bool {
@@ -395,9 +398,14 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         let mut part = self.part();
         let (context, linked) = self.batch_view(batch);
         let ids: Vec<ObligationId> = linked.iter().map(|o| o.obligation.id).collect();
-        let prompt = intent::with_intent(
-            self.hunting(prompts::discovery(&context, &linked, &self.title(batch))),
-            self.intent,
+        let prompt = self.with_prior(
+            intent::with_intent(
+                self.hunting(prompts::discovery(&context, &linked, &self.title(batch))),
+                self.intent,
+            ),
+            batch,
+            &linked,
+            HistoryRole::Reviewer,
         );
         let found = self
             .discover(batch, None, &prompt, &context, &ids, 1, &mut part)

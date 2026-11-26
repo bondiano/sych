@@ -24,8 +24,8 @@ use sych_storage::{RunHandle, RunLedger, Storage};
 use crate::analysis::{AnalysisRecord, Engine, Outcome, PassStatus};
 use crate::backend::Routing;
 
-use super::Session;
 use super::checkpoints;
+use super::session::Session;
 
 impl Session<'_> {
     pub(super) fn packets(&self, run: &RunHandle) -> Vec<EvidencePacket> {
@@ -136,6 +136,7 @@ impl Session<'_> {
             language: self.language,
             fixture_paths: self.fixture_paths,
             security: self.security,
+            prior_revision: self.prior_revision,
         };
         let mut outcome = match self.replay {
             Some(frozen) => engine.replay(frozen.to_vec()).await,

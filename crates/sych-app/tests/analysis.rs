@@ -291,7 +291,7 @@ fn verifier_asks(request: &ModelRequest) -> Result<ModelReply, ProviderError> {
         "category": "DEFECT", "severity": "MEDIUM", "support": "SEMANTIC_ARGUMENT",
         "title": "t", "explanation": "e", "anchors": [], "evidence_ids": [],
         "alternatives_checked": [], "suggested_action": "", "validation_expectation": "",
-        "limitations": []}],
+        "limitations": [], "unverified_external_assumptions": []}],
         "context_requests": [{"question": "the verifier's ask",
             "operation": {"op": "read_lines", "side": "HEAD", "path": "src/order.ts", "start_line": 1, "end_line": 3}}]})
         .to_string(),
@@ -358,7 +358,7 @@ fn verifier_finds_no_reader(request: &ModelRequest) -> Result<ModelReply, Provid
         "category": "DEFECT", "severity": "MEDIUM", "support": "SEMANTIC_ARGUMENT",
         "title": "t", "explanation": "e", "anchors": [], "evidence_ids": [],
         "alternatives_checked": [], "suggested_action": "", "validation_expectation": "",
-        "limitations": []}],
+        "limitations": [], "unverified_external_assumptions": []}],
         "context_requests": [{"question": "readers of the value",
             "operation": {"op": "search_source", "side": "DIFF_BASE", "query": "noSuchReaderAnywhere"}}]})
         .to_string(),

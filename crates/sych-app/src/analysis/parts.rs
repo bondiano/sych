@@ -5,9 +5,9 @@
 
 use futures_util::future::LocalBoxFuture;
 use futures_util::stream::{self, StreamExt};
-use sych_core::analysis::{Context, Discovered};
+use sych_core::analysis::{Context, Discovered, HistoryRole, with_prior_revision};
 use sych_core::broker::{EvidencePacket, REQUIRED_OVER_BUDGET};
-use sych_core::model::{Ledger, ModelProvider};
+use sych_core::model::{Ledger, ModelProvider, Prompt};
 use sych_core::{CodeRef, ObligationId, PlannedObligation, SchemaVersion};
 
 use super::{AnalysisRecord, Engine, Outcome, PassStatus};
@@ -65,6 +65,43 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     /// so earlier ones still reserve the budget first.
     pub(super) async fn each<T>(&self, tasks: Vec<Task<'_, T>>) -> Vec<(Outcome, T)> {
         in_order(tasks, self.parallel).await
+    }
+
+    pub(super) fn with_prior(
+        &self,
+        prompt: Prompt,
+        batch: &[usize],
+        obligations: &[&PlannedObligation],
+        role: HistoryRole,
+    ) -> Prompt {
+        if self.prior_revision.is_empty() {
+            return prompt;
+        }
+
+        let mut paths: Vec<&str> = Vec::new();
+        for &i in batch {
+            for fragment in &self.packets[i].fragments {
+                let p = fragment.code_ref.path.as_str();
+                if !paths.contains(&p) {
+                    paths.push(p);
+                }
+            }
+            for unit_id in &self.packets[i].request.review_unit_ids {
+                if let Some(unit) = self.plan.scope.units.iter().find(|u| u.id == *unit_id) {
+                    for path in &unit.paths {
+                        let p = path.as_str();
+                        if !paths.contains(&p) {
+                            paths.push(p);
+                        }
+                    }
+                }
+            }
+        }
+        let rule_ids: Vec<&str> = obligations
+            .iter()
+            .map(|o| o.obligation.rule_id.as_str())
+            .collect();
+        with_prior_revision(prompt, self.prior_revision, &paths, &rule_ids, role)
     }
 
     pub(super) fn title(&self, batch: &[usize]) -> String {

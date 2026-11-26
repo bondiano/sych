@@ -1,7 +1,7 @@
 //! Deterministic `ResultReducer`: assessments, evidence and findings become
 //! obligation statuses, coverage and recommendation. No model verdict is taken as-is.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::model::MODEL_QUOTA_EXHAUSTED;
 use crate::{
@@ -151,15 +151,18 @@ fn rule_violation(
         .find(|a| a.rule_id == ob.rule_id && a.status == ObligationStatus::Violated)
         .map(|a| a.triggering_conditions.clone())
         .unwrap_or_default();
-    let key = ob.id.to_string();
-    let anchors = ob
+    let anchors: Vec<_> = ob
         .evidence_ids
         .iter()
         .filter_map(|id| evidence.get(id))
         .flat_map(|ev| ev.code_refs.iter().cloned())
         .collect();
+    // Stable across commits: ob.id hashes snapshot_id, so key by rule, version and anchored paths.
+    let anchor_paths: BTreeSet<&str> = anchors.iter().map(|a| a.path.as_str()).collect();
+    let path_key: String = anchor_paths.into_iter().collect::<Vec<_>>().join("\0");
+    let fingerprint = sha256(format!("{}\0{}\0{path_key}", ob.rule_id, ob.rule_version).as_bytes());
     Finding {
-        id: FindingId(derived_uuid(&["finding", &key])),
+        id: FindingId(derived_uuid(&["finding", &fingerprint.to_string()])),
         category: FindingCategory::RuleViolation,
         severity: violation_severity(planned),
         support: Support::ExplicitRule,
@@ -173,7 +176,7 @@ fn rule_violation(
         obligation_ids: vec![ob.id],
         suggested_action: "Restore the behavior the rule requires.".into(),
         validation_expectation: ob.acceptance_criterion.clone(),
-        fingerprint: sha256(format!("{}\0{}\0{key}", ob.rule_id, ob.rule_version).as_bytes()),
+        fingerprint,
         predecessor_finding_id: None,
         lifecycle: Lifecycle::Open,
         scope: ob
