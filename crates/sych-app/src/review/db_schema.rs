@@ -179,6 +179,7 @@ fn failed_schema_connection(
         target: format!("live:{conn_name}"),
         dialect,
         source: DbSchemaSource::LiveDatabase,
+        ci_authenticated: false,
         model_extractor: None,
         status: BackendStatus::Failed,
         base_checked: false,

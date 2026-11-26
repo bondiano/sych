@@ -12,7 +12,9 @@ use sych_core::db_schema::{
     DbSchemaFinding, DbSchemaSnapshot, DbSchemaSource, DbSourcePosition, SchemaLintSettings,
     SqlDialect, diff_findings, rules,
 };
-use sych_core::{BackendStatus, CiFacts, CodeRef, Producer, RepoPath, SchemaVersion, SourceSide};
+use sych_core::{
+    BackendStatus, CiBindingKind, CiFacts, CodeRef, Producer, RepoPath, SchemaVersion, SourceSide,
+};
 
 use super::extract::{SourceTree, extract_models};
 use super::inspect::{InspectOptions, inspect_dsn};
@@ -46,7 +48,8 @@ impl ReviewCollectOptions<'_> {
 /// Collects deterministic [`DbSchemaFacts`] for a review snapshot when schema linting is enabled.
 ///
 /// Database source priority:
-/// 1. Explicit live read-only DSN (CLI `--db-dsn` or trusted server connection)
+/// 1. Explicit live read-only DSN (CLI `--db-dsn` or trusted server connection); fails closed on
+///    connection/inspection error rather than silently falling back to a different source.
 /// 2. Bound CI `db_schema_snapshot` artifact
 /// 3. Static SQL DDL reconstruction from HEAD (and BASE for diffing)
 ///
@@ -61,7 +64,7 @@ pub async fn collect_review_facts(
     let head_tree = SourceTree::from_snapshot(snapshot, SourceSide::Head);
     let head_manifest = resolve_head_manifest(snapshot, &head_tree, options);
 
-    // 1. Live read-only DB inspection.
+    // 1. Live read-only DB inspection (fail closed if configured and unreachable).
     if let Some(dsn) = options.live_dsn {
         let target = options.live_label.unwrap_or("live:database").to_owned();
         let inspect_opts = InspectOptions {
@@ -73,6 +76,7 @@ pub async fn collect_review_facts(
                 snapshot,
                 &target,
                 &db_snap,
+                false,
                 head_manifest.as_ref(),
                 None,
                 options.config,
@@ -80,7 +84,10 @@ pub async fn collect_review_facts(
             Err(err) => failed_facts(
                 snapshot,
                 &target,
-                super::detect_dialect(dsn).unwrap_or(SqlDialect::Postgres),
+                super::detect_dialect(dsn)
+                    .ok()
+                    .or(options.settings.dialect)
+                    .unwrap_or(SqlDialect::Postgres),
                 DbSchemaSource::LiveDatabase,
                 err.to_string(),
             ),
@@ -89,7 +96,7 @@ pub async fn collect_review_facts(
     }
 
     // 2. Bound CI `db_schema_snapshot` artifact.
-    if let Some(ci_snap) =
+    if let Some((ci_fact, ci_snap)) =
         find_ci_snapshot(snapshot, options.ci, options.settings.ci_report.as_deref())
     {
         let target = options
@@ -97,10 +104,15 @@ pub async fn collect_review_facts(
             .ci_report
             .as_deref()
             .map_or_else(|| "ci:db-schema".to_owned(), |id| format!("ci:{id}"));
+        let authenticated = ci_fact
+            .origin
+            .as_ref()
+            .is_some_and(|o| o.binding != CiBindingKind::Unverified);
         let facts = evaluate_target(
             snapshot,
             &target,
             ci_snap,
+            authenticated,
             head_manifest.as_ref(),
             None,
             options.config,
@@ -109,8 +121,17 @@ pub async fn collect_review_facts(
     }
 
     // 3. Static SQL DDL reconstruction (HEAD vs BASE).
+    collect_static_sql(snapshot, &head_tree, head_manifest.as_ref(), options)
+}
+
+fn collect_static_sql(
+    snapshot: &LocalSnapshot,
+    head_tree: &SourceTree<'_>,
+    head_manifest: Option<&DbModelManifest>,
+    options: &ReviewCollectOptions<'_>,
+) -> Vec<DbSchemaFacts> {
     let head_targets = discover_sql_targets(
-        &head_tree,
+        head_tree,
         &options.settings.sql_paths,
         options.settings.dialect,
     );
@@ -135,7 +156,7 @@ pub async fn collect_review_facts(
         let m = extract_models(&base_tree, &options.config.models);
         (!m.tables.is_empty()).then_some(m)
     } else {
-        head_manifest.clone()
+        head_manifest.cloned()
     };
 
     let mut out = Vec::new();
@@ -152,7 +173,8 @@ pub async fn collect_review_facts(
             snapshot,
             &target.label,
             &head_snap,
-            head_manifest.as_ref(),
+            false,
+            head_manifest,
             base_findings.as_deref(),
             options.config,
         ));
@@ -185,11 +207,11 @@ fn find_ci_snapshot<'a>(
     snapshot: &LocalSnapshot,
     ci: &'a [CiFacts],
     report_hint: Option<&str>,
-) -> Option<&'a DbSchemaSnapshot> {
+) -> Option<(&'a CiFacts, &'a DbSchemaSnapshot)> {
     ci.iter()
         .filter(|c| c.bound_to(&snapshot.snapshot))
         .filter(|c| report_hint.is_none_or(|h| c.report.contains(h)))
-        .find_map(|c| c.db_schema_snapshot.as_deref())
+        .find_map(|c| c.db_schema_snapshot.as_deref().map(|snap| (c, snap)))
 }
 
 fn find_ci_manifest<'a>(
@@ -207,6 +229,7 @@ fn evaluate_target(
     snapshot: &LocalSnapshot,
     target: &str,
     head_snap: &DbSchemaSnapshot,
+    ci_authenticated: bool,
     head_manifest: Option<&DbModelManifest>,
     base_findings: Option<&[DbSchemaFinding]>,
     config: &DbSchemaConfig,
@@ -236,6 +259,7 @@ fn evaluate_target(
         target: target.to_owned(),
         dialect: head_snap.dialect,
         source: head_snap.source,
+        ci_authenticated,
         model_extractor: head_manifest.and_then(|m| m.extractor.clone()),
         status: BackendStatus::Ready,
         base_checked: base_findings.is_some(),
@@ -266,6 +290,7 @@ fn failed_facts(
         target: target.to_owned(),
         dialect,
         source,
+        ci_authenticated: false,
         model_extractor: None,
         status: BackendStatus::Failed,
         base_checked: false,

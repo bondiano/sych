@@ -14,8 +14,9 @@ use crate::config::{
     ServerConfig,
 };
 use crate::{
-    BackendStatus, FindingCategory, Producer, RepoPath, ReviewLanguage, SchemaVersion, Severity,
-    SourceSnapshotId, Timestamp, sha256,
+    BackendStatus, ComparisonMode, FindingCategory, GitHashAlgorithm, GitObjectId, Producer,
+    RepoPath, ReviewLanguage, SchemaVersion, Severity, SourceSnapshot, SourceSnapshotId, Timestamp,
+    TrustClass, sha256,
 };
 
 fn model_table(name: &str) -> DbModelTable {
@@ -366,6 +367,7 @@ fn sample_facts() -> DbSchemaFacts {
         target: "migrations/postgres".into(),
         dialect: SqlDialect::Postgres,
         source: DbSchemaSource::StaticSql,
+        ci_authenticated: false,
         model_extractor: None,
         status: BackendStatus::Ready,
         base_checked: true,
@@ -448,6 +450,45 @@ fn diff_findings_and_review_findings_cover_waivers_localization_and_gaps() {
     let g = gaps(slice::from_ref(&facts));
     assert!(g.iter().any(|s| s.contains("DB_SCHEMA_PARTIAL")));
     assert!(g.iter().any(|s| s.contains("DB_SCHEMA_UNMAPPED_MODEL")));
+}
+
+#[test]
+fn ci_snapshot_evidence_trust_class_requires_authenticated_ci_origin() {
+    let mut facts = sample_facts();
+    facts.source = DbSchemaSource::CiSnapshot;
+    facts.ci_authenticated = false;
+    let now = Timestamp::from_second(1_700_000_000).expect("ts");
+    let snap = SourceSnapshot {
+        schema_version: SchemaVersion,
+        id: facts.source_snapshot_id.clone(),
+        repository: "org/repo".into(),
+        target_ref: Some("main".into()),
+        target_tip: GitObjectId::new(
+            GitHashAlgorithm::Sha1,
+            "1111111111111111111111111111111111111111",
+        )
+        .expect("oid"),
+        diff_base: GitObjectId::new(
+            GitHashAlgorithm::Sha1,
+            "1111111111111111111111111111111111111111",
+        )
+        .expect("oid"),
+        head: GitObjectId::new(
+            GitHashAlgorithm::Sha1,
+            "2222222222222222222222222222222222222222",
+        )
+        .expect("oid"),
+        comparison: ComparisonMode::MergeBase,
+        source_manifest_hash: sha256(b"src"),
+        diff_manifest_hash: sha256(b"diff"),
+        created_at: now,
+    };
+    let local_ev = facts.to_evidence(&snap, now).expect("ev");
+    assert_eq!(local_ev.trust_class, TrustClass::AuthorClaim);
+
+    facts.ci_authenticated = true;
+    let auth_ev = facts.to_evidence(&snap, now).expect("ev");
+    assert_eq!(auth_ev.trust_class, TrustClass::AuthenticatedCi);
 }
 
 #[test]

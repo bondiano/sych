@@ -1469,6 +1469,10 @@
           "description": "True when the diff base was also evaluated so new findings are separated from existing debt.",
           "type": "boolean"
         },
+        "ci_authenticated": {
+          "description": "True only when a `ci_snapshot` came from an authenticated CI origin bound to head.",
+          "type": "boolean"
+        },
         "dialect": {
           "$ref": "#/$defs/SqlDialect"
         },

@@ -40,7 +40,8 @@ pub fn to_snake_case(input: &str) -> String {
     out
 }
 
-/// Converts a singular English table stem to its conventional plural form.
+/// Converts a singular English table stem to its conventional plural form,
+/// preserving the original letter casing of `word`.
 pub fn pluralize(word: &str) -> String {
     if word.is_empty() {
         return String::new();
@@ -50,50 +51,91 @@ pub fn pluralize(word: &str) -> String {
         return format!("{prefix}_{}", pluralize_single(last));
     }
 
+    if let Some((prefix, last)) = split_last_pascal_word(word) {
+        return format!("{prefix}{}", pluralize_single(last));
+    }
+
     pluralize_single(word)
+}
+
+fn split_last_pascal_word(word: &str) -> Option<(&str, &str)> {
+    let bytes = word.as_bytes();
+    for i in (1..bytes.len()).rev() {
+        if bytes[i].is_ascii_uppercase() && bytes[i - 1].is_ascii_lowercase() {
+            return Some((&word[..i], &word[i..]));
+        }
+    }
+    None
+}
+
+fn match_word_case(original: &str, replacement: &str) -> String {
+    if original.chars().all(|c| !c.is_ascii_lowercase())
+        && original.chars().any(|c| c.is_ascii_uppercase())
+    {
+        return replacement.to_ascii_uppercase();
+    }
+
+    if original
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_uppercase())
+    {
+        let mut chars = replacement.chars();
+        if let Some(first) = chars.next() {
+            return format!("{}{}", first.to_ascii_uppercase(), chars.as_str());
+        }
+    }
+
+    replacement.to_owned()
 }
 
 fn pluralize_single(word: &str) -> String {
     let lower = word.to_ascii_lowercase();
-    match lower.as_str() {
-        "person" => return "people".into(),
-        "child" => return "children".into(),
-        "man" => return "men".into(),
-        "woman" => return "women".into(),
-        "status" => return "statuses".into(),
-        "campus" => return "campuses".into(),
-        "bus" => return "buses".into(),
-        "alias" => return "aliases".into(),
-        "index" => return "indices".into(),
+    let irregular = match lower.as_str() {
+        "person" => Some("people"),
+        "child" => Some("children"),
+        "man" => Some("men"),
+        "woman" => Some("women"),
+        "status" => Some("statuses"),
+        "campus" => Some("campuses"),
+        "bus" => Some("buses"),
+        "alias" => Some("aliases"),
+        "index" => Some("indices"),
         "data" | "metadata" | "news" | "series" | "species" | "equipment" | "information" => {
-            return lower;
+            return word.to_owned();
         }
-        _ => {}
+        _ => None,
+    };
+    if let Some(repl) = irregular {
+        return match_word_case(word, repl);
     }
 
+    let suffix_upper = word.chars().all(|c| !c.is_ascii_lowercase())
+        && word.chars().any(|c| c.is_ascii_uppercase());
     if lower.ends_with("ss")
         || lower.ends_with("sh")
         || lower.ends_with("ch")
         || lower.ends_with('x')
         || lower.ends_with('z')
     {
-        return format!("{lower}es");
+        return format!("{word}{}", if suffix_upper { "ES" } else { "es" });
     }
 
-    if let Some(stem) = lower.strip_suffix('y')
-        && stem
+    if lower.ends_with('y')
+        && lower[..lower.len() - 1]
             .chars()
             .last()
             .is_some_and(|c| !matches!(c, 'a' | 'e' | 'i' | 'o' | 'u'))
     {
-        return format!("{stem}ies");
+        let stem = &word[..word.len() - 1];
+        return format!("{stem}{}", if suffix_upper { "IES" } else { "ies" });
     }
 
     if lower.ends_with('s') {
-        return lower;
+        return word.to_owned();
     }
 
-    format!("{lower}s")
+    format!("{word}{}", if suffix_upper { "S" } else { "s" })
 }
 
 /// Applies explicit table overrides and naming strategy to a model/struct name.

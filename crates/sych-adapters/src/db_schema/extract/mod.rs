@@ -12,6 +12,7 @@ pub mod py_sqlalchemy;
 pub mod rs_diesel;
 pub mod rs_seaorm;
 pub mod source;
+pub mod ts_drizzle;
 
 use std::collections::BTreeMap;
 
@@ -134,5 +135,3 @@ fn merge_tables(dst: &mut DbModelTable, src: &DbModelTable) {
         }
     }
 }
-
-pub mod ts_drizzle;

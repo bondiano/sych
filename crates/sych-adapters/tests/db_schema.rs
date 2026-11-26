@@ -408,4 +408,17 @@ async fn review_collector_diffs_base_and_head_and_anchors_findings_to_head() {
     let imported_m = ci::import(&snap, "model.json", manifest_json, None).expect("ci manifest");
     assert_eq!(imported_m.format, CiFormat::DbModelManifest);
     assert!(imported_m.db_model_manifest.is_some());
+
+    // Top-level JSON key detection must not confuse SychManifest or DbModelManifest.
+    let sych_manifest_with_tables =
+        r#"{"schema_version": 1, "commands": [{"name": "check tables", "exit_code": 0}]}"#;
+    let sych_manifest_facts =
+        ci::import(&snap, "outcomes.json", sych_manifest_with_tables, None).expect("sych manifest");
+    assert_eq!(sych_manifest_facts.format, CiFormat::SychManifest);
+
+    let model_with_dialect_word =
+        r#"{"schema_version": 1, "tables": [{"name": "dialect_schemas"}]}"#;
+    let dialect_model_facts =
+        ci::import(&snap, "models.json", model_with_dialect_word, None).expect("model manifest");
+    assert_eq!(dialect_model_facts.format, CiFormat::DbModelManifest);
 }

@@ -89,17 +89,9 @@ fn detect(text: &str) -> Option<CiFormat> {
     } else if start.starts_with('{') && start.contains("\"runs\"") {
         Some(CiFormat::Sarif)
     } else if start.starts_with('{')
-        && start.contains("\"dialect\"")
-        && start.contains("\"schemas\"")
+        && let Some(kind) = detect_sych_json(text)
     {
-        Some(CiFormat::DbSchemaSnapshot)
-    } else if start.starts_with('{')
-        && start.contains("\"tables\"")
-        && (start.contains("\"schema_version\"") || start.contains("\"version\""))
-    {
-        Some(CiFormat::DbModelManifest)
-    } else if start.starts_with('{') && start.contains("\"commands\"") {
-        Some(CiFormat::SychManifest)
+        Some(kind)
     } else if start
         .lines()
         .next()
@@ -110,6 +102,31 @@ fn detect(text: &str) -> Option<CiFormat> {
     } else {
         None
     }
+}
+
+/// Disambiguates Sych's own JSON CI artifacts by top-level object keys rather
+/// than bare substring checks (avoiding false matches when a command name or
+/// table name contains another format's keyword).
+fn detect_sych_json(text: &str) -> Option<CiFormat> {
+    let value: serde_json::Value = serde_json::from_str(text).ok()?;
+    let obj = value.as_object()?;
+    if obj.get("commands").is_some_and(serde_json::Value::is_array) {
+        return Some(CiFormat::SychManifest);
+    }
+
+    if obj.get("dialect").is_some_and(serde_json::Value::is_string)
+        && obj.get("schemas").is_some_and(serde_json::Value::is_array)
+    {
+        return Some(CiFormat::DbSchemaSnapshot);
+    }
+
+    if obj.get("tables").is_some_and(serde_json::Value::is_array)
+        && (obj.contains_key("schema_version") || obj.contains_key("version"))
+    {
+        return Some(CiFormat::DbModelManifest);
+    }
+
+    None
 }
 
 /// Normalizes one locally given report, its format detected from content.

@@ -11,9 +11,13 @@ pub fn parse_snapshot(text: &str, facts: &mut CiFacts) -> Result<(), CiError> {
     let mut snapshot: DbSchemaSnapshot =
         serde_json::from_str(text).map_err(|e| malformed(facts, &e))?;
     snapshot.source = DbSchemaSource::CiSnapshot;
-    facts
-        .limitations
-        .extend(snapshot.limitations.iter().cloned());
+    if !snapshot.limitations.is_empty() {
+        facts.limitations.push(format!(
+            "ARTIFACT_LIMITATIONS: database schema snapshot reports {} limitation(s)",
+            snapshot.limitations.len()
+        ));
+    }
+
     facts.db_schema_snapshot = Some(Box::new(snapshot));
     Ok(())
 }
@@ -21,9 +25,13 @@ pub fn parse_snapshot(text: &str, facts: &mut CiFacts) -> Result<(), CiError> {
 /// Parses a normalized application model manifest artifact.
 pub fn parse_manifest(text: &str, facts: &mut CiFacts) -> Result<(), CiError> {
     let manifest = DbModelManifest::parse(text).map_err(|e| malformed(facts, &e))?;
-    facts
-        .limitations
-        .extend(manifest.limitations.iter().cloned());
+    if !manifest.limitations.is_empty() {
+        facts.limitations.push(format!(
+            "ARTIFACT_LIMITATIONS: model manifest reports {} limitation(s)",
+            manifest.limitations.len()
+        ));
+    }
+
     facts.db_model_manifest = Some(Box::new(manifest));
     Ok(())
 }

@@ -112,6 +112,11 @@ pub fn diff_findings(
     (labeled, fixed)
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 /// Deterministic database and application schema check facts for one target.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DbSchemaFacts {
@@ -122,6 +127,9 @@ pub struct DbSchemaFacts {
     pub target: String,
     pub dialect: SqlDialect,
     pub source: DbSchemaSource,
+    /// True only when a `ci_snapshot` came from an authenticated CI origin bound to head.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub ci_authenticated: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_extractor: Option<String>,
     pub status: BackendStatus,
@@ -180,7 +188,11 @@ impl DbSchemaFacts {
             DbSchemaSource::CiSnapshot => (
                 EvidenceKind::Infrastructure,
                 BindingKind::Ci,
-                TrustClass::AuthenticatedCi,
+                if self.ci_authenticated {
+                    TrustClass::AuthenticatedCi
+                } else {
+                    TrustClass::AuthorClaim
+                },
             ),
         };
         let mut limitations = self.limitations.clone();
