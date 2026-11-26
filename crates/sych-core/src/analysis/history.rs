@@ -2,8 +2,9 @@
 //! cross-revision flip-flopping) and dismissed findings with author rationales (to avoid
 //! re-raising already rejected claims).
 //!
-//! Only entries matching the current prompt's paths or rule ids are attached, so untouched units
-//! keep identical prompt hashes and reuse parent checkpoints.
+//! Only entries matching the current prompt's paths (or rule ids for prior findings and
+//! pathless dismissals) are attached, so untouched units keep identical prompt hashes and reuse
+//! parent checkpoints.
 
 use std::fmt::Write as _;
 

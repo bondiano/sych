@@ -226,8 +226,12 @@ async fn reworded_shifted_dismissed_finding_stays_hidden_and_is_not_duplicated()
         .storage
         .latest_completed_result(&change.partition.tenant_id, 1)
         .await
-        .expect("latest");
-    assert!(latest.is_some(), "latest completed result is readable");
+        .expect("latest")
+        .expect("latest completed result");
+    assert_eq!(
+        latest.findings[0].title,
+        "ORM-only repository without SQL targets skipped"
+    );
 
     // Rerun emits the same issue with a new fingerprint, shifted lines and reworded title.
     w.comment("d-3", "dev", "/sych rerun").await;
