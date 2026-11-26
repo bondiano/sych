@@ -11,6 +11,7 @@ use sych_core::broker::{
     unshown_changes,
 };
 use sych_core::config::{BillingKind, Role};
+use sych_core::db_schema;
 use sych_core::model::{ChargeState, Limits as ModelLimits, Purpose};
 use sych_core::scan::scan;
 use sych_core::{
@@ -49,6 +50,7 @@ impl Session<'_> {
                     ledger: &self.facts.ledger,
                     lint: &self.facts.lint,
                     architecture: &self.facts.architecture,
+                    db_schema: &self.facts.db_schema,
                     limits,
                 },
                 self.snap,
@@ -241,6 +243,7 @@ impl Session<'_> {
 
         task_gaps.extend(self.ci_gaps.iter().cloned());
         task_gaps.extend(architecture::gaps(&self.facts.architecture));
+        task_gaps.extend(db_schema::gaps(&self.facts.db_schema));
         let findings = self.with_static(findings, now);
         let reduced = reduce(&ReduceInput {
             plan,
@@ -359,6 +362,14 @@ impl Session<'_> {
             &self.facts.architecture,
             self.rules,
             &changed,
+            self.language,
+            now,
+        ));
+        out.extend(db_schema::findings(
+            &self.facts.db_schema,
+            self.rules,
+            self.waivers,
+            &self.schema_config,
             self.language,
             now,
         ));

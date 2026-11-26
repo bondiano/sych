@@ -1,6 +1,7 @@
 pub mod architecture;
 pub mod chat;
 pub mod ci;
+pub mod db_schema;
 pub mod execution;
 pub mod git;
 pub mod github;

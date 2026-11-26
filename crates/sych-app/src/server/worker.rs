@@ -36,7 +36,7 @@ impl Engine {
         mirrors::path(&self.store.artifacts, connection, repo)
     }
 
-    fn review_request(&self, mirror: PathBuf, claim: &Claim) -> Request {
+    fn review_request(&self, mirror: PathBuf, full_name: &str, claim: &Claim) -> Request {
         let comparison = Comparison {
             repo: mirror,
             base: claim.inputs.base_sha.clone(),
@@ -54,6 +54,7 @@ impl Engine {
                 Trigger::Successor { parent, .. } => parent.parse().ok().map(sych_core::RunId),
                 _ => None,
             },
+            repository_full_name: Some(full_name.to_owned()),
             ..Request::new(comparison, Some(self.review.models.clone()))
         }
     }
@@ -158,9 +159,9 @@ impl Engine {
             tracing::warn!(error = %e, "cannot record the mirror's use");
         }
 
-        let args = self.review_request(mirror, claim);
+        let args = Box::new(self.review_request(mirror, &change.full_name, claim));
         let (args, pinned) = blocking(move || {
-            let pinned = review::pin(&args).and_then(|p| Ok((p.policy()?, p)));
+            let pinned = review::pin(&args).and_then(|p| Ok((p.policy()?, Box::new(p))));
             (args, pinned)
         })
         .await?;
@@ -227,7 +228,7 @@ impl Engine {
             return Ok(None);
         }
 
-        let mut args = args;
+        let mut args = *args;
         args.ci_gaps = collected.gaps.iter().map(ToString::to_string).collect();
         args.ci_imported = collected.facts;
         args.waivers = self.waivers(change.id, now).await?;

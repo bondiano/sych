@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::LintFacts;
 use crate::architecture::ArchitectureFacts;
+use crate::db_schema::DbSchemaFacts;
 use crate::effects::EffectLedger;
 use crate::semantic::facts_evidence_id;
 use crate::{
@@ -205,6 +206,9 @@ pub struct RunFacts {
     /// Tables and columns a changed migration touches, with the code that names them.
     #[serde(default)]
     pub schema_refs: Vec<crate::SchemaRef>,
+    /// Deterministic database and application schema linter facts when `schema_lint` is enabled.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub db_schema: Vec<DbSchemaFacts>,
 }
 
 impl SyntaxFacts {

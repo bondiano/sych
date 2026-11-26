@@ -57,6 +57,8 @@ const fn format(f: ReportFormat) -> CiFormat {
         ReportFormat::GoVetJson => CiFormat::GoVetJson,
         ReportFormat::TerraformPlan => CiFormat::TerraformPlan,
         ReportFormat::KubernetesRendered => CiFormat::KubernetesRendered,
+        ReportFormat::DbSchemaSnapshot => CiFormat::DbSchemaSnapshot,
+        ReportFormat::DbModelManifest => CiFormat::DbModelManifest,
     }
 }
 

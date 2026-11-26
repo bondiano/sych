@@ -4,6 +4,7 @@
 //! A locally imported file proves nothing about its origin, so it is an author claim; a
 //! disabled lint or a skipped test is recorded as such and never reads as a fix.
 
+use crate::db_schema::{DbModelManifest, DbSchemaSnapshot};
 use crate::kubernetes::RenderedManifests;
 use crate::terraform::TerraformPlan;
 use std::fmt;
@@ -127,6 +128,10 @@ pub enum CiFormat {
     TerraformPlan,
     /// Rendered Kubernetes manifests (`helm template`, `kustomize build`), multi-document YAML.
     KubernetesRendered,
+    /// Normalized database schema snapshot (`sych schema snapshot`).
+    DbSchemaSnapshot,
+    /// Normalized application model manifest (`sych schema extract` or external adapter).
+    DbModelManifest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -193,6 +198,10 @@ pub struct CiFacts {
     pub runner: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kubernetes: Option<RenderedManifests>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub db_schema_snapshot: Option<Box<DbSchemaSnapshot>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub db_model_manifest: Option<Box<DbModelManifest>>,
 }
 
 impl CiManifest {
@@ -218,6 +227,8 @@ impl CiFacts {
             origin: None,
             terraform: None,
             kubernetes: None,
+            db_schema_snapshot: None,
+            db_model_manifest: None,
             runner: None,
         }
     }
@@ -292,14 +303,17 @@ impl CiFacts {
             CiFormat::CargoJson
             | CiFormat::Sarif
             | CiFormat::GitlabCodeQuality
-            | CiFormat::GoVetJson => EvidenceKind::Static,
+            | CiFormat::GoVetJson
+            | CiFormat::DbModelManifest => EvidenceKind::Static,
             CiFormat::Junit
             | CiFormat::SychManifest
             | CiFormat::Lcov
             | CiFormat::Cobertura
             | CiFormat::GoTestJson
             | CiFormat::GoCover => EvidenceKind::Test,
-            CiFormat::TerraformPlan | CiFormat::KubernetesRendered => EvidenceKind::Infrastructure,
+            CiFormat::TerraformPlan | CiFormat::KubernetesRendered | CiFormat::DbSchemaSnapshot => {
+                EvidenceKind::Infrastructure
+            }
         };
         let mut limitations = self.limitations.clone();
         let trust_class = self.trust(&mut limitations);
@@ -331,6 +345,8 @@ impl CiFacts {
                     CiFormat::GoVetJson => "go_vet_json",
                     CiFormat::TerraformPlan => "terraform_plan",
                     CiFormat::KubernetesRendered => "kubernetes_rendered",
+                    CiFormat::DbSchemaSnapshot => "db_schema_snapshot",
+                    CiFormat::DbModelManifest => "db_model_manifest",
                 }
                 .into(),
                 version: self

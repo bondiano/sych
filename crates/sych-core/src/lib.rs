@@ -6,6 +6,7 @@ pub mod architecture;
 pub mod broker;
 mod ci;
 pub mod config;
+pub mod db_schema;
 pub mod deploy;
 pub mod effects;
 mod evidence;

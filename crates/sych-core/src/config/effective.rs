@@ -11,6 +11,7 @@ use super::{
     CONTRACTS_DIR, ConfigError, DeploymentFile, Effect, EffectsFile, Mode, POLICY_DIR, Problems,
     REPO_CONFIG_FILE, RepoConfig, Rule, RulesFile, ServerConfig, parse_yaml,
 };
+use crate::db_schema::{DbSchemaConfig, ServerSchemaLint};
 use crate::{
     PolicySnapshot, PolicySnapshotId, PolicySource, RepoPath, SchemaVersion, Sha256Digest,
     Timestamp, canonical_sha256, redact, sha256,
@@ -34,11 +35,24 @@ pub struct RepositoryPolicy {
     pub rules: Vec<Rule>,
     pub effects: Vec<Effect>,
     pub deployment: Option<DeploymentFile>,
+    /// Optional standalone schema linter config loaded from `policy.schema_lint_file`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema_lint: Option<DbSchemaConfig>,
     /// Contract documents by path with their content hash.
     pub contracts: BTreeMap<RepoPath, Sha256Digest>,
     /// Their trusted text, for the obligations whose rules cite them; not UTF-8 is left out.
     #[serde(default)]
     pub contract_texts: BTreeMap<RepoPath, String>,
+}
+
+impl RepositoryPolicy {
+    /// Merged schema linter config: optional `policy.schema_lint_file` plus inline
+    /// `schema_lint` settings in `.sych/config.yaml` (inline overrides file).
+    pub fn effective_schema_lint_config(&self) -> DbSchemaConfig {
+        let mut merged = self.schema_lint.clone().unwrap_or_default();
+        merged.merge_from(&self.config.schema_lint.to_linter_config());
+        merged
+    }
 }
 
 fn text<'a>(p: &mut Problems<'_>, bytes: &'a [u8]) -> Option<&'a str> {
@@ -83,12 +97,16 @@ impl RepositoryPolicy {
         config.validate(server, &mut p);
         errors.append(&mut p.errors);
 
-        let known = [
+        let mut known = vec![
             &config_path,
             &config.policy.rules_file,
             &config.policy.effects_file,
             &config.policy.deployment_file,
         ];
+        if let Some(schema_file) = &config.policy.schema_lint_file {
+            known.push(schema_file);
+        }
+
         let contracts: BTreeMap<RepoPath, Sha256Digest> = files
             .files
             .iter()
@@ -116,15 +134,32 @@ impl RepositoryPolicy {
         let rules = parse_file::<RulesFile>(files, &config.policy.rules_file);
         let effects = parse_file::<EffectsFile>(files, &config.policy.effects_file);
         let deployment = parse_file::<DeploymentFile>(files, &config.policy.deployment_file);
-        let (rules, effects, deployment) = match (rules, effects, deployment) {
-            (Ok(r), Ok(e), Ok(d)) => (r, e, d),
-            (r, e, d) => {
-                errors.extend(r.err().into_iter().flatten());
-                errors.extend(e.err().into_iter().flatten());
-                errors.extend(d.err().into_iter().flatten());
-                return Err(errors);
-            }
+        let schema_lint = match &config.policy.schema_lint_file {
+            Some(path) => match files.files.get(path) {
+                Some(bytes) => {
+                    let mut p = Problems::new(path.as_str());
+                    match text(&mut p, bytes) {
+                        Some(raw) => DbSchemaConfig::parse_yaml(path.as_str(), raw).map(Some),
+                        None => Err(p.errors),
+                    }
+                }
+                None => Ok(None),
+            },
+            None => Ok(None),
         };
+        let (rules, effects, deployment, schema_lint) =
+            match (rules, effects, deployment, schema_lint) {
+                (Ok(rules), Ok(effects), Ok(deployment), Ok(schema_lint)) => {
+                    (rules, effects, deployment, schema_lint)
+                }
+                (rules, effects, deployment, schema_lint) => {
+                    errors.extend(rules.err().into_iter().flatten());
+                    errors.extend(effects.err().into_iter().flatten());
+                    errors.extend(deployment.err().into_iter().flatten());
+                    errors.extend(schema_lint.err().into_iter().flatten());
+                    return Err(errors);
+                }
+            };
         if let Some(rules) = &rules {
             let mut p = Problems::new(config.policy.rules_file.as_str());
             rules.validate(&mut p, &refs);
@@ -146,6 +181,7 @@ impl RepositoryPolicy {
             rules: rules.map(|r| r.rules).unwrap_or_default(),
             effects: effects.map(|e| e.effects).unwrap_or_default(),
             deployment,
+            schema_lint,
             contracts,
             contract_texts,
         })
@@ -212,6 +248,7 @@ impl ServerConfig {
             scm: super::Scm::default(),
             notifications: super::Notifications::default(),
             slack: None,
+            schema_lint: ServerSchemaLint::default(),
         }
     }
 }
@@ -253,12 +290,22 @@ impl EffectiveConfig {
         }));
         let config_hash =
             canonical_sha256(&(&server_config, &repository.config)).map_err(|e| hash_failed(&e))?;
-        let rules_hash = canonical_sha256(&(
-            &repository.rules,
-            &repository.effects,
-            &repository.deployment,
-            &repository.contracts,
-        ))
+        let rules_hash = if let Some(schema_lint) = &repository.schema_lint {
+            canonical_sha256(&(
+                &repository.rules,
+                &repository.effects,
+                &repository.deployment,
+                &repository.contracts,
+                schema_lint,
+            ))
+        } else {
+            canonical_sha256(&(
+                &repository.rules,
+                &repository.effects,
+                &repository.deployment,
+                &repository.contracts,
+            ))
+        }
         .map_err(|e| hash_failed(&e))?;
         Ok(Self {
             schema_version: SchemaVersion,

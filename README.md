@@ -104,6 +104,7 @@ Before 1.0, CLI flags, JSON documents and the database schema can change between
 | [Storage](https://bondiano.github.io/sych/storage/) | PostgreSQL/SQLite, artifacts, retention |
 | [Analysis](https://bondiano.github.io/sych/analysis/) | assessment, discovery, audit, verifier and measured quality |
 | [Semantic backends](https://bondiano.github.io/sych/semantic/) | pinned language servers, linters and context facts |
+| [Database schema linter](https://bondiano.github.io/sych/db-schema/) | standalone `sych schema`, opt-in `DB-*` review rules, ORM extractors and `/v1/schema` API |
 
 The same pages live in [docs/](docs/README.md). Each crate has its own README with its module map and invariants.
 

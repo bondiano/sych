@@ -29,6 +29,49 @@ pub struct BlobCache {
 }
 
 impl LocalSnapshot {
+    /// Regular, non-secret text-sized paths in the pinned tree at `side`, in lexicographical order.
+    pub fn list_paths(&self, side: SourceSide) -> Result<Vec<RepoPath>, ReadError> {
+        let listing = self
+            .git
+            .stdout([
+                "ls-tree",
+                "-r",
+                "-z",
+                "-l",
+                "--full-tree",
+                self.commit(side).hex(),
+            ])
+            .map_err(|e| ReadError::Unavailable(e.to_string()))?;
+        let mut paths = Vec::new();
+        for record in tree_records(&listing).flatten() {
+            if record.kind != "blob" || record.mode == "120000" {
+                continue;
+            }
+
+            if record
+                .size
+                .parse::<u64>()
+                .map_or(true, |n| n > MAX_TEXT_BLOB_BYTES)
+            {
+                continue;
+            }
+
+            let Ok(raw) = str::from_utf8(record.path) else {
+                continue;
+            };
+            let Ok(repo_path) = raw.parse::<RepoPath>() else {
+                continue;
+            };
+            if is_secret_path(repo_path.as_str()) {
+                continue;
+            }
+
+            paths.push(repo_path);
+        }
+        paths.sort();
+        Ok(paths)
+    }
+
     /// Whether `path` is a directory on `side`, e.g. a Python namespace package.
     pub(crate) fn is_dir(&self, side: SourceSide, path: &RepoPath) -> bool {
         self.git

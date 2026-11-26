@@ -5,6 +5,7 @@
 pub mod archive;
 mod cargo;
 mod coverage;
+mod db_schema;
 mod findings;
 pub(crate) use findings::sarif;
 mod golang;
@@ -87,6 +88,16 @@ fn detect(text: &str) -> Option<CiFormat> {
         Some(CiFormat::TerraformPlan)
     } else if start.starts_with('{') && start.contains("\"runs\"") {
         Some(CiFormat::Sarif)
+    } else if start.starts_with('{')
+        && start.contains("\"dialect\"")
+        && start.contains("\"schemas\"")
+    {
+        Some(CiFormat::DbSchemaSnapshot)
+    } else if start.starts_with('{')
+        && start.contains("\"tables\"")
+        && (start.contains("\"schema_version\"") || start.contains("\"version\""))
+    {
+        Some(CiFormat::DbModelManifest)
     } else if start.starts_with('{') && start.contains("\"commands\"") {
         Some(CiFormat::SychManifest)
     } else if start
@@ -142,6 +153,8 @@ pub fn import_as(
         CiFormat::GoVetJson => golang::vet_json(text, &mut facts)?,
         CiFormat::TerraformPlan => terraform::parse(text, &mut facts)?,
         CiFormat::KubernetesRendered => kubernetes::parse(text, &mut facts)?,
+        CiFormat::DbSchemaSnapshot => db_schema::parse_snapshot(text, &mut facts)?,
+        CiFormat::DbModelManifest => db_schema::parse_manifest(text, &mut facts)?,
     }
     facts.origin = origin;
     if facts.manifest.is_none() && facts.origin.is_none() {

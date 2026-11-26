@@ -53,6 +53,9 @@ fn request(args: &ReviewArguments, comparison: Comparison) -> review::Request {
         ci_manifest: args.ci_manifest.clone(),
         checks: args.checks.clone(),
         intent_file: args.intent_file.clone(),
+        schema_lint: args.schema_lint,
+        db_dsn: args.db_dsn.clone(),
+        db_model_manifest: args.db_model_manifest.clone(),
         ..review::Request::new(comparison, args.models.clone())
     }
 }

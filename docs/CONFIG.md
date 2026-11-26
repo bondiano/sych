@@ -6,7 +6,7 @@
 |---|---|---|
 | `sych.yaml` | process owner / operator | `--config` or the personal config directory for local reviews |
 | `.sych/config.yaml` | repository owner | Git objects of the **target tip** (`--base`) |
-| `.sych/rules.yaml`, `effects.yaml`, `deploy.yaml` ([DEPLOYMENT.md](DEPLOYMENT.md)) | repository owner | same; paths are set in `policy.*_file` |
+| `.sych/rules.yaml`, `effects.yaml`, `deploy.yaml` ([DEPLOYMENT.md](DEPLOYMENT.md)), optional `schema-lint.yaml` ([DB_SCHEMA.md](DB_SCHEMA.md)) | repository owner | same; paths are set in `policy.*_file` |
 | `.sych/contracts/**` | repository owner | same; hashed as is |
 
 For local reviews, an explicit `--config` takes precedence. Otherwise Sych looks for
@@ -158,6 +158,17 @@ most `long_file` lines. A bound of 0 is a config error. As every key here, it is
 cannot loosen the bounds its own code is judged by. A required rule `ARCH-<CHECK>` makes a finding of that check a
 rule violation, and its exceptions waive it ([ARCHITECTURE.md](ARCHITECTURE.md#in-the-result)). Add the key only once
 the deployed reviewer knows it: an older one refuses the unknown key.
+
+## Database schema linting
+
+`schema_lint` in `.sych/config.yaml` enables Sych's built-in database and application schema linter during review
+(`enabled: false` by default). Rules, options, exclusions and model extraction settings may live inline under
+`schema_lint` or in a separate file referenced by `policy.schema_lint_file` (typically `.sych/schema-lint.yaml`), read
+strictly from the target tip so a PR cannot weaken rules or hide violations. Open findings emit `DB-*` rule ids (and
+`DB-STALE-EXCLUSION`) that integrate with `review.block_on` and waivers. Optional read-only live database connections on
+the server are defined only in trusted `sych.yaml` under `schema_lint.connections.<name>` with `dsn_env`,
+`timeout_seconds` and a `repositories` allowlist (`[]` denies all repositories on a server). Full reference:
+[DB_SCHEMA.md](DB_SCHEMA.md).
 
 ## Policy from head is not applied
 

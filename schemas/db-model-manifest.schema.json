@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DbModelManifest",
+  "description": "Application model described with physical database names.",
+  "type": "object",
+  "properties": {
+    "extractor": {
+      "description": "Built-in extractor or adapter name that produced this manifest.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    },
+    "tables": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DbModelTable"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tables"
+  ],
+  "$defs": {
+    "DbModelColumn": {
+      "description": "One model field mapped to a database column.",
+      "type": "object",
+      "properties": {
+        "enum": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "max_length": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "name": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DbSourcePosition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unique": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "DbModelRelation": {
+      "description": "Model relation stored as a foreign key on this table.",
+      "type": "object",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ref_columns": {
+          "description": "Referenced columns, one per `columns` entry; empty means referenced table's key.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "references": {
+          "$ref": "#/$defs/DbModelTableRef"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "columns",
+        "references"
+      ]
+    },
+    "DbModelTable": {
+      "description": "One model entity mapped to a physical database table.",
+      "type": "object",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DbModelColumn"
+          }
+        },
+        "join_table_for": {
+          "description": "Set on a many-to-many join table: the two tables it joins.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DbModelTableRef"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "primary_key": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DbModelRelation"
+          }
+        },
+        "schema": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DbSourcePosition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "uniques": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DbModelUnique"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "DbModelTableRef": {
+      "description": "Reference to a table in a relation or join table.",
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "table": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "table"
+      ]
+    },
+    "DbModelUnique": {
+      "description": "Composite (or single-column) uniqueness promised by the model.",
+      "type": "object",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "columns"
+      ]
+    },
+    "DbSourcePosition": {
+      "description": "One source location in application model code or a SQL migration file.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "line"
+      ]
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    }
+  }
+}

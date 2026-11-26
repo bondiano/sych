@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DbSchemaReport",
+  "description": "Complete deterministic report of a schema check run.",
+  "type": "object",
+  "properties": {
+    "dialect": {
+      "$ref": "#/$defs/SqlDialect"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DbSchemaFinding"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion"
+    },
+    "skipped_rules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unmatched_exclusions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DbSchemaExclusion"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "dialect",
+    "findings"
+  ],
+  "$defs": {
+    "DbSchemaExclusion": {
+      "description": "Exact exclusion silencing one rule on one database object, with a mandatory reason.",
+      "type": "object",
+      "properties": {
+        "object": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "rule": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rule",
+        "object",
+        "reason"
+      ]
+    },
+    "DbSchemaFinding": {
+      "description": "One structured schema finding emitted by a deterministic rule.",
+      "type": "object",
+      "properties": {
+        "fix": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "object": {
+          "$ref": "#/$defs/DbSchemaObject"
+        },
+        "rule": {
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DbSourcePosition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rule",
+        "object",
+        "message",
+        "fix"
+      ]
+    },
+    "DbSchemaObject": {
+      "description": "Database object a finding addresses.",
+      "type": "object",
+      "properties": {
+        "column": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "foreign_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "function": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "index": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "schema": {
+          "type": "string"
+        },
+        "table": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trigger": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "view": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schema"
+      ]
+    },
+    "DbSourcePosition": {
+      "description": "One source location in application model code or a SQL migration file.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "line"
+      ]
+    },
+    "SchemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "SqlDialect": {
+      "description": "Supported relational database engines.",
+      "type": "string",
+      "enum": [
+        "postgres",
+        "mysql",
+        "sqlite"
+      ]
+    }
+  }
+}

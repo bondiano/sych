@@ -15,6 +15,7 @@ use sych_core::config::{
     EffectiveConfig, PolicyFiles, PolicyInput, ReviewProfile, RuleException, ServerConfig,
     ServerInput, policy_diff,
 };
+use sych_core::db_schema::DbSchemaConfig;
 use sych_core::{
     Candidate, Coverage, Evidence, EvidenceManifest, ExternalInputManifest, FileChange,
     PolicySnapshot, PolicySource, Recommendation, ReviewPlan, ReviewResult, RunFacts,
@@ -32,6 +33,7 @@ use crate::render::{PolicyReview, Report};
 use crate::{ci, config, semantic, snapshot, storage};
 
 mod checkpoints;
+mod db_schema;
 mod outcome;
 mod request;
 mod schema;
@@ -157,6 +159,8 @@ fn derived_facts(
         &facts,
         effects::bindings(effects, &snap.manifest),
     );
+    let (db_schema, db_derived, db_external) =
+        db_schema::collect_evidence(args, snap, effective, &ci, now)?;
     let derived = facts
         .iter()
         .map(|f| f.to_evidence(&snap.snapshot, now))
@@ -164,6 +168,7 @@ fn derived_facts(
         .chain(ledger.to_evidence(&snap.snapshot, now).transpose())
         .chain(lint.iter().map(|f| f.to_evidence(&snap.snapshot, now)))
         .chain(architecture.iter().map(|f| f.to_evidence(&snap.snapshot, now)))
+        .chain(db_derived.into_iter().map(Ok))
         // The MIG obligations cite it; they exist only when a migration path changed.
         .chain(snap.manifest.files.iter().any(migration_changed).then(|| {
             deploy::matrix(effective.repository.deployment.as_ref())
@@ -173,6 +178,7 @@ fn derived_facts(
     let external = ci
         .iter()
         .map(|f| f.to_evidence(&snap.snapshot, now))
+        .chain(db_external.into_iter().map(Ok))
         .collect::<Result<Vec<_>, _>>();
     let hashed = derived.and_then(|d| external.map(|e| (d, e)));
     let (derived, external) =
@@ -185,6 +191,7 @@ fn derived_facts(
         ledger,
         lint,
         architecture,
+        db_schema,
         schema_refs: schema::schema_refs(snap),
     };
     Ok((facts, derived, external, ci_gaps))
@@ -465,6 +472,8 @@ fn execute(
             .contains(&ReviewProfile::Security),
         block_on: &effective.repository.config.review.block_on,
         rules: &effective.repository.rules,
+        waivers: &args.waivers,
+        schema_config: effective.repository.effective_schema_lint_config(),
         now,
     };
     let saved =
@@ -486,6 +495,7 @@ fn execute(
         effect_ledger: facts.ledger,
         lint_facts: facts.lint,
         architecture_facts: facts.architecture,
+        db_schema_facts: facts.db_schema,
         context_packets: saved.packets,
         review_result: saved.result,
     };
@@ -549,5 +559,9 @@ struct Session<'a> {
     /// The trusted repository rules: a required `ARCH-*` rule makes an architecture finding a
     /// rule violation.
     rules: &'a [Rule],
+    /// Server-recorded scoped waivers, also checked against built-in `DB-*` rules.
+    waivers: &'a [(String, RuleException)],
+    /// Effective trusted schema linter config (inline `.sych/config.yaml` + optional `.sych/schema-lint.yaml`).
+    schema_config: DbSchemaConfig,
     now: Timestamp,
 }

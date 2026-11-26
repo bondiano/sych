@@ -7,9 +7,15 @@ use serde_json::{Map, Value, json};
 
 use crate::analysis::followup::Exchange;
 use crate::config::CheckRequest;
+use crate::db_schema::{
+    DbModelManifest, DbSchemaConfig, DbSchemaReport, DbSchemaRuleInfo, DbSchemaSnapshot,
+};
 use crate::handoff::Handoff;
 use crate::tour::{QuestionKind, TourArtifact, TourSession};
-use crate::{FindingId, PolicySnapshot, ReviewResult, SourceSnapshot, SourceSnapshotId, Timestamp};
+use crate::{
+    FindingId, PolicySnapshot, ReviewResult, SchemaVersion, SourceSnapshot, SourceSnapshotId,
+    Timestamp,
+};
 
 mod admin;
 mod analytics;
@@ -219,6 +225,26 @@ pub struct PublicationStatus {
     pub last_error: Option<String>,
 }
 
+/// `GET /v1/schema/rules`: catalogue of built-in database and application schema linter rules.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SchemaRulesResponse {
+    pub rules: Vec<DbSchemaRuleInfo>,
+}
+
+/// `POST /v1/schema/check`: evaluate a database schema snapshot against structural rules
+/// and an optional application model manifest; stateless, never connects to a live database.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SchemaCheckRequest {
+    #[serde(default)]
+    pub schema_version: SchemaVersion,
+    pub snapshot: DbSchemaSnapshot,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<DbModelManifest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<DbSchemaConfig>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ErrorBody {
     pub code: String,
@@ -341,6 +367,19 @@ fn refusals(mutating: bool) -> &'static [u16] {
     }
 }
 
+fn error_responses(error: &Value, codes: &[u16]) -> Map<String, Value> {
+    codes
+        .iter()
+        .map(|code| {
+            (
+                code.to_string(),
+                json!({"description": "error envelope",
+                "content": {"application/json": {"schema": error}}}),
+            )
+        })
+        .collect()
+}
+
 /// The `OpenAPI` 3.1 description of `/v1`, from the same DTOs the server uses.
 pub fn openapi() -> Value {
     let mut c = Map::new();
@@ -361,25 +400,13 @@ pub fn openapi() -> Value {
     let handoff = component::<Handoff>(&mut c, "Handoff");
     let snapshots = component::<RunSnapshots>(&mut c, "RunSnapshots");
     let error = component::<ErrorEnvelope>(&mut c, "ErrorEnvelope");
-    let errors = |codes: &[u16]| -> Map<String, Value> {
-        codes
-            .iter()
-            .map(|code| {
-                (
-                    code.to_string(),
-                    json!({"description": "error envelope",
-                    "content": {"application/json": {"schema": error}}}),
-                )
-            })
-            .collect()
-    };
     let op = |summary: &str,
               body: Option<&Value>,
               ok: u16,
               response: &Value,
               mutating: bool,
               fail: &[u16]| {
-        let mut responses = errors(fail);
+        let mut responses = error_responses(&error, fail);
         responses.insert(
             ok.to_string(),
             json!({"description": summary,
@@ -413,10 +440,11 @@ pub fn openapi() -> Value {
     let simple = |summary: &str, mutating: bool, response: &Value| {
         op(summary, None, 200, response, mutating, refusals(mutating))
     };
-    let mut views = views::paths(&mut c, &simple);
-    views.extend(analytics::paths(&mut c, &simple));
-    let queue = queue::paths(&mut c, &simple);
-    let admin = admin::paths(&mut c, &simple);
+    let mut extra = views::paths(&mut c, &simple);
+    extra.extend(analytics::paths(&mut c, &simple));
+    extra.extend(queue::paths(&mut c, &simple));
+    extra.extend(admin::paths(&mut c, &simple));
+    extra.extend(schema_paths(&mut c, &op));
     let mut doc = json!({
         "openapi": "3.1.0",
         "info": {"title": "Sych", "version": env!("CARGO_PKG_VERSION")},
@@ -440,9 +468,26 @@ pub fn openapi() -> Value {
             "/v1/runs/{id}/tours/{tour}/questions": {"post": op("A bounded follow-up on one step; private, never evidence", Some(&question), 201, &exchange, true, &[400, 401, 403, 404, 409, 503])},
         }
     });
-    merge(&mut doc, views);
-    merge(&mut doc, queue);
-    merge(&mut doc, admin);
+    merge(&mut doc, extra);
     path_parameters(&mut doc);
     doc
+}
+
+fn schema_paths(
+    c: &mut Map<String, Value>,
+    op: &impl Fn(&str, Option<&Value>, u16, &Value, bool, &[u16]) -> Value,
+) -> Map<String, Value> {
+    let rules = component::<SchemaRulesResponse>(c, "SchemaRulesResponse");
+    let check_req = component::<SchemaCheckRequest>(c, "SchemaCheckRequest");
+    let report = component::<DbSchemaReport>(c, "DbSchemaReport");
+    let mut paths = Map::new();
+    paths.insert(
+        "/v1/schema/rules".into(),
+        json!({"get": op("Built-in database and application schema linter rules", None, 200, &rules, false, &[401, 403, 503])}),
+    );
+    paths.insert(
+        "/v1/schema/check".into(),
+        json!({"post": op("Evaluate a database schema snapshot against structural rules and an optional model manifest; stateless", Some(&check_req), 200, &report, false, &[400, 401, 403, 413, 503])}),
+    );
+    paths
 }

@@ -20,6 +20,8 @@
 - [SEMANTIC.md](SEMANTIC.md): pinned language servers and linters, semantic facts and their cache.
 - [ARCHITECTURE.md](ARCHITECTURE.md): architecture review: the six structure checks, the SCIP-built model per language,
   completeness and what a change does against its diff base.
+- [DB_SCHEMA.md](DB_SCHEMA.md): built-in database and application schema linter (`sych schema`, opt-in review checks,
+  PostgreSQL/MySQL/SQLite, static SQL, ORM extractors and `/v1/schema` API).
 - [STORAGE.md](STORAGE.md): PostgreSQL and SQLite, content-addressed artifacts, retention, GC and backup.
 
 ## Running a server

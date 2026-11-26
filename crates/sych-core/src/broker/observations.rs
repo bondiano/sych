@@ -4,6 +4,7 @@
 use super::build::{Candidate, file_for};
 use super::{Priority, UNSEEN_GAPS};
 use crate::architecture::{ArchitectureFacts, Change};
+use crate::db_schema::{DbSchemaChange, DbSchemaFacts};
 use crate::effects::{EffectLedger, EffectMatch, LEDGER_GAPS, Resolution};
 use crate::{
     BackendStatus, CiFacts, CodeRef, Completeness, DiffManifest, LintFacts, RepoPath, SourceSide,
@@ -198,6 +199,47 @@ pub(super) fn architecture(
                     found.message
                 ),
                 evidence: Some(project.evidence_id()),
+                completeness: Completeness::Partial,
+                link: None,
+            });
+        }
+    }
+}
+
+/// New (or base-unchecked) database/application schema findings anchored to a changed file
+/// refute in that file's packet so the reviewer sees the exact migration or model line.
+pub(super) fn db_schema(
+    facts: &[DbSchemaFacts],
+    path: &RepoPath,
+    manifest: &DiffManifest,
+    out: &mut Vec<Candidate>,
+) {
+    let Some(side) = file_for(manifest, path).and_then(|f| f.side(SourceSide::Head)) else {
+        return;
+    };
+    for target in facts.iter().filter(|f| f.status == BackendStatus::Ready) {
+        for found in &target.findings {
+            let Some(r) = found.code_ref.as_ref().filter(|r| r.path == side.path) else {
+                continue;
+            };
+            let change = match found.change {
+                Some(DbSchemaChange::New) => "new",
+                Some(DbSchemaChange::Same) => continue,
+                None => "base unchecked",
+            };
+            let message: String = found.message.chars().take(200).collect();
+            out.push(Candidate {
+                side: r.side,
+                path: r.path.clone(),
+                start: r.start_line,
+                end: r.end_line,
+                priority: Priority::Refuting,
+                reason: format!(
+                    "db-schema {} ({change}, {}): {message}",
+                    found.rule,
+                    found.object.format_exclusion()
+                ),
+                evidence: Some(target.evidence_id()),
                 completeness: Completeness::Partial,
                 link: None,
             });

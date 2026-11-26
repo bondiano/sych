@@ -52,10 +52,15 @@ sych explain --run RUN_ID --obligation EFFECT-01 --format markdown
   zizmor on changed head files, and easement on each project an `easement.yml` roots ([SEMANTIC.md](SEMANTIC.md#pinned-linters)); they produce semantic facts
   ([SEMANTIC.md](SEMANTIC.md)), which are stored as derived evidence, and the ContextBroker builds context packets.
   The first run downloads the servers; a repeat on the same snapshot takes facts from the semantic cache.
+- `--schema-lint on|off` overrides `.sych/config.yaml` `schema_lint.enabled` for a local review. `--db-dsn DSN`
+  inspects a live PostgreSQL, MySQL or SQLite database read-only (and turns schema linting on for that run unless
+  `--schema-lint off` is passed); `--db-model-manifest PATH` supplies an explicit `DbModelManifest` JSON instead of
+  built-in static ORM extraction. Standalone commands (`sych schema check|baseline|snapshot|extract|rules|explain`)
+  and all 18 rules are documented in [DB_SCHEMA.md](DB_SCHEMA.md).
 - `--ci-facts FILE` (repeatable) imports ready-made CI reports: output of `cargo check/clippy/build
   --message-format=json`, JUnit XML (cargo-nextest, vitest, Jest, gotestsum), SARIF, GitLab Code Quality, LCOV,
   Cobertura, `go test -json` (with `-race`: each race is a `race` diagnostic with its first frame), `go test -coverprofile`
-  (import paths of the root `go.mod` → repo paths) and `go vet -json`. Absolute CI checkout paths are matched to the repo
+  (import paths of the root `go.mod` → repo paths), `go vet -json`, `db_schema_snapshot` and `db_model_manifest`. Absolute CI checkout paths are matched to the repo
   by suffix. Race and coverage confirm only executed paths. The format is detected from the content; files up to
   32 MiB. `--ci-manifest FILE` describes the job (YAML/JSON, `schema_version: 1`, `job`, `tested_oid` — hex from
   `git rev-parse HEAD`, `toolchain`, `target`, `features`). The report becomes an external input
