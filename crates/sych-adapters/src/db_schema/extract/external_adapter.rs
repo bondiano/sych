@@ -10,16 +10,24 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use sych_core::db_schema::DbModelManifest;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
 use tokio::time::timeout;
 
 use crate::db_schema::DbSchemaError;
 
 /// Maximum stdout bytes buffered from an external adapter (16 MiB).
-const MAX_ADAPTER_STDOUT_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_ADAPTER_STDOUT_BYTES: usize = 16 * 1024 * 1024;
 /// Maximum stderr bytes buffered for error diagnostics (256 KiB).
-const MAX_ADAPTER_STDERR_BYTES: u64 = 256 * 1024;
+const MAX_ADAPTER_STDERR_BYTES: usize = 256 * 1024;
+/// Maximum characters kept from stderr/stdout in user-facing error details.
+const MAX_ERROR_DETAIL_CHARS: usize = 512;
+
+enum AdapterRunError {
+    StdoutOverflow,
+    ReadOutput(io::Error),
+    Wait(io::Error),
+}
 
 /// Runs `sych-schema-adapter-<name>` with `args` and parses its stdout as a [`DbModelManifest`].
 pub async fn run_external_adapter(
@@ -40,8 +48,25 @@ pub async fn run_external_adapter(
 
     let binary = format!("sych-schema-adapter-{name}");
     let mut cmd = Command::new(&binary);
-    cmd.args(args)
-        .stdin(Stdio::null())
+    cmd.args(args);
+    run_adapter_command(
+        cmd,
+        binary,
+        limit,
+        MAX_ADAPTER_STDOUT_BYTES,
+        MAX_ADAPTER_STDERR_BYTES,
+    )
+    .await
+}
+
+async fn run_adapter_command(
+    mut cmd: Command,
+    binary: String,
+    limit: Duration,
+    max_stdout_bytes: usize,
+    max_stderr_bytes: usize,
+) -> Result<DbModelManifest, DbSchemaError> {
+    cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
@@ -51,14 +76,14 @@ pub async fn run_external_adapter(
         detail: format!("could not execute `{binary}` on PATH: {e}"),
     })?;
 
-    let mut stdout_pipe = child
+    let stdout_pipe = child
         .stdout
         .take()
         .ok_or_else(|| DbSchemaError::ExternalAdapter {
             adapter: binary.clone(),
             detail: "failed to capture adapter stdout".into(),
         })?;
-    let mut stderr_pipe = child
+    let stderr_pipe = child
         .stderr
         .take()
         .ok_or_else(|| DbSchemaError::ExternalAdapter {
@@ -67,20 +92,15 @@ pub async fn run_external_adapter(
         })?;
 
     let run = async {
-        let read_stdout = async {
-            let mut buf = Vec::new();
-            let mut limited = (&mut stdout_pipe).take(MAX_ADAPTER_STDOUT_BYTES + 1);
-            limited.read_to_end(&mut buf).await?;
-            Ok::<_, io::Error>(buf)
-        };
-        let read_stderr = async {
-            let mut buf = Vec::new();
-            let mut limited = (&mut stderr_pipe).take(MAX_ADAPTER_STDERR_BYTES);
-            limited.read_to_end(&mut buf).await?;
-            Ok::<_, io::Error>(buf)
-        };
-        let (out_res, err_res, status_res) = tokio::join!(read_stdout, read_stderr, child.wait());
-        Ok::<_, io::Error>((out_res?, err_res?, status_res?))
+        // Move both pipes into the reader futures so cancelling `try_join!` on
+        // stdout overflow closes the pipes immediately and dropping `child`
+        // (`kill_on_drop(true)`) terminates a runaway process without deadlocking.
+        let (stdout_bytes, stderr_bytes) = tokio::try_join!(
+            read_stdout_bounded(stdout_pipe, max_stdout_bytes),
+            read_stderr_bounded(stderr_pipe, max_stderr_bytes),
+        )?;
+        let status = child.wait().await.map_err(AdapterRunError::Wait)?;
+        Ok::<_, AdapterRunError>((stdout_bytes, stderr_bytes, status))
     };
 
     let (stdout_bytes, stderr_bytes, status) = timeout(limit, run)
@@ -89,19 +109,25 @@ pub async fn run_external_adapter(
             adapter: binary.clone(),
             detail: format!("timed out after {}", format_duration(limit)),
         })?
-        .map_err(|e| DbSchemaError::ExternalAdapter {
-            adapter: binary.clone(),
-            detail: format!("I/O error while reading `{binary}` output: {e}"),
+        .map_err(|err| match err {
+            AdapterRunError::StdoutOverflow => DbSchemaError::ExternalAdapter {
+                adapter: binary.clone(),
+                detail: format!("stdout exceeded {max_stdout_bytes} byte limit"),
+            },
+            AdapterRunError::ReadOutput(e) => DbSchemaError::ExternalAdapter {
+                adapter: binary.clone(),
+                detail: format!("I/O error while reading `{binary}` output: {e}"),
+            },
+            AdapterRunError::Wait(e) => DbSchemaError::ExternalAdapter {
+                adapter: binary.clone(),
+                detail: format!("I/O error while waiting for `{binary}`: {e}"),
+            },
         })?;
 
     if !status.success() {
-        let stderr = String::from_utf8_lossy(&stderr_bytes).trim().to_owned();
+        let stderr = truncate_diagnostic(&stderr_bytes);
         let detail = if stderr.is_empty() {
-            let stdout_hint: String = String::from_utf8_lossy(&stdout_bytes)
-                .trim()
-                .chars()
-                .take(512)
-                .collect();
+            let stdout_hint = truncate_diagnostic(&stdout_bytes);
             if stdout_hint.is_empty() {
                 format!("exited with status {status}")
             } else {
@@ -116,13 +142,6 @@ pub async fn run_external_adapter(
         });
     }
 
-    if stdout_bytes.len() as u64 > MAX_ADAPTER_STDOUT_BYTES {
-        return Err(DbSchemaError::ExternalAdapter {
-            adapter: binary,
-            detail: format!("stdout exceeded {MAX_ADAPTER_STDOUT_BYTES} byte limit"),
-        });
-    }
-
     let stdout = String::from_utf8(stdout_bytes).map_err(|e| DbSchemaError::ExternalAdapter {
         adapter: binary.clone(),
         detail: format!("stdout is not valid UTF-8: {e}"),
@@ -133,10 +152,113 @@ pub async fn run_external_adapter(
     })
 }
 
+async fn read_stdout_bounded<R: AsyncRead + Unpin>(
+    mut pipe: R,
+    max_bytes: usize,
+) -> Result<Vec<u8>, AdapterRunError> {
+    let mut buf = Vec::new();
+    let mut chunk = vec![0u8; 8192];
+    loop {
+        let n = pipe
+            .read(&mut chunk)
+            .await
+            .map_err(AdapterRunError::ReadOutput)?;
+        if n == 0 {
+            return Ok(buf);
+        }
+
+        if buf.len().saturating_add(n) > max_bytes {
+            return Err(AdapterRunError::StdoutOverflow);
+        }
+
+        buf.extend_from_slice(&chunk[..n]);
+    }
+}
+
+async fn read_stderr_bounded<R: AsyncRead + Unpin>(
+    mut pipe: R,
+    max_bytes: usize,
+) -> Result<Vec<u8>, AdapterRunError> {
+    let mut buf = Vec::new();
+    let mut chunk = vec![0u8; 8192];
+    loop {
+        let n = pipe
+            .read(&mut chunk)
+            .await
+            .map_err(AdapterRunError::ReadOutput)?;
+        if n == 0 {
+            return Ok(buf);
+        }
+
+        let remaining = max_bytes.saturating_sub(buf.len());
+        if remaining > 0 {
+            buf.extend_from_slice(&chunk[..n.min(remaining)]);
+        }
+    }
+}
+
+fn truncate_diagnostic(bytes: &[u8]) -> String {
+    let text = String::from_utf8_lossy(bytes);
+    let trimmed = text.trim();
+    let mut chars = trimmed.chars();
+    let prefix: String = chars.by_ref().take(MAX_ERROR_DETAIL_CHARS).collect();
+    if chars.next().is_some() {
+        format!("{prefix}...")
+    } else {
+        prefix
+    }
+}
+
 fn format_duration(limit: Duration) -> String {
     if limit.as_secs() > 0 && limit.subsec_millis() == 0 {
         format!("{}s", limit.as_secs())
     } else {
         format!("{}ms", limit.as_millis())
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn over_cap_stdout_fails_with_size_limit_not_timeout() {
+        // Write 512 KiB (> typical OS pipe buffer) while cap is 1 KiB and timeout is 10s.
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", "dd if=/dev/zero bs=4096 count=128 2>/dev/null"]);
+        let err = run_adapter_command(
+            cmd,
+            "sych-schema-adapter-overflow".into(),
+            Duration::from_secs(10),
+            1024,
+            256,
+        )
+        .await
+        .expect_err("must reject runaway stdout");
+        let msg = err.to_string();
+        assert!(msg.contains("stdout exceeded 1024 byte limit"), "{msg}");
+        assert!(!msg.contains("timed out"), "{msg}");
+    }
+
+    #[tokio::test]
+    async fn non_zero_exit_truncates_large_stderr() {
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", "printf '%0.sX' $(seq 1 900) >&2; exit 2"]);
+        let err = run_adapter_command(
+            cmd,
+            "sych-schema-adapter-stderr".into(),
+            Duration::from_secs(5),
+            1024,
+            4096,
+        )
+        .await
+        .expect_err("must fail on non-zero exit");
+        let msg = err.to_string();
+        assert!(msg.ends_with("..."), "{msg}");
+        assert!(
+            msg.len() < 700,
+            "unexpectedly long error detail: {}",
+            msg.len()
+        );
     }
 }

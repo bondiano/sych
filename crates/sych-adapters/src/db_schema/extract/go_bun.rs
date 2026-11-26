@@ -3,17 +3,20 @@
 use std::collections::BTreeMap;
 
 use sych_core::db_schema::{
-    DbModelColumn, DbModelRelation, DbModelTable, DbModelTableRef, DbSourcePosition,
-    ModelExtractionSettings,
+    DbModelColumn, DbModelRelation, DbModelTable, DbSourcePosition, ModelExtractionSettings,
 };
 use tree_sitter::{Node, Parser};
 
-use super::go_gorm::{extract_struct_tag, node_text};
+use super::go_gorm::{extract_struct_tag, node_text, split_go_type};
 use super::naming::{default_column_name, default_table_name};
 use super::source::SourceTree;
+use super::{dir_of, table_ref_from_qualified};
+
+type StructKey = (String, String);
 
 struct BunStruct {
     file: String,
+    dir: String,
     line: u32,
     pkg: String,
     name: String,
@@ -26,6 +29,50 @@ struct BunField {
     name: Option<String>,
     type_text: String,
     bun_tag: String,
+}
+
+struct BunRegistry<'a> {
+    structs: &'a [BunStruct],
+    table_map: &'a BTreeMap<StructKey, String>,
+}
+
+impl BunRegistry<'_> {
+    /// Resolves a Go type reference (`Type` or `pkg.Type`) from `current_dir`
+    /// to its physical table name, preferring exact package/directory matches
+    /// and falling back only when a bare name is unambiguous across packages.
+    fn resolve_target_table(&self, current_dir: &str, type_text: &str) -> Option<String> {
+        let (qual_pkg, base) = split_go_type(type_text);
+        if let Some(pkg) = qual_pkg {
+            let mut matches = self
+                .structs
+                .iter()
+                .filter(|s| s.pkg == pkg && s.name == base)
+                .filter_map(|s| self.table_map.get(&(s.dir.clone(), s.name.clone())));
+            let first = matches.next()?;
+            if matches.next().is_none() {
+                return Some(first.clone());
+            }
+
+            return None;
+        }
+
+        let local = (current_dir.to_owned(), base.to_owned());
+        if let Some(tbl) = self.table_map.get(&local) {
+            return Some(tbl.clone());
+        }
+
+        let mut matches = self
+            .table_map
+            .iter()
+            .filter(|((_, name), _)| name == base)
+            .map(|(_, tbl)| tbl);
+        let first = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+
+        Some(first.clone())
+    }
 }
 
 /// Extracts Bun ORM model tables from Go files in `tree`.
@@ -47,23 +94,36 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
         parse_file(file, &src, &mut structs);
     }
 
-    let table_map: BTreeMap<String, String> = structs
+    let table_map: BTreeMap<StructKey, String> = structs
         .iter()
         .map(|s| {
             let tbl = s.explicit_table.clone().unwrap_or_else(|| {
                 default_table_name(&s.name, Some(&s.pkg), &settings.naming, &settings.tables)
             });
-            (s.name.clone(), tbl)
+            ((s.dir.clone(), s.name.clone()), tbl)
         })
         .collect();
+    let registry = BunRegistry {
+        structs: &structs,
+        table_map: &table_map,
+    };
 
     let mut tables = Vec::new();
     let mut join_tables: BTreeMap<String, DbModelTable> = BTreeMap::new();
 
     for st in &structs {
-        if settings.exclude.iter().any(|e| e == &st.name) {
+        if settings
+            .exclude
+            .iter()
+            .any(|e| e == &st.name || e == &format!("{}.{}", st.pkg, st.name))
+        {
             continue;
         }
+
+        let key = (st.dir.clone(), st.name.clone());
+        let Some(table_name) = table_map.get(&key) else {
+            continue;
+        };
 
         let mut table = DbModelTable {
             schema: None,
@@ -78,7 +138,8 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
             uniques: Vec::new(),
             relations: Vec::new(),
         };
-        table.set_qualified_name(&table_map[&st.name]);
+        table.set_qualified_name(table_name);
+        let mut st_joins = Vec::new();
 
         for field in &st.fields {
             if field.name.is_none() || field.type_text.contains("BaseModel") {
@@ -97,15 +158,18 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
                 field,
                 fname,
                 settings,
-                &table_map,
+                &registry,
                 &mut table,
-                &mut join_tables,
+                &mut st_joins,
             );
         }
 
         if !table.columns.is_empty() || !table.relations.is_empty() || !table.primary_key.is_empty()
         {
             tables.push(table);
+            for (m2m_name, jt) in st_joins {
+                join_tables.entry(m2m_name).or_insert(jt);
+            }
         }
     }
 
@@ -176,47 +240,32 @@ fn apply_bun_field(
     field: &BunField,
     fname: &str,
     settings: &ModelExtractionSettings,
-    table_map: &BTreeMap<String, String>,
+    registry: &BunRegistry<'_>,
     table: &mut DbModelTable,
-    join_tables: &mut BTreeMap<String, DbModelTable>,
+    st_joins: &mut Vec<(String, DbModelTable)>,
 ) {
     let parsed = parse_bun_tag(&field.bun_tag);
     if parsed.skip {
         return;
     }
 
-    let target_base = field
-        .type_text
-        .trim()
-        .trim_start_matches("[]")
-        .trim_start_matches('*');
-    let target_base = target_base.rsplit('.').next().unwrap_or(target_base);
-
     if let Some(m2m) = parsed.m2m_table {
-        if let Some(target_tbl) = table_map.get(target_base) {
-            join_tables.entry(m2m.clone()).or_insert_with(|| {
-                let mut jt = DbModelTable {
-                    schema: None,
-                    name: String::new(),
-                    source: Some(DbSourcePosition {
-                        file: st.file.clone(),
-                        line: field.line,
-                    }),
-                    columns: Vec::new(),
-                    primary_key: Vec::new(),
-                    join_table_for: vec![
-                        table.table_ref(),
-                        DbModelTableRef {
-                            schema: None,
-                            table: target_tbl.clone(),
-                        },
-                    ],
-                    uniques: Vec::new(),
-                    relations: Vec::new(),
-                };
-                jt.set_qualified_name(&m2m);
-                jt
-            });
+        if let Some(target_tbl) = registry.resolve_target_table(&st.dir, &field.type_text) {
+            let mut jt = DbModelTable {
+                schema: None,
+                name: String::new(),
+                source: Some(DbSourcePosition {
+                    file: st.file.clone(),
+                    line: field.line,
+                }),
+                columns: Vec::new(),
+                primary_key: Vec::new(),
+                join_table_for: vec![table.table_ref(), table_ref_from_qualified(&target_tbl)],
+                uniques: Vec::new(),
+                relations: Vec::new(),
+            };
+            jt.set_qualified_name(&m2m);
+            st_joins.push((m2m, jt));
         }
 
         return;
@@ -226,14 +275,11 @@ fn apply_bun_field(
         if kind == "belongs-to"
             && let Some(join) = parsed.join_spec
             && let Some((lhs, rhs)) = join.split_once('=')
-            && let Some(target_tbl) = table_map.get(target_base)
+            && let Some(target_tbl) = registry.resolve_target_table(&st.dir, &field.type_text)
         {
             table.relations.push(DbModelRelation {
                 columns: vec![lhs.trim().to_owned()],
-                references: DbModelTableRef {
-                    schema: None,
-                    table: target_tbl.clone(),
-                },
+                references: table_ref_from_qualified(&target_tbl),
                 ref_columns: vec![rhs.trim().to_owned()],
             });
         }
@@ -367,6 +413,7 @@ fn parse_struct(file: &str, pkg: &str, name: &str, node: Node<'_>, src: &str) ->
 
     is_bun.then(|| BunStruct {
         file: file.to_owned(),
+        dir: dir_of(file),
         line,
         pkg: pkg.to_owned(),
         name: name.to_owned(),

@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use sych_core::db_schema::{
-    DbModelColumn, DbModelRelation, DbModelTable, DbModelTableRef, DbModelUnique, DbSourcePosition,
+    DbModelColumn, DbModelRelation, DbModelTable, DbModelUnique, DbSourcePosition,
     ModelExtractionSettings,
 };
 use tree_sitter::{Node, Parser};
@@ -11,9 +11,14 @@ use tree_sitter::{Node, Parser};
 use super::go_gorm::node_text;
 use super::naming::default_table_name;
 use super::source::SourceTree;
+use super::{dir_of, table_ref_from_qualified};
+
+type SchemaKey = (String, String);
 
 struct EntSchema {
     file: String,
+    dir: String,
+    pkg: String,
     line: u32,
     name: String,
     table_override: Option<String>,
@@ -25,7 +30,8 @@ struct EntSchema {
 /// Extracts Ent schema definitions from Go files in `tree`.
 pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec<DbModelTable> {
     let files = tree.files_with_extensions(&["go"], &settings.paths);
-    let mut schemas = Vec::new();
+    let mut parsed_files = Vec::new();
+    let mut by_key: BTreeMap<SchemaKey, EntSchema> = BTreeMap::new();
 
     for file in &files {
         if file.ends_with("_test.go") {
@@ -39,24 +45,37 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
             continue;
         }
 
-        parse_ent_file(file, &src, &mut schemas);
+        collect_ent_types(file, &src, &mut by_key);
+        parsed_files.push((file.clone(), src));
     }
 
-    let table_names: BTreeMap<String, String> = schemas
+    for (file, src) in &parsed_files {
+        collect_ent_methods(file, src, &mut by_key);
+    }
+
+    let table_names: BTreeMap<SchemaKey, String> = by_key
         .iter()
-        .map(|s| {
+        .map(|(key, s)| {
             let tbl = s.table_override.clone().unwrap_or_else(|| {
-                default_table_name(&s.name, None, &settings.naming, &settings.tables)
+                default_table_name(&s.name, Some(&s.pkg), &settings.naming, &settings.tables)
             });
-            (s.name.clone(), tbl)
+            (key.clone(), tbl)
         })
         .collect();
 
     let mut out = Vec::new();
-    for s in schemas {
-        if settings.exclude.iter().any(|e| e == &s.name) {
+    for (key, s) in by_key {
+        if settings
+            .exclude
+            .iter()
+            .any(|e| e == &s.name || e == &format!("{}.{}", s.pkg, s.name))
+        {
             continue;
         }
+
+        let Some(table_name) = table_names.get(&key) else {
+            continue;
+        };
 
         let mut table = DbModelTable {
             schema: None,
@@ -71,18 +90,21 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
             uniques: s.uniques,
             relations: Vec::new(),
         };
-        table.set_qualified_name(&table_names[&s.name]);
+        table.set_qualified_name(table_name);
 
         for (local_col, target_schema) in s.edges {
-            let target_tbl = table_names.get(&target_schema).cloned().unwrap_or_else(|| {
-                default_table_name(&target_schema, None, &settings.naming, &settings.tables)
-            });
+            let target_tbl = resolve_edge_target(&table_names, &s.dir, &target_schema)
+                .unwrap_or_else(|| {
+                    default_table_name(
+                        &target_schema,
+                        Some(&s.pkg),
+                        &settings.naming,
+                        &settings.tables,
+                    )
+                });
             table.relations.push(DbModelRelation {
                 columns: vec![local_col],
-                references: DbModelTableRef {
-                    schema: None,
-                    table: target_tbl,
-                },
+                references: table_ref_from_qualified(&target_tbl),
                 ref_columns: vec!["id".into()],
             });
         }
@@ -91,7 +113,28 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
     out
 }
 
-fn parse_ent_file(file: &str, src: &str, out: &mut Vec<EntSchema>) {
+fn resolve_edge_target(
+    table_names: &BTreeMap<SchemaKey, String>,
+    current_dir: &str,
+    target_schema: &str,
+) -> Option<String> {
+    if let Some(tbl) = table_names.get(&(current_dir.to_owned(), target_schema.to_owned())) {
+        return Some(tbl.clone());
+    }
+
+    let mut matches = table_names
+        .iter()
+        .filter(|((_, name), _)| name == target_schema)
+        .map(|(_, tbl)| tbl);
+    let first = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+
+    Some(first.clone())
+}
+
+fn collect_ent_types(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, EntSchema>) {
     let mut parser = Parser::new();
     if parser
         .set_language(&tree_sitter_go::LANGUAGE.into())
@@ -104,11 +147,16 @@ fn parse_ent_file(file: &str, src: &str, out: &mut Vec<EntSchema>) {
         return;
     };
     let root = tree.root_node();
-    let mut by_name: BTreeMap<String, EntSchema> = BTreeMap::new();
+    let dir = dir_of(file);
+    let mut pkg = String::new();
     let mut cursor = root.walk();
 
     for child in root.named_children(&mut cursor) {
-        if child.kind() == "type_declaration" {
+        if child.kind() == "package_clause" {
+            if let Some(id) = child.named_child(0) {
+                node_text(id, src).clone_into(&mut pkg);
+            }
+        } else if child.kind() == "type_declaration" {
             let mut tc = child.walk();
             for spec in child.named_children(&mut tc) {
                 if spec.kind() != "type_spec" {
@@ -126,10 +174,12 @@ fn parse_ent_file(file: &str, src: &str, out: &mut Vec<EntSchema>) {
                 {
                     let name = node_text(name_node, src).to_owned();
                     let line = u32::try_from(spec.start_position().row + 1).unwrap_or(u32::MAX);
-                    by_name.insert(
-                        name.clone(),
+                    by_key.insert(
+                        (dir.clone(), name.clone()),
                         EntSchema {
                             file: file.to_owned(),
+                            dir: dir.clone(),
+                            pkg: pkg.clone(),
                             line,
                             name,
                             table_override: None,
@@ -142,12 +192,24 @@ fn parse_ent_file(file: &str, src: &str, out: &mut Vec<EntSchema>) {
             }
         }
     }
+}
 
-    if by_name.is_empty() {
+fn collect_ent_methods(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, EntSchema>) {
+    let mut parser = Parser::new();
+    if parser
+        .set_language(&tree_sitter_go::LANGUAGE.into())
+        .is_err()
+    {
         return;
     }
 
+    let Some(tree) = parser.parse(src, None) else {
+        return;
+    };
+    let root = tree.root_node();
+    let dir = dir_of(file);
     let mut mc = root.walk();
+
     for child in root.named_children(&mut mc) {
         if child.kind() != "method_declaration" {
             continue;
@@ -168,15 +230,15 @@ fn parse_ent_file(file: &str, src: &str, out: &mut Vec<EntSchema>) {
             .last()
             .unwrap_or("")
             .trim_start_matches('*');
-        let Some(schema) = by_name.get_mut(recv_type) else {
+        let Some(schema) = by_key.get_mut(&(dir.clone(), recv_type.to_owned())) else {
             continue;
         };
 
         let body_text = node_text(body_node, src);
         match node_text(name_node, src) {
             "Fields" => collect_ent_fields(file, body_node, src, &mut schema.fields),
-            "Indexes" => collect_ent_indexes(body_text, &mut schema.uniques),
-            "Edges" => collect_ent_edges(body_text, &mut schema.edges),
+            "Indexes" => collect_ent_indexes(body_node, src, &mut schema.uniques),
+            "Edges" => collect_ent_edges(body_node, src, &mut schema.edges),
             "Annotations" => {
                 if let Some(tbl) = extract_ent_table_annotation(body_text) {
                     schema.table_override = Some(tbl);
@@ -185,37 +247,38 @@ fn parse_ent_file(file: &str, src: &str, out: &mut Vec<EntSchema>) {
             _ => {}
         }
     }
+}
 
-    out.extend(by_name.into_values());
+/// Collects outermost `literal_element` AST nodes in source order without
+/// descending into nested composite literals (e.g. `entsql.Annotation{...}`).
+fn collect_top_literal_elements<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
+    if node.kind() == "literal_element" {
+        out.push(node);
+        return;
+    }
+
+    let mut cur = node.walk();
+    for ch in node.named_children(&mut cur) {
+        collect_top_literal_elements(ch, out);
+    }
 }
 
 fn collect_ent_fields(file: &str, node: Node<'_>, src: &str, out: &mut Vec<DbModelColumn>) {
-    let text = node_text(node, src);
     let base_line = u32::try_from(node.start_position().row + 1).unwrap_or(u32::MAX);
-    // Walk top-level literal elements of the returned `[]ent.Field{ ... }` slice.
-    let mut stack = vec![node];
-    while let Some(cur) = stack.pop() {
-        if cur.kind() == "literal_element" {
-            let elem = node_text(cur, src);
-            if elem.contains("field.")
-                && let Some(col) = parse_ent_field_chain(
-                    file,
-                    u32::try_from(cur.start_position().row + 1).unwrap_or(base_line),
-                    elem,
-                )
-            {
-                out.push(col);
-            }
-
-            continue;
-        }
-
-        let mut c = cur.walk();
-        for ch in cur.named_children(&mut c) {
-            stack.push(ch);
+    let mut elements = Vec::new();
+    collect_top_literal_elements(node, &mut elements);
+    for elem_node in elements {
+        let elem = collapse_dot_whitespace(node_text(elem_node, src));
+        if elem.contains("field.")
+            && let Some(col) = parse_ent_field_chain(
+                file,
+                u32::try_from(elem_node.start_position().row + 1).unwrap_or(base_line),
+                &elem,
+            )
+        {
+            out.push(col);
         }
     }
-    let _ = text;
 }
 
 fn parse_ent_field_chain(file: &str, line: u32, expr: &str) -> Option<DbModelColumn> {
@@ -247,32 +310,39 @@ fn parse_ent_field_chain(file: &str, line: u32, expr: &str) -> Option<DbModelCol
     })
 }
 
-fn collect_ent_indexes(body: &str, out: &mut Vec<DbModelUnique>) {
-    let mut rest = body;
-    while let Some(pos) = rest.find("index.Fields(") {
-        rest = &rest[pos + "index.Fields(".len()..];
+fn collect_ent_indexes(node: Node<'_>, src: &str, out: &mut Vec<DbModelUnique>) {
+    let mut elements = Vec::new();
+    collect_top_literal_elements(node, &mut elements);
+    for elem_node in elements {
+        let elem = collapse_dot_whitespace(node_text(elem_node, src));
+        let Some(pos) = elem.find("index.Fields(") else {
+            continue;
+        };
+        let rest = &elem[pos + "index.Fields(".len()..];
         let Some(end) = rest.find(')') else {
-            break;
+            continue;
         };
         let cols = extract_all_quoted(&rest[..end]);
         let after = &rest[end + 1..];
-        let next_comma = after.find('\n').unwrap_or(after.len());
-        if after[..next_comma].contains(".Unique()") && !cols.is_empty() {
+        if after.contains(".Unique()") && !cols.is_empty() {
             out.push(DbModelUnique { columns: cols });
         }
     }
 }
 
-fn collect_ent_edges(body: &str, out: &mut Vec<(String, String)>) {
-    let mut rest = body;
-    while let Some(pos) = rest.find("edge.From(").or_else(|| rest.find("edge.To(")) {
-        let slice = &rest[pos..];
-        let end = slice.find(",\n").unwrap_or(slice.len());
-        let chunk = &slice[..end];
-        if let Some(fk_col) = extract_call_string(chunk, ".Field(")
-            && let Some(type_pos) = chunk.find(".Type")
+fn collect_ent_edges(node: Node<'_>, src: &str, out: &mut Vec<(String, String)>) {
+    let mut elements = Vec::new();
+    collect_top_literal_elements(node, &mut elements);
+    for elem_node in elements {
+        let elem = collapse_dot_whitespace(node_text(elem_node, src));
+        if !elem.contains("edge.From(") && !elem.contains("edge.To(") {
+            continue;
+        }
+
+        if let Some(fk_col) = extract_call_string(&elem, ".Field(")
+            && let Some(type_pos) = elem.find(".Type")
         {
-            let before = &chunk[..type_pos];
+            let before = &elem[..type_pos];
             let target = before
                 .rsplit(|c: char| !c.is_ascii_alphanumeric() && c != '_')
                 .next()
@@ -281,9 +351,43 @@ fn collect_ent_edges(body: &str, out: &mut Vec<(String, String)>) {
                 out.push((fk_col, target.to_owned()));
             }
         }
-
-        rest = &slice[4..];
     }
+}
+
+/// Collapses whitespace immediately after `.` outside string literals so Go
+/// multiline method chains (`index.Fields("a").\n\tUnique()`) match `.Unique()`
+/// and `.Field(...)` cleanly.
+fn collapse_dot_whitespace(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    let mut in_quote: Option<char> = None;
+    let mut escaped = false;
+    while let Some(ch) = chars.next() {
+        out.push(ch);
+        if let Some(q) = in_quote {
+            if escaped {
+                escaped = false;
+            } else if q == '"' && ch == '\\' {
+                escaped = true;
+            } else if ch == q {
+                in_quote = None;
+            }
+
+            continue;
+        }
+
+        if ch == '"' || ch == '`' {
+            in_quote = Some(ch);
+            continue;
+        }
+
+        if ch == '.' {
+            while chars.peek().is_some_and(|c| c.is_whitespace()) {
+                chars.next();
+            }
+        }
+    }
+    out
 }
 
 fn extract_ent_table_annotation(body: &str) -> Option<String> {

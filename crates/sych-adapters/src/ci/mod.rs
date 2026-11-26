@@ -61,6 +61,12 @@ fn detect(text: &str) -> Option<CiFormat> {
         return Some(CiFormat::GoTestJson);
     }
 
+    if start.starts_with('{')
+        && let Some(kind) = detect_sych_json(text)
+    {
+        return Some(kind);
+    }
+
     if (first.starts_with("# ") || start.starts_with('{')) && start.contains("\"posn\"") {
         return Some(CiFormat::GoVetJson);
     }
@@ -88,10 +94,6 @@ fn detect(text: &str) -> Option<CiFormat> {
         Some(CiFormat::TerraformPlan)
     } else if start.starts_with('{') && start.contains("\"runs\"") {
         Some(CiFormat::Sarif)
-    } else if start.starts_with('{')
-        && let Some(kind) = detect_sych_json(text)
-    {
-        Some(kind)
     } else if start
         .lines()
         .next()
@@ -122,6 +124,7 @@ fn detect_sych_json(text: &str) -> Option<CiFormat> {
 
     if obj.get("tables").is_some_and(serde_json::Value::is_array)
         && (obj.contains_key("schema_version") || obj.contains_key("version"))
+        && !obj.contains_key("runs")
     {
         return Some(CiFormat::DbModelManifest);
     }

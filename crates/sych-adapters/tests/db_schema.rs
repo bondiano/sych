@@ -421,4 +421,19 @@ async fn review_collector_diffs_base_and_head_and_anchors_findings_to_head() {
     let dialect_model_facts =
         ci::import(&snap, "models.json", model_with_dialect_word, None).expect("model manifest");
     assert_eq!(dialect_model_facts.format, CiFormat::DbModelManifest);
+
+    // A DbSchemaSnapshot containing a table named `runs` or column `posn` must not be
+    // misclassified as SARIF or go-vet JSON.
+    let snap_with_runs = serde_json::to_string(&parse_sql_files(
+        SqlDialect::Postgres,
+        &[SqlFile {
+            path: "runs.sql".into(),
+            content: "CREATE TABLE runs (id BIGINT PRIMARY KEY, posn INTEGER NOT NULL);".into(),
+        }],
+    ))
+    .expect("json");
+    let runs_facts =
+        ci::import(&snap, "runs-schema.json", &snap_with_runs, None).expect("runs snapshot");
+    assert_eq!(runs_facts.format, CiFormat::DbSchemaSnapshot);
+    assert!(runs_facts.db_schema_snapshot.is_some());
 }

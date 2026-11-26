@@ -165,7 +165,9 @@ Database source resolution order during a review:
 
 1. Local CLI `--db-dsn` (personal local mode only; automatically enables schema linting for that run unless
    `--schema-lint off` is passed) or trusted server `schema_lint.connections.<name>` referenced by
-   `schema_lint.connection`.
+   `schema_lint.connection`. When a live database source is configured, connection or inspection failures fail closed
+   (recording a failed target and a `DB_SCHEMA_UNAVAILABLE` gap) rather than silently falling back to CI snapshots or
+   static SQL.
 2. Bound CI `db_schema_snapshot` artifact (`--ci-facts` + `--ci-manifest` locally, or `ci.expected_reports` with
    `format: db_schema_snapshot` on the server).
 3. Static SQL DDL reconstruction from pinned Git blobs on **both** `diff_base` and `head` — only `NEW` findings

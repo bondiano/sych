@@ -15,10 +15,11 @@ pub mod source;
 pub mod ts_drizzle;
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use sych_core::SchemaVersion;
 use sych_core::db_schema::{
-    DbModelManifest, DbModelTable, ModelExtractionSettings, ModelExtractorKind,
+    DbModelManifest, DbModelTable, DbModelTableRef, ModelExtractionSettings, ModelExtractorKind,
 };
 
 pub use external_adapter::run_external_adapter;
@@ -96,6 +97,13 @@ fn resolve_extractors(configured: &[ModelExtractorKind]) -> Vec<ModelExtractorKi
     out
 }
 
+/// Merges duplicate table entries emitted by multiple extractors.
+///
+/// Precedence follows configured extractor order (`settings.extractors`, or
+/// [`ModelExtractorKind::ALL_CONCRETE`] under `auto`): the first extractor's
+/// `source`, `primary_key`, `join_table_for` and `enum_values` win when set,
+/// boolean constraints (`required`, `unique`) are unioned, and `max_length`
+/// keeps the tighter bound when both extractors specify one.
 fn merge_tables(dst: &mut DbModelTable, src: &DbModelTable) {
     if dst.source.is_none() {
         dst.source.clone_from(&src.source);
@@ -105,9 +113,10 @@ fn merge_tables(dst: &mut DbModelTable, src: &DbModelTable) {
         if let Some(existing) = dst.columns.iter_mut().find(|c| c.name == col.name) {
             existing.required |= col.required;
             existing.unique |= col.unique;
-            if existing.max_length.is_none() {
-                existing.max_length = col.max_length;
-            }
+            existing.max_length = match (existing.max_length, col.max_length) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            };
 
             if existing.enum_values.is_empty() {
                 existing.enum_values.clone_from(&col.enum_values);
@@ -132,6 +141,31 @@ fn merge_tables(dst: &mut DbModelTable, src: &DbModelTable) {
     for rel in &src.relations {
         if !dst.relations.contains(rel) {
             dst.relations.push(rel.clone());
+        }
+    }
+}
+
+/// Parent directory of a repository-relative path, used to scope Go packages
+/// uniquely even when multiple directories share the same `package` clause.
+pub(super) fn dir_of(file: &str) -> String {
+    Path::new(file)
+        .parent()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+/// Splits an optionally schema-qualified table name (`schema.table` or `table`)
+/// into a [`DbModelTableRef`].
+pub(super) fn table_ref_from_qualified(qualified: &str) -> DbModelTableRef {
+    if let Some((schema, table)) = qualified.split_once('.') {
+        DbModelTableRef {
+            schema: Some(schema.to_owned()),
+            table: table.to_owned(),
+        }
+    } else {
+        DbModelTableRef {
+            schema: None,
+            table: qualified.to_owned(),
         }
     }
 }

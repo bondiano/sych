@@ -5,23 +5,26 @@ mod parse;
 use std::collections::{BTreeMap, BTreeSet};
 
 use sych_core::db_schema::{
-    DbModelColumn, DbModelRelation, DbModelTable, DbModelTableRef, DbModelUnique, DbSourcePosition,
+    DbModelColumn, DbModelRelation, DbModelTable, DbModelUnique, DbSourcePosition,
     ModelExtractionSettings,
 };
 
 use super::naming::{default_column_name, default_table_name};
 use super::source::SourceTree;
+use super::table_ref_from_qualified;
 use parse::{
     GormTag, ParsedField, ParsedStruct, is_scalar_go_type, is_slice_go_type, parse_go_file,
-    parse_gorm_tag, parse_validate_tag, split_go_type, strip_go_wrappers,
+    parse_gorm_tag, parse_validate_tag, strip_go_wrappers,
 };
 
-pub(in crate::db_schema::extract) use parse::{extract_struct_tag, node_text};
+pub(in crate::db_schema::extract) use parse::{extract_struct_tag, node_text, split_go_type};
 
+/// Unique Go struct key: `(package_dir, struct_name)`.
 type StructKey = (String, String);
 
 struct PendingRelation {
     fname: String,
+    col_prefix: String,
     target_table: String,
     foreign_key: Option<String>,
     references: Option<String>,
@@ -34,21 +37,28 @@ struct ExtractContext<'a> {
 }
 
 impl ExtractContext<'_> {
-    /// Resolves a Go type reference (`Type` or `pkg.Type`) from `current_pkg` to its
-    /// [`StructKey`], preferring an exact package match and falling back to an
-    /// unambiguous bare-name match across packages.
-    fn resolve_struct_key(&self, current_pkg: &str, type_text: &str) -> Option<StructKey> {
+    /// Resolves a Go type reference (`Type` or `pkg.Type`) from `current_dir` to its
+    /// [`StructKey`], preferring an exact directory/package match and falling back
+    /// to an unambiguous bare-name match across packages.
+    fn resolve_struct_key(&self, current_dir: &str, type_text: &str) -> Option<StructKey> {
         let (qual_pkg, base) = split_go_type(type_text);
         if let Some(pkg) = qual_pkg {
-            let key = (pkg.to_owned(), base.to_owned());
-            if self.struct_defs.contains_key(&key) {
-                return Some(key);
+            let mut matches = self
+                .struct_defs
+                .iter()
+                .filter(|(_, s)| s.pkg == pkg && s.name == base)
+                .map(|(k, _)| k.clone());
+            let first = matches.next()?;
+            if matches.next().is_none() {
+                return Some(first);
             }
-        } else {
-            let local = (current_pkg.to_owned(), base.to_owned());
-            if self.struct_defs.contains_key(&local) {
-                return Some(local);
-            }
+
+            return None;
+        }
+
+        let local = (current_dir.to_owned(), base.to_owned());
+        if self.struct_defs.contains_key(&local) {
+            return Some(local);
         }
 
         let mut matches = self
@@ -64,8 +74,8 @@ impl ExtractContext<'_> {
         Some(first)
     }
 
-    fn resolve_target_table(&self, current_pkg: &str, type_text: &str) -> Option<String> {
-        let key = self.resolve_struct_key(current_pkg, type_text)?;
+    fn resolve_target_table(&self, current_dir: &str, type_text: &str) -> Option<String> {
+        let key = self.resolve_struct_key(current_dir, type_text)?;
         self.struct_tables.get(&key).cloned()
     }
 }
@@ -74,7 +84,7 @@ impl ExtractContext<'_> {
 pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec<DbModelTable> {
     let files = tree.files_with_extensions(&["go"], &settings.paths);
     let mut structs = Vec::new();
-    let mut table_methods: BTreeMap<StructKey, String> = BTreeMap::new();
+    let mut table_methods: BTreeMap<StructKey, Option<String>> = BTreeMap::new();
 
     for file in &files {
         if file.ends_with("_test.go") {
@@ -94,16 +104,20 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
     let struct_tables: BTreeMap<StructKey, String> = structs
         .iter()
         .map(|s| {
-            let key = (s.pkg.clone(), s.name.clone());
-            let tbl = table_methods.get(&key).cloned().unwrap_or_else(|| {
-                default_table_name(&s.name, Some(&s.pkg), &settings.naming, &settings.tables)
-            });
+            let key = (s.dir.clone(), s.name.clone());
+            let tbl = table_methods
+                .get(&key)
+                .and_then(Option::as_ref)
+                .cloned()
+                .unwrap_or_else(|| {
+                    default_table_name(&s.name, Some(&s.pkg), &settings.naming, &settings.tables)
+                });
             (key, tbl)
         })
         .collect();
     let struct_defs: BTreeMap<StructKey, &ParsedStruct> = structs
         .iter()
-        .map(|s| ((s.pkg.clone(), s.name.clone()), s))
+        .map(|s| ((s.dir.clone(), s.name.clone()), s))
         .collect();
     let ctx = ExtractContext {
         settings,
@@ -115,11 +129,15 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
     let mut join_tables: BTreeMap<String, DbModelTable> = BTreeMap::new();
 
     for st in &structs {
-        if settings.exclude.iter().any(|e| e == &st.name) {
+        if settings
+            .exclude
+            .iter()
+            .any(|e| e == &st.name || e == &format!("{}.{}", st.pkg, st.name))
+        {
             continue;
         }
 
-        let key = (st.pkg.clone(), st.name.clone());
+        let key = (st.dir.clone(), st.name.clone());
         let has_method = table_methods.contains_key(&key);
         let explicit = settings.tables.contains_key(&st.name)
             || settings
@@ -171,7 +189,7 @@ fn extract_struct_table(
         pending_relations: Vec::new(),
         join_tables: Vec::new(),
     };
-    let mut visited = BTreeSet::from([(st.pkg.clone(), st.name.clone())]);
+    let mut visited = BTreeSet::from([(st.dir.clone(), st.name.clone())]);
 
     // Pass 1: extract all scalar/embedded columns, composite uniques, M2M join tables and
     // queue candidate relations so field declaration order never affects FK resolution.
@@ -185,18 +203,27 @@ fn extract_struct_table(
             .foreign_key
             .clone()
             .unwrap_or_else(|| format!("{}ID", pending.fname));
-        let fk_col = default_column_name(&fk_field, &ctx.settings.naming);
-        let ref_col = pending.references.as_deref().map_or_else(
-            || default_column_name("ID", &ctx.settings.naming),
-            |r| default_column_name(r, &ctx.settings.naming),
-        );
-        if pending.foreign_key.is_some() || state.col_names.contains(&fk_col) {
+        let fk_base = default_column_name(&fk_field, &ctx.settings.naming);
+        let prefixed_fk = format!("{}{fk_base}", pending.col_prefix);
+        let fk_col = if state.col_names.contains(&prefixed_fk) {
+            Some(prefixed_fk)
+        } else if pending.foreign_key.is_some() {
+            if state.col_names.contains(&fk_base) {
+                Some(fk_base)
+            } else {
+                Some(prefixed_fk)
+            }
+        } else {
+            None
+        };
+        if let Some(fk_col) = fk_col {
+            let ref_col = pending.references.as_deref().map_or_else(
+                || default_column_name("ID", &ctx.settings.naming),
+                |r| default_column_name(r, &ctx.settings.naming),
+            );
             state.table.relations.push(DbModelRelation {
                 columns: vec![fk_col],
-                references: DbModelTableRef {
-                    schema: None,
-                    table: pending.target_table,
-                },
+                references: table_ref_from_qualified(&pending.target_table),
                 ref_columns: vec![ref_col],
             });
         }
@@ -260,7 +287,7 @@ fn process_gorm_field(
     }
 
     if let Some(m2m) = &gorm_parts.many2many {
-        if let Some(target_tbl) = ctx.resolve_target_table(&st.pkg, &field.type_text) {
+        if let Some(target_tbl) = ctx.resolve_target_table(&st.dir, &field.type_text) {
             let mut jt = DbModelTable {
                 schema: None,
                 name: String::new(),
@@ -272,10 +299,7 @@ fn process_gorm_field(
                 primary_key: Vec::new(),
                 join_table_for: vec![
                     state.table.table_ref(),
-                    DbModelTableRef {
-                        schema: None,
-                        table: target_tbl,
-                    },
+                    table_ref_from_qualified(&target_tbl),
                 ],
                 uniques: Vec::new(),
                 relations: Vec::new(),
@@ -290,10 +314,11 @@ fn process_gorm_field(
     let is_slice = is_slice_go_type(&field.type_text);
     if !is_slice
         && !is_scalar_go_type(&field.type_text)
-        && let Some(target_table) = ctx.resolve_target_table(&st.pkg, &field.type_text)
+        && let Some(target_table) = ctx.resolve_target_table(&st.dir, &field.type_text)
     {
         state.pending_relations.push(PendingRelation {
             fname: fname.to_owned(),
+            col_prefix: col_prefix.to_owned(),
             target_table,
             foreign_key: gorm_parts.foreign_key,
             references: gorm_parts.references,
@@ -405,7 +430,7 @@ fn flatten_gorm_embedded(
         return;
     }
 
-    let Some(target_key) = ctx.resolve_struct_key(&st.pkg, &field.type_text) else {
+    let Some(target_key) = ctx.resolve_struct_key(&st.dir, embedded) else {
         return;
     };
     if !visited.insert(target_key.clone()) {
@@ -428,10 +453,27 @@ fn combine_prefix(outer: &str, inner: Option<&str>) -> String {
     }
 }
 
+/// Inserts or merges a column by name using a commutative (field-order-independent)
+/// policy: `required` and `unique` are unioned, `max_length` keeps the tighter
+/// limit, and `enum_values` are merged and sorted deterministically.
 fn upsert_column(state: &mut TableBuildState<'_>, col: DbModelColumn) {
     state.col_names.insert(col.name.clone());
     if let Some(existing) = state.table.columns.iter_mut().find(|c| c.name == col.name) {
-        *existing = col;
+        existing.required |= col.required;
+        existing.unique |= col.unique;
+        existing.max_length = match (existing.max_length, col.max_length) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
+        if !col.enum_values.is_empty() {
+            let mut merged: BTreeSet<String> = existing.enum_values.drain(..).collect();
+            merged.extend(col.enum_values);
+            existing.enum_values = merged.into_iter().collect();
+        }
+
+        if existing.source.is_none() {
+            existing.source = col.source;
+        }
     } else {
         state.table.columns.push(col);
     }

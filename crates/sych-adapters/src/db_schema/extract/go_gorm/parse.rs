@@ -4,6 +4,8 @@ use std::collections::BTreeMap;
 
 use tree_sitter::{Node, Parser};
 
+use super::super::dir_of;
+
 pub(super) const GO_SCALARS: &[&str] = &[
     "string",
     "bool",
@@ -36,6 +38,7 @@ pub(super) const GO_SCALARS: &[&str] = &[
 
 pub(super) struct ParsedStruct {
     pub file: String,
+    pub dir: String,
     pub line: u32,
     pub pkg: String,
     pub name: String,
@@ -78,7 +81,7 @@ pub(super) fn parse_go_file(
     file: &str,
     src: &str,
     structs: &mut Vec<ParsedStruct>,
-    table_methods: &mut BTreeMap<(String, String), String>,
+    table_methods: &mut BTreeMap<(String, String), Option<String>>,
 ) {
     let mut parser = Parser::new();
     if parser
@@ -92,6 +95,7 @@ pub(super) fn parse_go_file(
         return;
     };
     let root = tree.root_node();
+    let dir = dir_of(file);
     let mut pkg = String::new();
     let mut cursor = root.walk();
 
@@ -119,14 +123,20 @@ pub(super) fn parse_go_file(
                         continue;
                     }
 
-                    let parsed =
-                        parse_go_struct(file, &pkg, node_text(name_node, src), type_node, src);
+                    let parsed = parse_go_struct(
+                        file,
+                        &dir,
+                        &pkg,
+                        node_text(name_node, src),
+                        type_node,
+                        src,
+                    );
                     structs.push(parsed);
                 }
             }
             "method_declaration" => {
                 if let Some((recv, tbl)) = parse_table_name_method(child, src) {
-                    table_methods.insert((pkg.clone(), recv), tbl);
+                    table_methods.insert((dir.clone(), recv), tbl);
                 }
             }
             _ => {}
@@ -136,6 +146,7 @@ pub(super) fn parse_go_file(
 
 fn parse_go_struct(
     file: &str,
+    dir: &str,
     pkg: &str,
     name: &str,
     struct_node: Node<'_>,
@@ -180,6 +191,7 @@ fn parse_go_struct(
     }
     ParsedStruct {
         file: file.to_owned(),
+        dir: dir.to_owned(),
         line,
         pkg: pkg.to_owned(),
         name: name.to_owned(),
@@ -188,7 +200,7 @@ fn parse_go_struct(
     }
 }
 
-fn parse_table_name_method(node: Node<'_>, src: &str) -> Option<(String, String)> {
+fn parse_table_name_method(node: Node<'_>, src: &str) -> Option<(String, Option<String>)> {
     let name = node_text(node.child_by_field_name("name")?, src);
     if name != "TableName" {
         return None;
@@ -202,45 +214,58 @@ fn parse_table_name_method(node: Node<'_>, src: &str) -> Option<(String, String)
         .trim_start_matches('*')
         .to_owned();
     let body = node.child_by_field_name("body")?;
-    let ret = find_return_string_literal(body, src)?;
+    let ret = single_return_string_literal(body, src);
     Some((recv_type, ret))
 }
 
-fn find_return_string_literal(node: Node<'_>, src: &str) -> Option<String> {
-    if node.kind() == "return_statement" {
-        let mut cur = node.walk();
-        for child in node.named_children(&mut cur) {
-            if let Some(s) = first_string_literal(child, src) {
-                return Some(s);
-            }
-        }
+/// Resolves a `TableName()` body only when it has a single `return` statement
+/// returning a direct string literal. Multi-return or computed bodies return
+/// `None` so the caller falls back to default naming or config overrides.
+fn single_return_string_literal(body: Node<'_>, src: &str) -> Option<String> {
+    let mut returns = Vec::new();
+    collect_return_statements(body, &mut returns);
+    if returns.len() != 1 {
+        return None;
     }
 
-    let mut cur = node.walk();
-    for child in node.named_children(&mut cur) {
-        if let Some(s) = find_return_string_literal(child, src) {
-            return Some(s);
-        }
-    }
-    None
+    direct_return_string_literal(returns[0], src)
 }
 
-fn first_string_literal(node: Node<'_>, src: &str) -> Option<String> {
-    if matches!(
-        node.kind(),
-        "interpreted_string_literal" | "raw_string_literal"
-    ) {
-        let raw = node_text(node, src);
-        return Some(raw.trim_matches(['"', '`']).to_owned());
+fn collect_return_statements<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
+    if node.kind() == "func_literal" {
+        return;
+    }
+
+    if node.kind() == "return_statement" {
+        out.push(node);
+        return;
     }
 
     let mut cur = node.walk();
     for child in node.named_children(&mut cur) {
-        if let Some(s) = first_string_literal(child, src) {
-            return Some(s);
-        }
+        collect_return_statements(child, out);
     }
-    None
+}
+
+fn direct_return_string_literal(return_stmt: Node<'_>, src: &str) -> Option<String> {
+    let expr_list = return_stmt.named_child(0)?;
+    if expr_list.kind() != "expression_list" || expr_list.named_child_count() != 1 {
+        return None;
+    }
+
+    let mut expr = expr_list.named_child(0)?;
+    while expr.kind() == "parenthesized_expression" {
+        expr = expr.named_child(0)?;
+    }
+    if matches!(
+        expr.kind(),
+        "interpreted_string_literal" | "raw_string_literal"
+    ) {
+        let raw = node_text(expr, src);
+        Some(raw.trim_matches(['"', '`']).to_owned())
+    } else {
+        None
+    }
 }
 
 pub(super) fn parse_gorm_tag(tag: &str) -> GormTag {
@@ -338,7 +363,7 @@ pub(super) fn strip_go_wrappers(ty: &str) -> &str {
     }
 }
 
-pub(super) fn split_go_type(ty: &str) -> (Option<&str>, &str) {
+pub(crate) fn split_go_type(ty: &str) -> (Option<&str>, &str) {
     let stripped = strip_go_wrappers(ty);
     match stripped.rsplit_once('.') {
         Some((pkg, name)) => (Some(pkg), name),
