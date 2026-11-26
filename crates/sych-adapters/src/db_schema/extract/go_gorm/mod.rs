@@ -339,11 +339,10 @@ fn process_gorm_field(
         return;
     }
 
-    let is_byte_slice = field
-        .type_text
-        .trim()
-        .trim_start_matches('*')
-        .starts_with("[]byte");
+    let is_byte_slice = matches!(
+        field.type_text.trim().trim_start_matches('*').trim(),
+        "[]byte" | "[]uint8"
+    );
     let has_column_storage =
         gorm_parts.has_serializer || gorm_parts.has_type || gorm_parts.column.is_some();
     if is_slice && !is_byte_slice && !has_column_storage {

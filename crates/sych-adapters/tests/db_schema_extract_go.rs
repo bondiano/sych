@@ -503,6 +503,7 @@ type Note struct {
     ID     uint     `gorm:"primaryKey"`
     Tags   []string `gorm:"serializer:json;not null"`
     Labels []string `gorm:"type:text[]"`
+    Raw    []uint8
     Other  []int
 }
 "#,
@@ -515,6 +516,7 @@ type Note struct {
         .expect("notes");
     assert!(note.columns.iter().any(|c| c.name == "tags" && c.required));
     assert!(note.columns.iter().any(|c| c.name == "labels"));
+    assert!(note.columns.iter().any(|c| c.name == "raw"));
     assert!(!note.columns.iter().any(|c| c.name == "other"));
 }
 
