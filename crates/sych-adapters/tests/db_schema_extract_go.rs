@@ -347,3 +347,88 @@ func (User) Fields() []ent.Field { return []ent.Field{field.String("handle")} }
     );
     assert!(manifest.tables.iter().any(|t| t.name == "svc_b_users"));
 }
+
+#[test]
+fn ent_ambiguous_edge_target_records_limitation_instead_of_guessing() {
+    let manifest = extract_go(
+        ModelExtractorKind::Ent,
+        &[
+            (
+                "svc_a/ent/schema/user.go",
+                "package schema\nimport \"entgo.io/ent\"\ntype User struct { ent.Schema }\nfunc (User) Annotations() []schema.Annotation { return []schema.Annotation{entsql.Annotation{Table: \"svc_a_users\"}} }\n",
+            ),
+            (
+                "svc_b/ent/schema/user.go",
+                "package schema\nimport \"entgo.io/ent\"\ntype User struct { ent.Schema }\nfunc (User) Annotations() []schema.Annotation { return []schema.Annotation{entsql.Annotation{Table: \"svc_b_users\"}} }\n",
+            ),
+            (
+                "svc_c/ent/schema/post.go",
+                r#"
+package schema
+import ("entgo.io/ent"; "entgo.io/ent/schema/edge"; "entgo.io/ent/schema/field")
+type Post struct { ent.Schema }
+func (Post) Fields() []ent.Field { return []ent.Field{field.Int("user_id")} }
+func (Post) Edges() []ent.Edge { return []ent.Edge{edge.To("user", User.Type).Field("user_id")} }
+"#,
+            ),
+        ],
+    );
+
+    let post = manifest
+        .tables
+        .iter()
+        .find(|t| t.name == "posts")
+        .expect("posts");
+    assert!(post.relations.is_empty(), "{:?}", post.relations);
+    assert!(
+        manifest
+            .limitations
+            .iter()
+            .any(|l| l.contains("ambiguous edge target `User`")),
+        "{:?}",
+        manifest.limitations
+    );
+}
+
+#[test]
+fn gorm_has_one_does_not_emit_phantom_fk_and_custom_fk_column_resolves() {
+    let manifest = extract_go(
+        ModelExtractorKind::Gorm,
+        &[(
+            "app/models.go",
+            r#"
+package app
+type Card struct {
+    ID     uint `gorm:"primaryKey"`
+    UserID uint `gorm:"not null"`
+}
+type Customer struct {
+    ID   uint `gorm:"primaryKey"`
+    Card Card `gorm:"foreignKey:UserID"`
+}
+type Invoice struct {
+    ID      uint     `gorm:"primaryKey"`
+    OwnerID uint     `gorm:"column:buyer_id;not null"`
+    Owner   Customer `gorm:"foreignKey:OwnerID"`
+}
+"#,
+        )],
+    );
+
+    let customer = manifest
+        .tables
+        .iter()
+        .find(|t| t.name == "customers")
+        .expect("customers");
+    // Has-one FK (`UserID`) lives on `cards`, not `customers`.
+    assert!(customer.relations.is_empty(), "{:?}", customer.relations);
+
+    let invoice = manifest
+        .tables
+        .iter()
+        .find(|t| t.name == "invoices")
+        .expect("invoices");
+    assert_eq!(invoice.relations.len(), 1);
+    assert_eq!(invoice.relations[0].columns, ["buyer_id"]);
+    assert_eq!(invoice.relations[0].references.table, "customers");
+}

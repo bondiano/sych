@@ -142,7 +142,7 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
         let mut st_joins = Vec::new();
 
         for field in &st.fields {
-            if field.name.is_none() || field.type_text.contains("BaseModel") {
+            if field.name.is_none() || is_bun_base_model(&field.type_text) {
                 continue;
             }
 
@@ -388,26 +388,46 @@ fn parse_struct(file: &str, pkg: &str, name: &str, node: Node<'_>, src: &str) ->
                 .map(|n| node_text(n, src).trim_matches('`').to_owned())
                 .unwrap_or_default();
             let bun_tag = extract_struct_tag(&raw_tag, "bun").unwrap_or_default();
-            if !bun_tag.is_empty() || type_text.contains("bun.BaseModel") {
+            let is_base = is_bun_base_model(&type_text);
+            if !bun_tag.is_empty() || is_base {
                 is_bun = true;
             }
 
-            if type_text.contains("BaseModel") {
+            if is_base {
                 for part in bun_tag.split(',') {
-                    if let Some(t) = part.trim().strip_prefix("table:") {
-                        explicit_table = Some(t.trim().to_owned());
+                    if let Some(t) = part
+                        .trim()
+                        .strip_prefix("table:")
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                    {
+                        explicit_table = Some(t.to_owned());
                     }
                 }
             }
 
-            fields.push(BunField {
-                line: fline,
-                name: fnode
-                    .child_by_field_name("name")
-                    .map(|n| node_text(n, src).to_owned()),
-                type_text,
-                bun_tag,
-            });
+            let mut nc = fnode.walk();
+            let names: Vec<String> = fnode
+                .children_by_field_name("name", &mut nc)
+                .map(|n| node_text(n, src).to_owned())
+                .collect();
+            if names.is_empty() {
+                fields.push(BunField {
+                    line: fline,
+                    name: None,
+                    type_text,
+                    bun_tag,
+                });
+            } else {
+                for field_name in names {
+                    fields.push(BunField {
+                        line: fline,
+                        name: Some(field_name),
+                        type_text: type_text.clone(),
+                        bun_tag: bun_tag.clone(),
+                    });
+                }
+            }
         }
     }
 
@@ -420,4 +440,9 @@ fn parse_struct(file: &str, pkg: &str, name: &str, node: Node<'_>, src: &str) ->
         explicit_table,
         fields,
     })
+}
+
+fn is_bun_base_model(type_text: &str) -> bool {
+    let trimmed = type_text.trim().trim_start_matches('*').trim();
+    trimmed == "bun.BaseModel" || trimmed == "BaseModel"
 }

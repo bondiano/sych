@@ -134,7 +134,7 @@ async fn run_adapter_command(
                 format!("exited with status {status}: {stdout_hint}")
             }
         } else {
-            stderr
+            format!("exited with status {status}: {stderr}")
         };
         return Err(DbSchemaError::ExternalAdapter {
             adapter: binary,
@@ -254,6 +254,7 @@ mod tests {
         .await
         .expect_err("must fail on non-zero exit");
         let msg = err.to_string();
+        assert!(msg.contains("exited with status"), "{msg}");
         assert!(msg.ends_with("..."), "{msg}");
         assert!(
             msg.len() < 700,

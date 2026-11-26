@@ -186,6 +186,7 @@ fn extract_struct_table(
         table: &mut table,
         composite_uniques: BTreeMap::new(),
         col_names: BTreeSet::new(),
+        field_to_col: BTreeMap::new(),
         pending_relations: Vec::new(),
         join_tables: Vec::new(),
     };
@@ -197,7 +198,9 @@ fn extract_struct_table(
         process_gorm_field(ctx, st, field, "", &mut visited, &mut state);
     }
 
-    // Pass 2: resolve queued relations against the complete column set.
+    // Pass 2: resolve queued belongs-to relations against columns actually present on this
+    // table. Requiring a matching local column avoids misclassifying GORM has-one relations
+    // (whose `foreignKey:` column lives on the target table) as local FKs.
     for pending in state.pending_relations {
         let fk_field = pending
             .foreign_key
@@ -205,17 +208,25 @@ fn extract_struct_table(
             .unwrap_or_else(|| format!("{}ID", pending.fname));
         let fk_base = default_column_name(&fk_field, &ctx.settings.naming);
         let prefixed_fk = format!("{}{fk_base}", pending.col_prefix);
-        let fk_col = if state.col_names.contains(&prefixed_fk) {
-            Some(prefixed_fk)
-        } else if pending.foreign_key.is_some() {
-            if state.col_names.contains(&fk_base) {
-                Some(fk_base)
-            } else {
-                Some(prefixed_fk)
-            }
-        } else {
-            None
-        };
+        let fk_col = state
+            .field_to_col
+            .get(&(pending.col_prefix.clone(), fk_field.clone()))
+            .cloned()
+            .or_else(|| {
+                state
+                    .col_names
+                    .contains(&prefixed_fk)
+                    .then_some(prefixed_fk)
+            })
+            .or_else(|| {
+                pending.foreign_key.as_ref().and_then(|_| {
+                    state
+                        .field_to_col
+                        .get(&(String::new(), fk_field.clone()))
+                        .cloned()
+                        .or_else(|| state.col_names.contains(&fk_base).then_some(fk_base))
+                })
+            });
         if let Some(fk_col) = fk_col {
             let ref_col = pending.references.as_deref().map_or_else(
                 || default_column_name("ID", &ctx.settings.naming),
@@ -251,6 +262,8 @@ struct TableBuildState<'a> {
     table: &'a mut DbModelTable,
     composite_uniques: BTreeMap<String, Vec<String>>,
     col_names: BTreeSet<String>,
+    /// Maps `(col_prefix, go_field_name)` to physical column name for `foreignKey:` resolution.
+    field_to_col: BTreeMap<(String, String), String>,
     pending_relations: Vec<PendingRelation>,
     join_tables: Vec<(String, DbModelTable)>,
 }
@@ -355,6 +368,9 @@ fn push_scalar_column(
         .clone()
         .unwrap_or_else(|| default_column_name(fname, &ctx.settings.naming));
     let col_name = format!("{col_prefix}{base_name}");
+    state
+        .field_to_col
+        .insert((col_prefix.to_owned(), fname.to_owned()), col_name.clone());
 
     if gorm_parts.primary_key && !state.table.primary_key.contains(&col_name) {
         state.table.primary_key.push(col_name.clone());
@@ -415,6 +431,9 @@ fn flatten_gorm_embedded(
                 "{col_prefix}{}",
                 default_column_name(go_name, &ctx.settings.naming)
             );
+            state
+                .field_to_col
+                .insert((col_prefix.to_owned(), go_name.to_owned()), name.clone());
             upsert_column(
                 state,
                 DbModelColumn {

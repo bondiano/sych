@@ -27,8 +27,11 @@ struct EntSchema {
     edges: Vec<(String, String)>, // (local_fk_col, target_schema_name)
 }
 
-/// Extracts Ent schema definitions from Go files in `tree`.
-pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec<DbModelTable> {
+/// Extracts Ent schema definitions and any resolution limitations from Go files in `tree`.
+pub fn extract(
+    tree: &SourceTree<'_>,
+    settings: &ModelExtractionSettings,
+) -> (Vec<DbModelTable>, Vec<String>) {
     let files = tree.files_with_extensions(&["go"], &settings.paths);
     let mut parsed_files = Vec::new();
     let mut by_key: BTreeMap<SchemaKey, EntSchema> = BTreeMap::new();
@@ -64,6 +67,7 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
         .collect();
 
     let mut out = Vec::new();
+    let mut limitations = Vec::new();
     for (key, s) in by_key {
         if settings
             .exclude
@@ -81,7 +85,7 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
             schema: None,
             name: String::new(),
             source: Some(DbSourcePosition {
-                file: s.file,
+                file: s.file.clone(),
                 line: s.line,
             }),
             columns: s.fields,
@@ -93,15 +97,22 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
         table.set_qualified_name(table_name);
 
         for (local_col, target_schema) in s.edges {
-            let target_tbl = resolve_edge_target(&table_names, &s.dir, &target_schema)
-                .unwrap_or_else(|| {
-                    default_table_name(
-                        &target_schema,
-                        Some(&s.pkg),
-                        &settings.naming,
-                        &settings.tables,
-                    )
-                });
+            let target_tbl = match resolve_edge_target(&table_names, &s.dir, &target_schema) {
+                EdgeTarget::Resolved(tbl) => tbl,
+                EdgeTarget::Missing => default_table_name(
+                    &target_schema,
+                    Some(&s.pkg),
+                    &settings.naming,
+                    &settings.tables,
+                ),
+                EdgeTarget::Ambiguous => {
+                    limitations.push(format!(
+                        "ent: ambiguous edge target `{target_schema}` on `{}` ({}); skipped relation on `{local_col}`",
+                        s.name, s.file
+                    ));
+                    continue;
+                }
+            };
             table.relations.push(DbModelRelation {
                 columns: vec![local_col],
                 references: table_ref_from_qualified(&target_tbl),
@@ -110,28 +121,36 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
         }
         out.push(table);
     }
-    out
+    (out, limitations)
+}
+
+enum EdgeTarget {
+    Resolved(String),
+    Missing,
+    Ambiguous,
 }
 
 fn resolve_edge_target(
     table_names: &BTreeMap<SchemaKey, String>,
     current_dir: &str,
     target_schema: &str,
-) -> Option<String> {
+) -> EdgeTarget {
     if let Some(tbl) = table_names.get(&(current_dir.to_owned(), target_schema.to_owned())) {
-        return Some(tbl.clone());
+        return EdgeTarget::Resolved(tbl.clone());
     }
 
     let mut matches = table_names
         .iter()
         .filter(|((_, name), _)| name == target_schema)
         .map(|(_, tbl)| tbl);
-    let first = matches.next()?;
+    let Some(first) = matches.next() else {
+        return EdgeTarget::Missing;
+    };
     if matches.next().is_some() {
-        return None;
+        return EdgeTarget::Ambiguous;
     }
 
-    Some(first.clone())
+    EdgeTarget::Resolved(first.clone())
 }
 
 fn collect_ent_types(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, EntSchema>) {

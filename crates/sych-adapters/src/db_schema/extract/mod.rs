@@ -38,12 +38,17 @@ pub fn extract_models(
 
     let mut used_extractors = Vec::new();
     let mut merged: BTreeMap<(Option<String>, String), DbModelTable> = BTreeMap::new();
+    let mut limitations = Vec::new();
 
     for kind in active {
         let extracted = match kind {
             ModelExtractorKind::Gorm => go_gorm::extract(tree, settings),
             ModelExtractorKind::Bun => go_bun::extract(tree, settings),
-            ModelExtractorKind::Ent => go_ent::extract(tree, settings),
+            ModelExtractorKind::Ent => {
+                let (tables, ent_limits) = go_ent::extract(tree, settings);
+                limitations.extend(ent_limits);
+                tables
+            }
             ModelExtractorKind::Prisma => prisma::extract(tree, settings),
             ModelExtractorKind::Drizzle => ts_drizzle::extract(tree, settings),
             ModelExtractorKind::Sqlalchemy => py_sqlalchemy::extract(tree, settings),
@@ -75,7 +80,7 @@ pub fn extract_models(
         schema_version: SchemaVersion,
         extractor,
         tables: merged.into_values().collect(),
-        limitations: Vec::new(),
+        limitations,
     }
 }
 
