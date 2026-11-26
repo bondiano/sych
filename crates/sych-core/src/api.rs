@@ -13,8 +13,8 @@ use crate::db_schema::{
 use crate::handoff::Handoff;
 use crate::tour::{QuestionKind, TourArtifact, TourSession};
 use crate::{
-    FindingId, PolicySnapshot, ReviewResult, SchemaVersion, SourceSnapshot, SourceSnapshotId,
-    Timestamp,
+    FindingId, PolicySnapshot, ReportView, ReviewResult, SchemaVersion, SourceSnapshot,
+    SourceSnapshotId, Timestamp,
 };
 
 mod admin;
@@ -380,7 +380,7 @@ fn error_responses(error: &Value, codes: &[u16]) -> Map<String, Value> {
         .collect()
 }
 
-/// The `OpenAPI` 3.1 description of `/v1`, from the same DTOs the server uses.
+/// The `OpenAPI` 3.1 description of `/v1` and the offline report view.
 pub fn openapi() -> Value {
     let mut c = Map::new();
     let review = component::<ReviewRequest>(&mut c, "ReviewRequest");
@@ -399,6 +399,8 @@ pub fn openapi() -> Value {
     let handoff_request = component::<HandoffRequest>(&mut c, "HandoffRequest");
     let handoff = component::<Handoff>(&mut c, "Handoff");
     let snapshots = component::<RunSnapshots>(&mut c, "RunSnapshots");
+    // Shared by the offline renderers. The server does not serve report source material.
+    let _ = component::<ReportView>(&mut c, "ReportView");
     let error = component::<ErrorEnvelope>(&mut c, "ErrorEnvelope");
     let op = |summary: &str,
               body: Option<&Value>,

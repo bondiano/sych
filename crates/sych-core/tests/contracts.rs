@@ -10,8 +10,9 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sych_core::api;
 use sych_core::{
-    DecodeError, Evidence, ObligationStatus, PolicySnapshot, ReviewResult, SnapshotHeadKind,
-    SourceSnapshot, canonical_json, canonical_sha256, decode, schema,
+    Coverage, DecodeError, Evidence, FindingCategory, Lifecycle, ObligationStatus, PolicySnapshot,
+    ReportView, ReviewResult, Severity, SnapshotHeadKind, SourceSnapshot, SuggestedChange,
+    VerificationStatus, canonical_json, canonical_sha256, decode, schema,
 };
 
 fn root() -> PathBuf {
@@ -41,6 +42,54 @@ fn v1_fixtures_decode_and_round_trip() {
         &result.obligations[1].status,
         ObligationStatus::Unknown { reason_code, .. } if reason_code == "SEMANTIC_PROVIDER_UNAVAILABLE"
     ));
+}
+
+#[test]
+fn report_view_retains_partial_coverage_and_prioritizes_fixes_without_raw_replacements() {
+    let mut result: ReviewResult = decode(&fixture("v1/review-result.json")).expect("result");
+    let snapshot: SourceSnapshot = decode(&fixture("v1/source-snapshot.json")).expect("snapshot");
+    let first = &mut result.findings[0];
+    first.suggested_change = Some(SuggestedChange {
+        code: first.anchors[0].clone(),
+        replacement: "raw fixture replacement".into(),
+    });
+    let mut dismissed = first.clone();
+    dismissed.title = "Critical dismissed".into();
+    dismissed.severity = Severity::Critical;
+    dismissed.lifecycle = Lifecycle::Dismissed;
+    let mut defect = first.clone();
+    defect.title = "Earlier high defect".into();
+    defect.category = FindingCategory::Defect;
+    let mut later = defect.clone();
+    later.title = "Later high defect".into();
+    later.anchors[0].path = "z.go".parse().expect("path");
+    result.findings.extend([dismissed, later, defect]);
+
+    let view = ReportView::from_result(&result, Some(&snapshot));
+    assert_eq!(view.header.coverage, Coverage::Partial);
+    assert_eq!(view.header.snapshot.as_ref(), Some(&snapshot));
+    assert_eq!(view.header.counts[0].severity, Severity::Critical);
+    assert_eq!(view.header.counts[1].category, FindingCategory::Defect);
+    assert_eq!(view.header.counts[1].count, 2);
+    assert_eq!(view.findings[0].lifecycle, Lifecycle::Dismissed);
+    assert_eq!(view.findings[1].title, "Earlier high defect");
+    assert_eq!(view.findings[2].title, "Later high defect");
+    assert_eq!(
+        view.findings[0].verification_status,
+        VerificationStatus::Confirmed
+    );
+    assert!(view.findings[0].anchors[0].excerpt.is_none());
+    assert_eq!(
+        view.gaps.unknown_obligations[0].reason_code,
+        "SEMANTIC_PROVIDER_UNAVAILABLE"
+    );
+    assert_eq!(view.gaps.paths[0].path.as_str(), "backend/gen/orders.pb.go");
+    let encoded = serde_json::to_string(&view).expect("view JSON");
+    assert!(!encoded.contains("raw fixture replacement"));
+    assert_eq!(
+        decode::<ReportView>(&encoded).expect("view round-trip"),
+        view
+    );
 }
 
 #[test]

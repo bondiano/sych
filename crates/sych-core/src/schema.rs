@@ -9,8 +9,8 @@ use crate::broker::ContextPackets;
 use crate::db_schema::{DbModelManifest, DbSchemaReport, DbSchemaSnapshot};
 
 use crate::{
-    DiffManifest, Evidence, EvidenceManifest, ExternalInputManifest, PolicySnapshot, ReviewResult,
-    RunFacts, SemanticFacts, SourceSnapshot,
+    DiffManifest, Evidence, EvidenceManifest, ExternalInputManifest, PolicySnapshot, ReportView,
+    ReviewResult, RunFacts, SemanticFacts, SourceSnapshot,
 };
 
 fn with_name<T: JsonSchema>(name: &'static str) -> (&'static str, Schema) {
@@ -18,7 +18,7 @@ fn with_name<T: JsonSchema>(name: &'static str) -> (&'static str, Schema) {
 }
 
 /// `(file stem, schema)` for every external versioned document.
-pub fn document_schemas() -> [(&'static str, Schema); 17] {
+pub fn document_schemas() -> [(&'static str, Schema); 18] {
     [
         with_name::<SourceSnapshot>("source-snapshot"),
         with_name::<DiffManifest>("diff-manifest"),
@@ -37,5 +37,6 @@ pub fn document_schemas() -> [(&'static str, Schema); 17] {
         with_name::<DbSchemaSnapshot>("db-schema-snapshot"),
         with_name::<DbModelManifest>("db-model-manifest"),
         with_name::<DbSchemaReport>("db-schema-report"),
+        with_name::<ReportView>("report-view"),
     ]
 }

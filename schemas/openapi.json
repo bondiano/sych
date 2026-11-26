@@ -3897,6 +3897,354 @@
         "minLength": 1,
         "type": "string"
       },
+      "ReportAnchor": {
+        "properties": {
+          "diff": {
+            "description": "Nearby hunks of the reviewed change.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "excerpt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportExcerpt"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absent when the source is unavailable."
+          },
+          "reference": {
+            "$ref": "#/components/schemas/CodeRef"
+          }
+        },
+        "required": [
+          "reference"
+        ],
+        "type": "object"
+      },
+      "ReportCount": {
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/FindingCategory"
+          },
+          "count": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          }
+        },
+        "required": [
+          "severity",
+          "category",
+          "count"
+        ],
+        "type": "object"
+      },
+      "ReportExcerpt": {
+        "properties": {
+          "first_line": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "text": {
+            "description": "The owning anchor's inclusive start and end mark the relevant lines in this text.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "first_line",
+          "text"
+        ],
+        "type": "object"
+      },
+      "ReportFinding": {
+        "properties": {
+          "also": {
+            "items": {
+              "$ref": "#/components/schemas/AlsoFinding"
+            },
+            "type": "array"
+          },
+          "anchors": {
+            "items": {
+              "$ref": "#/components/schemas/ReportAnchor"
+            },
+            "type": "array"
+          },
+          "category": {
+            "$ref": "#/components/schemas/FindingCategory"
+          },
+          "consequence": {
+            "type": "string"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "fix_note": {
+            "description": "Why a stored suggestion could not be shown or exported.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/Lifecycle"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "remediation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rule_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "suggested_action": {
+            "type": "string"
+          },
+          "suggested_patch": {
+            "description": "Unified diff for the suggested fix when its pinned source is available.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "support": {
+            "$ref": "#/components/schemas/Support"
+          },
+          "title": {
+            "type": "string"
+          },
+          "triggering_conditions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "validation_expectation": {
+            "type": "string"
+          },
+          "verification_status": {
+            "$ref": "#/components/schemas/VerificationStatus"
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "severity",
+          "lifecycle",
+          "verification_status",
+          "support",
+          "title",
+          "explanation",
+          "triggering_conditions",
+          "consequence",
+          "anchors",
+          "also",
+          "suggested_action",
+          "validation_expectation",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "ReportGaps": {
+        "properties": {
+          "open_questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/PathGap"
+            },
+            "type": "array"
+          },
+          "unknown_obligations": {
+            "items": {
+              "$ref": "#/components/schemas/ReportUnknown"
+            },
+            "type": "array"
+          },
+          "unresolved_candidates": {
+            "items": {
+              "$ref": "#/components/schemas/ReportUnresolved"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "unknown_obligations",
+          "paths",
+          "open_questions",
+          "unresolved_candidates"
+        ],
+        "type": "object"
+      },
+      "ReportHeader": {
+        "properties": {
+          "counts": {
+            "description": "Nonzero counts, grouped by severity and category.",
+            "items": {
+              "$ref": "#/components/schemas/ReportCount"
+            },
+            "type": "array"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/Coverage"
+          },
+          "execution_outcome": {
+            "$ref": "#/components/schemas/ExecutionOutcome"
+          },
+          "recommendation": {
+            "$ref": "#/components/schemas/Recommendation"
+          },
+          "result_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "review_revision": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "snapshot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceSnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absent after the source snapshot is pruned."
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageSummary"
+          }
+        },
+        "required": [
+          "run_id",
+          "result_id",
+          "review_revision",
+          "recommendation",
+          "coverage",
+          "execution_outcome",
+          "counts",
+          "usage"
+        ],
+        "type": "object"
+      },
+      "ReportUnknown": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "next_evidence_needed": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "rule_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "rule_id",
+          "question",
+          "required",
+          "reason_code",
+          "next_evidence_needed"
+        ],
+        "type": "object"
+      },
+      "ReportUnresolved": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "verification_status": {
+            "$ref": "#/components/schemas/VerificationStatus"
+          }
+        },
+        "required": [
+          "id",
+          "verification_status",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "ReportView": {
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/ReportFinding"
+            },
+            "type": "array"
+          },
+          "gaps": {
+            "$ref": "#/components/schemas/ReportGaps"
+          },
+          "header": {
+            "$ref": "#/components/schemas/ReportHeader"
+          },
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          }
+        },
+        "required": [
+          "schema_version",
+          "header",
+          "findings",
+          "gaps"
+        ],
+        "type": "object"
+      },
       "Repositories": {
         "items": {
           "$ref": "#/components/schemas/Repository"
