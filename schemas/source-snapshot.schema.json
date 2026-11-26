@@ -20,6 +20,9 @@
     "head": {
       "$ref": "#/$defs/GitObjectId"
     },
+    "head_kind": {
+      "$ref": "#/$defs/SnapshotHeadKind"
+    },
     "id": {
       "$ref": "#/$defs/SourceSnapshotId"
     },
@@ -82,6 +85,15 @@
     "Sha256Digest": {
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "SnapshotHeadKind": {
+      "description": "Where the reviewed head's content came from.",
+      "type": "string",
+      "enum": [
+        "COMMITTED",
+        "STAGED",
+        "WORKTREE"
+      ]
     },
     "SourceSnapshotId": {
       "description": "Content-derived identity of a [`crate::SourceSnapshot`].",

@@ -2,14 +2,15 @@
 
 use std::path::PathBuf;
 
-use sych_core::RunId;
 use sych_core::analysis::Discovered;
 use sych_core::config::{CheckRequest, Execution, RuleException, RunMode};
+use sych_core::{RunId, SnapshotHeadKind};
 
 use crate::args::{Comparison, ModelSelection, Switch};
 
 pub struct Request {
     pub comparison: Comparison,
+    pub head_kind: SnapshotHeadKind,
     /// Server config; engine defaults when `None`.
     pub config: Option<PathBuf>,
     /// `None` lets the CLI review use the trusted config's default selector.
@@ -65,6 +66,7 @@ impl Request {
     pub fn new(comparison: Comparison, models: Option<ModelSelection>) -> Self {
         Self {
             comparison,
+            head_kind: SnapshotHeadKind::Committed,
             config: None,
             models,
             fake_responses: None,

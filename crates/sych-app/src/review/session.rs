@@ -7,7 +7,8 @@ use serde::Serialize;
 use sych_core::broker::ContextPackets;
 use sych_core::{Evidence, ExternalInputManifest, SchemaVersion, Sha256Digest, Timestamp};
 use sych_storage::{
-    ArtifactKind, Partition, RunHandle, Storage, StorageError, StoreConfig, TENANT_LOCAL,
+    ArtifactKind, LocalHeadPin, Partition, RunHandle, Storage, StorageError, StoreConfig,
+    TENANT_LOCAL,
 };
 use tokio::{signal, time};
 
@@ -34,21 +35,42 @@ impl Session<'_> {
         }
         .map_err(|e| failed(&e))?;
         let (run, mut cancel) = match target {
-            Target::Local { change_key, .. } => {
+            Target::Local {
+                change_key,
+                mut local_head,
+                ..
+            } => {
                 let partition = Partition {
                     tenant_id: TENANT_LOCAL.into(),
                     access_scope: self.snap.snapshot.repository.clone(),
                 };
+                let pin = local_head
+                    .as_ref()
+                    .map(|head| -> Result<LocalHeadPin<'_>, Stopped> {
+                        let git_dir = head.repository().to_str().ok_or_else(|| {
+                            Stopped::Failed("local head Git directory is not UTF-8".into())
+                        })?;
+                        Ok(LocalHeadPin {
+                            git_dir,
+                            oid: head.commit(),
+                        })
+                    })
+                    .transpose()?;
                 let run = storage
-                    .begin_run(
+                    .begin_run_with_local_head(
                         &partition,
                         &change_key,
                         &self.snap.snapshot.id,
                         &self.policy.id,
                         self.now,
+                        pin,
                     )
                     .await
                     .map_err(|e| failed(&e))?;
+                if let Some(head) = &mut local_head {
+                    head.keep();
+                }
+
                 (run, None)
             }
             Target::Claimed { run, cancel } => (run, Some(cancel)),

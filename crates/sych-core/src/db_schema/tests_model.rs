@@ -15,8 +15,8 @@ use crate::config::{
 };
 use crate::{
     BackendStatus, ComparisonMode, FindingCategory, GitHashAlgorithm, GitObjectId, Producer,
-    RepoPath, ReviewLanguage, SchemaVersion, Severity, SourceSnapshot, SourceSnapshotId, Timestamp,
-    TrustClass, sha256,
+    RepoPath, ReviewLanguage, SchemaVersion, Severity, SnapshotHeadKind, SourceSnapshot,
+    SourceSnapshotId, Timestamp, TrustClass, sha256,
 };
 
 fn model_table(name: &str) -> DbModelTable {
@@ -478,6 +478,7 @@ fn ci_snapshot_evidence_trust_class_requires_authenticated_ci_origin() {
             "2222222222222222222222222222222222222222",
         )
         .expect("oid"),
+        head_kind: SnapshotHeadKind::Committed,
         comparison: ComparisonMode::MergeBase,
         source_manifest_hash: sha256(b"src"),
         diff_manifest_hash: sha256(b"diff"),

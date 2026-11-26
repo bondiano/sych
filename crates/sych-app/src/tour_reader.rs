@@ -10,10 +10,10 @@ use serde::Serialize;
 use sych_adapters::git::{Git, LocalSnapshot};
 use sych_core::analysis::followup::Exchange;
 use sych_core::tour::{self, SessionState, TourArtifact, TourSession, TourStep};
-use sych_core::{ComparisonMode, RunId, SnapshotReader, SourceSnapshot, Timestamp, TourId};
+use sych_core::{RunId, SnapshotReader, SourceSnapshot, Timestamp, TourId};
 use sych_storage::{Storage, StorageError, TENANT_LOCAL, tour_role};
 
-use crate::args::{Comparison, TourCommands, TourRef};
+use crate::args::{TourCommands, TourRef};
 use crate::errors::Failure;
 use crate::output::emit_as;
 use crate::storage::{block_on, load_local_store_config, saved_report};
@@ -117,17 +117,7 @@ pub(crate) fn pinned(
     report_snapshot: Option<&SourceSnapshot>,
     repo: &Path,
 ) -> Option<LocalSnapshot> {
-    let saved = report_snapshot?;
-    snapshot::capture(&Comparison {
-        repo: repo.to_owned(),
-        base: saved.target_tip.hex().to_owned(),
-        head: saved.head.hex().to_owned(),
-        diff_base: (saved.comparison == ComparisonMode::ExplicitDiffBase)
-            .then(|| saved.diff_base.hex().to_owned()),
-        fork: false,
-    })
-    .ok()
-    .filter(|s| s.snapshot.id == saved.id)
+    snapshot::reopen(report_snapshot?, repo).ok()
 }
 
 fn show(r: &TourRef, repo: &Path, brief: bool) -> anyhow::Result<ExitCode> {

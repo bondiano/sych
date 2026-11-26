@@ -8,8 +8,8 @@ use sych_core::config::PolicyFiles;
 use sych_core::{
     BLOB_TOO_LARGE, ChangeStatus, CodeRef, ComparisonMode, ContentKind, DiffManifest, FileChange,
     FileSide, GitHashAlgorithm, GitObjectId, Hunk, ReadError, RepoPath, SchemaVersion,
-    SnapshotTrees, SourceSide, SourceSnapshot, SourceSnapshotId, Timestamp, canonical_sha256,
-    count_lines, is_secret_path, line_range, sha256,
+    SnapshotHeadKind, SnapshotTrees, SourceSide, SourceSnapshot, SourceSnapshotId, Timestamp,
+    canonical_sha256, count_lines, is_secret_path, line_range, sha256,
 };
 
 use super::attributes::mark_generated;
@@ -48,6 +48,14 @@ pub struct LocalSnapshot {
 
 impl LocalSnapshot {
     pub fn capture(request: &SnapshotRequest<'_>) -> Result<Self, SnapshotError> {
+        Self::capture_with_kind(request, SnapshotHeadKind::Committed)
+    }
+
+    /// Captures committed positions, preserving the provenance of a synthetic head.
+    pub fn capture_with_kind(
+        request: &SnapshotRequest<'_>,
+        head_kind: SnapshotHeadKind,
+    ) -> Result<Self, SnapshotError> {
         let git = Git::open(request.repo)?;
         let algorithm = object_format(&git)?;
         let target_tip = resolve(&git, algorithm, request.base, "--base")?;
@@ -112,6 +120,7 @@ impl LocalSnapshot {
             target_tip,
             diff_base,
             head,
+            head_kind,
             comparison,
             source_manifest_hash,
             diff_manifest_hash,
@@ -147,11 +156,16 @@ impl LocalSnapshot {
         Ok((commit, files))
     }
 
-    /// The messages of the commits from `diff_base` to `head`, newest first, merges left out:
-    /// what the author says the change does. At most `max_commits` of them.
+    /// Up to `max_commits` author messages between `diff_base` and `head`, newest first.
+    /// A synthetic head and merge commits contribute no message.
     pub fn commit_messages(&self, max_commits: usize) -> Result<Vec<String>, SnapshotError> {
+        let parent = if self.snapshot.head_kind.is_committed() {
+            ""
+        } else {
+            "^"
+        };
         let range = format!(
-            "{}..{}",
+            "{}..{}{parent}",
             self.snapshot.diff_base.hex(),
             self.snapshot.head.hex()
         );
