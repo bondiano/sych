@@ -516,22 +516,40 @@ fn extract_ent_table_annotation(body: &str) -> Option<String> {
     extract_first_quoted(&body[pos + "Table:".len()..])
 }
 
+fn next_quoted_literal(s: &str) -> Option<(String, &str)> {
+    let (start, delim) = s.char_indices().find(|(_, c)| *c == '"' || *c == '`')?;
+    let after = &s[start + delim.len_utf8()..];
+    if delim == '`' {
+        let end = after.find('`')?;
+        return Some((after[..end].to_owned(), &after[end + 1..]));
+    }
+
+    let mut escaped = false;
+    for (idx, ch) in after.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+
+        if ch == '\\' {
+            escaped = true;
+        } else if ch == '"' {
+            return Some((after[..idx].to_owned(), &after[idx + 1..]));
+        }
+    }
+    None
+}
+
 fn extract_first_quoted(s: &str) -> Option<String> {
-    let q1 = s.find('"')? + 1;
-    let q2 = s[q1..].find('"')?;
-    Some(s[q1..q1 + q2].to_owned())
+    next_quoted_literal(s).map(|(lit, _)| lit)
 }
 
 fn extract_all_quoted(s: &str) -> Vec<String> {
     let mut vals = Vec::new();
     let mut rest = s;
-    while let Some(q1) = rest.find('"') {
-        let after = &rest[q1 + 1..];
-        let Some(q2) = after.find('"') else {
-            break;
-        };
-        vals.push(after[..q2].to_owned());
-        rest = &after[q2 + 1..];
+    while let Some((lit, next)) = next_quoted_literal(rest) {
+        vals.push(lit);
+        rest = next;
     }
     vals
 }

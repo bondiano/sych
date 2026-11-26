@@ -539,6 +539,7 @@ import (
     "entgo.io/ent/schema/field"
 )
 type Item struct { e.Schema }
+func (Item) Annotations() []schema.Annotation { return []schema.Annotation{entsql.Annotation{Table: `raw_items`}} }
 func (Item) Fields() []e.Field { return []e.Field{field.Int("owner_id")} }
 func (Item) Edges() []e.Edge { return []e.Edge{edge.To("owner", ExternalOwner.Type).Field("owner_id")} }
 "#,
@@ -547,8 +548,8 @@ func (Item) Edges() []e.Edge { return []e.Edge{edge.To("owner", ExternalOwner.Ty
     let item = ent
         .tables
         .iter()
-        .find(|t| t.name == "items")
-        .expect("items");
+        .find(|t| t.name == "raw_items")
+        .expect("raw_items");
     assert_eq!(item.relations.len(), 1);
     assert_eq!(item.relations[0].references.table, "external_owners");
     assert!(
