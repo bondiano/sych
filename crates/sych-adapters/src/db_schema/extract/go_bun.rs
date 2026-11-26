@@ -20,6 +20,8 @@ struct BunStruct {
     line: u32,
     pkg: String,
     name: String,
+    bun_alias: Option<String>,
+    imports: BTreeMap<String, String>,
     explicit_table: Option<String>,
     fields: Vec<BunField>,
 }
@@ -37,26 +39,39 @@ struct BunRegistry<'a> {
 }
 
 impl BunRegistry<'_> {
-    /// Resolves a Go type reference (`Type` or `pkg.Type`) from `current_dir`
-    /// to its physical table name, preferring exact package/directory matches
-    /// and falling back only when a bare name is unambiguous across packages.
-    fn resolve_target_table(&self, current_dir: &str, type_text: &str) -> Option<String> {
+    /// Resolves a Go type reference (`Type` or `pkg.Type`) from `owner` to its
+    /// physical table name, resolving Go import aliases before matching package
+    /// directories/clauses and falling back only when a bare name is unambiguous.
+    fn resolve_target_table(&self, owner: &BunStruct, type_text: &str) -> Option<String> {
         let (qual_pkg, base) = split_go_type(type_text);
         if let Some(pkg) = qual_pkg {
+            if let Some(import_path) = owner.imports.get(pkg) {
+                let last_seg = import_path.rsplit('/').next().unwrap_or(import_path);
+                let mut matches = self
+                    .structs
+                    .iter()
+                    .filter(|s| {
+                        s.name == base
+                            && (s.pkg == last_seg
+                                || s.dir == *import_path
+                                || import_path.ends_with(&format!("/{}", s.dir)))
+                    })
+                    .filter_map(|s| self.table_map.get(&(s.dir.clone(), s.name.clone())));
+                if let Some(first) = matches.next() {
+                    return matches.next().is_none().then(|| first.clone());
+                }
+            }
+
             let mut matches = self
                 .structs
                 .iter()
                 .filter(|s| s.pkg == pkg && s.name == base)
                 .filter_map(|s| self.table_map.get(&(s.dir.clone(), s.name.clone())));
             let first = matches.next()?;
-            if matches.next().is_none() {
-                return Some(first.clone());
-            }
-
-            return None;
+            return matches.next().is_none().then(|| first.clone());
         }
 
-        let local = (current_dir.to_owned(), base.to_owned());
+        let local = (owner.dir.clone(), base.to_owned());
         if let Some(tbl) = self.table_map.get(&local) {
             return Some(tbl.clone());
         }
@@ -87,7 +102,7 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
         let Some(src) = tree.read_text(file) else {
             continue;
         };
-        if !src.contains("bun:\"") && !src.contains("bun.BaseModel") {
+        if !src.contains("bun:\"") && !src.contains("uptrace/bun") && !src.contains("BaseModel") {
             continue;
         }
 
@@ -142,7 +157,8 @@ pub fn extract(tree: &SourceTree<'_>, settings: &ModelExtractionSettings) -> Vec
         let mut st_joins = Vec::new();
 
         for field in &st.fields {
-            if field.name.is_none() || is_bun_base_model(&field.type_text) {
+            if field.name.is_none() || is_bun_base_model(&field.type_text, st.bun_alias.as_deref())
+            {
                 continue;
             }
 
@@ -250,7 +266,7 @@ fn apply_bun_field(
     }
 
     if let Some(m2m) = parsed.m2m_table {
-        if let Some(target_tbl) = registry.resolve_target_table(&st.dir, &field.type_text) {
+        if let Some(target_tbl) = registry.resolve_target_table(st, &field.type_text) {
             let mut jt = DbModelTable {
                 schema: None,
                 name: String::new(),
@@ -275,7 +291,7 @@ fn apply_bun_field(
         if kind == "belongs-to"
             && let Some(join) = parsed.join_spec
             && let Some((lhs, rhs)) = join.split_once('=')
-            && let Some(target_tbl) = registry.resolve_target_table(&st.dir, &field.type_text)
+            && let Some(target_tbl) = registry.resolve_target_table(st, &field.type_text)
         {
             table.relations.push(DbModelRelation {
                 columns: vec![lhs.trim().to_owned()],
@@ -328,12 +344,16 @@ fn parse_file(file: &str, src: &str, out: &mut Vec<BunStruct>) {
     };
     let root = tree.root_node();
     let mut pkg = String::new();
+    let mut imports: BTreeMap<String, String> = BTreeMap::new();
+    let mut bun_alias: Option<String> = None;
     let mut cursor = root.walk();
     for child in root.named_children(&mut cursor) {
         if child.kind() == "package_clause" {
             if let Some(id) = child.named_child(0) {
                 node_text(id, src).clone_into(&mut pkg);
             }
+        } else if child.kind() == "import_declaration" {
+            collect_go_imports(child, src, &mut imports, &mut bun_alias);
         } else if child.kind() == "type_declaration" {
             let mut tc = child.walk();
             for spec in child.named_children(&mut tc) {
@@ -351,9 +371,15 @@ fn parse_file(file: &str, src: &str, out: &mut Vec<BunStruct>) {
                     continue;
                 }
 
-                if let Some(st) =
-                    parse_struct(file, &pkg, node_text(name_node, src), type_node, src)
-                {
+                if let Some(st) = parse_struct(
+                    file,
+                    &pkg,
+                    node_text(name_node, src),
+                    bun_alias.as_deref(),
+                    &imports,
+                    type_node,
+                    src,
+                ) {
                     out.push(st);
                 }
             }
@@ -361,7 +387,52 @@ fn parse_file(file: &str, src: &str, out: &mut Vec<BunStruct>) {
     }
 }
 
-fn parse_struct(file: &str, pkg: &str, name: &str, node: Node<'_>, src: &str) -> Option<BunStruct> {
+fn collect_go_imports(
+    node: Node<'_>,
+    src: &str,
+    imports: &mut BTreeMap<String, String>,
+    bun_alias: &mut Option<String>,
+) {
+    if node.kind() == "import_spec" {
+        let Some(path_node) = node.child_by_field_name("path") else {
+            return;
+        };
+        let path = node_text(path_node, src).trim_matches(['"', '`']);
+        let alias = node
+            .child_by_field_name("name")
+            .map(|n| node_text(n, src).trim())
+            .filter(|a| !a.is_empty() && *a != "_");
+        let is_bun_pkg = path == "github.com/uptrace/bun" || path.ends_with("/uptrace/bun");
+        if is_bun_pkg {
+            *bun_alias = Some(alias.unwrap_or("bun").to_owned());
+        }
+
+        if let Some(alias) = alias {
+            if alias != "." {
+                imports.insert(alias.to_owned(), path.to_owned());
+            }
+        } else if let Some(last) = path.rsplit('/').next().filter(|s| !s.is_empty()) {
+            imports.insert(last.to_owned(), path.to_owned());
+        }
+
+        return;
+    }
+
+    let mut cur = node.walk();
+    for ch in node.named_children(&mut cur) {
+        collect_go_imports(ch, src, imports, bun_alias);
+    }
+}
+
+fn parse_struct(
+    file: &str,
+    pkg: &str,
+    name: &str,
+    bun_alias: Option<&str>,
+    imports: &BTreeMap<String, String>,
+    node: Node<'_>,
+    src: &str,
+) -> Option<BunStruct> {
     let line = u32::try_from(node.start_position().row + 1).unwrap_or(u32::MAX);
     let mut fields = Vec::new();
     let mut is_bun = false;
@@ -388,7 +459,7 @@ fn parse_struct(file: &str, pkg: &str, name: &str, node: Node<'_>, src: &str) ->
                 .map(|n| node_text(n, src).trim_matches('`').to_owned())
                 .unwrap_or_default();
             let bun_tag = extract_struct_tag(&raw_tag, "bun").unwrap_or_default();
-            let is_base = is_bun_base_model(&type_text);
+            let is_base = is_bun_base_model(&type_text, bun_alias);
             if !bun_tag.is_empty() || is_base {
                 is_bun = true;
             }
@@ -437,12 +508,27 @@ fn parse_struct(file: &str, pkg: &str, name: &str, node: Node<'_>, src: &str) ->
         line,
         pkg: pkg.to_owned(),
         name: name.to_owned(),
+        bun_alias: bun_alias.map(str::to_owned),
+        imports: imports.clone(),
         explicit_table,
         fields,
     })
 }
 
-fn is_bun_base_model(type_text: &str) -> bool {
+fn is_bun_base_model(type_text: &str, bun_alias: Option<&str>) -> bool {
     let trimmed = type_text.trim().trim_start_matches('*').trim();
-    trimmed == "bun.BaseModel" || trimmed == "BaseModel"
+    if trimmed == "bun.BaseModel" || trimmed == "BaseModel" {
+        return true;
+    }
+
+    if let Some(alias) = bun_alias
+        && alias != "."
+    {
+        return trimmed
+            .strip_prefix(alias)
+            .and_then(|rest| rest.strip_prefix('.'))
+            == Some("BaseModel");
+    }
+
+    false
 }

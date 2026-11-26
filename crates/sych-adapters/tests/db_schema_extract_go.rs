@@ -432,3 +432,88 @@ type Invoice struct {
     assert_eq!(invoice.relations[0].columns, ["buyer_id"]);
     assert_eq!(invoice.relations[0].references.table, "customers");
 }
+
+#[test]
+fn ent_id_storage_key_bun_aliased_imports_and_gorm_serialized_slices() {
+    // Ent custom StorageKey on id updates primary_key and ref_columns.
+    let ent = extract_go(
+        ModelExtractorKind::Ent,
+        &[(
+            "ent/schema/account.go",
+            r#"
+package schema
+import ("entgo.io/ent"; "entgo.io/ent/schema/edge"; "entgo.io/ent/schema/field")
+type Account struct { ent.Schema }
+func (Account) Fields() []ent.Field {
+    return []ent.Field{field.Int("id").StorageKey("account_uid")}
+}
+type Token struct { ent.Schema }
+func (Token) Fields() []ent.Field { return []ent.Field{field.Int("account_uid")} }
+func (Token) Edges() []ent.Edge {
+    return []ent.Edge{edge.From("account", Account.Type).Field("account_uid").Unique()}
+}
+"#,
+        )],
+    );
+    let acc = ent
+        .tables
+        .iter()
+        .find(|t| t.name == "accounts")
+        .expect("accounts");
+    assert_eq!(acc.primary_key, ["account_uid"]);
+    let tok = ent
+        .tables
+        .iter()
+        .find(|t| t.name == "tokens")
+        .expect("tokens");
+    assert_eq!(tok.relations[0].ref_columns, ["account_uid"]);
+
+    // Bun aliased uptrace/bun embed (with and without tag) + aliased package import relation.
+    let bun = extract_go(
+        ModelExtractorKind::Bun,
+        &[
+            (
+                "pkg_models/user.go",
+                "package pkg_models\nimport b \"github.com/uptrace/bun\"\ntype User struct {\n    b.BaseModel `bun:\"table:custom_users\"`\n    ID int64\n}\ntype Minimal struct {\n    b.BaseModel\n    ID int64\n}\n",
+            ),
+            (
+                "pkg_app/post.go",
+                "package pkg_app\nimport (\n    b \"github.com/uptrace/bun\"\n    m \"example.com/pkg_models\"\n)\ntype Post struct {\n    b.BaseModel `bun:\"table:posts\"`\n    ID       int64   `bun:\",pk\"`\n    AuthorID int64   `bun:\",notnull\"`\n    Author   *m.User `bun:\"rel:belongs-to,join:author_id=id\"`\n}\n",
+            ),
+        ],
+    );
+    assert!(bun.tables.iter().any(|t| t.name == "custom_users"));
+    assert!(bun.tables.iter().any(|t| t.name == "minimals"));
+    let post = bun
+        .tables
+        .iter()
+        .find(|t| t.name == "posts")
+        .expect("posts");
+    assert_eq!(post.relations.len(), 1);
+    assert_eq!(post.relations[0].references.table, "custom_users");
+
+    // GORM non-[]byte slices with serializer/type tag are kept as scalar columns.
+    let gorm = extract_go(
+        ModelExtractorKind::Gorm,
+        &[(
+            "app/post.go",
+            r#"
+package app
+type Note struct {
+    ID     uint     `gorm:"primaryKey"`
+    Tags   []string `gorm:"serializer:json;not null"`
+    Labels []string `gorm:"type:text[]"`
+    Other  []int
+}
+"#,
+        )],
+    );
+    let note = gorm
+        .tables
+        .iter()
+        .find(|t| t.name == "notes")
+        .expect("notes");
+    assert!(note.columns.iter().any(|c| c.name == "tags" && c.required));
+    assert!(note.columns.iter().any(|c| c.name == "labels"));
+    assert!(!note.columns.iter().any(|c| c.name == "other"));
+}

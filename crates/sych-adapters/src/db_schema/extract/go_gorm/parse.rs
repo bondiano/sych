@@ -65,6 +65,8 @@ pub(super) struct GormTag {
     pub unique: bool,
     pub unique_index_name: Option<String>,
     pub size: Option<u32>,
+    pub has_type: bool,
+    pub has_serializer: bool,
     pub foreign_key: Option<String>,
     pub references: Option<String>,
     pub many2many: Option<String>,
@@ -304,7 +306,9 @@ pub(super) fn parse_gorm_tag(tag: &str) -> GormTag {
                 }
             }
             "size" => out.size = v.and_then(|s| s.trim().parse::<u32>().ok()),
+            "serializer" => out.has_serializer = v.is_some_and(|s| !s.trim().is_empty()),
             "type" => {
+                out.has_type = v.is_some_and(|s| !s.trim().is_empty());
                 if let Some(ty) = v {
                     let lower = ty.to_ascii_lowercase();
                     if (lower.starts_with("varchar(") || lower.starts_with("char("))
@@ -342,10 +346,24 @@ pub(super) fn parse_validate_tag(tag: &str) -> ValidateTag {
 
 pub(crate) fn extract_struct_tag(raw: &str, key: &str) -> Option<String> {
     let pat = format!("{key}:\"");
-    let start = raw.find(&pat)? + pat.len();
-    let rest = &raw[start..];
-    let end = rest.find('"')?;
-    Some(rest[..end].to_owned())
+    let mut offset = 0;
+    while let Some(rel) = raw[offset..].find(&pat) {
+        let abs = offset + rel;
+        let boundary = abs == 0
+            || raw[..abs]
+                .chars()
+                .next_back()
+                .is_some_and(char::is_whitespace);
+        let value_start = abs + pat.len();
+        if boundary {
+            let rest = &raw[value_start..];
+            let end = rest.find('"')?;
+            return Some(rest[..end].to_owned());
+        }
+
+        offset = value_start;
+    }
+    None
 }
 
 /// Strips outer pointer (`*`) and slice (`[]`) wrappers, preserving an optional

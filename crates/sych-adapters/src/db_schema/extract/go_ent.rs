@@ -22,6 +22,7 @@ struct EntSchema {
     line: u32,
     name: String,
     table_override: Option<String>,
+    id_storage_key: Option<String>,
     fields: Vec<DbModelColumn>,
     uniques: Vec<DbModelUnique>,
     edges: Vec<(String, String)>, // (local_fk_col, target_schema_name)
@@ -56,13 +57,14 @@ pub fn extract(
         collect_ent_methods(file, src, &mut by_key);
     }
 
-    let table_names: BTreeMap<SchemaKey, String> = by_key
+    let table_names: BTreeMap<SchemaKey, (String, String)> = by_key
         .iter()
         .map(|(key, s)| {
             let tbl = s.table_override.clone().unwrap_or_else(|| {
                 default_table_name(&s.name, Some(&s.pkg), &settings.naming, &settings.tables)
             });
-            (key.clone(), tbl)
+            let pk = s.id_storage_key.clone().unwrap_or_else(|| "id".to_owned());
+            (key.clone(), (tbl, pk))
         })
         .collect();
 
@@ -77,7 +79,7 @@ pub fn extract(
             continue;
         }
 
-        let Some(table_name) = table_names.get(&key) else {
+        let Some((table_name, pk_col)) = table_names.get(&key) else {
             continue;
         };
 
@@ -89,7 +91,7 @@ pub fn extract(
                 line: s.line,
             }),
             columns: s.fields,
-            primary_key: vec!["id".into()],
+            primary_key: vec![pk_col.clone()],
             join_table_for: Vec::new(),
             uniques: s.uniques,
             relations: Vec::new(),
@@ -97,26 +99,28 @@ pub fn extract(
         table.set_qualified_name(table_name);
 
         for (local_col, target_schema) in s.edges {
-            let target_tbl = match resolve_edge_target(&table_names, &s.dir, &target_schema) {
-                EdgeTarget::Resolved(tbl) => tbl,
-                EdgeTarget::Missing => default_table_name(
-                    &target_schema,
-                    Some(&s.pkg),
-                    &settings.naming,
-                    &settings.tables,
+            let (target_tbl, ref_col) = match resolve_edge_target(
+                &table_names,
+                &s.dir,
+                &target_schema,
+            ) {
+                EdgeTarget::Resolved(tbl, pk) => (tbl, pk),
+                EdgeTarget::Missing => (
+                    default_table_name(&target_schema, None, &settings.naming, &settings.tables),
+                    "id".to_owned(),
                 ),
                 EdgeTarget::Ambiguous => {
                     limitations.push(format!(
-                        "ent: ambiguous edge target `{target_schema}` on `{}` ({}); skipped relation on `{local_col}`",
-                        s.name, s.file
-                    ));
+                            "ent: ambiguous edge target `{target_schema}` on `{}` ({}); skipped relation on `{local_col}`",
+                            s.name, s.file
+                        ));
                     continue;
                 }
             };
             table.relations.push(DbModelRelation {
                 columns: vec![local_col],
                 references: table_ref_from_qualified(&target_tbl),
-                ref_columns: vec!["id".into()],
+                ref_columns: vec![ref_col],
             });
         }
         out.push(table);
@@ -125,32 +129,32 @@ pub fn extract(
 }
 
 enum EdgeTarget {
-    Resolved(String),
+    Resolved(String, String),
     Missing,
     Ambiguous,
 }
 
 fn resolve_edge_target(
-    table_names: &BTreeMap<SchemaKey, String>,
+    table_names: &BTreeMap<SchemaKey, (String, String)>,
     current_dir: &str,
     target_schema: &str,
 ) -> EdgeTarget {
-    if let Some(tbl) = table_names.get(&(current_dir.to_owned(), target_schema.to_owned())) {
-        return EdgeTarget::Resolved(tbl.clone());
+    if let Some((tbl, pk)) = table_names.get(&(current_dir.to_owned(), target_schema.to_owned())) {
+        return EdgeTarget::Resolved(tbl.clone(), pk.clone());
     }
 
     let mut matches = table_names
         .iter()
         .filter(|((_, name), _)| name == target_schema)
-        .map(|(_, tbl)| tbl);
-    let Some(first) = matches.next() else {
+        .map(|(_, entry)| entry);
+    let Some((first_tbl, first_pk)) = matches.next() else {
         return EdgeTarget::Missing;
     };
     if matches.next().is_some() {
         return EdgeTarget::Ambiguous;
     }
 
-    EdgeTarget::Resolved(first.clone())
+    EdgeTarget::Resolved(first_tbl.clone(), first_pk.clone())
 }
 
 fn collect_ent_types(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, EntSchema>) {
@@ -202,6 +206,7 @@ fn collect_ent_types(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, Ent
                             line,
                             name,
                             table_override: None,
+                            id_storage_key: None,
                             fields: Vec::new(),
                             uniques: Vec::new(),
                             edges: Vec::new(),
@@ -255,7 +260,13 @@ fn collect_ent_methods(file: &str, src: &str, by_key: &mut BTreeMap<SchemaKey, E
 
         let body_text = node_text(body_node, src);
         match node_text(name_node, src) {
-            "Fields" => collect_ent_fields(file, body_node, src, &mut schema.fields),
+            "Fields" => collect_ent_fields(
+                file,
+                body_node,
+                src,
+                &mut schema.fields,
+                &mut schema.id_storage_key,
+            ),
             "Indexes" => collect_ent_indexes(body_node, src, &mut schema.uniques),
             "Edges" => collect_ent_edges(body_node, src, &mut schema.edges),
             "Annotations" => {
@@ -282,30 +293,41 @@ fn collect_top_literal_elements<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
     }
 }
 
-fn collect_ent_fields(file: &str, node: Node<'_>, src: &str, out: &mut Vec<DbModelColumn>) {
+fn collect_ent_fields(
+    file: &str,
+    node: Node<'_>,
+    src: &str,
+    out: &mut Vec<DbModelColumn>,
+    id_storage_key: &mut Option<String>,
+) {
     let base_line = u32::try_from(node.start_position().row + 1).unwrap_or(u32::MAX);
     let mut elements = Vec::new();
     collect_top_literal_elements(node, &mut elements);
     for elem_node in elements {
         let elem = collapse_dot_whitespace(node_text(elem_node, src));
         if elem.contains("field.")
-            && let Some(col) = parse_ent_field_chain(
+            && let Some((col, is_id)) = parse_ent_field_chain(
                 file,
                 u32::try_from(elem_node.start_position().row + 1).unwrap_or(base_line),
                 &elem,
             )
         {
+            if is_id {
+                *id_storage_key = Some(col.name.clone());
+            }
+
             out.push(col);
         }
     }
 }
 
-fn parse_ent_field_chain(file: &str, line: u32, expr: &str) -> Option<DbModelColumn> {
+fn parse_ent_field_chain(file: &str, line: u32, expr: &str) -> Option<(DbModelColumn, bool)> {
     let fpos = expr.find("field.")?;
     let rest = &expr[fpos + "field.".len()..];
     let open = rest.find('(')?;
     let kind = &rest[..open];
     let name = extract_first_quoted(&rest[open + 1..])?;
+    let is_id = name == "id";
     let col_name = extract_call_string(expr, ".StorageKey(").unwrap_or(name);
     let optional = expr.contains(".Optional()") || expr.contains(".Nillable()");
     let unique = expr.contains(".Unique()");
@@ -316,17 +338,20 @@ fn parse_ent_field_chain(file: &str, line: u32, expr: &str) -> Option<DbModelCol
         Vec::new()
     };
 
-    Some(DbModelColumn {
-        name: col_name,
-        required: !optional,
-        unique,
-        max_length,
-        enum_values,
-        source: Some(DbSourcePosition {
-            file: file.to_owned(),
-            line,
-        }),
-    })
+    Some((
+        DbModelColumn {
+            name: col_name,
+            required: !optional,
+            unique,
+            max_length,
+            enum_values,
+            source: Some(DbSourcePosition {
+                file: file.to_owned(),
+                line,
+            }),
+        },
+        is_id,
+    ))
 }
 
 fn collect_ent_indexes(node: Node<'_>, src: &str, out: &mut Vec<DbModelUnique>) {
