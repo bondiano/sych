@@ -22,11 +22,19 @@ source expires.
 ## Code and fixes in a report
 
 ```sh
+sych review --out-dir .sych-output --open
+sych show --run RUN_ID --repo . --out-dir .sych-output --open
 sych review --format html --output report.html
 sych show --run RUN_ID --repo . --format html --output report.html
 sych show --run RUN_ID --repo . --format markdown --fixes-patch fixes.patch
 sych show --run RUN_ID --repo . --format report-view --output report-view.json
 ```
+
+`--out-dir DIR` (on `review` and `show`) writes the whole report of the stored run into `DIR/<run id>/`:
+`report.html`, `fix-brief.md` (`handoff@2` over all open findings), `review.json`, `review.sarif`,
+and `fixes.patch` when suggested changes exist. Combining `--out-dir` or `--open` with `--format`
+or `--output` exits 2. `--open` opens `report.html` with the platform opener (`open` on macOS,
+`xdg-open` on Linux, `rundll32` on Windows); without `--open`, no browser starts.
 
 `--format html`, `markdown` and `report-view` show pinned source excerpts with the finding's lines
 marked, nearby change hunks (side by side on wide screens in HTML) and a validated fix when available.
@@ -79,10 +87,12 @@ sych explain --run RUN_ID --obligation EFFECT-01 --format markdown
     it; the text is not a requirement and does not excuse a defect.
   - No verifier and no high-risk audit sees it, so a description can add a hypothesis, never argue one away.
   - Unreadable history leaves no description rather than failing the review.
-- With `--format` and `--output` omitted, a terminal gets a short summary with the recommendation, coverage, severity
-  counts, top findings with locations, and run ID. Piped or redirected stdout gets JSON by default. Use
-  `--format json|markdown|report-view|sarif` to select a format explicitly. `--output PATH` creates parent directories
-  and writes the selected format to a file, defaulting to JSON.
+- With `--format`, `--output` and `--out-dir` omitted, a terminal writes the full bundle into `.sych-output/<run id>/`
+  (writing `.sych-output/.gitignore` with `*` on first use so tracked files stay clean) and prints a short summary with
+  the recommendation, coverage, severity counts, top findings with locations, run ID, and bundle paths. Piped or
+  redirected stdout gets JSON by default without writing `.sych-output/`. Use `--format json|markdown|html|report-view|sarif`
+  to select one format explicitly. `--output PATH` creates parent directories and writes the selected format to a file,
+  defaulting to JSON.
 - `sarif` (only `review` and `show`) writes SARIF 2.1.0 for GitHub code scanning and editors:
   - every open finding is a result at its first HEAD anchor, keyed by `partialFingerprints["sych/v1"]`;
   - a dismissed finding carries a suppression, and resolved or obsolete findings are left out;

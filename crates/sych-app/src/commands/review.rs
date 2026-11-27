@@ -11,7 +11,7 @@ use tokio::time;
 
 use crate::args::{Comparison, ModelSelection, ReportOutput, ReviewArguments};
 use crate::errors::Failure;
-use crate::output::{emit, emit_json, emit_report};
+use crate::output::{EmitMode, emit, emit_json, emit_report, validate_report_output};
 use crate::render::ReportFormat;
 use crate::server::App;
 use crate::server::build::{EngineConfig, connections, engine};
@@ -21,8 +21,14 @@ use crate::{config, render, render_sarif, review};
 mod target;
 
 pub fn run(args: &ReviewArguments) -> anyhow::Result<ExitCode> {
+    run_with_tty(args, io::stdout().is_terminal())
+}
+
+pub fn run_with_tty(args: &ReviewArguments, stdout_is_tty: bool) -> anyhow::Result<ExitCode> {
+    let terminal = terminal_summary(&args.out, stdout_is_tty);
+    validate_report_output(&args.out, EmitMode::Review { terminal })?;
     if let Some(change) = &args.change {
-        return change_review(args, change);
+        return change_review(args, change, stdout_is_tty);
     }
 
     let comparison = target::resolve(&args.comparison, args.target.as_deref())?;
@@ -32,7 +38,6 @@ pub fn run(args: &ReviewArguments) -> anyhow::Result<ExitCode> {
         (_, true) => SnapshotHeadKind::Worktree,
         _ => SnapshotHeadKind::Committed,
     };
-    let terminal = terminal_summary(&args.out);
     let local_head = if let Some(label) = render::uncommitted_label(request.head_kind) {
         if request.comparison.head != "HEAD" {
             return Err(Failure::invalid(
@@ -59,14 +64,14 @@ pub fn run(args: &ReviewArguments) -> anyhow::Result<ExitCode> {
         &args.out,
         &args.comparison.repo,
         args.config.as_deref(),
-        terminal,
+        EmitMode::Review { terminal },
     )?;
     tracing::info!(run = %r.run_id, recommendation = ?r.recommendation, coverage = ?r.coverage, "review saved");
     Ok(review::exit_code(args.exit_policy, r))
 }
 
-fn terminal_summary(out: &ReportOutput) -> bool {
-    out.output.is_none() && out.format.is_none() && io::stdout().is_terminal()
+fn terminal_summary(out: &ReportOutput, stdout_is_tty: bool) -> bool {
+    out.output.is_none() && out.format.is_none() && stdout_is_tty
 }
 
 /// What a local `sych review` asks of the pipeline: its flags, the rest at their defaults.
@@ -97,11 +102,17 @@ fn parse(change: &str) -> Option<(&str, &str, u64)> {
 
 /// Reviews a provider change at its current state through the server pipeline, in process;
 /// nothing is published.
-fn change_review(args: &ReviewArguments, change: &str) -> anyhow::Result<ExitCode> {
+fn change_review(
+    args: &ReviewArguments,
+    change: &str,
+    stdout_is_tty: bool,
+) -> anyhow::Result<ExitCode> {
     let (connection, repo, number) = parse(change)
         .ok_or_else(|| Failure::invalid("--change is github:CONNECTION:OWNER/REPO:NUMBER"))?;
     // Only the result comes back from the server path; source-backed formats read a saved run.
     if args.out.fixes_patch.is_some()
+        || args.out.out_dir.is_some()
+        || args.out.open
         || matches!(
             args.out.format,
             Some(ReportFormat::Markdown | ReportFormat::Html | ReportFormat::ReportView)
@@ -165,7 +176,7 @@ fn change_review(args: &ReviewArguments, change: &str) -> anyhow::Result<ExitCod
             .context("the run ended without a result")
     })??;
     let path = args.out.output.as_deref();
-    if terminal_summary(&args.out) {
+    if terminal_summary(&args.out, stdout_is_tty) {
         emit(&render::summary(&result, SnapshotHeadKind::Committed), None)?;
     } else if matches!(args.out.format, Some(ReportFormat::Sarif)) {
         emit_json(&render_sarif::sarif(&result), path)?;

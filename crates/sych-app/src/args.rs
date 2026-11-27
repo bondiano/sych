@@ -163,7 +163,7 @@ pub struct Output {
     pub output: Option<PathBuf>,
 }
 
-/// [`Output`] of a saved review, which can also be SARIF.
+/// [`Output`] of a saved review, which can also be SARIF or a full report directory bundle.
 #[derive(clap::Args)]
 pub struct ReportOutput {
     /// Output format (JSON by default, with a short summary for review on a terminal)
@@ -172,6 +172,13 @@ pub struct ReportOutput {
     /// Write the rendered result here instead of stdout; parent directories are created
     #[arg(long)]
     pub output: Option<PathBuf>,
+    /// Write `report.html`, `fix-brief.md`, `review.json`, `review.sarif` and `fixes.patch` into
+    /// `<DIR>/<run_id>/`
+    #[arg(long, value_name = "DIR", conflicts_with_all = ["format", "output"])]
+    pub out_dir: Option<PathBuf>,
+    /// Open `report.html` with the platform opener after writing the bundle
+    #[arg(long, conflicts_with_all = ["format", "output"])]
+    pub open: bool,
     /// Write the combined patch of applicable suggested changes
     #[arg(long, value_name = "PATH")]
     pub fixes_patch: Option<PathBuf>,

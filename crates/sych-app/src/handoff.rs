@@ -253,8 +253,12 @@ pub fn markdown(h: &Handoff) -> String {
     for (i, step) in h.procedure.iter().enumerate() {
         let _ = writeln!(text, "{}. {step}", i + 1);
     }
-    for (i, f) in h.findings.iter().enumerate() {
-        write_finding(&mut text, i + 1, f);
+    if h.findings.is_empty() {
+        text.push_str("\nNo open findings in this run.\n");
+    } else {
+        for (i, f) in h.findings.iter().enumerate() {
+            write_finding(&mut text, i + 1, f);
+        }
     }
 
     if !h.omitted.is_empty() {
