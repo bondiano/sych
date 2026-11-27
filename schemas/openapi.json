@@ -104,6 +104,149 @@
         ],
         "type": "string"
       },
+      "ArchitectureFacts": {
+        "properties": {
+          "base_checked": {
+            "description": "The diff base was checked: without it no finding is new or old.",
+            "type": "boolean"
+          },
+          "coverage": {
+            "description": "Per check: what it proves. A circle found stands; an index that cannot see some code\ndoes not prove that no other one is there.",
+            "items": {
+              "$ref": "#/components/schemas/CheckCoverage"
+            },
+            "type": "array"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureFinding"
+            },
+            "type": "array"
+          },
+          "fixed": {
+            "description": "Findings of the diff base that head no longer has.",
+            "items": {
+              "$ref": "#/components/schemas/FixedFinding"
+            },
+            "type": "array"
+          },
+          "language": {
+            "$ref": "#/components/schemas/Language"
+          },
+          "limitations": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer",
+            "description": "The pinned indexer and its version; `config_hash` covers the limits."
+          },
+          "project": {
+            "description": "The project's directory, `\"\"` for the repository's root.",
+            "type": "string"
+          },
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "source_snapshot_id": {
+            "$ref": "#/components/schemas/SourceSnapshotId"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BackendStatus"
+          }
+        },
+        "required": [
+          "schema_version",
+          "source_snapshot_id",
+          "producer",
+          "language",
+          "project",
+          "status",
+          "base_checked",
+          "limits",
+          "coverage",
+          "findings"
+        ],
+        "type": "object"
+      },
+      "ArchitectureFinding": {
+        "properties": {
+          "base_size": {
+            "format": "uint",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Change"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Against the diff base; `None` when it was not checked."
+          },
+          "check": {
+            "$ref": "#/components/schemas/Check"
+          },
+          "code_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CodeRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where it is reported, on head; a finding in a file the change does not touch has one."
+          },
+          "key": {
+            "description": "The members' names, the field's, the module's or the path: never a line.",
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "picture": {
+            "description": "The shape of what was found, drawn in box-drawing characters.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "size": {
+            "description": "Members of the circle, places the field is known, functions shown, directory members\nor lines.",
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "check",
+          "key",
+          "message",
+          "notes",
+          "picture",
+          "size"
+        ],
+        "type": "object"
+      },
       "Attempt": {
         "description": "`GET /v1/runs/:id/attempts`: one model call as the ledger recorded it.",
         "properties": {
@@ -272,10 +415,26 @@
         ],
         "type": "object"
       },
+      "BackendStatus": {
+        "enum": [
+          "READY",
+          "UNSUPPORTED",
+          "FAILED"
+        ],
+        "type": "string"
+      },
       "BillingKind": {
         "enum": [
           "api_usage",
           "subscription_quota"
+        ],
+        "type": "string"
+      },
+      "BindingKind": {
+        "enum": [
+          "source",
+          "ci",
+          "environment"
         ],
         "type": "string"
       },
@@ -437,6 +596,30 @@
           "STATIC"
         ],
         "type": "string"
+      },
+      "Change": {
+        "oneOf": [
+          {
+            "const": "NEW",
+            "description": "The base has nothing like it.",
+            "type": "string"
+          },
+          {
+            "const": "WORSE",
+            "description": "The base has it, smaller.",
+            "type": "string"
+          },
+          {
+            "const": "SAME",
+            "description": "The base has it as it is: existing debt.",
+            "type": "string"
+          },
+          {
+            "const": "BETTER",
+            "description": "The base has it, larger: the change improved it.",
+            "type": "string"
+          }
+        ]
       },
       "ChangeCost": {
         "description": "Model calls of one pull request.",
@@ -642,6 +825,39 @@
         ],
         "type": "object"
       },
+      "Check": {
+        "enum": [
+          "module-cycle",
+          "tangle",
+          "field-leak",
+          "shallow-module",
+          "wide-directory",
+          "long-file"
+        ],
+        "type": "string"
+      },
+      "CheckCoverage": {
+        "properties": {
+          "check": {
+            "$ref": "#/components/schemas/Check"
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/Completeness"
+          },
+          "reason": {
+            "description": "Why it is partial.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "check",
+          "completeness"
+        ],
+        "type": "object"
+      },
       "CheckRequest": {
         "additionalProperties": false,
         "description": "A requested run of one allowed profile with its parameters; `Execution::command` still\ndecides whether it runs and what its argv is.",
@@ -718,6 +934,14 @@
             "type": "string"
           }
         ]
+      },
+      "Completeness": {
+        "enum": [
+          "COMPLETE_FOR_QUERY",
+          "PARTIAL",
+          "UNKNOWN"
+        ],
+        "type": "string"
       },
       "ConnectionView": {
         "description": "`GET /v1/admin/connections`: one GitHub connection as the server runs it.",
@@ -2118,6 +2342,121 @@
         ],
         "type": "string"
       },
+      "Evidence": {
+        "properties": {
+          "artifact_sha256": {
+            "$ref": "#/components/schemas/Sha256Digest"
+          },
+          "binding": {
+            "$ref": "#/components/schemas/EvidenceBinding"
+          },
+          "code_refs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/CodeRef"
+            },
+            "type": "array"
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/Completeness"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/EvidenceKind"
+          },
+          "limitations": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "source_snapshot_id": {
+            "$ref": "#/components/schemas/SourceSnapshotId"
+          },
+          "trust_class": {
+            "$ref": "#/components/schemas/TrustClass"
+          },
+          "validity": {
+            "$ref": "#/components/schemas/Validity"
+          }
+        },
+        "required": [
+          "schema_version",
+          "id",
+          "kind",
+          "source_snapshot_id",
+          "producer",
+          "binding",
+          "validity",
+          "completeness",
+          "trust_class",
+          "artifact_sha256",
+          "observed_at"
+        ],
+        "type": "object"
+      },
+      "EvidenceBinding": {
+        "description": "What the evidence was observed against.",
+        "properties": {
+          "environment_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "head_oid": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/BindingKind"
+          },
+          "target_tip_oid": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tested_oid": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
       "EvidenceKind": {
         "enum": [
           "source",
@@ -2598,6 +2937,25 @@
           "first_run_id",
           "last_run_id",
           "updated_at"
+        ],
+        "type": "object"
+      },
+      "FixedFinding": {
+        "properties": {
+          "check": {
+            "$ref": "#/components/schemas/Check"
+          },
+          "key": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "check",
+          "key",
+          "message"
         ],
         "type": "object"
       },
@@ -3139,6 +3497,23 @@
         ],
         "type": "object"
       },
+      "Language": {
+        "oneOf": [
+          {
+            "enum": [
+              "rust",
+              "typescript",
+              "go"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "python",
+            "description": "ty, plus tree-sitter syntax facts.",
+            "type": "string"
+          }
+        ]
+      },
       "Latency": {
         "description": "`GET /v1/analytics/latency`: runs and jobs created since `since`.",
         "properties": {
@@ -3236,6 +3611,41 @@
           "OBSOLETE"
         ],
         "type": "string"
+      },
+      "Limits": {
+        "additionalProperties": false,
+        "description": "The bounds the checks judge by; upstream's are the defaults.",
+        "properties": {
+          "long_file": {
+            "default": 2000,
+            "description": "A file has at most this many lines, blank and comment lines too.",
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "shallow_functions": {
+            "default": 7,
+            "description": "A module is shallow past this many functions shown, and only with a list (of things,\nor of one thing's functions) past it.",
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "tangle_members": {
+            "default": 7,
+            "description": "A tangle all in one module is reported past this many things: its members cannot be\nlearned one at a time.",
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "wide_directory": {
+            "default": 15,
+            "description": "A directory holds at most this many files and directories of code.",
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
       },
       "Me": {
         "description": "`GET /v1/me`: who the caller is and what it may do where.",
@@ -3674,6 +4084,31 @@
           }
         ]
       },
+      "Producer": {
+        "properties": {
+          "config_hash": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sha256Digest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version"
+        ],
+        "type": "object"
+      },
       "Provenance": {
         "properties": {
           "engine_version": {
@@ -4033,6 +4468,43 @@
         ],
         "type": "object"
       },
+      "ReportCodeLinks": {
+        "description": "Provider blob link coordinates when the run is bound to a remote repository.",
+        "properties": {
+          "base": {
+            "type": "string"
+          },
+          "base_url": {
+            "description": "Origin and optional base path without trailing slash, e.g. `https://github.com`.",
+            "type": "string"
+          },
+          "head": {
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/ReportCodeProvider"
+          },
+          "repo": {
+            "description": "`owner/repo` or `group/subgroup/project`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "base_url",
+          "repo",
+          "head",
+          "base"
+        ],
+        "type": "object"
+      },
+      "ReportCodeProvider": {
+        "enum": [
+          "github",
+          "gitlab"
+        ],
+        "type": "string"
+      },
       "ReportCount": {
         "properties": {
           "category": {
@@ -4114,6 +4586,13 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "picture": {
+            "description": "Static architecture box-drawing diagram extracted from `explanation` when present.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "remediation": {
             "type": [
@@ -4215,6 +4694,16 @@
       },
       "ReportHeader": {
         "properties": {
+          "code_links": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportCodeLinks"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "counts": {
             "description": "Nonzero counts, grouped by severity and category.",
             "items": {
@@ -4225,8 +4714,19 @@
           "coverage": {
             "$ref": "#/components/schemas/Coverage"
           },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
           "execution_outcome": {
             "$ref": "#/components/schemas/ExecutionOutcome"
+          },
+          "language": {
+            "$ref": "#/components/schemas/ReviewLanguage",
+            "default": "en"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
           },
           "recommendation": {
             "$ref": "#/components/schemas/Recommendation"
@@ -4243,6 +4743,9 @@
           "run_id": {
             "format": "uuid",
             "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ScopeManifest"
           },
           "snapshot": {
             "anyOf": [
@@ -4267,7 +4770,71 @@
           "coverage",
           "execution_outcome",
           "counts",
-          "usage"
+          "usage",
+          "created_at",
+          "provenance",
+          "scope"
+        ],
+        "type": "object"
+      },
+      "ReportPolicy": {
+        "properties": {
+          "head_errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "proposed_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "proposed_rules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/ReportPolicyProvenance"
+            },
+            "type": "array"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/PolicySnapshot"
+          }
+        },
+        "required": [
+          "snapshot",
+          "provenance"
+        ],
+        "type": "object"
+      },
+      "ReportPolicyProvenance": {
+        "properties": {
+          "layer": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sha256Digest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "layer",
+          "origin"
         ],
         "type": "object"
       },
@@ -4328,17 +4895,52 @@
       },
       "ReportView": {
         "properties": {
+          "architecture": {
+            "items": {
+              "$ref": "#/components/schemas/ArchitectureFacts"
+            },
+            "type": "array"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "type": "array"
+          },
           "findings": {
             "items": {
               "$ref": "#/components/schemas/ReportFinding"
             },
             "type": "array"
           },
+          "fixes_patch": {
+            "description": "Combined unified patch of applicable suggested fixes on head.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "gaps": {
             "$ref": "#/components/schemas/ReportGaps"
           },
           "header": {
             "$ref": "#/components/schemas/ReportHeader"
+          },
+          "obligations": {
+            "items": {
+              "$ref": "#/components/schemas/Obligation"
+            },
+            "type": "array"
+          },
+          "policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "schema_version": {
             "$ref": "#/components/schemas/SchemaVersion"
@@ -5690,6 +6292,18 @@
         ],
         "type": "object"
       },
+      "TrustClass": {
+        "description": "Provenance class. `AuthenticatedCi` proves origin, not oracle independence from the author.",
+        "enum": [
+          "TRUSTED_POLICY",
+          "SOURCE_OBSERVATION",
+          "DERIVED_LOCAL",
+          "AUTHENTICATED_CI",
+          "AUTHOR_CLAIM",
+          "HUMAN_ATTESTATION"
+        ],
+        "type": "string"
+      },
       "UnresolvedPublication": {
         "description": "`GET /v1/publications`: a publication operation no one has settled yet.",
         "properties": {
@@ -5877,6 +6491,16 @@
           "routes"
         ],
         "type": "object"
+      },
+      "Validity": {
+        "enum": [
+          "VALID",
+          "STALE",
+          "UNAVAILABLE",
+          "MALFORMED",
+          "FAILED"
+        ],
+        "type": "string"
       },
       "VerdictRecord": {
         "description": "One verifier answer about a candidate and what the engine made of it.",

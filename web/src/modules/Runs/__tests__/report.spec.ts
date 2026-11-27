@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import type { Schemas } from '@/modules/Api'
 
+import { parseUnifiedDiff } from '../diff'
+import { highlightLines } from '../highlight'
 import {
   agentPrompt,
+  categoryLabel,
   codeLink,
   formatSeconds,
   hex,
@@ -11,6 +14,7 @@ import {
   place,
   problems,
   proseParts,
+  safeText,
   verdict,
 } from '../report'
 
@@ -47,11 +51,11 @@ describe('verdict', () => {
     expect(verdict(result([finding({})], 'COMPLETE_FOR_SCOPE')).tone).toBe('warn')
   })
 
-  it('counts high and critical apart', () => {
-    const v = verdict(
-      result([finding({ severity: 'CRITICAL' }), finding({})], 'COMPLETE_FOR_SCOPE'),
-    )
-    expect(v).toMatchObject({ tone: 'bad', title: '2 problems, 1 high or critical' })
+  it('counts high and critical apart and localizes to Russian', () => {
+    const r = result([finding({ severity: 'CRITICAL' }), finding({})], 'COMPLETE_FOR_SCOPE')
+    expect(verdict(r)).toMatchObject({ tone: 'bad', title: '2 problems, 1 high or critical' })
+    expect(verdict(r, 'ru').title).toContain('Проблем: 2')
+    expect(categoryLabel('RULE_VIOLATION', 'ru')).toBe('Нарушение правила')
   })
 })
 
@@ -78,21 +82,41 @@ describe('problems and optional', () => {
 describe('code links', () => {
   const links = { repo: 'acme/shop', head: 'bbb', base: 'aaa' }
 
-  it('points at the commit of the side it names', () => {
+  it('points at the commit of the side it names on GitHub and GitLab', () => {
     expect(codeLink(anchor(), links)).toBe('https://github.com/acme/shop/blob/bbb/src/a.ts#L3-L5')
     expect(codeLink(anchor({ side: 'DIFF_BASE', end_line: 3 }), links)).toBe(
       'https://github.com/acme/shop/blob/aaa/src/a.ts#L3',
     )
+    expect(
+      codeLink(anchor(), {
+        provider: 'gitlab',
+        base_url: 'https://gitlab.example.com',
+        repo: 'group/sub/shop',
+        head: 'bbb',
+        base: 'aaa',
+      }),
+    ).toBe('https://gitlab.example.com/group/sub/shop/-/blob/bbb/src/a.ts#L3-5')
   })
 
-  it('has none without the snapshot or for the target tip', () => {
+  it('refuses missing snapshots, target tip, javascript: paths and non-HTTP origins', () => {
     expect(codeLink(anchor(), undefined)).toBeUndefined()
     expect(codeLink(anchor({ side: 'TARGET_TIP' }), links)).toBeUndefined()
+    expect(codeLink(anchor({ path: 'javascript:alert(1)' }), links)).toBeUndefined()
+    expect(
+      codeLink(anchor(), {
+        provider: 'github',
+        base_url: 'javascript:alert(1)',
+        repo: 'acme/shop',
+        head: 'bbb',
+        base: 'aaa',
+      }),
+    ).toBeUndefined()
   })
 
-  it('names a place and strips the object id prefix', () => {
+  it('names a place, neutralizes bidi controls, and strips the object id prefix', () => {
     expect(place(anchor())).toBe('src/a.ts:3-5')
     expect(place(anchor({ end_line: 3 }))).toBe('src/a.ts:3')
+    expect(safeText('a\u202eb')).toBe('aU+202Eb')
     expect(hex('sha1:abc')).toBe('abc')
   })
 })
@@ -108,20 +132,32 @@ describe('agentPrompt', () => {
   })
 })
 
-describe('formatSeconds', () => {
-  it('shows minutes only from a minute on', () => {
+describe('formatSeconds and proseParts', () => {
+  it('shows minutes only from a minute on and splits code spans', () => {
     expect(formatSeconds(95)).toBe('1 min 35 s')
     expect(formatSeconds(42)).toBe('42 s')
-  })
-})
-
-describe('proseParts', () => {
-  it('marks code spans and leaves a lone backtick as text', () => {
     expect(proseParts('Use `abs_diff` here')).toEqual([
       { text: 'Use ', code: false },
       { text: 'abs_diff', code: true },
       { text: ' here', code: false },
     ])
     expect(proseParts('a ` b')).toEqual([{ text: 'a ` b', code: false }])
+  })
+})
+
+describe('highlightLines and parseUnifiedDiff', () => {
+  it('tokenizes supported languages without HTML markup and parses side-by-side pairs', () => {
+    const lines = highlightLines('pub fn add(a: i32) -> i32 {\n    a + 1\n}\n', 'src/lib.rs')
+    expect(lines).toHaveLength(3)
+    expect(lines[0]?.some((t) => t.kind === 'keyword' && t.text === 'pub')).toBe(true)
+
+    const hunks = parseUnifiedDiff(
+      'diff --git a/a.rs b/a.rs\n--- a/a.rs\n+++ b/a.rs\n@@ -1,2 +1,2 @@\n fn a() {\n-    old()\n+    new()\n\\ No newline at end of file\n',
+    )
+    expect(hunks).toHaveLength(1)
+    expect(hunks[0]?.pairs).toHaveLength(2)
+    expect(hunks[0]?.pairs[1]?.left?.text).toBe('    old()')
+    expect(hunks[0]?.pairs[1]?.right?.text).toBe('    new()')
+    expect(hunks[0]?.pairs[1]?.right?.noNewline).toBe(true)
   })
 })

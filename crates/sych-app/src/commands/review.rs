@@ -100,11 +100,11 @@ fn parse(change: &str) -> Option<(&str, &str, u64)> {
 fn change_review(args: &ReviewArguments, change: &str) -> anyhow::Result<ExitCode> {
     let (connection, repo, number) = parse(change)
         .ok_or_else(|| Failure::invalid("--change is github:CONNECTION:OWNER/REPO:NUMBER"))?;
-    // Only the result comes back from the server path; Markdown renders a whole saved run.
+    // Only the result comes back from the server path; source-backed formats read a saved run.
     if args.out.fixes_patch.is_some()
         || matches!(
             args.out.format,
-            Some(ReportFormat::Markdown | ReportFormat::ReportView)
+            Some(ReportFormat::Markdown | ReportFormat::Html | ReportFormat::ReportView)
         )
     {
         return Err(Failure::invalid(

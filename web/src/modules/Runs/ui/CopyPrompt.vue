@@ -1,18 +1,21 @@
 <script setup lang="ts">
 import { Check, Copy } from '@lucide/vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import { Button } from '@/modules/Ui'
 
-const props = defineProps<{ text: string; label: string }>()
+import { strings, type Lang } from '../i18n'
 
-const STATUS = {
+const props = defineProps<{ text: string; label: string; language?: Lang }>()
+
+const t = computed(() => strings(props.language))
+const statusText = computed(() => ({
   idle: '',
-  copied: 'Copied',
-  refused: 'Could not copy; the text is shown below to select by hand',
-}
+  copied: t.value.copied,
+  refused: t.value.copyRefused,
+}))
 
-const state = ref<keyof typeof STATUS>('idle')
+const state = ref<'idle' | 'copied' | 'refused'>('idle')
 
 async function copy() {
   try {
@@ -20,23 +23,23 @@ async function copy() {
     state.value = 'copied'
     setTimeout(() => (state.value = 'idle'), 2000)
   } catch {
-    // Without clipboard access the text is still there to select by hand.
+    // Without clipboard access (e.g. restricted file:// context) the text stays selectable below.
     state.value = 'refused'
   }
 }
 </script>
 
 <template>
-  <div class="flex flex-col items-start gap-2">
+  <div class="flex flex-col items-start gap-2 print:hidden">
     <Button variant="outline" size="sm" type="button" @click="copy">
       <Check v-if="state === 'copied'" aria-hidden="true" />
       <Copy v-else aria-hidden="true" />
-      {{ label }}
+      {{ state === 'copied' ? t.copied : label }}
     </Button>
-    <span class="sr-only" role="status">{{ STATUS[state] }}</span>
+    <span class="sr-only" role="status">{{ statusText[state] }}</span>
     <pre
       v-if="state === 'refused'"
-      class="max-h-64 overflow-auto rounded-md bg-muted p-3 font-mono text-xs whitespace-pre-wrap"
+      class="max-h-64 max-w-full overflow-auto rounded-md border bg-muted p-3 font-mono text-xs whitespace-pre-wrap"
       >{{ text }}</pre>
   </div>
 </template>

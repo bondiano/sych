@@ -11,10 +11,21 @@ import pluginVue from 'eslint-plugin-vue'
 export default defineConfigWithVueTs(
   { name: 'app/files-to-lint', files: ['**/*.{vue,ts,mts}'] },
 
-  globalIgnores(['**/dist/**', '**/coverage/**', 'src/modules/Api/schema.gen.d.ts']),
+  globalIgnores([
+    '**/dist/**',
+    '**/dist-report/**',
+    '**/coverage/**',
+    'src/modules/Api/schema.gen.d.ts',
+  ]),
 
   ...pluginVue.configs['flat/recommended'],
   vueTsConfigs.recommendedTypeChecked,
+
+  // Repository and model text must reach the DOM only through Vue text interpolation.
+  {
+    files: ['**/*.vue'],
+    rules: { 'vue/no-v-html': 'error' },
+  },
 
   // FEOD layers: app → pages → modules → common; a module is used through its index only.
   {

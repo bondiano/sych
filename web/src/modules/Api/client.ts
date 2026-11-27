@@ -18,7 +18,7 @@ export class ApiError extends Error {
 }
 
 /** Same origin as `sych serve`: the session cookie goes along, no token lives in the page. */
-export const api = createClient<paths>({
+export const api = /* @__PURE__ */ createClient<paths>({
   baseUrl: globalThis.location?.origin,
   credentials: 'same-origin',
 })

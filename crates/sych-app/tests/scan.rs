@@ -191,6 +191,21 @@ fn report_view_reads_pinned_code_and_keeps_findings_after_git_prunes_it() {
             .contains("+    \"postinstall\"")
     );
     assert!(supply["remediation"].as_str().is_some());
+    let html = show("html");
+    assert!(
+        html.contains("default-src 'none'") && html.contains("<script id=\"sych-report-data\""),
+        "HTML report embeds CSP and payload tag"
+    );
+    let (_, after_open) = html
+        .split_once("<script id=\"sych-report-data\" type=\"application/json\">")
+        .expect("json script open");
+    let (json_payload, _) = after_open
+        .split_once("</script>")
+        .expect("json script close");
+    assert!(
+        !json_payload.contains('<') && !json_payload.contains('\u{202e}'),
+        "embedded JSON payload escapes every `<` and bidi control"
+    );
     assert_eq!(
         serde_json::from_str::<Value>(&show("json")).expect("JSON"),
         original

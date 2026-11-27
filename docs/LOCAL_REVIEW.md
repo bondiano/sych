@@ -22,14 +22,21 @@ source expires.
 ## Code and fixes in a report
 
 ```sh
+sych review --format html --output report.html
+sych show --run RUN_ID --repo . --format html --output report.html
 sych show --run RUN_ID --repo . --format markdown --fixes-patch fixes.patch
 sych show --run RUN_ID --repo . --format report-view --output report-view.json
 ```
 
-Markdown and the structured report view show pinned source excerpts with the finding's lines
-marked, nearby change hunks and a validated fix when available. `--repo` defaults to the current
-directory. If source retention expired, the blobs are missing or an excerpt is withheld, the
-finding stays visible with “source unavailable”. The existing JSON report keeps its format.
+`--format html`, `markdown` and `report-view` show pinned source excerpts with the finding's lines
+marked, nearby change hunks (side by side on wide screens in HTML) and a validated fix when available.
+`--format html` writes a single offline HTML file built from the web UI (`just report-template`
+regenerates its embedded bundle; maximum template budget 300 KiB): CSS and JavaScript are inlined,
+a strict Content Security Policy blocks all network requests, light/dark themes follow
+`prefers-color-scheme`, print stylesheets format the report for paper/PDF, and labels follow
+`review.language` (`en`/`ru`). `--repo` defaults to the current directory. If source retention
+expired, the blobs are missing or an excerpt is withheld, the finding stays visible with “source
+unavailable”. The existing JSON report keeps its format.
 
 `--fixes-patch PATH` writes the applicable non-conflicting fixes as one patch for the reviewed head.
 Omissions are explained alongside the finding, including identical replacements, unavailable
@@ -116,7 +123,7 @@ sych explain --run RUN_ID --obligation EFFECT-01 --format markdown
   terminal control characters and bidi characters are not output verbatim in any format.
 
 Output examples: [review.json](examples/local-review/review.json), [review.md](examples/local-review/review.md),
-[explain.md](examples/local-review/explain.md).
+[report.html](examples/local-review/report.html), [explain.md](examples/local-review/explain.md).
 
 ## Reading a tour
 

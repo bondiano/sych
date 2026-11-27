@@ -29,7 +29,7 @@ pub struct PolicyReview {
 }
 
 /// Everything a saved run consists of; `review` and `show` render the same document.
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Report {
     /// `null` once source data outlived its shorter retention; the result stays readable.
     pub snapshot: Option<SourceSnapshot>,
@@ -43,10 +43,13 @@ pub struct Report {
     pub syntax_facts: Vec<SyntaxFacts>,
     pub ci_facts: Vec<CiFacts>,
     /// Effects of the changed code, matched base to head, and the bound registry.
+    #[serde(default)]
     pub effect_ledger: EffectLedger,
     /// Diagnostics of the pinned linters on the head's changed files.
+    #[serde(default)]
     pub lint_facts: Vec<LintFacts>,
     /// The architecture checks of each project the change touches, on both sides.
+    #[serde(default)]
     pub architecture_facts: Vec<ArchitectureFacts>,
     /// Database and application schema checks when `schema_lint` is enabled.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -61,11 +64,13 @@ pub enum Format {
     Markdown,
 }
 
-/// A saved review's formats: [`Format`] and SARIF, which only a review has.
+/// Output formats of `sych review` and `sych show`.
 #[derive(Clone, Copy, clap::ValueEnum)]
 pub enum ReportFormat {
     Json,
     Markdown,
+    /// Self-contained offline HTML report
+    Html,
     /// Structured findings with excerpts, change hunks and fix previews
     ReportView,
     /// SARIF 2.1.0 for code scanning

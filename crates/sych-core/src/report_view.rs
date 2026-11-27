@@ -3,15 +3,18 @@
 
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::architecture::{ArchitectureFacts, PICTURE};
 use crate::{
-    AlsoFinding, CandidateId, CodeRef, Coverage, ExecutionOutcome, Finding, FindingCategory,
-    FindingId, Lifecycle, ObligationId, ObligationStatus, PathGap, Recommendation, ResultId,
-    ReviewResult, RunId, SchemaVersion, Severity, SourceSnapshot, Support, UsageSummary,
-    VerificationStatus, redact,
+    AlsoFinding, CandidateId, CodeRef, Coverage, Evidence, ExecutionOutcome, Finding,
+    FindingCategory, FindingId, Lifecycle, Obligation, ObligationId, ObligationStatus, PathGap,
+    PolicySnapshot, Provenance, Recommendation, ResultId, ReviewLanguage, ReviewResult, RunId,
+    SchemaVersion, ScopeManifest, Severity, Sha256Digest, SourceSnapshot, Support, Timestamp,
+    UsageSummary, VerificationStatus, redact,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -20,6 +23,36 @@ pub struct ReportView {
     pub header: ReportHeader,
     pub findings: Vec<ReportFinding>,
     pub gaps: ReportGaps,
+    /// Combined unified patch of applicable suggested fixes on head.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fixes_patch: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub architecture: Vec<ArchitectureFacts>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub obligations: Vec<Obligation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy: Option<ReportPolicy>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence: Vec<Evidence>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ReportCodeProvider {
+    Github,
+    Gitlab,
+}
+
+/// Provider blob link coordinates when the run is bound to a remote repository.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ReportCodeLinks {
+    pub provider: ReportCodeProvider,
+    /// Origin and optional base path without trailing slash, e.g. `https://github.com`.
+    pub base_url: String,
+    /// `owner/repo` or `group/subgroup/project`.
+    pub repo: String,
+    pub head: String,
+    pub base: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -29,12 +62,19 @@ pub struct ReportHeader {
     pub review_revision: u64,
     /// Absent after the source snapshot is pruned.
     pub snapshot: Option<SourceSnapshot>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code_links: Option<ReportCodeLinks>,
     pub recommendation: Recommendation,
     pub coverage: Coverage,
     pub execution_outcome: ExecutionOutcome,
     /// Nonzero counts, grouped by severity and category.
     pub counts: Vec<ReportCount>,
     pub usage: UsageSummary,
+    #[serde(default)]
+    pub language: ReviewLanguage,
+    pub created_at: Timestamp,
+    pub provenance: Provenance,
+    pub scope: ScopeManifest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -42,6 +82,26 @@ pub struct ReportCount {
     pub severity: Severity,
     pub category: FindingCategory,
     pub count: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ReportPolicy {
+    pub snapshot: PolicySnapshot,
+    pub provenance: Vec<ReportPolicyProvenance>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub proposed_files: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub proposed_rules: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub head_errors: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ReportPolicyProvenance {
+    pub layer: String,
+    pub origin: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<Sha256Digest>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -54,6 +114,9 @@ pub struct ReportFinding {
     pub support: Support,
     pub title: String,
     pub explanation: String,
+    /// Static architecture box-drawing diagram extracted from `explanation` when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub picture: Option<String>,
     pub triggering_conditions: Vec<String>,
     pub consequence: String,
     pub anchors: Vec<ReportAnchor>,
@@ -136,8 +199,33 @@ pub fn ordered_findings(findings: &[Finding]) -> Vec<&Finding> {
     ordered
 }
 
+/// Redacts secrets and replaces control and bidi override characters with `U+XXXX`.
+pub fn neutralize_prose(text: &str) -> String {
+    let redacted = redact(text);
+    let mut out = String::with_capacity(redacted.len());
+    for ch in redacted.replace("\r\n", "\n").chars() {
+        if matches!(ch, '\n' | '\t') {
+            out.push(ch);
+        } else if ch.is_control()
+            || matches!(
+                ch,
+                '\u{061c}'
+                    | '\u{200e}'
+                    | '\u{200f}'
+                    | '\u{2028}'..='\u{202e}'
+                    | '\u{2066}'..='\u{2069}'
+            )
+        {
+            let _ = write!(out, "U+{:04X}", u32::from(ch));
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
 fn prose(text: &str) -> String {
-    redact(text).into_owned()
+    neutralize_prose(text)
 }
 
 fn prose_list(texts: &[String]) -> Vec<String> {
@@ -156,8 +244,16 @@ fn related(finding: &AlsoFinding) -> AlsoFinding {
     }
 }
 
+fn extract_picture(explanation: &str) -> Option<String> {
+    let (_, rest) = explanation.split_once(PICTURE)?;
+    let trimmed = rest.trim_end().trim_end_matches('`').trim_end();
+    (!trimmed.is_empty()).then(|| prose(trimmed))
+}
+
 impl From<&Finding> for ReportFinding {
     fn from(finding: &Finding) -> Self {
+        let explanation = prose(&finding.explanation);
+        let picture = extract_picture(&finding.explanation);
         Self {
             id: finding.id,
             category: finding.category,
@@ -166,7 +262,8 @@ impl From<&Finding> for ReportFinding {
             verification_status: VerificationStatus::Confirmed,
             support: finding.support,
             title: prose(&finding.title),
-            explanation: prose(&finding.explanation),
+            explanation,
+            picture,
             triggering_conditions: prose_list(&finding.triggering_conditions),
             consequence: prose(&finding.consequence),
             anchors: finding
@@ -202,6 +299,47 @@ fn counts(findings: &[Finding]) -> Vec<ReportCount> {
         row.count += 1;
     }
     counts.into_values().collect()
+}
+
+fn default_code_links(snapshot: &SourceSnapshot) -> Option<ReportCodeLinks> {
+    let rest = snapshot.repository.strip_prefix("github:")?;
+    let repo = match rest.rsplit_once(':') {
+        Some((_, full_name)) => full_name,
+        None => rest,
+    };
+    if !repo.contains('/') {
+        return None;
+    }
+
+    Some(ReportCodeLinks {
+        provider: ReportCodeProvider::Github,
+        base_url: "https://github.com".into(),
+        repo: prose(repo),
+        head: snapshot.head.hex().to_owned(),
+        base: snapshot.diff_base.hex().to_owned(),
+    })
+}
+
+fn clean_obligation(ob: &Obligation) -> Obligation {
+    let mut cleaned = ob.clone();
+    cleaned.rule_id = prose(&ob.rule_id);
+    cleaned.question = prose(&ob.question);
+    cleaned.acceptance_criterion = prose(&ob.acceptance_criterion);
+    cleaned.limitations = prose_list(&ob.limitations);
+    cleaned.status = match &ob.status {
+        ObligationStatus::Unknown {
+            reason_code,
+            next_evidence_needed,
+        } => ObligationStatus::Unknown {
+            reason_code: prose(reason_code),
+            next_evidence_needed: prose(next_evidence_needed),
+        },
+        ObligationStatus::NotApplicable { basis } => ObligationStatus::NotApplicable {
+            basis: prose(basis),
+        },
+        other => other.clone(),
+    };
+    cleaned
 }
 
 impl From<&ReviewResult> for ReportGaps {
@@ -254,6 +392,14 @@ impl From<&ReviewResult> for ReportGaps {
 impl ReportView {
     /// Builds the report metadata. The caller fills source material from the pinned snapshot.
     pub fn from_result(result: &ReviewResult, snapshot: Option<&SourceSnapshot>) -> Self {
+        let mut scope = result.scope_manifest.clone();
+        for unit in &mut scope.units {
+            unit.title = prose(&unit.title);
+        }
+        for gap in &mut scope.excluded {
+            gap.reason = prose(&gap.reason);
+        }
+
         Self {
             schema_version: SchemaVersion,
             header: ReportHeader {
@@ -261,17 +407,30 @@ impl ReportView {
                 result_id: result.result_id,
                 review_revision: result.review_revision,
                 snapshot: snapshot.cloned(),
+                code_links: snapshot.and_then(default_code_links),
                 recommendation: result.recommendation,
                 coverage: result.coverage,
                 execution_outcome: result.execution_outcome,
                 counts: counts(&result.findings),
                 usage: result.usage_summary.clone(),
+                language: result.language,
+                created_at: result.created_at,
+                provenance: Provenance {
+                    engine_version: prose(&result.provenance.engine_version),
+                    model_adapters: prose_list(&result.provenance.model_adapters),
+                },
+                scope,
             },
             findings: ordered_findings(&result.findings)
                 .into_iter()
                 .map(ReportFinding::from)
                 .collect(),
             gaps: ReportGaps::from(result),
+            fixes_patch: None,
+            architecture: Vec::new(),
+            obligations: result.obligations.iter().map(clean_obligation).collect(),
+            policy: None,
+            evidence: Vec::new(),
         }
     }
 }

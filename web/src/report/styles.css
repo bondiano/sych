@@ -1,0 +1,170 @@
+@import 'tailwindcss';
+@import 'shadcn-vue/tailwind.css';
+
+@custom-variant dark (@media screen and (prefers-color-scheme: dark));
+
+@theme inline {
+  /* Offline system font stack matching docs/brand/README.md; zero network requests. */
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Inter Display', Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+/* Sych brand palette (docs/brand/README.md):
+   Night #0B1016, Graphite #101923, Bone #F6F4EE, Amber #FFC83D, Rust Orange #F97416, Slate #9CA3AF */
+:root {
+  color-scheme: light dark;
+  --background: #f6f4ee;
+  --foreground: #0b1016;
+  --card: #ffffff;
+  --card-foreground: #0b1016;
+  --popover: #ffffff;
+  --popover-foreground: #0b1016;
+  --primary: #f97416;
+  --primary-foreground: #0b1016;
+  --secondary: #ebe8df;
+  --secondary-foreground: #101923;
+  --muted: #efede6;
+  --muted-foreground: #4b5563;
+  --accent: #ffc83d;
+  --accent-foreground: #0b1016;
+  --destructive: #dc2626;
+  --border: #dedad0;
+  --input: #d5d0c4;
+  --ring: #f97416;
+  --radius: 0.625rem;
+
+  --tok-comment: #6b7280;
+  --tok-keyword: #b45309;
+  --tok-string: #166534;
+  --tok-number: #c2410c;
+  --tok-function: #1e40af;
+  --tok-type: #92400e;
+  --tok-attr: #3f6212;
+  --tok-operator: #374151;
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b1016;
+    --foreground: #f6f4ee;
+    --card: #101923;
+    --card-foreground: #f6f4ee;
+    --popover: #101923;
+    --popover-foreground: #f6f4ee;
+    --primary: #f97416;
+    --primary-foreground: #0b1016;
+    --secondary: #182433;
+    --secondary-foreground: #f6f4ee;
+    --muted: #16212e;
+    --muted-foreground: #9ca3af;
+    --accent: #ffc83d;
+    --accent-foreground: #0b1016;
+    --destructive: #f87171;
+    --border: rgb(246 244 238 / 12%);
+    --input: rgb(246 244 238 / 16%);
+    --ring: #f97416;
+
+    --tok-comment: #9ca3af;
+    --tok-keyword: #ffc83d;
+    --tok-string: #86efac;
+    --tok-number: #f97416;
+    --tok-function: #93c5fd;
+    --tok-type: #fcd34d;
+    --tok-attr: #bef264;
+    --tok-operator: #cbd5e1;
+  }
+}
+
+@media print {
+  :root {
+    color-scheme: light;
+    --background: #ffffff;
+    --foreground: #0b1016;
+    --card: #ffffff;
+    --card-foreground: #0b1016;
+    --muted: #f3f4f6;
+    --muted-foreground: #374151;
+    --border: #d1d5db;
+  }
+
+  article {
+    break-inside: avoid-page;
+  }
+}
+
+@utility cn-font-heading {
+  font-family: var(--font-heading);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    scrollbar-color: var(--muted-foreground) transparent;
+  }
+
+  ::selection {
+    background-color: rgb(249 116 22 / 24%);
+    color: var(--foreground);
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+}
+
+.sych-tok-comment {
+  color: var(--tok-comment);
+  font-style: italic;
+}
+
+.sych-tok-keyword {
+  color: var(--tok-keyword);
+  font-weight: 500;
+}
+
+.sych-tok-string {
+  color: var(--tok-string);
+}
+
+.sych-tok-number {
+  color: var(--tok-number);
+}
+
+.sych-tok-function {
+  color: var(--tok-function);
+}
+
+.sych-tok-type {
+  color: var(--tok-type);
+}
+
+.sych-tok-attr {
+  color: var(--tok-attr);
+}
+
+.sych-tok-operator {
+  color: var(--tok-operator);
+}

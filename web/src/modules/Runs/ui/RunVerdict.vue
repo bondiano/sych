@@ -5,9 +5,14 @@ import { computed } from 'vue'
 import type { Schemas } from '@/modules/Api'
 import { Alert, AlertDescription, AlertTitle } from '@/modules/Ui'
 
-import { verdict } from '../report'
+import { strings, type Lang } from '../i18n'
+import { verdictFromFindings } from '../report'
 
-const props = defineProps<{ result: Schemas['ReviewResult'] }>()
+const props = defineProps<{
+  result?: Schemas['ReviewResult']
+  view?: Schemas['ReportView']
+  language?: Lang
+}>()
 
 const SHOWN = {
   ok: {
@@ -18,7 +23,7 @@ const SHOWN = {
   warn: {
     icon: TriangleAlert,
     classes:
-      'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100',
+      'border-amber-300/80 bg-amber-50 text-amber-950 dark:border-amber-800/70 dark:bg-amber-950/70 dark:text-amber-100',
   },
   bad: {
     icon: CircleAlert,
@@ -27,7 +32,26 @@ const SHOWN = {
   },
 }
 
-const shown = computed(() => verdict(props.result))
+const lang = computed<Lang>(
+  () => props.language ?? props.view?.header.language ?? props.result?.language ?? 'en',
+)
+const t = computed(() => strings(lang.value))
+const shown = computed(() => {
+  if (props.view) {
+    const openOrAll = props.view.findings.filter((f) => f.lifecycle === 'OPEN')
+    return verdictFromFindings(openOrAll, props.view.header.coverage, lang.value)
+  }
+
+  if (props.result) {
+    return verdictFromFindings(props.result.findings, props.result.coverage, lang.value)
+  }
+
+  return verdictFromFindings([], 'UNAVAILABLE', lang.value)
+})
+const limitReached = computed(() => {
+  const outcome = props.view?.header.execution_outcome ?? props.result?.execution_outcome
+  return outcome === 'LIMIT_REACHED'
+})
 </script>
 
 <template>
@@ -37,8 +61,8 @@ const shown = computed(() => verdict(props.result))
     <AlertDescription class="text-current/85">
       <p>
         {{ shown.coverage }}
-        <template v-if="result.execution_outcome === 'LIMIT_REACHED'">
-          A budget or size limit stopped part of the review before it finished.
+        <template v-if="limitReached">
+          {{ t.limitReached }}
         </template>
       </p>
     </AlertDescription>
