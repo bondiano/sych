@@ -53,7 +53,7 @@ pub(crate) fn lines(finding: &Finding) -> Option<String> {
 }
 
 /// A fence longer than any backtick run in `text`, so model prose cannot close it.
-fn fence(text: &str) -> String {
+pub fn fence(text: &str) -> String {
     let longest = text.split(|c| c != '`').map(str::len).max().unwrap_or(0);
     "`".repeat(longest.max(2) + 1)
 }

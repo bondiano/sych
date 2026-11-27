@@ -23,6 +23,12 @@
     "head_kind": {
       "$ref": "#/$defs/SnapshotHeadKind"
     },
+    "head_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "id": {
       "$ref": "#/$defs/SourceSnapshotId"
     },

@@ -2649,6 +2649,32 @@
             },
             "type": "array"
           },
+          "head": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitObjectId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "head_branch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "head_kind": {
+            "$ref": "#/components/schemas/SnapshotHeadKind"
+          },
+          "omitted": {
+            "description": "Excerpts, diffs or patches cut by size caps, with the command that shows them.",
+            "items": {
+              "$ref": "#/components/schemas/HandoffOmission"
+            },
+            "type": "array"
+          },
           "policy_snapshot_id": {
             "$ref": "#/components/schemas/PolicySnapshotId"
           },
@@ -2672,7 +2698,7 @@
             "type": "string"
           },
           "schema_version": {
-            "$ref": "#/components/schemas/SchemaVersion"
+            "$ref": "#/components/schemas/HandoffVersion"
           },
           "source_snapshot_id": {
             "$ref": "#/components/schemas/SourceSnapshotId"
@@ -2696,9 +2722,15 @@
       },
       "HandoffFinding": {
         "properties": {
+          "also": {
+            "items": {
+              "$ref": "#/components/schemas/AlsoFinding"
+            },
+            "type": "array"
+          },
           "anchors": {
             "items": {
-              "$ref": "#/components/schemas/CodeRef"
+              "$ref": "#/components/schemas/ReportAnchor"
             },
             "type": "array"
           },
@@ -2722,9 +2754,18 @@
             "description": "What a fix must make true; the new head's review checks it again.",
             "type": "string"
           },
+          "fix_note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "id": {
             "format": "uuid",
             "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/Lifecycle"
           },
           "limitations": {
             "items": {
@@ -2732,17 +2773,36 @@
             },
             "type": "array"
           },
+          "remediation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "requirements": {
             "items": {
               "$ref": "#/components/schemas/Requirement"
             },
             "type": "array"
           },
+          "rule_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "severity": {
             "$ref": "#/components/schemas/Severity"
           },
           "suggested_action": {
             "type": "string"
+          },
+          "suggested_patch": {
+            "description": "Unified diff accepted by `git apply` on the reviewed head when available within caps.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "support": {
             "$ref": "#/components/schemas/Support"
@@ -2762,6 +2822,7 @@
           "title",
           "category",
           "severity",
+          "lifecycle",
           "support",
           "explanation",
           "triggering_conditions",
@@ -2775,16 +2836,61 @@
         ],
         "type": "object"
       },
+      "HandoffOmission": {
+        "description": "Material omitted because of per-finding or per-brief size caps, with the CLI command to view it.",
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "finding_id": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "what": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "what",
+          "command"
+        ],
+        "type": "object"
+      },
       "HandoffRequest": {
         "additionalProperties": false,
         "description": "`POST /v1/runs/:id/handoff`: the run's own findings to export.",
         "properties": {
+          "all": {
+            "default": false,
+            "description": "Export every open finding matching the optional severity and category filters.",
+            "type": "boolean"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/FindingCategory"
+            },
+            "type": "array"
+          },
           "finding_ids": {
+            "default": [],
             "items": {
               "format": "uuid",
               "type": "string"
             },
             "type": "array"
+          },
+          "min_severity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "source_snapshot_id": {
             "anyOf": [
@@ -2799,10 +2905,11 @@
             "description": "Refused unless the run reviewed this snapshot."
           }
         },
-        "required": [
-          "finding_ids"
-        ],
         "type": "object"
+      },
+      "HandoffVersion": {
+        "const": 2,
+        "type": "integer"
       },
       "Honesty": {
         "description": "`GET /v1/analytics/honesty`: runs created since `since` that finished a review.",
@@ -5076,6 +5183,12 @@
           },
           "head_kind": {
             "$ref": "#/components/schemas/SnapshotHeadKind"
+          },
+          "head_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "$ref": "#/components/schemas/SourceSnapshotId"
