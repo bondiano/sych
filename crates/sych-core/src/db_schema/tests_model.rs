@@ -478,6 +478,7 @@ fn ci_snapshot_evidence_trust_class_requires_authenticated_ci_origin() {
             "2222222222222222222222222222222222222222",
         )
         .expect("oid"),
+        head_ref: None,
         head_kind: SnapshotHeadKind::Committed,
         comparison: ComparisonMode::MergeBase,
         source_manifest_hash: sha256(b"src"),

@@ -15,7 +15,7 @@ use crate::{
     DiffManifest, Finding, FindingCategory, Lifecycle, ReviewLanguage, ReviewResult, SourceSide,
 };
 
-pub use body::{GONE_MARKER, gone_body, inline_body};
+pub use body::{GONE_MARKER, fence, gone_body, inline_body};
 pub use dismiss::{DISMISS_LINE_WINDOW, DismissedFinding, dismiss, matches_dismissed};
 pub use revisit::{Posted, revisit};
 pub use summary::{SummaryContext, problems, render_summary};

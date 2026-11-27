@@ -29,6 +29,32 @@
         "type": "string"
       }
     },
+    "head": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GitObjectId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "head_branch": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "head_kind": {
+      "$ref": "#/$defs/SnapshotHeadKind"
+    },
+    "omitted": {
+      "description": "Excerpts, diffs or patches cut by size caps, with the command that shows them.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/HandoffOmission"
+      }
+    },
     "policy_snapshot_id": {
       "$ref": "#/$defs/PolicySnapshotId"
     },
@@ -52,7 +78,7 @@
       "format": "uuid"
     },
     "schema_version": {
-      "$ref": "#/$defs/SchemaVersion"
+      "$ref": "#/$defs/HandoffVersion"
     },
     "source_snapshot_id": {
       "$ref": "#/$defs/SourceSnapshotId"
@@ -73,6 +99,48 @@
     "procedure"
   ],
   "$defs": {
+    "AlsoFinding": {
+      "description": "A confirmed finding merged into an overlapping, at least as severe one.",
+      "type": "object",
+      "properties": {
+        "anchors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CodeRef"
+          }
+        },
+        "category": {
+          "$ref": "#/$defs/FindingCategory"
+        },
+        "consequence": {
+          "type": "string"
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "title": {
+          "type": "string"
+        },
+        "triggering_conditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "category",
+        "severity",
+        "title",
+        "explanation",
+        "triggering_conditions",
+        "consequence",
+        "anchors"
+      ]
+    },
     "CodeRef": {
       "description": "Exact span inside a pinned blob; resolved by the harness, never by a model.",
       "type": "object",
@@ -139,10 +207,16 @@
     "HandoffFinding": {
       "type": "object",
       "properties": {
+        "also": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AlsoFinding"
+          }
+        },
         "anchors": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/CodeRef"
+            "$ref": "#/$defs/ReportAnchor"
           }
         },
         "category": {
@@ -165,9 +239,18 @@
           "description": "What a fix must make true; the new head's review checks it again.",
           "type": "string"
         },
+        "fix_note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "id": {
           "type": "string",
           "format": "uuid"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/Lifecycle"
         },
         "limitations": {
           "type": "array",
@@ -175,17 +258,36 @@
             "type": "string"
           }
         },
+        "remediation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "requirements": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/Requirement"
           }
         },
+        "rule_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "severity": {
           "$ref": "#/$defs/Severity"
         },
         "suggested_action": {
           "type": "string"
+        },
+        "suggested_patch": {
+          "description": "Unified diff accepted by `git apply` on the reviewed head when available within caps.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "support": {
           "$ref": "#/$defs/Support"
@@ -205,6 +307,7 @@
         "title",
         "category",
         "severity",
+        "lifecycle",
         "support",
         "explanation",
         "triggering_conditions",
@@ -217,6 +320,42 @@
         "limitations"
       ]
     },
+    "HandoffOmission": {
+      "description": "Material omitted because of per-finding or per-brief size caps, with the CLI command to view it.",
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "finding_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "what": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "what",
+        "command"
+      ]
+    },
+    "HandoffVersion": {
+      "type": "integer",
+      "const": 2
+    },
+    "Lifecycle": {
+      "type": "string",
+      "enum": [
+        "OPEN",
+        "RESOLVED",
+        "DISMISSED",
+        "OBSOLETE"
+      ]
+    },
     "PolicySnapshotId": {
       "description": "Content-derived identity of a [`crate::PolicySnapshot`].",
       "$ref": "#/$defs/Sha256Digest"
@@ -224,6 +363,53 @@
     "RepoPath": {
       "type": "string",
       "minLength": 1
+    },
+    "ReportAnchor": {
+      "type": "object",
+      "properties": {
+        "diff": {
+          "description": "Nearby hunks of the reviewed change.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "excerpt": {
+          "description": "Absent when the source is unavailable.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReportExcerpt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reference": {
+          "$ref": "#/$defs/CodeRef"
+        }
+      },
+      "required": [
+        "reference"
+      ]
+    },
+    "ReportExcerpt": {
+      "type": "object",
+      "properties": {
+        "first_line": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "text": {
+          "description": "The owning anchor's inclusive start and end mark the relevant lines in this text.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "first_line",
+        "text"
+      ]
     },
     "Requirement": {
       "description": "A requirement a finding violates or depends on, with the review's status for it.",
@@ -314,10 +500,6 @@
         "acceptance_criterion"
       ]
     },
-    "SchemaVersion": {
-      "type": "integer",
-      "const": 1
-    },
     "Severity": {
       "type": "string",
       "enum": [
@@ -331,6 +513,15 @@
     "Sha256Digest": {
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "SnapshotHeadKind": {
+      "description": "Where the reviewed head's content came from.",
+      "type": "string",
+      "enum": [
+        "COMMITTED",
+        "STAGED",
+        "WORKTREE"
+      ]
     },
     "SourceSide": {
       "type": "string",

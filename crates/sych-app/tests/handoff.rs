@@ -1,5 +1,5 @@
-//! Fix handoff over `/v1`: a reader exports the run's own findings in scope; a
-//! foreign finding or another snapshot is refused, and the export changes nothing.
+//! Fix handoff over `/v1`: a reader exports the run's own findings in scope (`handoff@2`) by
+//! explicit IDs or open-finding filters; foreign findings and mismatched snapshots are refused.
 
 use reqwest::StatusCode;
 use serde_json::json;
@@ -32,19 +32,36 @@ async fn a_handoff_exports_own_findings_and_changes_nothing() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{package}");
+    assert_eq!(package["schema_version"], json!(2));
+    assert_eq!(package["format"], json!("handoff@2"));
     assert_eq!(package["finding_ids"], json!([id]));
     assert_eq!(package["source_snapshot_id"], json!(snapshot));
+    assert!(package["head"].as_str().is_some(), "{package}");
     assert!(
-        package["procedure"][1]
+        package["procedure"][0]
+            .as_str()
+            .is_some_and(|s| s.contains("Verify")),
+        "{package}"
+    );
+    assert!(
+        package["procedure"][2]
             .as_str()
             .is_some_and(|s| s.contains("consent")),
         "{package}"
     );
-    let (_, again) = export("reader", json!({"finding_ids": [id]})).await;
-    assert_eq!(again, package, "reproducible");
+    let (_, all_open) = export("reader", json!({"all": true})).await;
+    assert_eq!(
+        all_open, package,
+        "all open matches the single open finding"
+    );
 
     let (status, _) = export("outsider", json!({"finding_ids": [id]})).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "out of scope");
+    let (status, refused) = export("reader", json!({})).await;
+    assert_eq!(
+        (status, refused["error"]["code"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("INVALID_REQUEST"))
+    );
     let (status, refused) = export(
         "reader",
         json!({"finding_ids": [id, "0192f000-0000-7000-8000-000000000000"]}),

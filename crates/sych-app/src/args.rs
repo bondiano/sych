@@ -22,8 +22,8 @@ pub use schema::{
     SchemaSnapshotArguments, SchemaSourceArgs,
 };
 pub use tour::{
-    AskArguments, AskKind, HandoffArguments, TourArguments, TourCommands, TourRef,
-    TourRevealArguments, TourShowArguments,
+    AskArguments, AskKind, CliFindingCategory, CliSeverity, HandoffArguments, TourArguments,
+    TourCommands, TourRef, TourRevealArguments, TourShowArguments,
 };
 
 #[derive(Parser)]

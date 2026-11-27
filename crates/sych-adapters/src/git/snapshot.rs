@@ -120,6 +120,7 @@ impl LocalSnapshot {
             target_tip,
             diff_base,
             head,
+            head_ref: head_branch(&git, request.head, head_kind),
             head_kind,
             comparison,
             source_manifest_hash,
@@ -307,6 +308,40 @@ fn resolve(
             "{flag} `{rev}` does not resolve to a commit in this repository"
         )))
     }
+}
+
+fn head_branch(git: &Git, rev: &str, head_kind: SnapshotHeadKind) -> Option<String> {
+    if rev == "HEAD" || !head_kind.is_committed() {
+        let out = git
+            .output(["symbolic-ref", "--quiet", "--short", "HEAD"])
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+
+        let name = str::from_utf8(&out.stdout).ok()?.trim();
+        return (!name.is_empty()).then(|| name.to_owned());
+    }
+
+    let out = git
+        .output([
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            "--symbolic-full-name",
+            "--end-of-options",
+            rev,
+        ])
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+
+    let full = str::from_utf8(&out.stdout).ok()?.trim();
+    full.strip_prefix("refs/heads/")
+        .or_else(|| full.strip_prefix("refs/remotes/"))
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
 }
 
 fn tree_of(

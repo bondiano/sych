@@ -10,8 +10,13 @@ use serde_json::Value;
 use sych_app::storage::block_on;
 use sych_core::analysis::tour_prompt::{DraftStep, TourDraft, assemble};
 use sych_core::tour::{Question, QuestionKind, plan};
-use sych_core::{ReviewResult, Timestamp};
-use sych_storage::{ArtifactKind, Database, Storage, StoreConfig, TENANT_LOCAL, tour_role};
+use sych_core::{
+    EvidenceManifest, PolicySnapshot, ReviewResult, RunFacts, SourceSnapshot, SuggestedChange,
+    Timestamp,
+};
+use sych_storage::{
+    ArtifactKind, Database, Partition, Storage, StoreConfig, TENANT_LOCAL, tour_role,
+};
 use tempfile::TempDir;
 
 const RULES: &str = r#"schema_version: 1
@@ -300,8 +305,220 @@ fn stored(dir: &Path) -> Vec<(PathBuf, Vec<u8>)> {
     all
 }
 
+fn fake_review(d: &Path, r: &str) -> Value {
+    fs::create_dir(d.join(".sych-data")).expect("legacy dir");
+    assert_eq!(sych(d, &["db", "migrate"]).status.code(), Some(0));
+    let fake = d.join("fake.yaml");
+    fs::write(&fake, FAKE).expect("write");
+    ok(&sych(
+        d,
+        &[
+            "review",
+            "--repo",
+            r,
+            "--base",
+            "target",
+            "--models",
+            "fake",
+            "--fake-responses",
+            fake.to_str().expect("path"),
+        ],
+    ))
+}
+
 #[test]
 fn a_handoff_is_reproducible_consent_first_and_changes_no_file() {
+    let (repo, data) = (repo(), TempDir::new().expect("tempdir"));
+    let (d, r) = (data.path(), repo.path().to_str().expect("utf-8"));
+    let saved = fake_review(d, r);
+    let result: ReviewResult =
+        serde_json::from_value(saved["review_result"].clone()).expect("result");
+    let (run, id) = (result.run_id.to_string(), result.findings[0].id.to_string());
+    let (store_before, repo_before) = (stored(d), stored(repo.path()));
+    let shown_before = ok(&sych(d, &["show", "--run", &run]));
+
+    let args = [
+        "handoff",
+        "--run",
+        &run,
+        "--repo",
+        r,
+        "--finding",
+        &id,
+        "--format",
+        "markdown",
+    ];
+    let first = sych(d, &args);
+    assert_eq!(
+        first.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let text = String::from_utf8(first.stdout.clone()).expect("utf-8");
+    assert!(
+        text.contains("# Fix brief (handoff@2)")
+            && text.contains("- Head branch: `main`")
+            && text.contains("## Procedure")
+            && text.contains("explicit consent"),
+        "{text}"
+    );
+    assert!(
+        text.contains("EFFECT-01 v1 (VIOLATED)") && text.contains("Fix criterion:"),
+        "{text}"
+    );
+    assert!(
+        text.contains("go publish(o)"),
+        "pinned source excerpt is included: {text}"
+    );
+    assert_eq!(sych(d, &args).stdout, first.stdout, "reproducible");
+    assert_eq!(
+        (stored(d), stored(repo.path())),
+        (store_before, repo_before),
+        "no artifact or source file changed"
+    );
+    assert_eq!(
+        ok(&sych(d, &["show", "--run", &run])),
+        shown_before,
+        "the run is unchanged"
+    );
+
+    let foreign = sych(
+        d,
+        &[
+            "handoff",
+            "--run",
+            &run,
+            "--repo",
+            r,
+            "--finding",
+            "0192f000-0000-7000-8000-000000000000",
+        ],
+    );
+    assert_eq!(
+        foreign.status.code(),
+        Some(2),
+        "a foreign finding is refused"
+    );
+    let other = format!("sha256:{}", "0".repeat(64));
+    let moved = sych(
+        d,
+        &[
+            "handoff",
+            "--run",
+            &run,
+            "--repo",
+            r,
+            "--finding",
+            &id,
+            "--snapshot",
+            &other,
+        ],
+    );
+    assert_eq!(moved.status.code(), Some(2), "another snapshot is refused");
+}
+
+fn clone_run_with_result(
+    data: &Path,
+    base_run: sych_core::RunId,
+    snapshot: &SourceSnapshot,
+    policy: &PolicySnapshot,
+    mut result: ReviewResult,
+) -> String {
+    let config = StoreConfig {
+        database: Database::Sqlite(data.join(".sych-data/sych.db")),
+        artifacts: data.join(".sych-data/artifacts"),
+    };
+    block_on(async {
+        let storage = Storage::open(&config).await.expect("open");
+        let partition = Partition {
+            tenant_id: TENANT_LOCAL.into(),
+            access_scope: snapshot.repository.clone(),
+        };
+        let now = Timestamp::now();
+        let handle = storage
+            .begin_run(&partition, "handoff-patch", &snapshot.id, &policy.id, now)
+            .await
+            .expect("begin_run");
+        result.run_id = handle.id;
+        let copy = |role: &'static str, kind: ArtifactKind| {
+            let storage = &storage;
+            let handle = &handle;
+            async move {
+                let raw: Value = storage
+                    .load_artifact(TENANT_LOCAL, base_run, role)
+                    .await
+                    .expect(role);
+                storage
+                    .put_artifact(handle, role, kind, &raw, now)
+                    .await
+                    .expect(role)
+            }
+        };
+        copy("source_snapshot", ArtifactKind::SourceSnapshot).await;
+        copy("diff_manifest", ArtifactKind::DiffManifest).await;
+        copy("policy_snapshot", ArtifactKind::PolicySnapshot).await;
+        copy("policy_review", ArtifactKind::PolicySnapshot).await;
+        copy(
+            "external_input_manifest",
+            ArtifactKind::ExternalInputManifest,
+        )
+        .await;
+        let ev_manifest: EvidenceManifest = storage
+            .load_artifact(TENANT_LOCAL, base_run, "evidence_manifest")
+            .await
+            .expect("evidence_manifest");
+        for item in &ev_manifest.evidence {
+            let role = format!("evidence/{}", item.evidence_id);
+            let ev: Value = storage
+                .load_artifact(TENANT_LOCAL, base_run, &role)
+                .await
+                .expect("evidence");
+            storage
+                .put_artifact(&handle, &role, ArtifactKind::Evidence, &ev, now)
+                .await
+                .expect("put evidence");
+        }
+        storage
+            .put_artifact(
+                &handle,
+                "evidence_manifest",
+                ArtifactKind::EvidenceManifest,
+                &ev_manifest,
+                now,
+            )
+            .await
+            .expect("put manifest");
+        let facts: RunFacts = storage
+            .load_artifact(TENANT_LOCAL, base_run, "facts")
+            .await
+            .expect("facts");
+        storage
+            .put_artifact(&handle, "facts", ArtifactKind::Facts, &facts, now)
+            .await
+            .expect("put facts");
+        copy("context_packets", ArtifactKind::ContextPackets).await;
+        let res_sha = storage
+            .put_artifact(
+                &handle,
+                "review_result",
+                ArtifactKind::ReviewResult,
+                &result,
+                now,
+            )
+            .await
+            .expect("put result");
+        storage
+            .complete_run(&handle, &result, &res_sha, now)
+            .await
+            .expect("complete");
+        handle.id.to_string()
+    })
+    .expect("runtime")
+}
+
+#[test]
+fn handoff_all_markdown_preserves_fences_and_emits_a_git_apply_patch() {
     let (repo, data) = (repo(), TempDir::new().expect("tempdir"));
     let (d, r) = (data.path(), repo.path().to_str().expect("utf-8"));
     fs::create_dir(d.join(".sych-data")).expect("legacy dir");
@@ -322,76 +539,74 @@ fn a_handoff_is_reproducible_consent_first_and_changes_no_file() {
             fake.to_str().expect("path"),
         ],
     ));
-    let result: ReviewResult =
+    let mut result: ReviewResult =
         serde_json::from_value(saved["review_result"].clone()).expect("result");
-    let (run, id) = (result.run_id.to_string(), result.findings[0].id.to_string());
-    let (store_before, repo_before) = (stored(d), stored(repo.path()));
-    let shown_before = ok(&sych(d, &["show", "--run", &run]));
+    let snapshot: SourceSnapshot =
+        serde_json::from_value(saved["snapshot"].clone()).expect("snapshot");
+    let policy: PolicySnapshot = serde_json::from_value(saved["policy"].clone()).expect("policy");
+    let base_run = result.run_id;
 
-    let args = [
-        "handoff",
-        "--run",
-        &run,
-        "--finding",
-        &id,
-        "--format",
-        "markdown",
-    ];
-    let first = sych(d, &args);
+    let tricky_prose = "Check *markdown* _identifiers_ and `[link](https://example.invalid)`:\n```go\nreturn tx(o)\n```";
+    result.findings[0].explanation = tricky_prose.into();
+    let mut span = result.findings[0].anchors[0].clone();
+    span.start_line = 4;
+    span.end_line = 5;
+    span.content_sha256 = sych_core::sha256(b"\tgo publish(o)\n\treturn nil\n");
+    result.findings[0].suggested_change = Some(SuggestedChange {
+        code: span,
+        replacement: "\treturn tx(o)".into(),
+    });
+    let new_run_id = clone_run_with_result(d, base_run, &snapshot, &policy, result);
+
+    let out = sych(
+        d,
+        &[
+            "handoff",
+            "--run",
+            &new_run_id,
+            "--repo",
+            r,
+            "--all",
+            "--format",
+            "markdown",
+        ],
+    );
     assert_eq!(
-        first.status.code(),
+        out.status.code(),
         Some(0),
         "{}",
-        String::from_utf8_lossy(&first.stderr)
+        String::from_utf8_lossy(&out.stderr)
     );
-    let text = String::from_utf8(first.stdout.clone()).expect("utf-8");
+    let md = String::from_utf8(out.stdout).expect("utf-8");
     assert!(
-        text.contains("## Procedure") && text.contains("explicit consent"),
-        "{text}"
+        md.contains(tricky_prose),
+        "finding text with ``` and Markdown markup must survive verbatim: {md}"
     );
     assert!(
-        text.contains("EFFECT-01 v1 (VIOLATED)") && text.contains("**Fix criterion:**"),
-        "{text}"
-    );
-    assert_eq!(sych(d, &args).stdout, first.stdout, "reproducible");
-    assert_eq!(
-        (stored(d), stored(repo.path())),
-        (store_before, repo_before),
-        "no artifact or source file changed"
-    );
-    assert_eq!(
-        ok(&sych(d, &["show", "--run", &run])),
-        shown_before,
-        "the run is unchanged"
+        md.contains("````text\n"),
+        "outer fence must be longer than the inner 3-backtick run: {md}"
     );
 
-    let foreign = sych(
-        d,
-        &[
-            "handoff",
-            "--run",
-            &run,
-            "--finding",
-            "0192f000-0000-7000-8000-000000000000",
-        ],
+    let (_, after_heading) = md
+        .split_once("\n### Suggested change\n\n")
+        .expect("suggested change heading");
+    let first_newline = after_heading.find('\n').expect("opening fence line");
+    let open_line = &after_heading[..first_newline];
+    let ticks = open_line.strip_suffix("diff").expect("diff fence");
+    let rest = &after_heading[first_newline + 1..];
+    let close_marker = format!("\n{ticks}\n");
+    let (patch_body, _) = rest.split_once(&close_marker).expect("closing fence");
+    let patch = format!("{patch_body}\n");
+
+    let patch_file = d.join("handoff.patch");
+    fs::write(&patch_file, &patch).expect("write patch");
+    git(
+        repo.path(),
+        &["apply", "--check", patch_file.to_str().expect("utf-8")],
     );
+    git(repo.path(), &["apply", patch_file.to_str().expect("utf-8")]);
     assert_eq!(
-        foreign.status.code(),
-        Some(2),
-        "a foreign finding is refused"
+        fs::read_to_string(repo.path().join("backend/orders/store.go")).expect("patched file"),
+        "package orders\n\nfunc Save(o Order) error {\n\treturn tx(o)\n}\n"
     );
-    let other = format!("sha256:{}", "0".repeat(64));
-    let moved = sych(
-        d,
-        &[
-            "handoff",
-            "--run",
-            &run,
-            "--finding",
-            &id,
-            "--snapshot",
-            &other,
-        ],
-    );
-    assert_eq!(moved.status.code(), Some(2), "another snapshot is refused");
 }

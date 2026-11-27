@@ -99,12 +99,71 @@ pub enum AskKind {
     RiskDecision,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum CliSeverity {
+    Info,
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+impl From<CliSeverity> for sych_core::Severity {
+    fn from(value: CliSeverity) -> Self {
+        match value {
+            CliSeverity::Info => Self::Info,
+            CliSeverity::Low => Self::Low,
+            CliSeverity::Medium => Self::Medium,
+            CliSeverity::High => Self::High,
+            CliSeverity::Critical => Self::Critical,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum CliFindingCategory {
+    #[value(alias = "bug")]
+    Defect,
+    #[value(alias = "RULE_VIOLATION")]
+    RuleViolation,
+    Improvement,
+    Nit,
+}
+
+impl From<CliFindingCategory> for sych_core::FindingCategory {
+    fn from(value: CliFindingCategory) -> Self {
+        match value {
+            CliFindingCategory::Defect => Self::Defect,
+            CliFindingCategory::RuleViolation => Self::RuleViolation,
+            CliFindingCategory::Improvement => Self::Improvement,
+            CliFindingCategory::Nit => Self::Nit,
+        }
+    }
+}
+
 #[derive(clap::Args)]
 pub struct HandoffArguments {
     #[arg(long)]
     pub run: String,
-    /// A finding id of the run's result; repeat for several
-    #[arg(long = "finding", required = true)]
+    /// Repository containing the run's pinned source blobs
+    #[arg(long, default_value = ".")]
+    pub repo: PathBuf,
+    /// Select all open findings of the run (in fix-first order)
+    #[arg(long, conflicts_with = "findings")]
+    pub all: bool,
+    /// Minimum severity of open findings to include
+    #[arg(long, value_enum, ignore_case = true, conflicts_with = "findings")]
+    pub min_severity: Option<CliSeverity>,
+    /// Category of open findings to include; repeat for several
+    #[arg(
+        long = "category",
+        value_enum,
+        ignore_case = true,
+        conflicts_with = "findings"
+    )]
+    pub categories: Vec<CliFindingCategory>,
+    /// Specific finding id of the run's result; repeat for several
+    #[arg(long = "finding")]
     pub findings: Vec<String>,
     /// Refuse unless the run reviewed this source snapshot (`sha256:…`)
     #[arg(long)]

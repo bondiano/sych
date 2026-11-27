@@ -55,6 +55,8 @@ pub struct SourceSnapshot {
     pub target_tip: GitObjectId,
     pub diff_base: GitObjectId,
     pub head: GitObjectId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub head_ref: Option<String>,
     #[serde(default, skip_serializing_if = "SnapshotHeadKind::is_committed")]
     pub head_kind: SnapshotHeadKind,
     pub comparison: ComparisonMode,
@@ -93,7 +95,7 @@ struct SnapshotIdentity<'a> {
 impl SourceSnapshot {
     /// Content identity: repository, three positions, uncommitted head kind, comparison mode
     /// and both manifests. Repeating the same inputs yields the same snapshot ID regardless of
-    /// `target_ref` or `created_at`.
+    /// `target_ref`, `head_ref` or `created_at`.
     pub fn identity(&self) -> Result<SourceSnapshotId, serde_json::Error> {
         canonical_sha256(&SnapshotIdentity {
             repository: &self.repository,

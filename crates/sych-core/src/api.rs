@@ -13,8 +13,8 @@ use crate::db_schema::{
 use crate::handoff::Handoff;
 use crate::tour::{QuestionKind, TourArtifact, TourSession};
 use crate::{
-    FindingId, PolicySnapshot, ReportView, ReviewResult, SchemaVersion, SourceSnapshot,
-    SourceSnapshotId, Timestamp,
+    FindingCategory, FindingId, PolicySnapshot, ReportView, ReviewResult, SchemaVersion, Severity,
+    SourceSnapshot, SourceSnapshotId, Timestamp,
 };
 
 mod admin;
@@ -127,7 +127,15 @@ pub struct QuestionRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HandoffRequest {
+    #[serde(default)]
     pub finding_ids: Vec<FindingId>,
+    /// Export every open finding matching the optional severity and category filters.
+    #[serde(default)]
+    pub all: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_severity: Option<Severity>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub categories: Vec<FindingCategory>,
     /// Refused unless the run reviewed this snapshot.
     #[serde(default)]
     pub source_snapshot_id: Option<SourceSnapshotId>,
