@@ -51,3 +51,7 @@ run *args="--help":
 # Regenerate JSON Schemas from the Rust DTOs
 schemas:
     SYCH_BLESS=1 cargo test --locked -p sych-core --test contracts generated_
+
+# Rebuild the embedded offline HTML report template from web/src/report
+report-template:
+    cd web && pnpm install --frozen-lockfile && pnpm gen:api && pnpm build:report

@@ -83,6 +83,11 @@ pub fn emit_report(
     let format = out.format.unwrap_or(ReportFormat::Json);
     match format {
         ReportFormat::Markdown => emit(&render::markdown(report, &material()?), report_path),
+        ReportFormat::Html => {
+            let html = report_view::html::render(&material()?)
+                .map_err(|e| Failure::no_result(format!("cannot render HTML report: {e}")))?;
+            emit(&html, report_path)
+        }
         ReportFormat::ReportView => emit_json(&material()?, report_path),
         ReportFormat::Json | ReportFormat::Sarif => {
             if out.fixes_patch.is_some() {

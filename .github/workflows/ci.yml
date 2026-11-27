@@ -56,6 +56,11 @@ jobs:
           node-version: "24"
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
+      - name: Ensure headless Chromium for report verification
+        run: |
+          if ! command -v google-chrome >/dev/null 2>&1 && ! command -v chromium >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1; then
+            cd web && pnpm install --frozen-lockfile && pnpm exec playwright-core install --with-deps chromium
+          fi
       - name: Check
         id: check
         continue-on-error: true
