@@ -6,8 +6,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Applicability, ChangeStatus, Coverage, DiffManifest, FindingCategory, ObligationStatus,
-    ReviewResult,
+    Applicability, BackendStatus, ChangeStatus, Coverage, DiffManifest, FindingCategory,
+    Obligation, ObligationStatus, ReviewResult, RunFacts,
 };
 
 /// An open finding of an earlier revision.
@@ -38,19 +38,20 @@ pub enum Decision {
     Open { reason: String },
 }
 
-/// The decision for each prior finding against the new `result` and its diff.
+/// The decision for each prior finding against the new `result`, its diff and its run facts.
 pub fn decide(
     prior: &[Prior],
     result: &ReviewResult,
     manifest: &DiffManifest,
+    facts: &RunFacts,
 ) -> Vec<(String, Decision)> {
     prior
         .iter()
-        .map(|p| (p.fingerprint.clone(), one(p, result, manifest)))
+        .map(|p| (p.fingerprint.clone(), one(p, result, manifest, facts)))
         .collect()
 }
 
-fn one(p: &Prior, result: &ReviewResult, manifest: &DiffManifest) -> Decision {
+fn one(p: &Prior, result: &ReviewResult, manifest: &DiffManifest, facts: &RunFacts) -> Decision {
     if result
         .findings
         .iter()
@@ -62,6 +63,18 @@ fn one(p: &Prior, result: &ReviewResult, manifest: &DiffManifest) -> Decision {
     let open = |reason: &str| Decision::Open {
         reason: reason.into(),
     };
+    if p.path.is_none() {
+        if let Some(rule) = p.rule_id.as_deref().filter(|r| r.starts_with("DB-")) {
+            if result.coverage != Coverage::CompleteForScope {
+                return open("the new revision was reviewed partially");
+            }
+
+            return db_recheck(rule, None, result, facts);
+        }
+
+        return open("no anchor to re-check");
+    }
+
     let Some(path) = p.path.as_deref() else {
         return open("no anchor to re-check");
     };
@@ -105,30 +118,51 @@ fn one(p: &Prior, result: &ReviewResult, manifest: &DiffManifest) -> Decision {
         .units
         .iter()
         .any(|u| u.paths.iter().any(|q| q.as_str() == path));
-    if !covered {
-        return open("its file was not reviewed again");
-    }
+    let Some(rule) = p.rule_id.as_deref() else {
+        if !covered {
+            return open("its file was not reviewed again");
+        }
 
-    match &p.rule_id {
-        Some(rule) => rule_recheck(rule, result),
-        None => model_recheck(p, path, result, manifest),
-    }
-}
-
-/// A rule finding resolves when the rule was assessed again and is supported everywhere.
-fn rule_recheck(rule: &str, result: &ReviewResult) -> Decision {
-    let open = |reason: &str| Decision::Open {
-        reason: reason.into(),
+        return model_recheck(p, path, result, manifest);
     };
+
     let checked: Vec<_> = result
         .obligations
         .iter()
         .filter(|o| o.rule_id == rule && o.applicability == Applicability::Applies)
         .collect();
-    if checked.is_empty() {
-        return open("the rule was not evaluated again");
+    if !checked.is_empty() {
+        if !covered {
+            return open("its file was not reviewed again");
+        }
+
+        return obligation_recheck(rule, &checked);
     }
 
+    if rule.starts_with("SEC-") {
+        sec_recheck(rule, path, result, manifest)
+    } else if rule.starts_with("ARCH-") {
+        arch_recheck(rule, path, result, facts)
+    } else if rule.starts_with("DB-") {
+        db_recheck(rule, Some(path), result, facts)
+    } else if matches!(
+        p.category,
+        FindingCategory::Nit | FindingCategory::Improvement
+    ) {
+        if !covered {
+            return open("its file was not reviewed again");
+        }
+
+        model_recheck(p, path, result, manifest)
+    } else if !covered {
+        open("its file was not reviewed again")
+    } else {
+        open("the rule was not evaluated again")
+    }
+}
+
+/// An obligation rule resolves when the rule was assessed again and is supported everywhere.
+fn obligation_recheck(rule: &str, checked: &[&Obligation]) -> Decision {
     if checked
         .iter()
         .all(|o| o.status == ObligationStatus::Supported)
@@ -141,7 +175,129 @@ fn rule_recheck(rule: &str, result: &ReviewResult) -> Decision {
                 .collect(),
         }
     } else {
-        open("the rule is still not supported")
+        Decision::Open {
+            reason: "the rule is still not supported".into(),
+        }
+    }
+}
+
+fn sec_recheck(rule: &str, path: &str, result: &ReviewResult, manifest: &DiffManifest) -> Decision {
+    let open = |reason: &str| Decision::Open {
+        reason: reason.into(),
+    };
+    let ran = result
+        .scope_manifest
+        .requested_profiles
+        .iter()
+        .any(|p| p == "security");
+    if !ran {
+        return open("the security scan did not run");
+    }
+
+    if !manifest.omissions.is_empty()
+        || result
+            .excluded_or_unreviewed
+            .iter()
+            .any(|g| g.path.as_str() == path)
+    {
+        return open("its file was not scanned");
+    }
+
+    let still_there = result.findings.iter().any(|f| {
+        f.rule_id.as_deref() == Some(rule)
+            && (f.anchors.iter().any(|a| a.path.as_str() == path) || f.scope == path)
+    });
+    if still_there {
+        open("the rule is still violated")
+    } else {
+        Decision::Resolved {
+            basis: format!("{rule} found no match in added lines on the new snapshot"),
+            evidence: Vec::new(),
+        }
+    }
+}
+
+fn project_covers(project: &str, path: &str) -> bool {
+    project.is_empty()
+        || path == project
+        || path
+            .strip_prefix(project)
+            .is_some_and(|rest| rest.starts_with('/'))
+}
+
+fn arch_recheck(rule: &str, path: &str, result: &ReviewResult, facts: &RunFacts) -> Decision {
+    let open = |reason: &str| Decision::Open {
+        reason: reason.into(),
+    };
+    let projects: Vec<_> = facts
+        .architecture
+        .iter()
+        .filter(|a| project_covers(&a.project, path))
+        .collect();
+    if projects.is_empty() {
+        return open("the architecture check did not run");
+    }
+
+    if projects.iter().any(|a| a.status != BackendStatus::Ready) {
+        return open("the architecture check was unavailable");
+    }
+
+    let still_there = result.findings.iter().any(|f| {
+        f.rule_id.as_deref() == Some(rule) && f.anchors.iter().any(|a| a.path.as_str() == path)
+    });
+    if still_there {
+        open("the architecture check still reports a finding")
+    } else {
+        Decision::Resolved {
+            basis: format!("{rule} checked on the new snapshot"),
+            evidence: projects
+                .iter()
+                .map(|p| p.evidence_id().to_string())
+                .collect(),
+        }
+    }
+}
+
+fn db_recheck(rule: &str, path: Option<&str>, result: &ReviewResult, facts: &RunFacts) -> Decision {
+    let open = |reason: &str| Decision::Open {
+        reason: reason.into(),
+    };
+    if facts.db_schema.is_empty() {
+        return open("schema_lint did not run");
+    }
+
+    if facts
+        .db_schema
+        .iter()
+        .any(|d| d.status != BackendStatus::Ready)
+    {
+        return open("schema_lint was unavailable");
+    }
+
+    let short = rule.strip_prefix("DB-").unwrap_or(rule);
+    if facts.db_schema.iter().any(|d| {
+        d.skipped_rules
+            .iter()
+            .any(|s| s.eq_ignore_ascii_case(short))
+    }) {
+        return open("the schema rule was skipped");
+    }
+
+    let still_there = result.findings.iter().any(|f| {
+        f.rule_id.as_deref() == Some(rule)
+            && path.is_none_or(|p| f.anchors.iter().any(|a| a.path.as_str() == p))
+    });
+    if still_there {
+        open("schema_lint still reports a finding")
+    } else {
+        Decision::Resolved {
+            basis: format!("{rule} checked on the new snapshot"),
+            evidence: facts
+                .db_schema
+                .iter()
+                .map(|d| d.evidence_id().to_string())
+                .collect(),
+        }
     }
 }
 
@@ -161,10 +317,13 @@ fn model_recheck(
         .iter()
         .find(|f| f.new.as_ref().is_some_and(|n| n.path.as_str() == path))
         .is_none();
-    let again = result
-        .findings
-        .iter()
-        .any(|f| f.category == p.category && f.anchors.iter().any(|a| a.path.as_str() == path));
+    let again = result.findings.iter().any(|f| {
+        f.category == p.category
+            && p.rule_id
+                .as_ref()
+                .is_none_or(|r| f.rule_id.as_ref() == Some(r))
+            && f.anchors.iter().any(|a| a.path.as_str() == path)
+    });
     if unchanged {
         open("its code did not change")
     } else if again {

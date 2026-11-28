@@ -286,3 +286,69 @@ fn block_on_names_the_violations_that_fail_the_check_and_a_waiver_lifts_them() {
     assert_eq!(low.blocked_by.len(), 1);
     assert_eq!(low.recommendation, Recommendation::AttentionRequired);
 }
+
+#[test]
+fn confirmed_obligation_findings_and_absorbed_violations_block_while_nits_never_do() {
+    let block = ["LIVE-*".to_owned()];
+    let plan = two_file_plan();
+    let ob_id = plan.obligations[0].obligation.id;
+    let ev = anchored("src/live.go");
+
+    // A confirmed discovery / risk-audit candidate linked to ob-1 with rule_id: None
+    // suppresses duplicate rule_violation() synthesis, populates Finding.rule_id, and blocks.
+    let mut confirmed = violated(&plan, &ev, &[], &[]).findings.remove(0);
+    confirmed.id = FindingId(uuid::Uuid::from_u128(42));
+    confirmed.category = FindingCategory::Defect;
+    confirmed.severity = Severity::High;
+    confirmed.rule_id = None;
+    confirmed.obligation_ids = vec![ob_id];
+    let r = violated(&plan, &ev, slice::from_ref(&confirmed), &block);
+    assert_eq!(
+        r.findings.len(),
+        1,
+        "confirmed violation replaces synthesized rule_violation"
+    );
+    assert_eq!(r.findings[0].id, confirmed.id);
+    assert_eq!(r.findings[0].rule_id.as_deref(), Some("LIVE-01"));
+    assert_eq!(r.blocked_by, [confirmed.id]);
+    assert_eq!(r.recommendation, Recommendation::AttentionRequired);
+
+    // An absorbed violation merged into a higher-severity Defect whose own rule_id is
+    // unrelated still blocks via f.obligation_ids.
+    let mut merged = confirmed.clone();
+    merged.id = FindingId(uuid::Uuid::from_u128(43));
+    merged.rule_id = Some("OTHER-01".into());
+    let r_merged = violated(&plan, &ev, slice::from_ref(&merged), &block);
+    assert_eq!(r_merged.blocked_by, [merged.id]);
+
+    // NIT and IMPROVEMENT findings never enter blocked_by, even when carrying a matching
+    // rule_id or obligation_ids under wildcard block_on.
+    let mut nit = confirmed.clone();
+    nit.id = FindingId(uuid::Uuid::from_u128(44));
+    nit.category = FindingCategory::Nit;
+    nit.severity = Severity::Low;
+    nit.rule_id = Some("PREF-01".into());
+    nit.obligation_ids = vec![ob_id];
+    let mut imp = nit.clone();
+    imp.id = FindingId(uuid::Uuid::from_u128(45));
+    imp.category = FindingCategory::Improvement;
+
+    let r_optional = reduce(&ReduceInput {
+        plan: &plan,
+        assessments: &[],
+        evidence: slice::from_ref(&ev),
+        findings: &[nit.clone(), imp.clone()],
+        candidates: &[],
+        task_gaps: &[],
+        questions: &[],
+        outcome: ExecutionOutcome::PlanExecuted,
+        attention_threshold: DEFAULT_ATTENTION_THRESHOLD,
+        now: at(),
+        block_on: &["*".to_owned()],
+    });
+    assert!(
+        r_optional.blocked_by.is_empty(),
+        "NIT and IMPROVEMENT must never block: {:?}",
+        r_optional.blocked_by
+    );
+}

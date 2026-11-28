@@ -4,7 +4,7 @@
 use std::slice;
 
 use crate::lineage::{Decision, Prior, decide};
-use crate::{DiffManifest, Lifecycle, ReviewResult};
+use crate::{DiffManifest, Lifecycle, ReviewResult, RunFacts};
 
 /// A delivered inline comment of the change: its publication object, the finding it was
 /// posted for, whether the finding was dismissed, and whether the body now carries the
@@ -21,16 +21,26 @@ pub struct Posted {
 /// deleted or continued elsewhere) or the change dismissed gets the note, and a noted one whose
 /// finding is found again gets its text back. A finding still open (a partial review, an
 /// unreviewed file) is a missing one, not a fix, so its comment stays as it is.
-pub fn revisit(posted: &[Posted], result: &ReviewResult, manifest: &DiffManifest) -> Vec<i64> {
+pub fn revisit(
+    posted: &[Posted],
+    result: &ReviewResult,
+    manifest: &DiffManifest,
+    facts: &RunFacts,
+) -> Vec<i64> {
     posted
         .iter()
-        .filter(|p| gone(p, result, manifest).is_some_and(|gone| gone != p.noted))
+        .filter(|p| gone(p, result, manifest, facts).is_some_and(|gone| gone != p.noted))
         .map(|p| p.object_id)
         .collect()
 }
 
 /// Whether `p`'s finding is gone from `result`; `None` while lineage keeps it open.
-fn gone(p: &Posted, result: &ReviewResult, manifest: &DiffManifest) -> Option<bool> {
+fn gone(
+    p: &Posted,
+    result: &ReviewResult,
+    manifest: &DiffManifest,
+    facts: &RunFacts,
+) -> Option<bool> {
     if p.dismissed {
         return Some(true);
     }
@@ -42,7 +52,7 @@ fn gone(p: &Posted, result: &ReviewResult, manifest: &DiffManifest) -> Option<bo
         return Some(true);
     }
 
-    match &decide(slice::from_ref(&p.prior), result, manifest)[0].1 {
+    match &decide(slice::from_ref(&p.prior), result, manifest, facts)[0].1 {
         Decision::Matched => Some(false),
         Decision::Open { .. } => None,
         Decision::Resolved { .. } | Decision::Obsolete { .. } | Decision::Continued { .. } => {

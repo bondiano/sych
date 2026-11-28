@@ -397,8 +397,21 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         let attempt = outcome.attempts.last().map(|a| a.attempt_id);
         let output = outcome.value?;
         let known: Vec<usize> = candidates.iter().map(|c| c.verdicts.len()).collect();
-        let mut verified =
-            validate_verdicts(&output, candidates, context, self.snap, &self.known, &scope);
+        let obligation_rules: Vec<_> = self
+            .plan
+            .obligations
+            .iter()
+            .map(|o| (o.obligation.id, o.obligation.rule_id.as_str()))
+            .collect();
+        let mut verified = validate_verdicts(
+            &output,
+            candidates,
+            context,
+            self.snap,
+            &self.known,
+            &obligation_rules,
+            &scope,
+        );
         for (candidate, before) in verified.candidates.iter_mut().zip(known) {
             if candidate.verdicts.len() > before
                 && let Some(record) = candidate.verdicts.last_mut()

@@ -22,7 +22,9 @@ use sych_app::server::digest::Digest;
 use sych_app::server::{App, Conn, Counters, Engine, binding};
 use sych_core::config::{ApiClient, GithubConnection, ServerConfig};
 use sych_core::sha256;
-use sych_core::{PolicySnapshot, PolicySource, ReviewResult, RunId, SchemaVersion, Timestamp};
+use sych_core::{
+    PolicySnapshot, PolicySource, ReviewResult, RunFacts, RunId, SchemaVersion, Timestamp,
+};
 use sych_core::{SourceSide, decode};
 use sych_storage::{Admitted, ArtifactKind, Storage};
 
@@ -462,6 +464,18 @@ pub async fn commit_claimed_with(
     policy: &[u8],
     edit: impl FnOnce(&mut ReviewResult),
 ) {
+    commit_claimed_with_facts(w, head, defects, policy, None, edit).await;
+}
+
+/// [`commit_claimed_with`] with optional `RunFacts` stored as the `"facts"` artifact.
+pub async fn commit_claimed_with_facts(
+    w: &World,
+    head: &str,
+    defects: u32,
+    policy: &[u8],
+    facts: Option<&RunFacts>,
+    edit: impl FnOnce(&mut ReviewResult),
+) {
     let head = head.to_owned();
     let s = &w.app.storage;
     let c = s.claim("w", 60, now()).await.expect("claim").expect("job");
@@ -498,6 +512,12 @@ pub async fn commit_claimed_with(
     )
     .await
     .expect("manifest");
+    if let Some(facts) = facts {
+        s.put_artifact(&c.run, "facts", ArtifactKind::Facts, facts, now())
+            .await
+            .expect("facts");
+    }
+
     // Pinned like a real review's inputs, so the result names these snapshots.
     let kind = ArtifactKind::SourceSnapshot;
     s.put_artifact(&c.run, "source_snapshot", kind, &snap.snapshot, now())

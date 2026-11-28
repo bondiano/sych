@@ -4,11 +4,11 @@
 use std::fmt::Display;
 
 use sych_adapters::github::TokenScope;
-use sych_core::RunId;
 use sych_core::config::RuleException;
 use sych_core::lineage::decide;
 use sych_core::publication::{dismiss, problems};
 use sych_core::scm::{ChangeSignal, WebhookEvent};
+use sych_core::{RunFacts, RunId};
 use sych_storage::{ChangeRow, Intent};
 
 use super::engine::{Conn, Engine};
@@ -40,8 +40,12 @@ impl Engine {
             let dismissed = storage.dismissed_findings(*change).await?;
             dismiss(&mut result, &dismissed);
             let manifest = storage.load_artifact(tenant, id, "diff_manifest").await?;
+            let facts: RunFacts = storage
+                .load_artifact(tenant, id, "facts")
+                .await
+                .unwrap_or_default();
             let prior = storage.open_findings(*change).await?;
-            let decisions = decide(&prior, &result, &manifest);
+            let decisions = decide(&prior, &result, &manifest, &facts);
             let at = (self.now)().as_second();
             storage
                 .apply_lineage(*change, run, &result, &decisions, at)

@@ -5,10 +5,12 @@ use std::fs;
 use std::path::Path;
 use std::slice;
 
+use sych_core::architecture::{ArchitectureFacts, Limits as ArchLimits};
+use sych_core::db_schema::{DbSchemaFacts, DbSchemaSource, SqlDialect};
 use sych_core::lineage::{Decision, Prior, decide};
 use sych_core::{
-    Coverage, DiffManifest, Finding, FindingCategory, ObligationStatus, ReviewResult, decode,
-    sha256,
+    BackendStatus, Coverage, DiffManifest, Finding, FindingCategory, Language, ObligationStatus,
+    PathGap, Producer, ReviewResult, RunFacts, SchemaVersion, decode, sha256,
 };
 
 fn fixture(name: &str) -> String {
@@ -69,7 +71,15 @@ fn finding_at(path: &str, fingerprint: &str) -> Finding {
 }
 
 fn one(p: &Prior, r: &ReviewResult) -> Decision {
-    decide(slice::from_ref(p), r, &manifest()).remove(0).1
+    decide(slice::from_ref(p), r, &manifest(), &RunFacts::default())
+        .remove(0)
+        .1
+}
+
+fn one_with_facts(p: &Prior, r: &ReviewResult, facts: &RunFacts) -> Decision {
+    decide(slice::from_ref(p), r, &manifest(), facts)
+        .remove(0)
+        .1
 }
 
 fn open_reason(d: &Decision) -> &str {
@@ -189,14 +199,26 @@ fn an_inline_comment_is_rewritten_only_when_lineage_decides() {
         noted,
     };
     let resolved = revision();
-    assert_eq!(revisit(&[posted(1, false)], &resolved, &manifest()), [1]);
+    let facts = RunFacts::default();
+    assert_eq!(
+        revisit(&[posted(1, false)], &resolved, &manifest(), &facts),
+        [1]
+    );
     let none: [i64; 0] = [];
-    assert_eq!(revisit(&[posted(1, true)], &resolved, &manifest()), none);
+    assert_eq!(
+        revisit(&[posted(1, true)], &resolved, &manifest(), &facts),
+        none
+    );
 
     let mut partial = revision();
     partial.coverage = Coverage::Partial;
     assert_eq!(
-        revisit(&[posted(1, false), posted(2, true)], &partial, &manifest()),
+        revisit(
+            &[posted(1, false), posted(2, true)],
+            &partial,
+            &manifest(),
+            &facts
+        ),
         none
     );
 
@@ -208,21 +230,35 @@ fn an_inline_comment_is_rewritten_only_when_lineage_decides() {
     again.rule_id = Some("EFFECT-01".into());
     back.findings = vec![again];
     assert_eq!(
-        revisit(&[posted(1, true), posted(2, false)], &back, &manifest()),
+        revisit(
+            &[posted(1, true), posted(2, false)],
+            &back,
+            &manifest(),
+            &facts
+        ),
         [1]
     );
 
     // A finding the change dismissed is gone too, though the result still has it.
     let mut dismissed = back.clone();
     dismissed.findings[0].lifecycle = sych_core::Lifecycle::Dismissed;
-    assert_eq!(revisit(&[posted(1, false)], &dismissed, &manifest()), [1]);
-    assert_eq!(revisit(&[posted(1, true)], &dismissed, &manifest()), none);
+    assert_eq!(
+        revisit(&[posted(1, false)], &dismissed, &manifest(), &facts),
+        [1]
+    );
+    assert_eq!(
+        revisit(&[posted(1, true)], &dismissed, &manifest(), &facts),
+        none
+    );
     // A dismissed finding is also gone on a partial review that no longer reports it.
     let dismissed_posted = Posted {
         dismissed: true,
         ..posted(1, false)
     };
-    assert_eq!(revisit(&[dismissed_posted], &partial, &manifest()), [1]);
+    assert_eq!(
+        revisit(&[dismissed_posted], &partial, &manifest(), &facts),
+        [1]
+    );
 
     let body = gone_body(
         "sha256:ab",
@@ -245,4 +281,169 @@ fn an_inline_comment_is_rewritten_only_when_lineage_decides() {
     );
     let bare = gone_body("sha256:ab", "0123456789abcdef", "", ReviewLanguage::En);
     assert!(!bare.contains("<details>"), "nothing to fold: {bare}");
+}
+
+#[test]
+fn sec_and_preference_rules_resolve_without_obligations() {
+    let mut sec_result = revision();
+    sec_result
+        .scope_manifest
+        .requested_profiles
+        .push("security".into());
+    let sec_prior = Prior {
+        fingerprint: sha256(b"SEC-SECRET\0backend/orders/create.go").to_string(),
+        category: FindingCategory::Defect,
+        rule_id: Some("SEC-SECRET".into()),
+        path: Some("backend/orders/create.go".into()),
+    };
+    assert!(matches!(
+        one(&sec_prior, &sec_result),
+        Decision::Resolved { .. }
+    ));
+
+    let reverted_sec = Prior {
+        path: Some("src/reverted.rs".into()),
+        ..sec_prior.clone()
+    };
+    assert!(matches!(
+        one(&reverted_sec, &sec_result),
+        Decision::Resolved { .. }
+    ));
+    assert_eq!(
+        open_reason(&one(&sec_prior, &revision())),
+        "the security scan did not run"
+    );
+    let mut excluded_sec = sec_result;
+    excluded_sec.excluded_or_unreviewed.push(PathGap {
+        path: "backend/orders/create.go".parse().expect("path"),
+        reason: "GENERATED".into(),
+    });
+    assert_eq!(
+        open_reason(&one(&sec_prior, &excluded_sec)),
+        "its file was not scanned"
+    );
+
+    let pref_prior = Prior {
+        fingerprint: sha256(b"pref-1").to_string(),
+        category: FindingCategory::Nit,
+        rule_id: Some("PREF-01".into()),
+        path: Some("backend/orders/create.go".into()),
+    };
+    let mut with_other_nit = revision();
+    let mut other_nit = finding_at("backend/orders/create.go", &sha256(b"pref-2").to_string());
+    other_nit.category = FindingCategory::Nit;
+    other_nit.rule_id = Some("PREF-02".into());
+    with_other_nit.findings = vec![other_nit];
+    assert!(
+        matches!(one(&pref_prior, &with_other_nit), Decision::Resolved { .. }),
+        "an unrelated preference nit on the same file must not keep PREF-01 open"
+    );
+
+    let mut with_same_nit = revision();
+    let mut same_nit = finding_at(
+        "backend/orders/create.go",
+        &sha256(b"pref-1-new").to_string(),
+    );
+    same_nit.category = FindingCategory::Nit;
+    same_nit.rule_id = Some("PREF-01".into());
+    with_same_nit.findings = vec![same_nit];
+    assert_eq!(
+        open_reason(&one(&pref_prior, &with_same_nit)),
+        "a finding of the same kind is still there"
+    );
+}
+
+#[test]
+fn db_and_arch_rules_resolve_when_ready_and_stay_open_when_disabled_or_unavailable() {
+    let db_prior = prior(Some("DB-FK-WITHOUT-INDEX"), "backend/orders/create.go");
+    assert_eq!(
+        open_reason(&one_with_facts(
+            &db_prior,
+            &revision(),
+            &RunFacts::default()
+        )),
+        "schema_lint did not run"
+    );
+    let db_fact = |status: BackendStatus| DbSchemaFacts {
+        schema_version: SchemaVersion,
+        source_snapshot_id: revision().source_snapshot_id,
+        producer: Producer {
+            name: "sych-db-schema".into(),
+            version: "0.2.0".into(),
+            config_hash: None,
+        },
+        target: "migrations".into(),
+        dialect: SqlDialect::Postgres,
+        source: DbSchemaSource::StaticSql,
+        ci_authenticated: false,
+        model_extractor: None,
+        status,
+        base_checked: true,
+        findings: Vec::new(),
+        fixed: Vec::new(),
+        unmatched_exclusions: Vec::new(),
+        warnings: Vec::new(),
+        skipped_rules: Vec::new(),
+        limitations: Vec::new(),
+    };
+    let db_ready = RunFacts {
+        db_schema: vec![db_fact(BackendStatus::Ready)],
+        ..RunFacts::default()
+    };
+    assert!(matches!(
+        one_with_facts(&db_prior, &revision(), &db_ready),
+        Decision::Resolved { .. }
+    ));
+    let db_failed = RunFacts {
+        db_schema: vec![db_fact(BackendStatus::Failed)],
+        ..RunFacts::default()
+    };
+    assert_eq!(
+        open_reason(&one_with_facts(&db_prior, &revision(), &db_failed)),
+        "schema_lint was unavailable"
+    );
+
+    let arch_prior = prior(Some("ARCH-FIELD-LEAK"), "backend/orders/create.go");
+    assert_eq!(
+        open_reason(&one_with_facts(
+            &arch_prior,
+            &revision(),
+            &RunFacts::default()
+        )),
+        "the architecture check did not run"
+    );
+    let arch_fact = |status: BackendStatus| ArchitectureFacts {
+        schema_version: SchemaVersion,
+        source_snapshot_id: revision().source_snapshot_id,
+        producer: Producer {
+            name: "scip-go".into(),
+            version: "0.1".into(),
+            config_hash: None,
+        },
+        language: Language::Go,
+        project: "backend".into(),
+        status,
+        base_checked: true,
+        limits: ArchLimits::default(),
+        coverage: Vec::new(),
+        findings: Vec::new(),
+        fixed: Vec::new(),
+        limitations: Vec::new(),
+    };
+    let arch_ready = RunFacts {
+        architecture: vec![arch_fact(BackendStatus::Ready)],
+        ..RunFacts::default()
+    };
+    assert!(matches!(
+        one_with_facts(&arch_prior, &revision(), &arch_ready),
+        Decision::Resolved { .. }
+    ));
+    let arch_failed = RunFacts {
+        architecture: vec![arch_fact(BackendStatus::Failed)],
+        ..RunFacts::default()
+    };
+    assert_eq!(
+        open_reason(&one_with_facts(&arch_prior, &revision(), &arch_failed)),
+        "the architecture check was unavailable"
+    );
 }
