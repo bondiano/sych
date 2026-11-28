@@ -23,7 +23,7 @@
     "check": "pnpm gen:api && pnpm lint && pnpm format:check && pnpm type-check && pnpm test && pnpm build && pnpm check:report && pnpm test:browser"
   },
   "dependencies": {
-    "@lucide/vue": "^1.65.0",
+    "@lucide/vue": "^1.77.0",
     "@tanstack/vue-query": "^5.105.0",
     "@vueuse/core": "^15.0.0",
     "class-variance-authority": "^0.7.1",
