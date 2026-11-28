@@ -27,6 +27,11 @@ Sych reviews its own pull requests: every agent PR is a test of Sych itself. The
 ## Never
 
 - Merge a PR without a Sych review of the current head and green CI.
+- Edit generated files by hand: regenerate `schemas/*.schema.json` and `schemas/openapi.json` via `just schemas`,
+  `crates/sych-app/src/report_view/template.gen.html` via `just report-template`, and the TypeScript API declarations
+  in `web/` via `cd web && pnpm gen:api`.
+- Edit or delete a shipped file under `migrations/`, or disable a lint rule to get a change through: exceptions are
+  narrow (one path and one rule), carry a reason, and need a human decision.
 - Change the reviewer, its models, budgets or rules in a PR to get a "clean" review: the production reviewer
   is built from `main` and pinned by digest outside this repository, so it would not affect the review of
   that PR anyway.

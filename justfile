@@ -7,12 +7,19 @@ default:
 fmt:
     cargo fmt --all
 
-# Static checks CI runs
+# Static and diff-based checks CI runs
 lint:
     cargo fmt --all --check
     cargo machete
+    cargo deny check licenses bans sources
     cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
     cargo run --locked -q -p sych-style -- crates
+    jactionlint .github/workflows/*.yml .github/dependabot.yml
+    shellcheck scripts/*
+    hadolint --failure-threshold warning Dockerfile
+    typos
+    agnix --strict .
+    scripts/check-gates
 
 # Insert the blank lines the house style asks for, then format
 style-fix:

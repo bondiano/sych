@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Diff-based repository quality gates enforced by `just lint` and CI:
+#   1. Shipped SQL migrations under `migrations/` are immutable (set SYCH_ALLOW_MIGRATION_EDIT=1
+#      only for an intentional repair).
+#   2. Newly added PostgreSQL migrations (`migrations/postgres/*.sql`) pass `squawk` lock/downtime
+#      checks without requiring a live database.
+#   3. Changes to `schemas/openapi.json` introduce no breaking `/v1` API changes according to
+#      `oasdiff breaking` (set SYCH_ALLOW_OPENAPI_BREAKING=1 for an intentional major break).
+# Base ref defaults to `origin/main`; a missing base ref (such as an unconfigured shallow clone)
+# exits 1 instead of silently skipping the checks.
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+base="${SYCH_BASE_REF:-origin/main}"
+if ! git rev-parse --verify "${base}^{commit}" >/dev/null 2>&1; then
+    echo "check-gates: base ref '$base' is missing; fetch '$base' or set SYCH_BASE_REF" >&2
+    exit 1
+fi
+
+merge_base="$(git merge-base "$base" HEAD)"
+
+mutated_migrations="$(git diff --name-status --diff-filter=MDRT "$merge_base..HEAD" -- migrations/)"
+if [[ -n "$mutated_migrations" && "${SYCH_ALLOW_MIGRATION_EDIT:-0}" != "1" ]]; then
+    echo "check-gates: shipped files under migrations/ are immutable (set SYCH_ALLOW_MIGRATION_EDIT=1 for an intentional repair):" >&2
+    printf '%s\n' "$mutated_migrations" >&2
+    exit 1
+fi
+
+pg_migrations=()
+while IFS= read -r path; do
+    [[ -n "$path" ]] && pg_migrations+=("$path")
+done < <(git diff --name-only --diff-filter=AM "$merge_base..HEAD" -- 'migrations/postgres/*.sql')
+
+if ((${#pg_migrations[@]} > 0)); then
+    squawk "${pg_migrations[@]}"
+fi
+
+if ! git diff --quiet "$merge_base..HEAD" -- schemas/openapi.json; then
+    if [[ "${SYCH_ALLOW_OPENAPI_BREAKING:-0}" != "1" ]]; then
+        tmp_base="$(mktemp "${TMPDIR:-/tmp}/sych-openapi-base.XXXXXX.json")"
+        trap 'rm -f "$tmp_base"' EXIT
+        git show "${merge_base}:schemas/openapi.json" > "$tmp_base"
+        oasdiff breaking --allow-external-refs=false --fail-on ERR "$tmp_base" schemas/openapi.json
+    fi
+fi
