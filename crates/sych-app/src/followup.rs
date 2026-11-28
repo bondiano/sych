@@ -105,11 +105,27 @@ async fn answer(
     let hypotheses = if candidates.is_empty() {
         candidates
     } else {
+        let obligation_rules: Vec<_> = result
+            .obligations
+            .iter()
+            .map(|o| (o.id, o.rule_id.as_str()))
+            .collect();
         match model
             .verify(&prompts::verify(&context, &candidates, &[]))
             .await
         {
-            Ok(v) => validate_verdicts(&v, candidates, &context, reader, &[], &key).candidates,
+            Ok(v) => {
+                validate_verdicts(
+                    &v,
+                    candidates,
+                    &context,
+                    reader,
+                    &[],
+                    &obligation_rules,
+                    &key,
+                )
+                .candidates
+            }
             Err(e) => candidates
                 .into_iter()
                 .map(|mut c| {

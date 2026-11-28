@@ -55,6 +55,7 @@ fn verdicts_need_an_admissible_basis() {
         &context,
         &reader,
         &[],
+        &[],
         "unit",
     );
     let statuses: Vec<VerificationStatus> = verified
@@ -100,6 +101,7 @@ fn verdicts_need_an_admissible_basis() {
         &context,
         &reader,
         &[],
+        &[],
         "unit",
     );
     assert_eq!(again.candidates[5].verdicts[1].round, 2);
@@ -127,6 +129,7 @@ fn verdicts_need_an_admissible_basis() {
         &context,
         &reader,
         &known,
+        &[],
         "unit",
     );
     assert_eq!(
@@ -158,6 +161,7 @@ fn invented_references_never_confirm() {
         candidates(&reader, &context, 2),
         &context,
         &reader,
+        &[],
         &[],
         "unit",
     );
@@ -215,6 +219,7 @@ fn a_shared_first_anchor_keeps_the_most_severe_in_either_order() {
             &context,
             &reader,
             &[],
+            &[],
             "unit",
         );
         assert_eq!(verified.findings.len(), 2, "both reach the merge");
@@ -242,6 +247,7 @@ fn overlapping_findings_merge_into_the_most_severe() {
         candidates(&reader, &context, 2),
         &context,
         &reader,
+        &[],
         &[],
         "unit",
     );
@@ -288,6 +294,7 @@ fn a_useful_nit_needs_no_rule_and_stays_low() {
         &context,
         &reader,
         &[],
+        &[],
         "unit",
     );
     assert_eq!(verified.findings.len(), 1);
@@ -331,6 +338,7 @@ fn a_suggested_change_needs_lines_of_a_shown_head_span() {
             candidates(&reader, &context, 1),
             &context,
             &reader,
+            &[],
             &[],
             "unit",
         );
@@ -412,6 +420,7 @@ fn unverified_external_assumptions_prevent_confirmation() {
         &context,
         &reader,
         &[],
+        &[],
         "unit",
     );
     assert_eq!(
@@ -431,4 +440,82 @@ fn unverified_external_assumptions_prevent_confirmation() {
         VerificationStatus::Confirmed
     );
     assert_eq!(verified.findings.len(), 1);
+}
+
+#[test]
+fn obligation_linked_findings_populate_rule_id_and_preserve_it_on_overlap_merge() {
+    let reader = Reader::new();
+    let (context, _) = context(&reader);
+    let ob_id = ObligationId(uuid::Uuid::from_u128(7));
+    let linked_draft = draft(
+        &json!([{"ref_id": "ref-2", "start_line": 2, "end_line": 2}]),
+        &[],
+        &["ob-1"],
+    );
+    let defect_draft = draft(
+        &json!([{"ref_id": "ref-2", "start_line": 1, "end_line": 2}]),
+        &[],
+        &[],
+    );
+    let discovered = validate_discovery(
+        discovery(json!({
+            "candidates": [linked_draft, defect_draft],
+            "context_requests": [],
+            "unresolved_questions": []
+        })),
+        "k",
+        &context,
+        &[ob_id],
+        &reader,
+    );
+    let mut violation_verdict = verdict(
+        "cand-1",
+        Severity::Medium,
+        Support::ExplicitRule,
+        &[anchor("ref-2", 2, 2)],
+    );
+    violation_verdict["category"] = json!("RULE_VIOLATION");
+    let defect_verdict = verdict(
+        "cand-2",
+        Severity::High,
+        Support::StaticTrace,
+        &[anchor("ref-1", 2, 4), anchor("ref-2", 1, 2)],
+    );
+    let output: VerifyOutput = serde_json::from_value(json!({
+        "verdicts": [violation_verdict, defect_verdict],
+        "context_requests": []
+    }))
+    .expect("verdicts");
+    let verified = validate_verdicts(
+        &output,
+        discovered.candidates,
+        &context,
+        &reader,
+        &[],
+        &[(ob_id, "ORDER-01")],
+        "unit",
+    );
+    assert_eq!(verified.findings.len(), 2);
+    assert_eq!(verified.findings[0].rule_id.as_deref(), Some("ORDER-01"));
+    assert_eq!(verified.findings[1].rule_id, None);
+
+    let merged = merge_overlapping(verified.findings);
+    assert_eq!(merged.len(), 1);
+    assert_eq!(merged[0].category, FindingCategory::Defect);
+    assert_eq!(merged[0].severity, Severity::High);
+    assert_eq!(merged[0].rule_id.as_deref(), Some("ORDER-01"));
+    assert_eq!(merged[0].obligation_ids, [ob_id]);
+
+    // An absorbed style Nit must not overwrite a Defect's None rule_id.
+    let mut defect = merged[0].clone();
+    defect.rule_id = None;
+    defect.obligation_ids.clear();
+    defect.also.clear();
+    let mut nit = defect.clone();
+    nit.category = FindingCategory::Nit;
+    nit.severity = Severity::Low;
+    nit.rule_id = Some("PREF-01".into());
+    let merged_with_nit = merge_overlapping(vec![defect, nit]);
+    assert_eq!(merged_with_nit.len(), 1);
+    assert_eq!(merged_with_nit[0].rule_id, None);
 }

@@ -11,9 +11,9 @@ use serde::{Deserialize, Serialize};
 use super::context::{Anchor, Context};
 use super::discovery::ContextAsk;
 use crate::{
-    AlsoFinding, Candidate, CodeRef, Finding, FindingCategory, FindingId, Lifecycle, Severity,
-    SnapshotReader, SourceSide, SuggestedChange, Support, VerdictRecord, VerificationStatus,
-    derived_uuid, sha256,
+    AlsoFinding, Candidate, CodeRef, Finding, FindingCategory, FindingId, Lifecycle, ObligationId,
+    Severity, SnapshotReader, SourceSide, SuggestedChange, Support, VerdictRecord,
+    VerificationStatus, derived_uuid, sha256,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -89,6 +89,9 @@ pub struct Verified {
 /// Locations an existing diagnostic already reports; overlap is not novelty.
 pub type KnownDiagnostics<'a> = &'a [CodeRef];
 
+/// Planned obligations with their rule ids, so confirmed obligation-linked candidates keep `rule_id`.
+pub type ObligationRules<'a> = &'a [(ObligationId, &'a str)];
+
 fn overlaps(a: &CodeRef, b: &CodeRef) -> bool {
     a.side == b.side && a.path == b.path && a.start_line <= b.end_line && b.start_line <= a.end_line
 }
@@ -151,6 +154,7 @@ pub fn validate(
     context: &Context,
     reader: &dyn SnapshotReader,
     known: KnownDiagnostics<'_>,
+    obligations: ObligationRules<'_>,
     scope: &str,
 ) -> Verified {
     let mut findings: Vec<Finding> = Vec::new();
@@ -224,7 +228,14 @@ pub fn validate(
             continue;
         }
 
-        let mut finding = finding(candidate, verdict, anchors, evidence_ids, scope);
+        let mut finding = finding(
+            candidate,
+            verdict,
+            anchors,
+            evidence_ids,
+            obligations,
+            scope,
+        );
         finding.suggested_change = change(verdict, context, reader, &mut finding.limitations);
         // Same-location findings are resolved once, most severe first, by `merge_overlapping`.
         findings.push(finding);
@@ -261,6 +272,12 @@ pub fn merge_overlapping(mut findings: Vec<Finding>) -> Vec<Finding> {
                 });
                 k.also.extend(f.also);
                 // A waiver of the kept finding must not hide an absorbed one's rule.
+                let correctness =
+                    |c| matches!(c, FindingCategory::Defect | FindingCategory::RuleViolation);
+                if k.rule_id.is_none() && (correctness(f.category) || !correctness(k.category)) {
+                    k.rule_id = f.rule_id;
+                }
+
                 for id in f.obligation_ids {
                     if !k.obligation_ids.contains(&id) {
                         k.obligation_ids.push(id);
@@ -307,6 +324,7 @@ fn finding(
     verdict: &CandidateVerdict,
     anchors: Vec<CodeRef>,
     evidence_ids: Vec<crate::EvidenceId>,
+    obligations: ObligationRules<'_>,
     scope: &str,
 ) -> Finding {
     let first = &anchors[0];
@@ -320,6 +338,12 @@ fn finding(
         first.content_sha256
     );
     let fingerprint = sha256(key.as_bytes());
+    let rule_id = candidate.obligation_ids.iter().find_map(|id| {
+        obligations
+            .iter()
+            .find(|(oid, _)| oid == id)
+            .map(|(_, rule)| (*rule).to_owned())
+    });
     Finding {
         id: FindingId(derived_uuid(&["finding", &fingerprint.to_string()])),
         category: verdict.category,
@@ -340,7 +364,7 @@ fn finding(
 
                 all
             }),
-        rule_id: None,
+        rule_id,
         obligation_ids: candidate.obligation_ids.clone(),
         suggested_action: verdict.suggested_action.clone(),
         validation_expectation: verdict.validation_expectation.clone(),

@@ -7,7 +7,7 @@ use sych_core::publication::{
     revisit,
 };
 use sych_core::scm::{ScmError, ScmErrorKind};
-use sych_core::{Candidate, DiffManifest, Lifecycle, ReviewResult, RunId, Timestamp};
+use sych_core::{Candidate, DiffManifest, Lifecycle, ReviewResult, RunFacts, RunId, Timestamp};
 use sych_storage::{ChangeRow, INVALID_ANCHOR, ObjectKind, PublishClaim};
 
 use super::engine::{Conn, Engine};
@@ -250,8 +250,13 @@ impl Engine {
             storage
                 .enqueue_inline(c.change_id, &c.run_id, result_id, c.generation, &items, at)
                 .await?;
+            let run = RunId(c.run_id.parse()?);
+            let facts: RunFacts = storage
+                .load_artifact(&c.partition.tenant_id, run, "facts")
+                .await
+                .unwrap_or_default();
             let posted = storage.posted_inline(c.change_id).await?;
-            let edits = revisit(&posted, &result, &manifest);
+            let edits = revisit(&posted, &result, &manifest, &facts);
             storage
                 .enqueue_inline_edits(&edits, &c.run_id, result_id, c.generation, at)
                 .await?;

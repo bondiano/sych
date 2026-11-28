@@ -321,22 +321,69 @@ fn in_force(f: &Finding, waived: &[ObligationId]) -> bool {
 }
 
 /// Findings in force of the rules `block_on` names; a waived one blocks nothing, as it raises no
-/// recommendation.
+/// recommendation, and a nit or improvement never blocks.
 fn blocked_by(
     findings: &[Finding],
+    obligations: &[PlannedObligation],
     block_on: &[String],
     waived: &[ObligationId],
 ) -> Vec<FindingId> {
+    let matches_block = |rule: &str| block_on.iter().any(|g| glob_match(g, rule));
     findings
         .iter()
         .filter(|f| {
-            in_force(f, waived)
-                && f.rule_id
-                    .as_deref()
-                    .is_some_and(|r| block_on.iter().any(|g| glob_match(g, r)))
+            matches!(
+                f.category,
+                FindingCategory::Defect | FindingCategory::RuleViolation
+            ) && in_force(f, waived)
+                && (f.obligation_ids.iter().any(|id| {
+                    !waived.contains(id)
+                        && obligations
+                            .iter()
+                            .find(|o| o.obligation.id == *id)
+                            .is_some_and(|o| matches_block(&o.obligation.rule_id))
+                }) || f.rule_id.as_deref().is_some_and(|r| {
+                    matches_block(r)
+                        && !f.obligation_ids.iter().any(|id| {
+                            waived.contains(id)
+                                && obligations
+                                    .iter()
+                                    .any(|o| o.obligation.id == *id && o.obligation.rule_id == r)
+                        })
+                }))
         })
         .map(|f| f.id)
         .collect()
+}
+
+fn reduced_findings(
+    input: &ReduceInput<'_>,
+    obligations: &[PlannedObligation],
+    evidence: &BTreeMap<EvidenceId, &Evidence>,
+) -> Vec<Finding> {
+    let mut findings = input.findings.to_vec();
+    for f in &mut findings {
+        if f.rule_id.is_none() {
+            f.rule_id = f.obligation_ids.iter().find_map(|id| {
+                obligations
+                    .iter()
+                    .find(|o| o.obligation.id == *id)
+                    .map(|o| o.obligation.rule_id.clone())
+            });
+        }
+    }
+    for o in obligations {
+        let id = o.obligation.id;
+        // Only a finding at least as severe stands for the violation; a linked nit does not.
+        if matches!(o.obligation.status, ObligationStatus::Violated)
+            && !findings
+                .iter()
+                .any(|f| f.obligation_ids.contains(&id) && f.severity >= violation_severity(o))
+        {
+            findings.push(rule_violation(o, evidence, input.assessments));
+        }
+    }
+    findings
 }
 
 pub fn reduce(input: &ReduceInput<'_>) -> Reduced {
@@ -364,18 +411,7 @@ pub fn reduce(input: &ReduceInput<'_>) -> Reduced {
         }
     }
 
-    let mut findings = input.findings.to_vec();
-    for o in &obligations {
-        let id = o.obligation.id;
-        // Only a finding at least as severe stands for the violation; a linked nit does not.
-        if matches!(o.obligation.status, ObligationStatus::Violated)
-            && !findings
-                .iter()
-                .any(|f| f.obligation_ids.contains(&id) && f.severity >= violation_severity(o))
-        {
-            findings.push(rule_violation(o, &evidence, input.assessments));
-        }
-    }
+    let findings = reduced_findings(input, &obligations, &evidence);
 
     for o in &mut obligations {
         waive(o, &evidence, plan, input.now, &mut unresolved);
@@ -415,7 +451,7 @@ pub fn reduce(input: &ReduceInput<'_>) -> Reduced {
     let significant = findings
         .iter()
         .any(|f| f.severity >= input.attention_threshold && in_force(f, &waived));
-    let blocked_by = blocked_by(&findings, input.block_on, &waived);
+    let blocked_by = blocked_by(&findings, &obligations, input.block_on, &waived);
     // A finding that fails the check run needs attention, whatever its severity.
     let recommendation = if significant || !blocked_by.is_empty() {
         Recommendation::AttentionRequired

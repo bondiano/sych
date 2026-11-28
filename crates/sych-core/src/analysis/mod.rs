@@ -30,8 +30,8 @@ pub use history::{
     with_prior_revision,
 };
 pub use verify::{
-    CandidateVerdict, KnownDiagnostics, ProposedChange, Verdict, Verified, VerifyOutput,
-    merge_overlapping, validate as validate_verdicts,
+    CandidateVerdict, KnownDiagnostics, ObligationRules, ProposedChange, Verdict, Verified,
+    VerifyOutput, merge_overlapping, validate as validate_verdicts,
 };
 
 /// Model-written list items as the engine keeps them: trimmed, without empty ones, each once.
