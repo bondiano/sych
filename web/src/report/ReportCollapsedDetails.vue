@@ -70,8 +70,7 @@ const sortedObligations = computed(() =>
         <div v-if="view.policy.provenance.length" class="space-y-1">
           <ul class="space-y-1 font-mono text-xs text-muted-foreground">
             <li v-for="(p, idx) in view.policy.provenance" :key="idx" class="break-all">
-              <span class="text-foreground">{{ safeText(p.layer) }}</span
-              >: {{ safeText(p.origin) }}
+              <span class="text-foreground">{{ safeText(p.layer) }}</span>: {{ safeText(p.origin) }}
               <span v-if="p.sha256">({{ p.sha256.slice(0, 19) }})</span>
             </li>
           </ul>

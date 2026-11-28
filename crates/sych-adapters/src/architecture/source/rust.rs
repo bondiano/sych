@@ -8,8 +8,8 @@ use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 use syn::{
-    Attribute, BinOp, Block, Expr, Fields, FnArg, ImplItem, Item, Member, Meta, Pat, ReturnType,
-    Signature, Stmt, Token, Type, UnOp,
+    Attribute, BinOp, Block, Expr, Fields, FnArg, ImplItem, Item, Member, Meta, Pat, ReceiverKind,
+    ReturnType, Signature, Stmt, Token, Type, UnOp,
 };
 
 use super::{Access, Definition, Plain, Pos, Shape, SourceFacts, Span};
@@ -136,7 +136,8 @@ impl Reader<'_> {
             })
             .collect();
         let all_named = params.len() == sig.inputs.len();
-        let by_mut_ref = receiver.is_some_and(|r| r.reference.is_some() && r.mutability.is_some());
+        let by_mut_ref =
+            receiver.is_some_and(|r| matches!(r.kind, ReceiverKind::Reference(_, _, Some(_))));
         let lends_to_write = matches!(&sig.output, ReturnType::Type(_, ty)
             if matches!(&**ty, Type::Reference(r) if r.mutability.is_some()));
         definition.shape = sole(block).and_then(|body| {

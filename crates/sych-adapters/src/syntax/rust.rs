@@ -336,7 +336,8 @@ impl<'ast> Visit<'ast> for Visitor {
             }
             Item::Impl(i) => {
                 self.attributes(&i.attrs, i.span());
-                if let Some((_, path, _)) = &i.trait_
+                if i.modifiers.polarity.is_none()
+                    && let Some((path, _)) = &i.trait_
                     && last_segment(path) == "Drop"
                 {
                     self.push(
