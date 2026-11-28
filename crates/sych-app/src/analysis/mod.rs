@@ -21,8 +21,8 @@ use sych_core::model::{
 };
 use sych_core::{
     Assessment, Candidate, CodeRef, Evidence, FeeShare, Finding, NOT_ASSESSED, ObligationId,
-    ObligationStatus, PlannedObligation, ReviewPlan, ReviewUnitId, RiskLevel, RunFacts,
-    SchemaVersion,
+    ObligationStatus, PlannedObligation, PlannedPreference, ReviewPlan, ReviewUnitId, RiskLevel,
+    RunFacts, SchemaVersion,
 };
 
 mod expand;
@@ -31,7 +31,7 @@ mod passes;
 mod redo;
 mod replay;
 
-use parts::{Assessing, Combined, Task};
+use parts::{Assessing, BatchRules, Combined, Task};
 use redo::{cut_short, refused};
 
 /// Answers kept per context ask; each is a span the verifier sees.
@@ -232,15 +232,15 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         let rank = |id: ObligationId| planned.iter().position(|p| p.obligation.id == id);
         let mut assessing: Vec<(usize, Task<'_, Assessing<'_>>)> = Vec::new();
         let mut assessed_in_review = Vec::new();
-        for (batch, context, linked, assessed) in reviews {
-            assessed_in_review.extend(assessed.iter().map(|&i| linked[i].obligation.id));
+        for (batch, context, rules, assessed) in reviews {
+            assessed_in_review.extend(assessed.iter().map(|&i| rules.obligations[i].obligation.id));
             let first = assessed
                 .iter()
-                .filter_map(|&i| rank(linked[i].obligation.id))
+                .filter_map(|&i| rank(rules.obligations[i].obligation.id))
                 .min()
                 .unwrap_or(usize::MAX);
             let obligations: Vec<&PlannedObligation> =
-                assessed.iter().map(|&i| linked[i]).collect();
+                assessed.iter().map(|&i| rules.obligations[i]).collect();
             assessing.push((
                 first,
                 Box::pin(async move {
@@ -248,14 +248,14 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                     let (context, found) = self
                         .review(
                             batch,
-                            &linked,
+                            &rules,
                             &assessed,
                             context,
                             assessing_keeps,
                             &mut part,
                         )
                         .await;
-                    (part, Some(((batch, linked, context, found), obligations)))
+                    (part, Some(((batch, rules, context, found), obligations)))
                 }),
             ));
         }
@@ -297,10 +297,10 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
 
         let done: Vec<&Vec<usize>> = reviewed.iter().map(|(batch, ..)| *batch).collect();
         let mut searching = self.audits(&planned, audit_keeps);
-        for (batch, linked, context, found) in reviewed {
+        for (batch, rules, context, found) in reviewed {
             searching.push(Box::pin(async move {
                 let mut part = self.part();
-                self.expand_and_verify(batch, &linked, context, found, &mut part)
+                self.expand_and_verify(batch, &rules, context, found, &mut part)
                     .await;
                 (part, None)
             }));
@@ -325,16 +325,16 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         batches
             .iter()
             .filter_map(|batch| {
-                let (context, linked) = self.batch_view(batch);
-                let assessed: Vec<usize> = (0..linked.len())
+                let (context, rules) = self.batch_view(batch);
+                let assessed: Vec<usize> = (0..rules.obligations.len())
                     .filter(|&i| {
                         planned
                             .iter()
-                            .any(|p| p.obligation.id == linked[i].obligation.id)
-                            && self.shown_whole(linked[i].obligation.id, batch)
+                            .any(|p| p.obligation.id == rules.obligations[i].obligation.id)
+                            && self.shown_whole(rules.obligations[i].obligation.id, batch)
                     })
                     .collect();
-                (!assessed.is_empty()).then_some((batch, context, linked, assessed))
+                (!assessed.is_empty()).then_some((batch, context, rules, assessed))
             })
             .collect()
     }
@@ -363,14 +363,14 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         let mut part = self.part();
         let mut context = self.context(index);
         let prompt = prompts::risk_audit(&context, obligation);
-        let ids = [obligation.obligation.id];
+        let rules = BatchRules::for_obligation(obligation);
         let found = self
             .discover(
                 &[index],
                 Some(obligation.obligation.id),
                 &prompt,
                 &context,
-                &ids,
+                &rules,
                 kept,
                 &mut part,
             )
@@ -379,7 +379,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             self.answer(index, &found.asks, &mut context, &mut part);
         }
 
-        self.verify(&[index], &[obligation], context, found, &mut part)
+        self.verify(&[index], &rules, context, found, &mut part)
             .await;
         part
     }
@@ -396,21 +396,25 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     /// Discovery of one batch, its context asks answered, and verification.
     async fn search(&self, batch: &[usize]) -> Outcome {
         let mut part = self.part();
-        let (context, linked) = self.batch_view(batch);
-        let ids: Vec<ObligationId> = linked.iter().map(|o| o.obligation.id).collect();
+        let (context, rules) = self.batch_view(batch);
         let prompt = self.with_prior(
             intent::with_intent(
-                self.hunting(prompts::discovery(&context, &linked, &self.title(batch))),
+                self.hunting(prompts::discovery(
+                    &context,
+                    &rules.obligations,
+                    &rules.preferences,
+                    &self.title(batch),
+                )),
                 self.intent,
             ),
             batch,
-            &linked,
+            &rules,
             HistoryRole::Reviewer,
         );
         let found = self
-            .discover(batch, None, &prompt, &context, &ids, 1, &mut part)
+            .discover(batch, None, &prompt, &context, &rules, 1, &mut part)
             .await;
-        self.expand_and_verify(batch, &linked, context, found, &mut part)
+        self.expand_and_verify(batch, &rules, context, found, &mut part)
             .await;
         part
     }
@@ -466,8 +470,8 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         context
     }
 
-    /// The spans of a discovery batch and the obligations linked to its units.
-    fn batch_view(&self, batch: &[usize]) -> (Context, Vec<&PlannedObligation>) {
+    /// The spans of a discovery batch and the obligations and preferences linked to its units.
+    fn batch_view(&self, batch: &[usize]) -> (Context, BatchRules<'_>) {
         let mut context = Context::new(self.language);
         for &i in batch {
             context.add_packet(&self.packets[i], &self.packet_evidence[i], self.snap);
@@ -479,7 +483,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             .iter()
             .flat_map(|&i| self.packets[i].request.review_unit_ids.iter().copied())
             .collect();
-        let linked = self
+        let obligations = self
             .plan
             .obligations
             .iter()
@@ -490,10 +494,22 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                     .any(|u| units.contains(u))
             })
             .collect::<Vec<&PlannedObligation>>();
-        if linked.iter().any(|o| o.about_tests) {
+        let preferences = self
+            .plan
+            .preferences
+            .iter()
+            .filter(|p| p.review_unit_ids.iter().any(|u| units.contains(u)))
+            .collect::<Vec<&PlannedPreference>>();
+        if obligations.iter().any(|o| o.about_tests) {
             context.add_test_removals(&self.snap.manifest, self.snap);
         }
 
-        (context, linked)
+        (
+            context,
+            BatchRules {
+                obligations,
+                preferences,
+            },
+        )
     }
 }

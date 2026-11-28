@@ -111,7 +111,7 @@ async fn answer(
             .map(|o| (o.id, o.rule_id.as_str()))
             .collect();
         match model
-            .verify(&prompts::verify(&context, &candidates, &[]))
+            .verify(&prompts::verify(&context, &candidates, &[], &[]))
             .await
         {
             Ok(v) => {

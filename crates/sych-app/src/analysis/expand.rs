@@ -5,8 +5,8 @@
 
 use sych_core::analysis::{AskOperation, Context, Discovered, HistoryRole, expansion, intent};
 use sych_core::model::{Ledger, ModelProvider};
-use sych_core::{ObligationId, PlannedObligation};
 
+use super::parts::BatchRules;
 use super::{Engine, Outcome};
 
 /// `more`'s output joins `found`; a claim already proposed in so many words is dropped.
@@ -31,28 +31,27 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     pub(super) async fn expand_and_verify(
         &self,
         batch: &[usize],
-        linked: &[&PlannedObligation],
+        rules: &BatchRules<'_>,
         mut context: Context,
         found: Option<Discovered>,
         out: &mut Outcome,
     ) {
         // A span of the batch that could not be read back went unseen by the search.
         out.gaps.extend(context.limitations.iter().cloned());
-        let found = self.expand(batch, linked, &mut context, found, out).await;
-        self.verify(batch, linked, context, found, out).await;
+        let found = self.expand(batch, rules, &mut context, found, out).await;
+        self.verify(batch, rules, context, found, out).await;
     }
 
     /// Answers `found`'s asks into `context` and runs the further rounds they earn.
     async fn expand(
         &self,
         batch: &[usize],
-        linked: &[&PlannedObligation],
+        rules: &BatchRules<'_>,
         context: &mut Context,
         found: Option<Discovered>,
         out: &mut Outcome,
     ) -> Option<Discovered> {
         let mut found = found?;
-        let ids: Vec<ObligationId> = linked.iter().map(|o| o.obligation.id).collect();
         let mut asks = found.asks.clone();
         let mut asked: Vec<AskOperation> = Vec::new();
         for round in 0..=self.expansion_rounds {
@@ -67,15 +66,21 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
 
             let prompt = self.with_prior(
                 intent::with_intent(
-                    expansion::expansion(context, linked, &self.title(batch), &found.candidates),
+                    expansion::expansion(
+                        context,
+                        &rules.obligations,
+                        &rules.preferences,
+                        &self.title(batch),
+                        &found.candidates,
+                    ),
                     self.intent,
                 ),
                 batch,
-                linked,
+                rules,
                 HistoryRole::Reviewer,
             );
             let Some(more) = self
-                .discover(batch, None, &prompt, context, &ids, 1, out)
+                .discover(batch, None, &prompt, context, rules, 1, out)
                 .await
             else {
                 break;

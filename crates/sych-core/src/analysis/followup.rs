@@ -159,6 +159,7 @@ pub fn hypotheses(
         key,
         context,
         &step.obligation_ids,
+        &[],
         reader,
     );
     let dropped = found

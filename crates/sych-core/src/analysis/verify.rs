@@ -97,7 +97,11 @@ fn overlaps(a: &CodeRef, b: &CodeRef) -> bool {
 }
 
 /// Whether `verdict` may confirm a finding; the problem otherwise.
-fn admissible(verdict: &CandidateVerdict, anchors: &[CodeRef]) -> Result<(), String> {
+fn admissible(
+    candidate: &Candidate,
+    verdict: &CandidateVerdict,
+    anchors: &[CodeRef],
+) -> Result<(), String> {
     if anchors.is_empty() {
         return Err("no anchor in the shown spans".into());
     }
@@ -118,6 +122,20 @@ fn admissible(verdict: &CandidateVerdict, anchors: &[CodeRef]) -> Result<(), Str
         verdict.category,
         FindingCategory::Nit | FindingCategory::Improvement
     );
+    if !candidate.preference_ids.is_empty() && candidate.obligation_ids.is_empty() {
+        if !preference {
+            return Err("a preference candidate must be a NIT or IMPROVEMENT".into());
+        }
+
+        if verdict.severity > Severity::Low {
+            return Err("a nit or improvement is at most LOW".into());
+        }
+
+        if verdict.support != Support::Preference {
+            return Err("a preference candidate needs PREFERENCE support".into());
+        }
+    }
+
     match verdict.support {
         Support::ExecutedCounterexample => {
             Err("nothing was executed, so an executed counterexample cannot be the basis".into())
@@ -193,7 +211,7 @@ pub fn validate(
             // A reference that does not resolve breaks the answer's contract; dropping it
             // and confirming the rest would rewrite the model's proof.
             Verdict::Confirmed if !problems.is_empty() => VerificationStatus::Unresolved,
-            Verdict::Confirmed => match admissible(verdict, &anchors) {
+            Verdict::Confirmed => match admissible(candidate, verdict, &anchors) {
                 Err(problem) => {
                     problems.push(problem);
                     VerificationStatus::Unresolved
@@ -338,12 +356,16 @@ fn finding(
         first.content_sha256
     );
     let fingerprint = sha256(key.as_bytes());
-    let rule_id = candidate.obligation_ids.iter().find_map(|id| {
-        obligations
-            .iter()
-            .find(|(oid, _)| oid == id)
-            .map(|(_, rule)| (*rule).to_owned())
-    });
+    let rule_id = candidate
+        .obligation_ids
+        .iter()
+        .find_map(|id| {
+            obligations
+                .iter()
+                .find(|(oid, _)| oid == id)
+                .map(|(_, rule)| (*rule).to_owned())
+        })
+        .or_else(|| candidate.preference_ids.first().cloned());
     Finding {
         id: FindingId(derived_uuid(&["finding", &fingerprint.to_string()])),
         category: verdict.category,

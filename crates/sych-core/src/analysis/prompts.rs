@@ -6,16 +6,16 @@ use std::fmt::Write;
 use super::context::{Context, side_name};
 use super::prompt_rules::{ASSESSMENT_RULES, DEFECT_RULES, NIT_RULES, QUESTION_RULE, VERIFY_RULES};
 use crate::model::{DataBlock, Prompt};
-use crate::{Candidate, PlannedObligation};
+use crate::{Candidate, PlannedObligation, PlannedPreference, RepoPath, Sha256Digest};
 
 pub use super::prompt_rules::SECURITY_RULE;
 pub(super) use super::prompt_rules::{CANDIDATES_CONTRACT, shared_rules};
 
-pub const DISCOVERY: &str = "discovery@11";
-pub const RISK_AUDIT: &str = "risk_audit@9";
+pub const DISCOVERY: &str = "discovery@12";
+pub const RISK_AUDIT: &str = "risk_audit@10";
 pub const ASSESSMENT: &str = "assessment@6";
-pub const VERIFY: &str = "verify@7";
-pub const REVIEW: &str = "review@11";
+pub const VERIFY: &str = "verify@8";
+pub const REVIEW: &str = "review@12";
 
 /// The fields of one assessment; `ob` names the obligation id the answer must carry.
 fn assessment_fields(ob: &str) -> String {
@@ -37,6 +37,24 @@ fn criteria_text(obligation: &PlannedObligation) -> String {
     criteria
 }
 
+fn contracts_text(out: &mut String, contracts: &[(RepoPath, Sha256Digest, String)]) {
+    for (path, sha256, text) in contracts {
+        let shown = text.floor_char_boundary(CONTRACT_BYTES);
+        let cut = if shown < text.len() {
+            format!(
+                ", first {shown} of {} bytes; the rest is not shown",
+                text.len()
+            )
+        } else {
+            String::new()
+        };
+        let _ = writeln!(out, "  contract {path} ({sha256}{cut}):");
+        for line in text[..shown].lines() {
+            let _ = writeln!(out, "    {line}");
+        }
+    }
+}
+
 /// Accepted rules as trusted policy text, under `ob-N`.
 fn obligations_text(obligations: &[&PlannedObligation]) -> String {
     let mut out = String::new();
@@ -53,21 +71,34 @@ fn obligations_text(obligations: &[&PlannedObligation]) -> String {
             ob.question,
             ob.acceptance_criterion
         );
-        for (path, sha256, text) in &o.contracts {
-            let shown = text.floor_char_boundary(CONTRACT_BYTES);
-            let cut = if shown < text.len() {
-                format!(
-                    ", first {shown} of {} bytes; the rest is not shown",
-                    text.len()
-                )
-            } else {
-                String::new()
-            };
-            let _ = writeln!(out, "  contract {path} ({sha256}{cut}):");
-            for line in text[..shown].lines() {
-                let _ = writeln!(out, "    {line}");
-            }
+        contracts_text(&mut out, &o.contracts);
+    }
+    out
+}
+
+/// Accepted repository preferences matched to this unit, under `pref-N`.
+fn preferences_text(preferences: &[&PlannedPreference]) -> String {
+    let mut out = String::new();
+    for (i, p) in preferences.iter().enumerate() {
+        let _ = writeln!(
+            out,
+            "- pref-{}: preference {} v{} ({}) — {}",
+            i + 1,
+            p.rule_id,
+            p.rule_version,
+            p.rule_title,
+            p.statement
+        );
+        if let Some(rationale) = p
+            .rationale
+            .as_deref()
+            .map(str::trim)
+            .filter(|r| !r.is_empty())
+        {
+            let _ = writeln!(out, "  rationale: {rationale}");
         }
+
+        contracts_text(&mut out, &p.contracts);
     }
     out
 }
@@ -82,13 +113,32 @@ pub(super) fn task(intro: &str, context: &Context, rest: &str) -> String {
     )
 }
 
-/// Hypotheses over one review unit; obligations are listed so candidates can link to them.
-pub fn discovery(context: &Context, obligations: &[&PlannedObligation], unit: &str) -> Prompt {
+/// Hypotheses over one review unit; obligations and matched preferences are listed so candidates
+/// can link to them. When `preferences` is empty, `# Preferences of this change` is omitted so
+/// unrelated units keep identical prompt hashes.
+pub fn discovery(
+    context: &Context,
+    obligations: &[&PlannedObligation],
+    preferences: &[&PlannedPreference],
+    unit: &str,
+) -> Prompt {
     let mut data = vec![DataBlock {
         label: "review unit".into(),
         content: unit.to_owned(),
     }];
     data.extend(context.blocks.iter().cloned());
+    let mut rest = format!(
+        "# Obligations of this change\n{}",
+        obligations_text(obligations)
+    );
+    if !preferences.is_empty() {
+        let _ = write!(
+            rest,
+            "\n# Preferences of this change\n{}",
+            preferences_text(preferences)
+        );
+    }
+
     Prompt {
         template: DISCOVERY.into(),
         role: "You are the discovery reviewer of a code review system. You propose checkable \
@@ -110,10 +160,7 @@ pub fn discovery(context: &Context, obligations: &[&PlannedObligation], unit: &s
             "Review the change in the spans below. Old (BASE) and new (HEAD) sides are both \
              shown where they exist.",
             context,
-            &format!(
-                "# Obligations of this change\n{}",
-                obligations_text(obligations)
-            ),
+            &rest,
         ),
         data,
     }
@@ -121,7 +168,7 @@ pub fn discovery(context: &Context, obligations: &[&PlannedObligation], unit: &s
 
 /// An independent search for one high-risk obligation; it does not see discovery's output.
 pub fn risk_audit(context: &Context, obligation: &PlannedObligation) -> Prompt {
-    let mut prompt = discovery(context, &[obligation], "high-risk obligation audit");
+    let mut prompt = discovery(context, &[obligation], &[], "high-risk obligation audit");
     prompt.template = RISK_AUDIT.into();
     prompt.role = "You are the risk auditor of a code review system. You look only for ways \
                    the change could break the obligation below, including guards or effects \
@@ -169,10 +216,11 @@ pub fn assessment(context: &Context, obligation: &PlannedObligation) -> Prompt {
 pub fn review(
     context: &Context,
     obligations: &[&PlannedObligation],
+    preferences: &[&PlannedPreference],
     assessed: &[usize],
     unit: &str,
 ) -> Prompt {
-    let mut prompt = discovery(context, obligations, unit);
+    let mut prompt = discovery(context, obligations, preferences, unit);
     prompt.template = REVIEW.into();
     prompt.role = "You are the reviewer of a code review system. You assess accepted rules \
                    criterion by criterion and propose checkable hypotheses about defects, rule \
@@ -191,31 +239,41 @@ pub fn review(
     for &i in assessed {
         let _ = writeln!(assess, "- ob-{}\n{}", i + 1, criteria_text(obligations[i]));
     }
+    let mut rest = format!(
+        "# Obligations of this change\n{}",
+        obligations_text(obligations)
+    );
+    if !preferences.is_empty() {
+        let _ = write!(
+            rest,
+            "\n# Preferences of this change\n{}",
+            preferences_text(preferences)
+        );
+    }
+
+    let _ = write!(rest, "\n# Assess\n{assess}");
     prompt.task = task(
         "Assess the listed obligations and review the change in the spans below. Old (BASE) \
          and new (HEAD) sides are both shown where they exist.",
         context,
-        &format!(
-            "# Obligations of this change\n{}\n# Assess\n{assess}",
-            obligations_text(obligations)
-        ),
+        &rest,
     );
     prompt
 }
 
 /// Verdicts for candidates of one unit; candidate text is model output, so it is data too.
-/// `obligations` are the unit's accepted rules, so a violation is judged against their text.
+/// `obligations` and `preferences` are the unit's accepted rules and preferences.
 pub fn verify(
     context: &Context,
     candidates: &[Candidate],
     obligations: &[&PlannedObligation],
+    preferences: &[&PlannedPreference],
 ) -> Prompt {
     let listing: Vec<DataBlock> = candidates
         .iter()
         .enumerate()
-        .map(|(i, c)| DataBlock {
-            label: format!("cand-{} (unverified hypothesis)", i + 1),
-            content: serde_json::json!({
+        .map(|(i, c)| {
+            let mut item = serde_json::json!({
                 "category": c.category,
                 "claim": c.claim,
                 "conditions": c.conditions,
@@ -226,12 +284,52 @@ pub fn verify(
                 "anchors": c.anchors.iter()
                     .map(|a| format!("{} {}:{}-{}", side_name(a.side), a.path, a.start_line, a.end_line))
                     .collect::<Vec<_>>(),
-            })
-            .to_string(),
+            });
+            if !c.preference_ids.is_empty()
+                && let Some(obj) = item.as_object_mut()
+            {
+                let prefs: Vec<String> = c
+                    .preference_ids
+                    .iter()
+                    .map(|rule_id| {
+                        preferences
+                            .iter()
+                            .position(|p| p.rule_id == *rule_id)
+                            .map_or_else(|| rule_id.clone(), |idx| format!("pref-{}", idx + 1))
+                    })
+                    .collect();
+                obj.insert("preference_ids".into(), serde_json::json!(prefs));
+            }
+
+            DataBlock {
+                label: format!("cand-{} (unverified hypothesis)", i + 1),
+                content: item.to_string(),
+            }
         })
         .collect();
     let mut data = listing;
     data.extend(context.blocks.iter().cloned());
+    let mut rules_section = String::new();
+    if !obligations.is_empty() {
+        let _ = write!(
+            rules_section,
+            "# Obligations of this change\n{}",
+            obligations_text(obligations)
+        );
+    }
+
+    if !preferences.is_empty() {
+        if !rules_section.is_empty() {
+            rules_section.push('\n');
+        }
+
+        let _ = write!(
+            rules_section,
+            "# Preferences of this change\n{}",
+            preferences_text(preferences)
+        );
+    }
+
     Prompt {
         template: VERIFY.into(),
         role: "You are the verifier of a code review system. For each hypothesis you try to \
@@ -260,14 +358,7 @@ pub fn verify(
         task: task(
             "Verify each hypothesis against the spans below.",
             context,
-            &if obligations.is_empty() {
-                String::new()
-            } else {
-                format!(
-                    "# Obligations of this change\n{}",
-                    obligations_text(obligations)
-                )
-            },
+            &rules_section,
         ),
         data,
     }

@@ -234,6 +234,7 @@ fn a_new_defect_claim_goes_to_the_verifier() {
         }],
         evidence_ids: Vec::new(),
         obligation_ids: Vec::new(),
+        preference_ids: Vec::new(),
         proposed_severity: Severity::Medium,
         disproof_question: "is publish transactional?".into(),
     };

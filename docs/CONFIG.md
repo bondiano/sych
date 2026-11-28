@@ -131,7 +131,9 @@ makes a new policy id and new checkpoint keys.
 
 `review.block_on` in `.sych/config.yaml` lists globs of rule ids (`["SEC-*"]`, `["EFFECT-01", "MIG-*"]`) whose open
 findings fail the check run instead of leaving it `neutral` ([SERVER.md](SERVER.md#summary-inline-and-check-run));
-the result lists them in `blocked_by`. A run that fails before a result fails the check too, as it checked none of
+the result lists them in `blocked_by`. Naming a `kind: preference` rule literally in `review.block_on` is rejected by
+`config validate`, and `NIT` / `IMPROVEMENT` findings never enter `blocked_by` even when matched by a glob such as
+`API-*`. A run that fails before a result fails the check too, as it checked none of
 them, once a run of the change has read a policy with `block_on`; a change none of whose runs got that far stays
 `neutral` ([SERVER.md](SERVER.md#summary-inline-and-check-run)). A finding of a waived obligation does not block, as it does not raise the
 recommendation. The policy comes from the target tip, so a change cannot lift its own block. Unset, the review stays
@@ -229,9 +231,17 @@ are skipped.
 
 ### Preferences and nitpicks
 
-`kind: preference` is never required and never creates an obligation; a nitpick without a `rule_id` is allowed. The verifier
-accepts NIT/IMPROVEMENT at no higher than `LOW` and only with a concrete location, so a nit does not change the recommendation; zero
-nitpicks is a normal result.
+`kind: preference` is never required, cannot declare `severity_on_violation` above `low`, and never creates an
+obligation or ends in `UNKNOWN`. Preferences matched to a review unit (by `applies_to.paths` on either side or a
+semantic caller/reference link) are passed to discovery, combined review and verification under
+`# Preferences of this change` as `pref-1`, `pref-2`, …, together with any `rationale` and `contract_refs`; units
+with no matched preferences omit the section so their prompt hashes stay unchanged. Confirmed preference findings keep
+`NIT` or `IMPROVEMENT`, `severity <= LOW`, `support: PREFERENCE`, and `rule_id` set to the preference's id across JSON,
+Markdown, SARIF, the GitHub summary and quality analytics; a nitpick without a `rule_id` is still allowed, and zero
+nitpicks is a normal result. Active `exceptions[]` and server waivers on a preference keep the finding in
+`ReviewResult.findings` and record `{rule_id}: waived by {owner} ({reason}); the finding is kept` in `limitations`
+(expired or non-covering exceptions are noted in `limitations` as well), without changing `Coverage` or
+`Recommendation`.
 
 ### Exceptions
 

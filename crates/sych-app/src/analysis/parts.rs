@@ -8,29 +8,46 @@ use futures_util::stream::{self, StreamExt};
 use sych_core::analysis::{Context, Discovered, HistoryRole, with_prior_revision};
 use sych_core::broker::{EvidencePacket, REQUIRED_OVER_BUDGET};
 use sych_core::model::{Ledger, ModelProvider, Prompt};
-use sych_core::{CodeRef, ObligationId, PlannedObligation, SchemaVersion};
+use sych_core::{CodeRef, ObligationId, PlannedObligation, PlannedPreference, SchemaVersion};
 
 use super::{AnalysisRecord, Engine, Outcome, PassStatus};
 
 /// A pass and its part of the outcome.
 pub(super) type Task<'a, T> = LocalBoxFuture<'a, (Outcome, T)>;
 
-/// A discovery batch that assesses obligations it shows whole: its context, the obligations
-/// linked to it and the indices of those it assesses.
-pub(super) type Combined<'a> = (
-    &'a Vec<usize>,
-    Context,
-    Vec<&'a PlannedObligation>,
-    Vec<usize>,
-);
+/// Accepted invariant obligations and repository preferences matched to a batch's units.
+#[derive(Clone, Default)]
+pub(super) struct BatchRules<'a> {
+    pub obligations: Vec<&'a PlannedObligation>,
+    pub preferences: Vec<&'a PlannedPreference>,
+}
+
+impl<'a> BatchRules<'a> {
+    pub fn for_obligation(obligation: &'a PlannedObligation) -> Self {
+        Self {
+            obligations: vec![obligation],
+            preferences: Vec::new(),
+        }
+    }
+
+    pub fn obligation_ids(&self) -> Vec<ObligationId> {
+        self.obligations.iter().map(|o| o.obligation.id).collect()
+    }
+
+    pub fn preference_ids(&self) -> Vec<&'a str> {
+        self.preferences
+            .iter()
+            .map(|p| p.rule_id.as_str())
+            .collect()
+    }
+}
+
+/// A discovery batch that assesses obligations it shows whole: its context, the rules
+/// linked to it and the indices of those obligations it assesses.
+pub(super) type Combined<'a> = (&'a Vec<usize>, Context, BatchRules<'a>, Vec<usize>);
 
 /// A discovery batch that also assessed obligations, waiting for verification.
-pub(super) type Reviewed<'a> = (
-    &'a Vec<usize>,
-    Vec<&'a PlannedObligation>,
-    Context,
-    Option<Discovered>,
-);
+pub(super) type Reviewed<'a> = (&'a Vec<usize>, BatchRules<'a>, Context, Option<Discovered>);
 
 /// A review and the obligations it assessed, which are assessed alone when it is cut short;
 /// a standalone assessment has none.
@@ -71,7 +88,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         &self,
         prompt: Prompt,
         batch: &[usize],
-        obligations: &[&PlannedObligation],
+        rules: &BatchRules<'_>,
         role: HistoryRole,
     ) -> Prompt {
         if self.prior_revision.is_empty() {
@@ -97,9 +114,11 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                 }
             }
         }
-        let rule_ids: Vec<&str> = obligations
+        let rule_ids: Vec<&str> = rules
+            .obligations
             .iter()
             .map(|o| o.obligation.rule_id.as_str())
+            .chain(rules.preferences.iter().map(|p| p.rule_id.as_str()))
             .collect();
         with_prior_revision(prompt, self.prior_revision, &paths, &rule_ids, role)
     }

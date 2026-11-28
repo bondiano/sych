@@ -7,12 +7,14 @@ use serde::{Deserialize, Serialize};
 use super::assess::AssessmentOutput;
 use super::context::{Anchor, Context};
 use crate::broker::{OpStatus, Operation, Ops, SymbolRef};
-use crate::effects::{EffectMatch, LedgerEntry};
 use crate::model::DataBlock;
 use crate::{
     Candidate, CandidateId, CandidateOrigin, FindingCategory, ObligationId, RepoPath, Severity,
-    SnapshotReader, SourceSide, VerificationStatus, derived_uuid, glob_match,
+    SnapshotReader, SourceSide, VerificationStatus, derived_uuid,
 };
+
+mod asks;
+pub use asks::{context_asks, drop_fixture_claims, effect_asks, refuting_asks};
 
 /// Context asks answered per discovery call; the rest are rejected by count.
 pub const MAX_CONTEXT_ASKS: usize = 4;
@@ -29,8 +31,29 @@ pub struct DiscoveryOutput {
     pub unresolved_questions: Vec<String>,
 }
 
+fn require_preference_ids(schema: &mut schemars::Schema) {
+    if let Some(prop) = schema
+        .get_mut("properties")
+        .and_then(|p| p.get_mut("preference_ids"))
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        prop.remove("default");
+    }
+
+    if let Some(req) = schema
+        .get_mut("required")
+        .and_then(serde_json::Value::as_array_mut)
+    {
+        let key = serde_json::Value::String("preference_ids".into());
+        if !req.contains(&key) {
+            req.push(key);
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[schemars(transform = require_preference_ids)]
 pub struct CandidateDraft {
     pub category: FindingCategory,
     /// One short checkable statement.
@@ -44,6 +67,9 @@ pub struct CandidateDraft {
     pub anchors: Vec<Anchor>,
     pub evidence_ids: Vec<String>,
     pub obligation_ids: Vec<String>,
+    /// `pref-N` from `# Preferences of this change`, or empty; required in strict JSON Schema.
+    #[serde(default)]
+    pub preference_ids: Vec<String>,
     pub proposed_severity: Severity,
     /// What mechanism could have preserved the behaviour.
     pub disproof_question: String,
@@ -307,13 +333,20 @@ pub fn obligation_id(obligations: &[ObligationId], local: &str) -> Option<Obliga
     obligations.get(n.checked_sub(1)?).copied()
 }
 
-/// Keeps drafts whose anchors, evidence and obligation ids were all handed out; a draft with
-/// any invented reference is refused whole rather than repaired.
+/// Preferences a prompt may link to, under local ids `pref-N`.
+pub fn preference_id<'a>(preferences: &'a [&str], local: &str) -> Option<&'a str> {
+    let n: usize = local.strip_prefix("pref-")?.parse().ok()?;
+    preferences.get(n.checked_sub(1)?).copied()
+}
+
+/// Keeps drafts whose anchors, evidence, obligation and preference ids were all handed out; a
+/// draft with any invented reference is refused whole rather than repaired.
 pub fn validate(
     output: DiscoveryOutput,
     origin_key: &str,
     context: &Context,
     obligations: &[ObligationId],
+    preferences: &[&str],
     reader: &dyn SnapshotReader,
 ) -> Discovered {
     let mut found = Discovered {
@@ -345,6 +378,17 @@ pub fn validate(
                 None => problems.push(format!("unknown obligation id `{local}`")),
             }
         }
+        let mut preference_ids: Vec<String> = Vec::new();
+        for local in &draft.preference_ids {
+            match preference_id(preferences, local) {
+                Some(id) => {
+                    if !preference_ids.iter().any(|p| p == id) {
+                        preference_ids.push(id.to_owned());
+                    }
+                }
+                None => problems.push(format!("unknown preference id `{local}`")),
+            }
+        }
         if !problems.is_empty() {
             found.rejected.push(RejectedDraft {
                 claim: draft.claim,
@@ -371,6 +415,7 @@ pub fn validate(
             refutation: draft.disproof_question,
             evidence_ids,
             obligation_ids,
+            preference_ids,
             verification_status: VerificationStatus::Pending,
             limitations: Vec::new(),
             verdicts: Vec::new(),
@@ -378,143 +423,4 @@ pub fn validate(
     }
     (found.asks, found.rejected_asks) = context_asks(output.context_requests);
     found
-}
-
-/// Searches for what could refute candidates the verifier left open without asking: the
-/// identifiers each claim names in backticks (two per candidate, four in all), where a guard
-/// or validator elsewhere is most likely found.
-pub fn refuting_asks(open: &[Candidate]) -> Vec<ContextAsk> {
-    let identifier = |t: &&str| {
-        (3..=64).contains(&t.len())
-            && t.chars().any(char::is_alphabetic)
-            && t.chars().all(|c| c.is_alphanumeric() || "_:.-".contains(c))
-    };
-    let mut queries: Vec<&str> = Vec::new();
-    for candidate in open {
-        let named = candidate
-            .claim
-            .split('`')
-            .skip(1)
-            .step_by(2)
-            .filter(identifier);
-        for query in named
-            .filter(|q| !queries.contains(q))
-            .take(2)
-            .collect::<Vec<_>>()
-        {
-            queries.push(query);
-        }
-    }
-    queries
-        .into_iter()
-        .take(4)
-        .map(|query| ContextAsk {
-            question: format!("where else is `{query}` set, checked or validated?"),
-            operation: AskOperation::SearchSource {
-                side: SourceSide::Head,
-                query: query.to_owned(),
-            },
-        })
-        .collect()
-}
-
-/// Where the change put an effect the ledger saw leave a file the candidates point at: a HEAD
-/// search for its target's last name (3 to 64 bytes, like `refuting_asks`; four in all, registered
-/// effects first), since the ledger reads only the changed files and a wrapper, worker or
-/// middleware outside them may now run it. A moved effect needs no search: the ledger already
-/// found its new place among the changed files.
-pub fn effect_asks(ledger: &[LedgerEntry], candidates: &[Candidate]) -> Vec<ContextAsk> {
-    let mut targets: Vec<(&str, &RepoPath)> = Vec::new();
-    // Registered effects first: a transaction's own BeginTx or Commit must not crowd out the
-    // outbox write the registry names.
-    let mut entries: Vec<&LedgerEntry> = ledger.iter().collect();
-    entries.sort_by_key(|e| e.registry_id.is_none());
-    for entry in entries {
-        let lost = matches!(
-            entry.matched,
-            EffectMatch::Removed | EffectMatch::Unresolved
-        );
-        let at = |path: &RepoPath| {
-            entry
-                .base
-                .iter()
-                .chain(&entry.head)
-                .any(|o| &o.code_ref.path == path)
-        };
-        let pointed = candidates
-            .iter()
-            .flat_map(|c| &c.anchors)
-            .any(|a| at(&a.path));
-        // `example.com/shop/orders.Store.AppendEvent` is called as `AppendEvent`.
-        let name = entry
-            .target
-            .rsplit(['.', '/', ':'])
-            .next()
-            .unwrap_or_default();
-        if lost
-            && pointed
-            && (3..=64).contains(&name.len())
-            && !targets.iter().any(|(n, _)| *n == name)
-        {
-            targets.push((name, &entry.path));
-        }
-    }
-    targets
-        .into_iter()
-        .take(4)
-        .map(|(name, path)| ContextAsk {
-            question: format!(
-                "effect ledger: where does `{name}`, gone from `{path}`, happen now?"
-            ),
-            operation: AskOperation::SearchSource {
-                side: SourceSide::Head,
-                query: name.to_owned(),
-            },
-        })
-        .collect()
-}
-
-/// `found` without the candidates anchored only in `fixture_paths` (labelled data such as eval
-/// cases), each kept among the refused drafts with the reason.
-pub fn drop_fixture_claims(mut found: Discovered, fixture_paths: &[String]) -> Discovered {
-    if fixture_paths.is_empty() {
-        return found;
-    }
-
-    let in_fixture = |c: &Candidate| {
-        !c.anchors.is_empty()
-            && c.anchors
-                .iter()
-                .all(|a| fixture_paths.iter().any(|g| glob_match(g, a.path.as_str())))
-    };
-    let (fixture, kept): (Vec<Candidate>, Vec<Candidate>) =
-        found.candidates.into_iter().partition(in_fixture);
-    found.candidates = kept;
-    found
-        .rejected
-        .extend(fixture.into_iter().map(|c| RejectedDraft {
-            claim: c.claim,
-            problems: vec!["anchored only in labelled fixture data (review.fixture_paths)".into()],
-        }));
-    found
-}
-
-/// The asks of one answer that are answered, at most `MAX_CONTEXT_ASKS`, and why the rest
-/// are not.
-pub fn context_asks(requests: Vec<ContextAsk>) -> (Vec<ContextAsk>, Vec<String>) {
-    let mut asks = Vec::new();
-    let mut rejected = Vec::new();
-    for (i, ask) in requests.into_iter().enumerate() {
-        if i >= MAX_CONTEXT_ASKS {
-            rejected.push(format!(
-                "`{}`: more than {MAX_CONTEXT_ASKS} context requests",
-                ask.question
-            ));
-        } else if ask.question.trim().is_empty() {
-            rejected.push("context request without a question".into());
-        } else {
-            asks.push(ask);
-        }
-    }
-    (asks, rejected)
 }

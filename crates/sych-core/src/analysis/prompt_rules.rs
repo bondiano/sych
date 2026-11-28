@@ -19,7 +19,8 @@ pub(super) const ASSESSMENT_RULES: [&str; 5] = [
 
 pub(super) const CANDIDATES_CONTRACT: &str = "Each candidate has category (DEFECT, RULE_VIOLATION, \
     IMPROVEMENT, NIT), claim, conditions, causal_chain, consequence, anchors, evidence_ids, \
-    obligation_ids (ob-N or empty), proposed_severity and disproof_question. A context request \
+    obligation_ids (ob-N or empty), preference_ids (pref-N from # Preferences of this change, or \
+    empty), proposed_severity and disproof_question. A context request \
     has a concrete question and one typed operation (read_lines, read_diff of another changed file, \
     find_references, find_callers, find_callees, find_implementations or search_source). Be brief: at most 4 candidates, the \
     strongest first, and 4 context requests; each text field one sentence.";
@@ -30,9 +31,10 @@ pub(super) const NIT_RULES: [&str; 4] = [
      future mistake or confusion it prevents, and the concrete edit; without all three it is not \
      a candidate. Zero nits is a fine answer; praise is never a candidate.",
     "The strongest nits keep the change consistent with what the repository already has (an \
-     existing helper, pattern, neighbouring test or convention): anchor the existing example. \
-     Stale or misleading comments, a magic number without its reason, a shadowed name, a \
-     mutated argument and a test that cannot fail are worth a nit too.",
+     existing helper, pattern, neighbouring test or convention, or a preference under \
+     # Preferences of this change linked in preference_ids): anchor the existing example or \
+     changed code. Stale or misleading comments, a magic number without its reason, a shadowed \
+     name, a mutated argument and a test that cannot fail are worth a nit too.",
     "Never remark on what rustfmt, clippy, gofmt, go vet, eslint, prettier or tsc already report \
      (formatting, import order, unused code). Prefer removing or inlining code over a new \
      abstraction; a performance nit needs a hot path or input size. Code the change does not \
@@ -86,7 +88,7 @@ const ANCHORS: &str = "Anchors name a handed-out span and lines inside it: \
     least one anchor; one without anchors is discarded. Evidence ids are the `ev-N` listed in \
     the task. Use no other ids, paths or hashes.";
 
-pub(super) const VERIFY_RULES: [&str; 8] = [
+pub(super) const VERIFY_RULES: [&str; 9] = [
     "CONFIRMED only when the shown spans establish the claim; UNRESOLVED when context is missing; \
      REJECTED when a mechanism preserves the behaviour.",
     "HIGH or CRITICAL needs a STATIC_TRACE: one anchor per step from the change to the \
@@ -94,6 +96,8 @@ pub(super) const VERIFY_RULES: [&str; 8] = [
     "Severity and support are separate: a likely but untraced problem is UNRESOLVED, not a lower \
      severity.",
     "An unfounded nit, or one that proposes no change, is REJECTED, never raised to a defect.",
+    "A candidate linked only to pref-N is a repository preference: when CONFIRMED its category \
+     is NIT or IMPROVEMENT, its severity is at most LOW and its support is PREFERENCE.",
     "If confirming a hypothesis depends on external library, ORM, framework, SQL dialect or \
      protocol behaviour not shown in the repository spans (such as tag semantics, default naming, \
      reflection rules, FK ownership or third-party API contracts), list each unverified assumption \

@@ -468,8 +468,19 @@ mod tests {
 
     #[test]
     fn a_candidate_schema_demands_an_anchor() {
-        let schema = serde_json::to_value(output_schema::<DiscoveryOutput>()).expect("json");
-        let anchors = &schema["properties"]["candidates"]["items"]["properties"]["anchors"];
-        assert_eq!(anchors["minItems"], 1, "{anchors}");
+        for schema in [
+            output_schema::<DiscoveryOutput>(),
+            output_schema::<ReviewOutput>(),
+        ] {
+            let schema = serde_json::to_value(schema).expect("json");
+            let candidate = &schema["properties"]["candidates"]["items"];
+            let anchors = &candidate["properties"]["anchors"];
+            assert_eq!(anchors["minItems"], 1, "{anchors}");
+            let required = candidate["required"].as_array().expect("required");
+            assert!(
+                required.iter().any(|r| r == "preference_ids"),
+                "{candidate}"
+            );
+        }
     }
 }

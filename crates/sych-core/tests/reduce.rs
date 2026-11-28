@@ -352,3 +352,81 @@ fn confirmed_obligation_findings_and_absorbed_violations_block_while_nits_never_
         r_optional.blocked_by
     );
 }
+
+#[test]
+fn preference_waivers_and_exceptions_record_limitations_and_keep_the_finding() {
+    let pref_yaml = "schema_version: 1\nrules:\n  - id: API-PREF\n    version: 1\n    title: Handler names\n    kind: preference\n    required: false\n    owner: api\n    applies_to:\n      paths: [\"src/api/**\"]\n    statement: Name handlers after the resource verb.\n    exceptions:\n      - paths: [\"src/api/**\"]\n        reason: migrating legacy routes\n        owner: api-lead\n        author: dev\n        expires_at: null\n        until: v2\n      - paths: [\"src/api/**\"]\n        reason: old waiver\n        owner: ops\n        author: dev\n        expires_at: \"2026-01-01T00:00:00Z\"\n        until: null\n      - paths: [\"src/other/**\"]\n        reason: wrong directory\n        owner: legacy\n        author: dev\n        expires_at: null\n        until: v2\n";
+    let mut files = PolicyFiles::default();
+    files.files.insert(
+        ".sych/rules.yaml".parse().expect("path"),
+        pref_yaml.as_bytes().to_vec(),
+    );
+    let policy = RepositoryPolicy::parse(&files, &ServerConfig::engine_default()).expect("policy");
+    let manifest = DiffManifest {
+        schema_version: SchemaVersion,
+        method: "fixture".into(),
+        diff_base: oid('a'),
+        head: oid('b'),
+        files: vec![changed("src/api/orders.rs")],
+        omissions: Vec::new(),
+    };
+    let mut pref_plan = plan(&snapshot(), &manifest, &policy, &RunFacts::default());
+    // Also simulate a server-recorded waiver appended onto the planned preference.
+    pref_plan.preferences[0].exceptions.push(RuleException {
+        paths: vec!["src/api/orders.rs".into()],
+        reason: "accepted in PR".into(),
+        owner: "server-owner".into(),
+        author: "reviewer".into(),
+        expires_at: None,
+        until: Some("next release".into()),
+    });
+
+    let ev = anchored("src/api/orders.rs");
+    let mut finding = violated(&two_file_plan(), &ev, &[], &[]).findings.remove(0);
+    finding.category = FindingCategory::Nit;
+    finding.severity = Severity::Low;
+    finding.support = sych_core::Support::Preference;
+    finding.rule_id = Some("API-PREF".into());
+    finding.obligation_ids.clear();
+
+    let r = reduce(&ReduceInput {
+        plan: &pref_plan,
+        assessments: &[],
+        evidence: slice::from_ref(&ev),
+        findings: slice::from_ref(&finding),
+        candidates: &[],
+        task_gaps: &[],
+        questions: &[],
+        outcome: ExecutionOutcome::PlanExecuted,
+        attention_threshold: DEFAULT_ATTENTION_THRESHOLD,
+        now: at(),
+        block_on: &["API-*".to_owned()],
+    });
+    assert_eq!(
+        r.findings.len(),
+        1,
+        "waived preference finding stays in findings"
+    );
+    assert_eq!(r.findings[0].rule_id.as_deref(), Some("API-PREF"));
+    assert_eq!(r.findings[0].severity, Severity::Low);
+    assert_eq!(r.coverage, sych_core::Coverage::CompleteForScope);
+    assert_eq!(r.recommendation, Recommendation::NoBlockingFindingsInScope);
+    assert!(
+        r.unresolved_questions.is_empty(),
+        "{:?}",
+        r.unresolved_questions
+    );
+    assert_eq!(r.blocked_by, [] as [FindingId; 0]);
+    let lims = &r.findings[0].limitations;
+    for expected in [
+        "API-PREF: waived by api-lead (migrating legacy routes); the finding is kept",
+        "API-PREF: waived by server-owner (accepted in PR); the finding is kept",
+        "exception by ops expired at 2026-01-01T00:00:00Z: old waiver",
+        "exception by legacy does not cover src/api/orders.rs: wrong directory",
+    ] {
+        assert!(
+            lims.iter().any(|l| l == expected),
+            "missing `{expected}` in {lims:?}"
+        );
+    }
+}

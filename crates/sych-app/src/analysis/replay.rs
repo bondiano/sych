@@ -1,10 +1,11 @@
 //! The verifier alone, over candidates frozen from an earlier run of the same snapshot: an old
 //! and a new verifier judge identical candidates, whatever discovery would find this time.
 
+use sych_core::VerificationStatus;
 use sych_core::analysis::{Discovered, merge_overlapping};
 use sych_core::model::{Ledger, ModelProvider};
-use sych_core::{PlannedObligation, VerificationStatus};
 
+use super::parts::BatchRules;
 use super::{Engine, Outcome};
 
 impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
@@ -25,19 +26,23 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
                 candidate.verdicts.clear();
             }
             let batch = found.batch.clone();
-            let (mut context, linked): (_, Vec<&PlannedObligation>) = match found.audit {
+            let (mut context, rules) = match found.audit {
                 Some(id) => (
                     self.context(first),
-                    self.plan
-                        .obligations
-                        .iter()
-                        .filter(|o| o.obligation.id == id)
-                        .collect(),
+                    BatchRules {
+                        obligations: self
+                            .plan
+                            .obligations
+                            .iter()
+                            .filter(|o| o.obligation.id == id)
+                            .collect(),
+                        preferences: Vec::new(),
+                    },
                 ),
                 None => self.batch_view(&batch),
             };
             self.answer(first, &found.asks, &mut context, &mut out);
-            self.verify(&batch, &linked, context, Some(found), &mut out)
+            self.verify(&batch, &rules, context, Some(found), &mut out)
                 .await;
         }
         out.findings = merge_overlapping(out.findings);
