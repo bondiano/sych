@@ -32,21 +32,33 @@ jobs:
           # Ubuntu 22.04 keeps the glibc floor at 2.35.
           - target: x86_64-unknown-linux-gnu
             runner: ubuntu-22.04
+            rustup_sha256: 20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c
           - target: aarch64-unknown-linux-gnu
             runner: ubuntu-22.04-arm
+            rustup_sha256: e3853c5a252fca15252d07cb23a1bdd9377a8c6f3efa01531109281ae47f841c
           - target: aarch64-apple-darwin
             runner: macos-15
+            rustup_sha256: 20ef5516c31b1ac2290084199ba77dbbcaa1406c45c1d978ca68558ef5964ef5
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ env.TAG }}
           persist-credentials: false
       - name: Install the pinned Rust toolchain
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          RUSTUP_SHA256: ${{ matrix.rustup_sha256 }}
         run: |
           if ! command -v rustup >/dev/null; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+            curl --proto '=https' --tlsv1.2 -fsSL -o rustup-init \
+              "https://static.rust-lang.org/rustup/archive/1.28.2/${TARGET}/rustup-init"
+            echo "${RUSTUP_SHA256}  rustup-init" | shasum -a 256 -c -
+            chmod +x rustup-init
+            ./rustup-init -y --profile minimal --default-toolchain none
+            rm -f rustup-init
             echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
             export PATH="$HOME/.cargo/bin:$PATH"
           fi
@@ -69,7 +81,7 @@ jobs:
           cp "$bin" LICENSE README.md "dist/$name/"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
           (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sych-${{ matrix.target }}
           path: dist/*.tar.gz*
@@ -82,7 +94,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: dist
           merge-multiple: true
@@ -101,12 +113,12 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ env.TAG }}
           persist-credentials: false
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

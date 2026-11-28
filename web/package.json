@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "vite",
     "gen:api": "openapi-typescript ../schemas/openapi.json -o src/modules/Api/schema.gen.d.ts",
-    "lint": "oxlint . && eslint . --cache --max-warnings 0",
+    "lint": "oxlint --deny-warnings . && eslint . --cache --max-warnings 0",
     "lint:fix": "oxlint . --fix && eslint . --fix --cache",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

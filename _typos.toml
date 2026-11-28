@@ -1,0 +1,27 @@
+# Spell-check policy for `typos` in `just lint`.
+# Eval suites and test fixtures plant deliberate typos (`endpont`, `servcie`), and single-file
+# HTML report bundles embed minified JS identifiers.
+
+[files]
+extend-exclude = [
+    "eval/**",
+    "fixtures/**",
+    "crates/sych-app/src/report_view/template.gen.html",
+    "docs/examples/local-review/report.html",
+    "**/pnpm-lock.yaml",
+    "**/package-lock.json",
+]
+
+[default]
+extend-ignore-re = [
+    "models\\.providers\\.openrouter\\.endpont",
+    "unknown field `endpont`",
+    'b"caf\\xe9\\n"',
+    'b64url\(b"fo"\)',
+    't\.name == "minimals"',
+    '\bUNKNOWNs\b',
+]
+
+[default.extend-words]
+edn = "edn"
+unparseable = "unparseable"

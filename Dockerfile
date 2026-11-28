@@ -22,6 +22,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && install -m 0755 target/release/sych /usr/local/bin/sych
 
 FROM docker.io/library/rust:1.100.0-slim-trixie@sha256:e9d95b74296f7126a83ae3d041aeaba1ff4c478f13abc5cc034fcf7c131c3d4a
+# Base image is digest-pinned; Debian security updates supersede exact apt package versions.
+# hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
