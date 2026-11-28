@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     CONTRACTS_DIR, ConfigError, DeploymentFile, Effect, EffectsFile, Mode, POLICY_DIR, Problems,
-    REPO_CONFIG_FILE, RepoConfig, Rule, RulesFile, ServerConfig, parse_yaml,
+    REPO_CONFIG_FILE, RepoConfig, Rule, RuleKind, RulesFile, ServerConfig, parse_yaml,
 };
 use crate::db_schema::{DbSchemaConfig, ServerSchemaLint};
 use crate::{
@@ -134,19 +134,7 @@ impl RepositoryPolicy {
         let rules = parse_file::<RulesFile>(files, &config.policy.rules_file);
         let effects = parse_file::<EffectsFile>(files, &config.policy.effects_file);
         let deployment = parse_file::<DeploymentFile>(files, &config.policy.deployment_file);
-        let schema_lint = match &config.policy.schema_lint_file {
-            Some(path) => match files.files.get(path) {
-                Some(bytes) => {
-                    let mut p = Problems::new(path.as_str());
-                    match text(&mut p, bytes) {
-                        Some(raw) => DbSchemaConfig::parse_yaml(path.as_str(), raw).map(Some),
-                        None => Err(p.errors),
-                    }
-                }
-                None => Ok(None),
-            },
-            None => Ok(None),
-        };
+        let schema_lint = parse_schema_lint(files, config.policy.schema_lint_file.as_ref());
         let (rules, effects, deployment, schema_lint) =
             match (rules, effects, deployment, schema_lint) {
                 (Ok(rules), Ok(effects), Ok(deployment), Ok(schema_lint)) => {
@@ -164,6 +152,7 @@ impl RepositoryPolicy {
             let mut p = Problems::new(config.policy.rules_file.as_str());
             rules.validate(&mut p, &refs);
             errors.append(&mut p.errors);
+            check_block_on_preferences(&config.review.block_on, &rules.rules, &mut errors);
         }
 
         if let Some(effects) = &effects {
@@ -185,6 +174,38 @@ impl RepositoryPolicy {
             contracts,
             contract_texts,
         })
+    }
+}
+
+fn parse_schema_lint(
+    files: &PolicyFiles,
+    path: Option<&RepoPath>,
+) -> Result<Option<DbSchemaConfig>, Vec<ConfigError>> {
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let Some(bytes) = files.files.get(path) else {
+        return Ok(None);
+    };
+    let mut p = Problems::new(path.as_str());
+    let Some(raw) = text(&mut p, bytes) else {
+        return Err(p.errors);
+    };
+    DbSchemaConfig::parse_yaml(path.as_str(), raw).map(Some)
+}
+
+fn check_block_on_preferences(block_on: &[String], rules: &[Rule], errors: &mut Vec<ConfigError>) {
+    for (i, pattern) in block_on.iter().enumerate() {
+        if rules
+            .iter()
+            .any(|r| r.kind == RuleKind::Preference && r.id == *pattern)
+        {
+            errors.push(ConfigError::new(
+                REPO_CONFIG_FILE,
+                format!("review.block_on[{i}]"),
+                &format!("`{pattern}` is a preference rule and cannot block a review"),
+            ));
+        }
     }
 }
 

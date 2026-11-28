@@ -23,7 +23,8 @@ pub use context::{Anchor, Context, Move, Moves, moves, packet_evidence};
 pub use discovery::{
     Answered, AskOperation, CANDIDATE_OVERFLOW, CandidateDraft, ContextAsk, Discovered,
     DiscoveryOutput, MAX_CONTEXT_ASKS, RejectedDraft, ReviewOutput, context_asks,
-    drop_fixture_claims, effect_asks, obligation_id, refuting_asks, validate as validate_discovery,
+    drop_fixture_claims, effect_asks, obligation_id, preference_id, refuting_asks,
+    validate as validate_discovery,
 };
 pub use history::{
     DismissedFindingSummary, HistoryRole, PriorFindingSummary, PriorRevisionContext,

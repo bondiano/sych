@@ -38,6 +38,8 @@ pub struct Candidate {
     pub evidence_ids: Vec<EvidenceId>,
     #[serde(default)]
     pub obligation_ids: Vec<ObligationId>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub preference_ids: Vec<String>,
     pub verification_status: VerificationStatus,
     /// Why the candidate is rejected or unresolved, when it is.
     #[serde(default)]

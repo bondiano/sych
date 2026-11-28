@@ -52,6 +52,7 @@ fn an_effect_gone_from_a_candidates_file_is_searched_for_on_head() {
         "k",
         &context,
         &[],
+        &[],
         &reader,
     )
     .candidates;
@@ -102,6 +103,7 @@ fn a_registered_effect_is_searched_before_a_transactions_own_calls() {
         "k",
         &context,
         &[],
+        &[],
         &reader,
     )
     .candidates;
@@ -138,6 +140,7 @@ fn a_candidate_anchored_only_in_fixture_data_is_dropped_with_the_reason() {
             ),
             "k",
             &context,
+            &[],
             &[],
             &reader,
         )

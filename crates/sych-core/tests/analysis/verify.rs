@@ -31,7 +31,7 @@ fn candidates(reader: &Reader, context: &Context, n: usize) -> Vec<sych_core::Ca
     let output = discovery(
         json!({"candidates": vec![one; n], "context_requests": [], "unresolved_questions": []}),
     );
-    validate_discovery(output, "k", context, &[], reader).candidates
+    validate_discovery(output, "k", context, &[], &[], reader).candidates
 }
 
 #[test]
@@ -466,6 +466,7 @@ fn obligation_linked_findings_populate_rule_id_and_preserve_it_on_overlap_merge(
         "k",
         &context,
         &[ob_id],
+        &[],
         &reader,
     );
     let mut violation_verdict = verdict(

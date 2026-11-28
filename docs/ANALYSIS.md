@@ -103,7 +103,8 @@ question about a concrete scenario instead of an assertion.
 The prompt is assembled from trusted layers: role → output contract → rules → task; the accepted rules at the target tip are
 trusted task text. Source code, the packet gaps and hypothesis texts appear only in DATA blocks with a fence derived from the content
 hash. Each packet span is shown with line numbers under a local id `ref-N`; evidence is `ev-N` (`ev-1` is the
-source spans of this prompt), obligations are `ob-N`, criteria are `c-N`, candidates are `cand-N`. The model does not write
+source spans of this prompt), obligations are `ob-N`, matched repository preferences are `pref-N` (omitted when none
+apply to the batch's units), criteria are `c-N`, candidates are `cand-N`. The model does not write
 paths, hashes or evidence ids: an anchor is `{ref_id, start_line, end_line}` within a given span, and the engine
 builds the `CodeRef` itself through the snapshot reader with a hash check.
 A further DATA block lists every hunk of each changed file the spans show (`-start,count +start,count` and the lines
@@ -144,7 +145,7 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
 ## Engine checks
 
 - **Discovery** ([`analysis/discovery.rs`](../crates/sych-core/src/analysis/discovery.rs)): a candidate with at least
-  one fabricated reference (`ref`, lines outside the span, `ev`, `ob`) or without an anchor is rejected entirely, not
+  one fabricated reference (`ref`, lines outside the span, `ev`, `ob`, `pref`) or without an anchor is rejected entirely, not
   corrected; the schema requires at least one anchor (`minItems: 1`) so that upstream constrained decoding does not return
   an empty array. More than 20 candidates is `CANDIDATE_OVERFLOW`: the extra ones are dropped, which is a gap and `LIMIT_REACHED`
   (coverage `PARTIAL`); more than 4 context requests are rejected by count. The model's `unresolved_questions` go
@@ -185,8 +186,9 @@ exactly these spans if no required span was excluded, otherwise `PARTIAL`. The p
   verdict is `UNRESOLVED`; `CONFIRMED` with at least one unrecognized reference (`ref`, lines outside the span, `ev`) is
   also `UNRESOLVED`. `CONFIRMED` is accepted if there is an anchor and the basis is admissible:
   `EXECUTED_COUNTEREXAMPLE` is impossible (nothing was executed), `PREFERENCE` does not support a defect,
-  nit/improvement is no higher than `LOW`, `HIGH/CRITICAL` requires a `STATIC_TRACE` of at least two anchors
-  (`HIGH_RISK_WITHOUT_TRACE`). An anchor on a line that already has an imported diagnostic leaves the candidate
+  nit/improvement is no higher than `LOW`, a candidate linked only to `pref-N` requires `NIT` or `IMPROVEMENT` at most
+  `LOW` with `PREFERENCE` support (setting `Finding.rule_id` to that preference), and `HIGH/CRITICAL` requires a
+  `STATIC_TRACE` of at least two anchors (`HIGH_RISK_WITHOUT_TRACE`). An anchor on a line that already has an imported diagnostic leaves the candidate
   `UNRESOLVED` (`DUPLICATES_EXISTING_DIAGNOSTIC`): without a comparable baseline, novelty is not proven. A rejected
   nit goes to `rejected_candidates` and is not promoted.
 - **Findings**: severity, support and verification status are separate fields; every finding has the limitation

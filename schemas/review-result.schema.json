@@ -259,6 +259,12 @@
         "origin": {
           "$ref": "#/$defs/CandidateOrigin"
         },
+        "preference_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "proposed_severity": {
           "description": "The proposer's guess; the verifier sets the finding's severity.",
           "$ref": "#/$defs/Severity"

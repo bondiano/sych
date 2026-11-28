@@ -557,6 +557,12 @@
           "origin": {
             "$ref": "#/components/schemas/CandidateOrigin"
           },
+          "preference_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "proposed_severity": {
             "$ref": "#/components/schemas/Severity",
             "description": "The proposer's guess; the verifier sets the finding's severity."

@@ -13,6 +13,7 @@ use sych_core::model::{
 };
 use sych_core::{Candidate, CodeRef, ObligationId, PlannedObligation, VerificationStatus};
 
+use super::parts::BatchRules;
 use super::redo::{turned_away, turned_away_pass};
 use super::{AskAnswer, Engine, MAX_REFS_PER_ANSWER, Outcome, Pass, PassStatus};
 
@@ -86,10 +87,11 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         }
 
         let context = self.context(index);
+        let rules = BatchRules::for_obligation(planned);
         let prompt = self.with_prior(
             prompts::assessment(&context, planned),
             &[index],
-            &[planned],
+            &rules,
             HistoryRole::Reviewer,
         );
         let outcome = self
@@ -112,12 +114,12 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         unseen_violation(record, &unseen_spans(&self.facts.syntax))
     }
 
-    /// One call for discovery over `batch` and the assessments of `linked[assessed]`, leaving
-    /// `kept` attempts to later passes; its asks are answered later, by [`Engine::expand`].
+    /// One call for discovery over `batch` and the assessments of `rules.obligations[assessed]`,
+    /// leaving `kept` attempts to later passes; its asks are answered later, by [`Engine::expand`].
     pub(super) async fn review(
         &self,
         batch: &[usize],
-        linked: &[&PlannedObligation],
+        rules: &BatchRules<'_>,
         assessed: &[usize],
         context: Context,
         kept: u32,
@@ -127,14 +129,15 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             intent::with_intent(
                 self.hunting(prompts::review(
                     &context,
-                    linked,
+                    &rules.obligations,
+                    &rules.preferences,
                     assessed,
                     &self.title(batch),
                 )),
                 self.intent,
             ),
             batch,
-            linked,
+            rules,
             HistoryRole::Reviewer,
         );
         // A cut multi-unit review is split by the engine instead of asked again.
@@ -157,7 +160,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             Err(failure) => (Err(failure), None),
         };
         for &i in assessed {
-            let (planned, ob) = (linked[i], format!("ob-{}", i + 1));
+            let (planned, ob) = (rules.obligations[i], format!("ob-{}", i + 1));
             let record = match &assessments {
                 Ok(list) => {
                     let mut found = list.iter().filter(|a| a.obligation_id == ob);
@@ -187,12 +190,13 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
             out.assessments.push(record.assessment.clone());
             out.record.assessments.push(record);
         }
-        let ids: Vec<ObligationId> = linked.iter().map(|o| o.obligation.id).collect();
+        let ids = rules.obligation_ids();
+        let prefs = rules.preference_ids();
         let key = format!("{}:{batch:?}", prompts::REVIEW);
         let found = discovery.map(|d| Discovered {
             batch: batch.to_vec(),
             ..drop_fixture_claims(
-                validate_discovery(d, &key, &context, &ids, self.snap),
+                validate_discovery(d, &key, &context, &ids, &prefs, self.snap),
                 self.fixture_paths,
             )
         });
@@ -211,7 +215,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         obligation: Option<ObligationId>,
         prompt: &Prompt,
         context: &Context,
-        obligations: &[ObligationId],
+        rules: &BatchRules<'_>,
         kept: u32,
         out: &mut Outcome,
     ) -> Option<Discovered> {
@@ -234,11 +238,13 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         };
         record(out, &prompt.template, batch, obligation, &outcome);
         let key = format!("{}:{batch:?}", prompt.template);
+        let ids = rules.obligation_ids();
+        let prefs = rules.preference_ids();
         let found = Discovered {
             batch: batch.to_vec(),
             audit: obligation,
             ..drop_fixture_claims(
-                validate_discovery(outcome.value.ok()?, &key, context, obligations, self.snap),
+                validate_discovery(outcome.value.ok()?, &key, context, &ids, &prefs, self.snap),
                 self.fixture_paths,
             )
         };
@@ -281,7 +287,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     pub(super) async fn verify(
         &self,
         batch: &[usize],
-        obligations: &[&PlannedObligation],
+        rules: &BatchRules<'_>,
         mut context: Context,
         found: Option<Discovered>,
         out: &mut Outcome,
@@ -302,19 +308,13 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         self.answer(batch[0], &moved, &mut context, out);
         let mut first = self.part();
         let round = match self
-            .verify_round(
-                batch,
-                obligations,
-                &context,
-                found.candidates.clone(),
-                &mut first,
-            )
+            .verify_round(batch, rules, &context, found.candidates.clone(), &mut first)
             .await
         {
             // Turned away by the provider, it is asked once more after the cooldown.
             Err(failure) if turned_away(&failure) && self.rested().await => {
                 out.absorb_cut(first);
-                self.verify_round(batch, obligations, &context, found.candidates.clone(), out)
+                self.verify_round(batch, rules, &context, found.candidates.clone(), out)
                     .await
             }
             round => {
@@ -351,10 +351,7 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
         if !asks.is_empty() && !open.is_empty() {
             self.answer(batch[0], &asks, &mut context, out);
             // A failed second round keeps the first verdicts.
-            if let Ok((_, again)) = self
-                .verify_round(batch, obligations, &context, open, out)
-                .await
-            {
+            if let Ok((_, again)) = self.verify_round(batch, rules, &context, open, out).await {
                 verified
                     .candidates
                     .retain(|c| !again.candidates.iter().any(|a| a.id == c.id));
@@ -371,15 +368,15 @@ impl<P: ModelProvider, L: Ledger> Engine<'_, P, L> {
     async fn verify_round(
         &self,
         batch: &[usize],
-        obligations: &[&PlannedObligation],
+        rules: &BatchRules<'_>,
         context: &Context,
         candidates: Vec<Candidate>,
         out: &mut Outcome,
     ) -> Result<(Vec<ContextAsk>, Verified), TaskFailure> {
         let prompt = self.with_prior(
-            prompts::verify(context, &candidates, obligations),
+            prompts::verify(context, &candidates, &rules.obligations, &rules.preferences),
             batch,
-            obligations,
+            rules,
             HistoryRole::Verifier,
         );
         let outcome = self

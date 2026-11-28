@@ -5,17 +5,18 @@
 use super::Context;
 use super::prompts::discovery;
 use crate::model::{DataBlock, Prompt};
-use crate::{Candidate, PlannedObligation};
+use crate::{Candidate, PlannedObligation, PlannedPreference};
 
-pub const EXPANSION: &str = "discovery_expansion@3";
+pub const EXPANSION: &str = "discovery_expansion@4";
 
 pub fn expansion(
     context: &Context,
     obligations: &[&PlannedObligation],
+    preferences: &[&PlannedPreference],
     unit: &str,
     proposed: &[Candidate],
 ) -> Prompt {
-    let mut prompt = discovery(context, obligations, unit);
+    let mut prompt = discovery(context, obligations, preferences, unit);
     prompt.template = EXPANSION.into();
     prompt.rules.push(
         "This is a further round of the same review: the answers to your earlier context \

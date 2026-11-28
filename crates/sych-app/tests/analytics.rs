@@ -4,9 +4,14 @@
 //! none of it.
 
 use std::collections::BTreeSet;
+use std::path::Path;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};
+use sych_app::render_sarif::sarif;
+use sych_app::{render, report_view};
+use sych_core::config::PolicyDiff;
+use sych_core::effects::EffectLedger;
 
 mod fake_github;
 mod http;
@@ -267,4 +272,115 @@ async fn the_weekly_report_is_json_or_markdown_over_the_callers_repositories() {
     );
     let (_, nothing) = get(&url, "outsider", "/v1/reports/weekly").await;
     assert_eq!(nothing["latency"]["run_duration"]["n"], 0);
+}
+
+fn markdown_for(result: &sych_core::ReviewResult, repo: &Path) -> String {
+    let external = sych_core::ExternalInputManifest::freeze(
+        &result.source_snapshot_id,
+        &result.policy_snapshot_id,
+        &[],
+        now(),
+    )
+    .expect("external");
+    let evidence_manifest =
+        sych_core::EvidenceManifest::freeze(&external, &[], now()).expect("evidence");
+    let report = render::Report {
+        snapshot: None,
+        diff_manifest: None,
+        policy: sych_core::PolicySnapshot {
+            schema_version: sych_core::SchemaVersion,
+            id: result.policy_snapshot_id.clone(),
+            source: sych_core::PolicySource::EngineDefaults,
+            rules_hash: sych_core::sha256(b"r"),
+            config_hash: sych_core::sha256(b"c"),
+            authorization_policy_version: 1,
+            created_at: now(),
+        },
+        policy_review: render::PolicyReview {
+            schema_version: sych_core::SchemaVersion,
+            provenance: Vec::new(),
+            diff: PolicyDiff::default(),
+        },
+        external_input_manifest: external,
+        evidence_manifest,
+        evidence: Vec::new(),
+        semantic_facts: Vec::new(),
+        syntax_facts: Vec::new(),
+        ci_facts: Vec::new(),
+        effect_ledger: EffectLedger::default(),
+        lint_facts: Vec::new(),
+        architecture_facts: Vec::new(),
+        db_schema_facts: Vec::new(),
+        context_packets: Vec::new(),
+        review_result: result.clone(),
+    };
+    let (view, _) = report_view::build(&report, repo, sych_core::Redactor::builtin());
+    render::markdown(&report, &view)
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn preference_findings_carry_rule_id_into_quality_analytics() {
+    let w = world(None).await;
+    let head = w.branch("src/b.rs");
+    w.open_pull(&head, &w.base, false);
+    w.pr_event("d-1", "opened", &head).await;
+    w.schedule(6).await;
+    world::commit_claimed_with(&w, &head, 1, b"policy", |r| {
+        r.findings[0].category = sych_core::FindingCategory::Nit;
+        r.findings[0].severity = sych_core::Severity::Low;
+        r.findings[0].support = sych_core::Support::Preference;
+        r.findings[0].rule_id = Some("API-PREF".into());
+        r.findings[0].title = "Use domain noun".into();
+        r.findings[0].obligation_ids.clear();
+    })
+    .await;
+    w.engine.lineage_once().await.expect("lineage");
+    while w.engine.publish_once().await.expect("publish") {}
+
+    let result = w.result(0).await;
+    let json_text = render::json(&result).expect("json");
+    assert!(
+        json_text.contains("\"rule_id\": \"API-PREF\""),
+        "{json_text}"
+    );
+    let sarif_doc = sarif(&result);
+    assert_eq!(sarif_doc["runs"][0]["results"][0]["ruleId"], "API-PREF");
+    assert!(
+        sarif_doc["runs"][0]["tool"]["driver"]["rules"]
+            .as_array()
+            .expect("rules")
+            .iter()
+            .any(|r| r["id"] == "API-PREF"),
+        "{sarif_doc}"
+    );
+    let summary = fake_github::lock(&w.fake).comments[&1].1.clone();
+    assert!(
+        summary.contains("- Nit · API-PREF: Use domain noun"),
+        "{summary}"
+    );
+    let md_text = markdown_for(&result, &w.origin);
+    assert!(md_text.contains("  - rule: API-PREF"), "{md_text}");
+
+    let url = listen(&w).await;
+
+    let (_, page) = get(&url, "reader", "/v1/findings").await;
+    let item = &page["items"][0];
+    assert_eq!(item["rule_id"], "API-PREF", "{item}");
+    let finding_id = item["id"].as_i64().expect("id");
+
+    judge(&url, "lead", "pref-f1", finding_id, "USEFUL").await;
+    let (status, quality) = get(&url, "reader", "/v1/analytics/quality?since=0").await;
+    assert_eq!(status, StatusCode::OK, "{quality}");
+    assert_eq!(
+        quality["judgements"],
+        json!([{
+            "repository": "o/r",
+            "rule_id": "API-PREF",
+            "category": "NIT",
+            "severity": "LOW",
+            "judgement": "USEFUL",
+            "count": 1
+        }]),
+        "{quality}"
+    );
 }

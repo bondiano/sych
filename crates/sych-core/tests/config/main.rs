@@ -10,6 +10,7 @@ use sych_core::config::{
 use sych_core::{GitHashAlgorithm, GitObjectId, PolicySource, RepoPath, ReviewLanguage, Timestamp};
 
 mod models;
+mod preferences;
 
 const ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
 const SECRET: &str = "sk-or-v1-0123456789abcdef0123456789abcdef";

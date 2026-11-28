@@ -18,6 +18,8 @@ use sych_core::{
 
 #[path = "rules/infra.rs"]
 mod infra;
+#[path = "rules/preferences.rs"]
+mod preferences;
 
 const ORDERS_RULE: &str = "schema_version: 1\nrules:\n  - id: EFFECT-01\n    version: 1\n    title: Order event\n    kind: invariant\n    required: true\n    severity_on_violation: high\n    owner: backend\n    applies_to:\n      paths: [\"backend/orders/**\"]\n    statement: A stored order publishes order-created.\n";
 

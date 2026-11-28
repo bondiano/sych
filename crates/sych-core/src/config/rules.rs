@@ -220,6 +220,15 @@ impl RulesFile {
                 );
             }
 
+            if rule.kind == RuleKind::Preference {
+                p.check(
+                    rule.severity_on_violation
+                        .is_none_or(|s| matches!(s, RuleSeverity::Info | RuleSeverity::Low)),
+                    format!("{path}.severity_on_violation"),
+                    "a preference is at most low",
+                );
+            }
+
             check_contract_refs(p, &path, &rule.contract_refs, contracts);
             for (j, ex) in rule.exceptions.iter().enumerate() {
                 p.check(

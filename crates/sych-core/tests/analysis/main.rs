@@ -15,6 +15,7 @@ mod changes;
 mod effects;
 mod lost_names;
 mod moves;
+mod preferences;
 mod removals;
 mod verify;
 
@@ -244,7 +245,14 @@ fn discovery_keeps_only_handed_out_references() {
             "operation": {"op": "search_source", "side": "HEAD", "query": "total("}})).collect::<Vec<_>>(),
         "unresolved_questions": ["is items typed optional?", "", " is items typed optional? "]
     }));
-    let found = validate_discovery(output, "discovery@1:0", &context, &obligations, &reader);
+    let found = validate_discovery(
+        output,
+        "discovery@1:0",
+        &context,
+        &obligations,
+        &[],
+        &reader,
+    );
     assert_eq!(found.candidates.len(), 1, "{:?}", found.rejected);
     let candidate = &found.candidates[0];
     assert_eq!(
@@ -280,7 +288,7 @@ fn empty_discovery_is_a_valid_answer() {
     let (context, _) = context(&reader);
     let output =
         discovery(json!({"candidates": [], "context_requests": [], "unresolved_questions": []}));
-    let found = validate_discovery(output, "k", &context, &[], &reader);
+    let found = validate_discovery(output, "k", &context, &[], &[], &reader);
     assert!(found.candidates.is_empty() && found.rejected.is_empty());
 }
 
@@ -296,7 +304,7 @@ fn candidate_overflow_is_refused_by_count() {
     let output = discovery(
         json!({"candidates": vec![one; 22], "context_requests": [], "unresolved_questions": []}),
     );
-    let found = validate_discovery(output, "k", &context, &[], &reader);
+    let found = validate_discovery(output, "k", &context, &[], &[], &reader);
     assert_eq!(found.candidates.len(), 20);
     assert_eq!(found.rejected.len(), 2);
     assert!(found.rejected[0].problems[0].starts_with("CANDIDATE_OVERFLOW"));
