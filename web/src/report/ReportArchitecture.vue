@@ -89,16 +89,15 @@ const hasArchitecture = computed(
           <p class="font-medium text-foreground">{{ t.fixedInHead }}</p>
           <ul class="space-y-0.5">
             <li v-for="fixed in project.fixed" :key="`${fixed.check}:${fixed.key}`">
-              <span class="font-mono">{{ fixed.check }}</span
-              >: <ProseText :text="fixed.message" />
+              <span class="font-mono">{{ fixed.check }}</span>: <ProseText :text="fixed.message" />
             </li>
           </ul>
         </div>
 
         <ul v-if="project.limitations?.length" class="space-y-1 text-xs text-muted-foreground">
           <li v-for="lim in project.limitations" :key="lim">
-            <span class="font-medium text-foreground">{{ t.limitation }}</span
-            >{{ ' ' }}<ProseText :text="lim" />
+            <span class="font-medium text-foreground">{{ t.limitation }}</span>{{ ' '
+            }}<ProseText :text="lim" />
           </li>
         </ul>
       </div>

@@ -94,16 +94,16 @@ const primaryPath = computed(() => props.finding.anchors[0]?.reference.path)
       </section>
 
       <p v-if="finding.suggested_action">
-        <span class="font-medium">{{ t.suggested }}</span
-        >{{ ' ' }}<ProseText :text="finding.suggested_action" />
+        <span class="font-medium">{{ t.suggested }}</span>{{ ' '
+        }}<ProseText :text="finding.suggested_action" />
       </p>
       <p v-if="distinctRemediation">
-        <span class="font-medium">{{ t.remediation }}</span
-        >{{ ' ' }}<ProseText :text="distinctRemediation" />
+        <span class="font-medium">{{ t.remediation }}</span>{{ ' '
+        }}<ProseText :text="distinctRemediation" />
       </p>
       <p v-if="finding.validation_expectation">
-        <span class="font-medium">{{ t.toCheck }}</span
-        >{{ ' ' }}<ProseText :text="finding.validation_expectation" />
+        <span class="font-medium">{{ t.toCheck }}</span>{{ ' '
+        }}<ProseText :text="finding.validation_expectation" />
       </p>
     </div>
 
@@ -142,8 +142,8 @@ const primaryPath = computed(() => props.finding.anchors[0]?.reference.path)
 
     <ul v-if="finding.limitations?.length" class="max-w-[72ch] space-y-1 text-sm">
       <li v-for="l in finding.limitations" :key="l" class="text-muted-foreground">
-        <span class="font-medium text-foreground">{{ t.limitation }}</span
-        >{{ ' ' }}<ProseText :text="l" />
+        <span class="font-medium text-foreground">{{ t.limitation }}</span>{{ ' '
+        }}<ProseText :text="l" />
       </li>
     </ul>
 

@@ -70,8 +70,9 @@ const hasAnyGap = computed(
                 <ProseText :text="u.question" />
               </TableCell>
               <TableCell class="max-w-sm text-sm whitespace-normal text-muted-foreground">
-                <span class="font-mono text-xs text-foreground">{{ safeText(u.reason_code) }}</span
-                >: <ProseText :text="u.next_evidence_needed" />
+                <span class="font-mono text-xs text-foreground">{{
+                  safeText(u.reason_code)
+                }}</span>: <ProseText :text="u.next_evidence_needed" />
               </TableCell>
             </TableRow>
           </TableBody>
